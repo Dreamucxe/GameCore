@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup is switched off in the manifest (android:allowBackup="false"), so nothing
+  here is reachable today. It is kept, and kept explicit, so that turning backup on
+  cannot silently start shipping the encrypted database and the keystore-wrapped
+  preferences off the device: the passphrase for the SQLCipher database lives in the
+  hardware keystore and cannot leave it, which would make a restored database
+  permanently unreadable, and session history is a record of when the user plays
+  what.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

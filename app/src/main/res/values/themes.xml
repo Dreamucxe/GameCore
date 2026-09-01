@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      The base theme. Deliberately not a DayNight theme: it exists to be correct
+      for the fraction of a second before Compose paints, and GameCore's default
+      is dark. The user's saved choice is applied by Compose a frame later.
+    -->
+    <style name="Theme.GameCore" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="27">shortEdges</item>
+    </style>
+
+    <!--
+      The splash theme, from androidx.core:core-splashscreen.
+      postSplashScreenTheme is what the library swaps to once the activity is
+      ready, which is why the manifest can name this for both application and
+      activity.
+    -->
+    <style name="Theme.GameCore.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.GameCore</item>
+    </style>
+
+    <!--
+      For CaptureConsentActivity, which exists only to host the system
+      MediaProjection dialog. It must not paint anything of its own: the user
+      should see the consent sheet over whatever they were looking at, not a
+      GameCore screen that appears and vanishes.
+    -->
+    <style name="Theme.GameCore.Transparent" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

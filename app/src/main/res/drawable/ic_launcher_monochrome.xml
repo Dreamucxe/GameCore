@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Themed-icon (Android 13+) variant. A monochrome layer is tinted by the launcher,
+  so it must be a single-colour silhouette: the same geometry as the foreground with
+  every colour collapsed to opaque black.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:fillColor="#000000"
+        android:pathData="M54,26.5c15.19,0 27.5,12.31 27.5,27.5S69.19,81.5 54,81.5S26.5,69.19 26.5,54S38.81,26.5 54,26.5zM54,31.5c-12.43,0 -22.5,10.07 -22.5,22.5S41.57,76.5 54,76.5S76.5,66.43 76.5,54S66.43,31.5 54,31.5z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M52.2,16h3.6v10h-3.6zM52.2,82h3.6v10h-3.6zM16,52.2h10v3.6h-10zM82,52.2h10v3.6h-10z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M54,38l13.86,8v16L54,70l-13.86,-8v-16zM54,46.5l-6.5,3.75v7.5l6.5,3.75l6.5,-3.75v-7.5z" />
+</vector>

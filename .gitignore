@@ -1,0 +1,18 @@
+# Build output
+/build
+/app/build
+.gradle
+.kotlin
+local.properties
+
+# Release signing material. The keystore and its passwords are machine-local:
+# publishing them would let anyone ship an update that Android accepts as this
+# app. `assembleRelease` degrades to an unsigned APK when they are absent.
+keystore.properties
+*.keystore
+*.jks
+
+# IDE
+.idea
+*.iml
+.DS_Store
