@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Colours used before Compose runs, and nowhere else.
+
+  Every colour the app actually shows is defined in Kotlin
+  (ui/theme/Color.kt) because the theme is dynamic: the user picks an accent and
+  a light/dark/system mode at runtime. These four exist only for the window that
+  opens on cold start, ahead of the first composition.
+-->
+<resources>
+    <!-- The dark scheme's surface. GameCore is dark-first, so the launch window
+         matches the app rather than the system, and a device in light mode does
+         not flash white before landing on a dark UI. -->
+    <color name="window_background">#FF07090E</color>
+    <color name="splash_background">#FF07090E</color>
+    <color name="splash_icon">#FF3DDC97</color>
+    <color name="launcher_background">#FF0B0F16</color>
+</resources>

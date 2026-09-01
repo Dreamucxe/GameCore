@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings that appear outside Compose, or that must read identically in several
+  places at once.
+
+  Notification titles and bodies are the important case: a foreground-service
+  notification is built by the platform from a Context, not by a composable, and
+  the same channel name has to appear in Settings, in the shade and in the app's
+  own permission explanations. Screen copy lives beside the composable that shows
+  it, because in this app the wording and the honesty logic that chooses it are one
+  decision — "Not available on this device" is produced by the same `when` that
+  decides a value is missing, and separating the two would let them drift.
+-->
+<resources>
+    <string name="app_name">GameCore</string>
+
+    <!-- Notification channels -->
+    <string name="channel_overlay_name">Gaming overlay</string>
+    <string name="channel_overlay_description">Shown while the floating button, HUD, pill or crosshair is on screen. Android requires a visible notification for a service that draws over other apps.</string>
+    <string name="channel_session_name">Gaming session</string>
+    <string name="channel_session_description">Shown while a gaming session is being recorded.</string>
+    <string name="channel_detection_name">Game detection</string>
+    <string name="channel_detection_description">Shown while GameCore is watching for a configured game to start.</string>
+    <string name="channel_recording_name">Screen recording</string>
+    <string name="channel_recording_description">Shown while the screen is being recorded. Android requires this notification and it cannot be hidden.</string>
+    <string name="channel_monitor_name">Background monitoring</string>
+    <string name="channel_monitor_description">Shown while GameCore keeps sampling CPU, memory, battery and temperature with the app closed. Only appears if you switch background monitoring on.</string>
+    <string name="channel_alerts_name">Thermal and battery alerts</string>
+    <string name="channel_alerts_description">Warnings about device temperature or unusually fast battery drain during a session.</string>
+
+    <!-- Foreground-service notifications -->
+    <string name="notification_overlay_title">Overlay active</string>
+    <string name="notification_overlay_text">Tap to open GameCore</string>
+    <string name="notification_monitor_title">Monitoring performance</string>
+    <string name="notification_detection_title">Watching for games</string>
+    <string name="notification_detection_text">A profile will be applied when a configured game starts</string>
+    <string name="notification_session_title">Recording session</string>
+    <string name="notification_recording_title">Recording screen</string>
+    <string name="notification_recording_text">Everything on screen is being captured</string>
+    <string name="notification_action_stop">Stop</string>
+    <string name="notification_action_open">Open</string>
+
+    <!--
+      The parts of a service notification that depend on what the service found. Each of these is a
+      different state, not a nicer way of saying the same thing: "playing X" and "watching for games"
+      are what the detection service is actually doing, and a user who taps Stop should already know
+      which of the two they are stopping.
+    -->
+    <string name="notification_detection_playing">Playing %1$s</string>
+    <string name="notification_detection_tracking_only">Recording this session. Automatic profile changes are off.</string>
+    <string name="notification_session_text">Recording %1$s</string>
+    <string name="notification_session_unnamed">Recording this session</string>
+    <string name="notification_monitor_waiting">Taking the first reading</string>
+
+    <!--
+      Alerts. Both say what was measured and over what window, because a warning that just says
+      "battery draining fast" invites the user to believe GameCore can predict the rest of the evening.
+    -->
+    <string name="alert_battery_title">Fast battery drain</string>
+    <string name="alert_battery_text">GameCore has measured %1$s over the last %2$s. That is the rate it observed, not a prediction of how long the battery will last.</string>
+
+    <!--
+      Why a control-panel button cannot be used. Shown under the greyed button itself, so each one has
+      to say which of the three kinds of "no" it is: nothing to act on, hardware that is absent, or an
+      access the user can go and grant.
+    -->
+    <string name="overlay_no_hud_layout">No HUD layout saved yet</string>
+    <string name="overlay_no_session">No session is being recorded</string>
+    <string name="overlay_capture_unsupported">Screen capture is not available on this device</string>
+    <string name="overlay_no_flash">This device has no flash unit</string>
+    <string name="overlay_dnd_needs_access">GameCore needs notification policy access</string>
+    <string name="overlay_recording_in_progress">Stop the recording first</string>
+    <string name="overlay_capture_failed">Screen capture could not be started</string>
+    <string name="overlay_open_failed">GameCore could not be brought to the front</string>
+    <string name="overlay_brightness_needs_access">Needs system-settings access or Shizuku</string>
+
+    <!--
+      Screen capture. The consent dialog is the system's, so these only cover what happens on either side
+      of it: a permission the platform then refused to turn into a projection, and a device where the
+      capture APIs are missing altogether.
+    -->
+    <string name="capture_consent_failed">Screen capture permission could not be used</string>
+    <string name="capture_unsupported">Screen capture is not available on this device</string>
+</resources>

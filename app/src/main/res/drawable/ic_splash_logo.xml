@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The splash icon. androidx.core:core-splashscreen composites this on a 108dp
+  canvas and masks it to a circle of about 60dp, so the mark is drawn at the
+  smaller scale the ring survives at.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:fillColor="@color/splash_icon"
+        android:pathData="M54,32c12.15,0 22,9.85 22,22s-9.85,22 -22,22s-22,-9.85 -22,-22s9.85,-22 22,-22zM54,36c-9.94,0 -18,8.06 -18,18s8.06,18 18,18s18,-8.06 18,-18s-8.06,-18 -18,-18z" />
+    <path
+        android:fillColor="@color/splash_icon"
+        android:pathData="M52.5,24h3v8h-3zM52.5,76h3v8h-3zM24,52.5h8v3h-8zM76,52.5h8v3h-8z" />
+    <path
+        android:fillColor="@color/splash_icon"
+        android:pathData="M54,42l10.39,6v12L54,66l-10.39,-6v-12zM54,48.4l-4.85,2.8v5.6l4.85,2.8l4.85,-2.8v-5.6z" />
+</vector>

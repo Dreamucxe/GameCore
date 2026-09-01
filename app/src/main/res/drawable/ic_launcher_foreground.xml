@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The GameCore mark: a hexagonal core inside a reticle.
+
+  Drawn on the 108dp adaptive-icon canvas, with everything that matters inside the
+  central 72dp safe zone so no launcher shape clips it. The four reticle ticks stop
+  short of the corners for the same reason.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Reticle ring -->
+    <path
+        android:fillColor="#3DDC97"
+        android:pathData="M54,26.5c15.19,0 27.5,12.31 27.5,27.5S69.19,81.5 54,81.5S26.5,69.19 26.5,54S38.81,26.5 54,26.5zM54,31.5c-12.43,0 -22.5,10.07 -22.5,22.5S41.57,76.5 54,76.5S76.5,66.43 76.5,54S66.43,31.5 54,31.5z" />
+
+    <!-- Reticle ticks, at the four cardinal points -->
+    <path
+        android:fillColor="#3DDC97"
+        android:pathData="M52.2,16h3.6v10h-3.6zM52.2,82h3.6v10h-3.6zM16,52.2h10v3.6h-10zM82,52.2h10v3.6h-10z" />
+
+    <!-- The core: a hexagon, flat-topped, with a hollow centre so the mark reads
+         as a component rather than a solid blob at 24dp. -->
+    <path
+        android:fillColor="#7DF3C0"
+        android:pathData="M54,38l13.86,8v16L54,70l-13.86,-8v-16zM54,46.5l-6.5,3.75v7.5l6.5,3.75l6.5,-3.75v-7.5z" />
+</vector>

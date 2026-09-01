@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      GameCore draws over other applications. This is the special access behind
+      Settings > Apps > Special app access > Display over other apps, and every
+      overlay feature (floating button, performance pill, crosshair, HUD) checks
+      Settings.canDrawOverlays() before it tries to add a window.
+    -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!--
+      Automatic game detection. From API 28 ActivityManager.getRunningAppProcesses()
+      returns only our own process, so the only way an ordinary app can learn which
+      application is in the foreground is UsageStatsManager, which is gated behind
+      this appop-backed permission (Settings > Special app access > Usage access).
+      Without it, automatic detection is reported as unavailable and profiles must
+      be applied by hand.
+    -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!--
+      From API 30 package visibility is filtered. A game-profile app that could only
+      see a curated subset of installed applications would silently omit the game the
+      user wants to configure.
+    -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <!--
+      Brightness, rotation lock and the refresh-rate settings are writes to
+      Settings.System, which needs this special access (Settings > Special app
+      access > Modify system settings). Declared, requested only when the user asks
+      for one of those controls, and reported as unavailable until granted.
+    -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Do Not Disturb, through NotificationManager.setInterruptionFilter(). Also a
+         special access, checked with isNotificationPolicyAccessGranted(). -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+
+    <!-- Volume control through AudioManager. Normal permission, granted at install. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- Network type and connection state for the network monitor. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!--
+      The latency probe, and nothing else.
+
+      GameCore has no backend, no telemetry and no analytics. This permission exists
+      because a ping figure cannot be produced without opening a socket, and it is
+      used for exactly one thing: a TCP handshake to a host the user chooses,
+      carrying no payload, closed the moment it connects. Throughput is measured
+      passively from TrafficStats counters and needs no traffic of our own. The probe
+      only runs while something on screen is actually showing latency, and the whole
+      of the rest of the app works with the radio off.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Foreground services, one permission per declared type (API 34 requirement). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+
+    <!-- Every foreground service posts a visible notification, which needs a runtime
+         grant from API 33. Requested before any service is started. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Doze exemption. Without it the OS throttles the sampler and can kill the
+         overlay mid-session; the app asks for it when session tracking or overlays
+         are switched on and explains why rather than truncating sessions quietly. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- Shizuku declares this permission itself; GameCore requests it at runtime. -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+
+    <!-- Torch control via CameraManager.setTorchMode() needs no camera permission,
+         but the feature is optional hardware and must not gate installation. -->
+    <uses-feature
+        android:name="android.hardware.camera.flash"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <queries>
+        <!-- Shizuku/Sui, so "installed but not running" can be told apart from
+             "not installed" under API 30+ package filtering. -->
+        <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="moe.shizuku.manager" />
+        <!-- Games are found by category, which is what makes the game list a list of
+             games rather than of every installed package. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <application
+        android:name=".GameCoreApplication"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.GameCore.Starting"
+        android:usesCleartextTraffic="false"
+        tools:targetApi="34">
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|fontScale"
+            android:exported="true"
+            android:theme="@style/Theme.GameCore.Starting"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          The MediaProjection consent dialog host.
+
+          Kept as its own transparent activity because consent must be asked from an
+          Activity and the request can arrive from the floating panel while GameCore
+          itself is not on screen. Not exported: only GameCore starts it.
+
+          Deliberately *not* android:noHistory. A noHistory activity is finished as
+          soon as it stops being visible, and on the OEMs where the system consent
+          sheet is opaque rather than translucent that happens before the user has
+          answered it — the result then arrives at an activity that no longer exists
+          and the capture silently never starts. It finishes itself on every path
+          instead; excludeFromRecents and the empty taskAffinity are what keep it out
+          of recents and out of GameCore's own task.
+        -->
+        <activity
+            android:name=".ui.capture.CaptureConsentActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:taskAffinity=""
+            android:theme="@style/Theme.GameCore.Transparent" />
+
+        <!--
+          Overlay host: the floating button, the control panel, the performance pill,
+          the crosshair and the HUD are all windows added by this service.
+
+          specialUse, because none of the defined foreground-service types describes
+          drawing a gaming overlay over another application. The subtype string below
+          is the justification Android asks for.
+        -->
+        <service
+            android:name=".service.GamingOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="gaming_overlay: draws the user's configured heads-up
+                    display, performance pill, crosshair and floating control panel
+                    over the game they are playing. The windows exist only while the
+                    user has switched them on and must survive the app going to the
+                    background, which is the entire point of the feature." />
+        </service>
+
+        <!--
+          Foreground-application watcher. specialUse for the same reason: detecting
+          that a configured game has come to the foreground so its profile can be
+          applied is not a data transfer, a media playback or a location fix.
+        -->
+        <service
+            android:name=".service.GameDetectionService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="game_launch_detection: polls UsageStatsManager for the
+                    foreground package so that a configured game profile can be
+                    applied when its game starts and restored when it exits. Runs only
+                    while automatic detection is enabled and at least one profile
+                    exists." />
+        </service>
+
+        <!--
+          The metrics sampler. Runs while an overlay or the HUD needs live figures and
+          GameCore itself is not in the foreground.
+        -->
+        <service
+            android:name=".service.PerformanceMonitorService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="performance_sampling: reads CPU, memory, battery,
+                    thermal and display counters at the user's chosen interval to feed
+                    an on-screen overlay. No data leaves the device." />
+        </service>
+
+        <!--
+          Session recorder. dataSync: it processes and persists local files — the
+          per-second samples that make up a session report — for the duration of a
+          gaming session.
+        -->
+        <service
+            android:name=".service.SessionTrackingService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!--
+          Screen recording. Its own service and its own consent flow, entirely
+          separate from the overlay and screenshot paths, because MediaProjection
+          requires a mediaProjection-typed foreground service that is started only
+          after the user grants consent in the system dialog.
+        -->
+        <service
+            android:name=".service.ScreenRecordingService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
+        <!--
+          Screenshots and recordings are handed to other apps as content URIs with a
+          one-shot read grant, never as file paths, so GameCore needs no storage
+          permission on any API level.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!--
+          Shizuku's binder handshake. Points at GameCore's own guarded subclass rather
+          than rikka.shizuku.ShizukuProvider directly: Android constructs every
+          declared provider while the process starts, before Application.onCreate, so
+          a provider that throws there kills the app on launch with no screen and no
+          way to recover. ShizukuProvider.onCreate can throw — its Sui probe ends at a
+          reflected android.os.ServiceManager.getService, which hidden-API enforcement
+          may deny — and Shizuku is optional, so it is not permitted to be a single
+          point of failure.
+
+          Exported because the Shizuku server process, which is not us, has to be able
+          to call it; found by authority rather than class name, so the subclass is
+          invisible to Shizuku. Guarded by a signature-level permission no ordinary
+          app holds.
+        -->
+        <provider
+            android:name=".core.shizuku.ShizukuStartupProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"
+            tools:ignore="ExportedContentProvider" />
+    </application>
+</manifest>
