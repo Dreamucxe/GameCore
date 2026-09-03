@@ -3,6 +3,7 @@ package com.gamecore.core.shizuku
 import com.gamecore.BuildConfig
 import com.gamecore.core.common.AccessLevel
 import com.gamecore.core.common.TextSanitizer
+import com.gamecore.core.model.DisplaySize
 
 /**
  * Every command GameCore can run through an elevated shell, enumerated.
@@ -98,6 +99,19 @@ sealed class ShellCommand(
     )
 
     /**
+     * The panel's own size, and the size override sitting on it if there is one.
+     *
+     * The only place both numbers appear. `Display` and `WindowManager` report the size the app is being
+     * given, which while an override is active is the override — so from inside the process there is no way
+     * to tell a 1080×1440 phone from a 1080×2400 phone that has been stretched, and no way to know what
+     * "back to native" would mean. Two lines of this command's output answer both, which is why it is read
+     * before a size is set as well as after.
+     */
+    data object GetDisplaySize : ShellCommand(
+        listOf("wm", "size"), "Read the display size and any override", Effect.READ_ONLY,
+    )
+
+    /**
      * SurfaceFlinger's frame timing, which is the only non-root source of
      * whole-device frame data that exists.
      *
@@ -189,9 +203,9 @@ sealed class ShellCommand(
      *
      * This is the whole of GameCore's write surface, and it is narrow on purpose:
      * only the keys enumerated in [WritableSetting] are reachable, each is a
-     * documented `Settings.System`/`Settings.Global` key, each value is checked
-     * against that key's declared form before the command is built, and each is
-     * paired with a [GetSetting] read taken beforehand so the write can be undone
+     * documented `Settings.System`/`Settings.Global`/`Settings.Secure` key, each value
+     * is checked against that key's declared form before the command is built, and each
+     * is paired with a [GetSetting] read taken beforehand so the write can be undone
      * when the game exits.
      */
     class PutSetting private constructor(
@@ -279,6 +293,56 @@ sealed class ShellCommand(
     }
 
     /**
+     * Sets the display's logical size, which is what the aspect-ratio feature is.
+     *
+     * `wm` is the fourth program with write authority here, and the narrowest: `size` is the only
+     * subcommand reachable, and the only argument it can be given is a pair of pixel counts. Its siblings
+     * are absent for the same reason the three families named at the top of this file are — `wm density`
+     * leaves a device whose UI is too large or too small to operate, from a value the user cannot see to
+     * correct; `wm dismiss-keyguard` unlocks a screen the user locked. Neither is a game setting.
+     *
+     * A size override outlives the process that set it and the reboot after it, so this is also the command
+     * with the longest reach in the file. That is why the bounds below are checked here rather than only at
+     * the call site, why [ResetDisplaySize] exists as its own case rather than as a magic argument, and why
+     * the controller records the previous size before writing.
+     */
+    class SetDisplaySize private constructor(val size: DisplaySize) : ShellCommand(
+        listOf("wm", "size", size.argument),
+        "Set the display size to ${size.label}",
+        Effect.CHANGES_SETTING,
+    ) {
+        companion object {
+            /**
+             * Null on anything that is not a plausible size for a screen.
+             *
+             * The lower bound is [DisplaySize.MIN_SIDE], the same floor the editor refuses; the upper one is
+             * larger than any panel that exists. Whether a size suits *this* display is a separate question
+             * that needs the panel's own size to answer — [DisplaySize.rejectionFor] does that, and this
+             * check stands whether or not it was asked.
+             */
+            fun of(size: DisplaySize): SetDisplaySize? =
+                if (size.shortSide >= DisplaySize.MIN_SIDE && size.longSide <= MAX_SIDE_PIXELS) {
+                    SetDisplaySize(size)
+                } else {
+                    null
+                }
+
+            private const val MAX_SIDE_PIXELS = 16_384
+        }
+    }
+
+    /**
+     * Clears the size override, whoever set it.
+     *
+     * The undo, and deliberately not `wm size <the physical size>`: an override that happens to equal the
+     * panel is still an override, still a row in the display settings, and still something a later reader
+     * would report as a stretched display. Reset removes it instead.
+     */
+    data object ResetDisplaySize : ShellCommand(
+        listOf("wm", "size", "reset"), "Clear the display size override", Effect.CHANGES_SETTING,
+    )
+
+    /**
      * The call-site surface.
      *
      * Each of these delegates to the validating factory on the command it builds, so
@@ -310,6 +374,9 @@ sealed class ShellCommand(
 
         fun getProp(prop: ReadableProperty): GetProp = GetProp.of(prop)
 
+        /** Null when the size is not a plausible screen. See [SetDisplaySize.of]. */
+        fun setDisplaySize(size: DisplaySize): SetDisplaySize? = SetDisplaySize.of(size)
+
         fun frameStats(packageName: String): GfxInfoFrameStats? =
             GfxInfoFrameStats.of(packageName)
 
@@ -332,10 +399,25 @@ sealed class ShellCommand(
     }
 }
 
-/** The two settings tables GameCore touches. `secure` is not among them. */
+/**
+ * The three settings tables GameCore touches.
+ *
+ * `secure` was deliberately absent until the colour-correction feature needed it, and it
+ * is worth writing down why it is admissible now. WRITE_SECURE_SETTINGS is declared
+ * `signature|privileged|development`, and it is that third flag that matters: a
+ * development permission can be granted by `pm grant` from a shell running as uid 2000,
+ * which is exactly the authority Shizuku provides. Once granted it does not expire, so
+ * the app then writes `Settings.Secure` in its own process — which is the only path fast
+ * enough for a slider that applies as it moves.
+ *
+ * The keys reachable in this namespace are still only the ones enumerated in
+ * [WritableSetting], each is still read back after the write, and each is still paired
+ * with a restore point taken beforehand.
+ */
 enum class SettingsNamespace(val token: String) {
     SYSTEM("system"),
     GLOBAL("global"),
+    SECURE("secure"),
 }
 
 /**
@@ -344,10 +426,11 @@ enum class SettingsNamespace(val token: String) {
  * Two things are collapsed into one list on purpose. Some of these keys are
  * writable by an ordinary app that holds WRITE_SETTINGS (brightness, rotation,
  * screen timeout) and some are not writable without ADB-level authority at all
- * (the refresh-rate bounds, the animation scales, battery saver). Both paths write
- * *the same keys with the same validation*, so the allow-list and the range checks
- * live here once, and [requiredAccess] is what the capability layer reads to tell
- * the user which of the two paths a given profile setting needs on their device.
+ * (the refresh-rate bounds, the animation scales, battery saver, and every colour
+ * key in `secure`). Both paths write *the same keys with the same validation*, so the
+ * allow-list and the range checks live here once, and [requiredAccess] is what the
+ * capability layer reads to tell the user which of the two paths a given profile
+ * setting needs on their device.
  *
  * [restoreDefault] is the value used when a profile is unwound and no pre-change
  * reading was captured — the app takes a reading before every write, so this is the
@@ -455,6 +538,90 @@ enum class WritableSetting(
         ValueForm.BOOLEAN_INT, "0",
         "Android's own battery saver.",
     ),
+
+    /**
+     * Night display: the platform's own warm-shift, and the only colour sink on stock
+     * Android that moves the white point.
+     *
+     * Two keys again, and again both are needed: the temperature is stored whether the
+     * shift is on or not, so writing the temperature alone changes nothing the user can
+     * see. The pair is what GameCore's "warmth" projects onto — it cannot cool, because
+     * `ColorDisplayService` clamps the temperature to the device's own
+     * `config_nightDisplayColorTemperature` bounds, whose maximum is warmer than
+     * daylight on every build. A request to cool the screen is reported as unreachable
+     * rather than written and left to clamp.
+     */
+    NIGHT_DISPLAY_ACTIVATED(
+        SettingsNamespace.SECURE, "night_display_activated", AccessLevel.SHIZUKU,
+        ValueForm.BOOLEAN_INT, "0",
+        "Whether Android's warm night shift is on.",
+    ),
+
+    NIGHT_DISPLAY_COLOR_TEMPERATURE(
+        SettingsNamespace.SECURE, "night_display_color_temperature", AccessLevel.SHIZUKU,
+        ValueForm.COLOR_TEMPERATURE, "4000",
+        "How warm the night shift is, in kelvin.",
+    ),
+
+    /**
+     * The display colour mode: natural, boosted, saturated, automatic.
+     *
+     * Present on devices whose `config_availableColorModes` lists more than one, absent
+     * on the rest, and vendor modes occupy their own range above 255 — so this is the one
+     * colour key whose write is expected to be reported unconfirmed rather than applied
+     * on a good number of devices. That is the read-back doing its job: the alternative
+     * is a saturation slider that claims to have worked everywhere.
+     */
+    DISPLAY_COLOR_MODE(
+        SettingsNamespace.SECURE, "display_color_mode", AccessLevel.SHIZUKU,
+        ValueForm.COLOR_MODE, "0",
+        "The display's colour mode.",
+    ),
+
+    /**
+     * The daltonizer — the platform's colour-vision correction, applied in the
+     * compositor.
+     *
+     * The enabled flag and the mode are separate keys because the platform stores the
+     * last mode across a disable, and because monochromacy is a mode rather than a
+     * separate feature: it is how a request for full greyscale is honestly satisfied.
+     */
+    DALTONIZER_ENABLED(
+        SettingsNamespace.SECURE, "accessibility_display_daltonizer_enabled",
+        AccessLevel.SHIZUKU, ValueForm.BOOLEAN_INT, "0",
+        "Whether Android's colour-vision correction is on.",
+    ),
+
+    DALTONIZER_MODE(
+        SettingsNamespace.SECURE, "accessibility_display_daltonizer",
+        AccessLevel.SHIZUKU, ValueForm.DALTONIZER_MODE, "-1",
+        "Which colour-vision correction is applied.",
+    ),
+
+    /**
+     * Reduce-bright-colours, API 31 and later. Dims below the panel's own minimum
+     * backlight by scaling output in the compositor, which is what a negative brightness
+     * offset actually is. There is no positive counterpart: nothing in the platform can
+     * push output above the panel's maximum, and the app says so.
+     */
+    REDUCE_BRIGHT_COLORS_ACTIVATED(
+        SettingsNamespace.SECURE, "reduce_bright_colors_activated", AccessLevel.SHIZUKU,
+        ValueForm.BOOLEAN_INT, "0",
+        "Whether extra dimming is on.",
+    ),
+
+    REDUCE_BRIGHT_COLORS_LEVEL(
+        SettingsNamespace.SECURE, "reduce_bright_colors_level", AccessLevel.SHIZUKU,
+        ValueForm.PERCENT, "0",
+        "How much extra dimming is applied.",
+    ),
+
+    /** Full colour inversion, device-wide, as the accessibility settings expose it. */
+    COLOR_INVERSION_ENABLED(
+        SettingsNamespace.SECURE, "accessibility_display_inversion_enabled",
+        AccessLevel.SHIZUKU, ValueForm.BOOLEAN_INT, "0",
+        "Whether colours are inverted device-wide.",
+    ),
     ;
 
     fun accepts(value: String): Boolean = form.accepts(value)
@@ -509,6 +676,48 @@ enum class ValueForm {
             return f >= 0f && f <= 10f && !f.isNaN()
         }
     },
+
+    /**
+     * A colour temperature in kelvin.
+     *
+     * The window is wider than any device's own night-display bounds on purpose: those
+     * bounds are a per-device config value that GameCore cannot read, so the honest
+     * approach is to reject only what is not a colour temperature at all and let the
+     * read-back report the clamping that a particular build applies.
+     */
+    COLOR_TEMPERATURE {
+        override fun accepts(value: String): Boolean =
+            value.toIntOrNull()?.let { it in 1_000..10_000 } == true
+    },
+
+    /**
+     * A display colour mode.
+     *
+     * 0..3 are the platform's own — natural, boosted, saturated, automatic — and
+     * 256..511 is the range reserved for vendor modes, which is admitted because a
+     * restore has to be able to write back whichever one the device was already using.
+     */
+    COLOR_MODE {
+        override fun accepts(value: String): Boolean =
+            value.toIntOrNull()?.let { it in 0..3 || it in 256..511 } == true
+    },
+
+    /**
+     * A daltonizer mode. Exactly the five values the platform defines: -1 disabled,
+     * 0 monochromacy, 11 protanomaly, 12 deuteranomaly, 13 tritanomaly. A number in
+     * between is not a mode, and writing one leaves the compositor with a filter index
+     * it does not recognise.
+     */
+    DALTONIZER_MODE {
+        override fun accepts(value: String): Boolean =
+            value.toIntOrNull()?.let { it == -1 || it == 0 || it in 11..13 } == true
+    },
+
+    /** 0..100, as the platform's own strength keys are scaled. */
+    PERCENT {
+        override fun accepts(value: String): Boolean =
+            value.toIntOrNull()?.let { it in 0..100 } == true
+    },
     ;
 
     abstract fun accepts(value: String): Boolean
@@ -517,16 +726,35 @@ enum class ValueForm {
 /**
  * The permissions GameCore may grant to itself with Shizuku.
  *
- * Both are permissions the app declares in its own manifest and neither can be
- * granted by a runtime dialog: usage access and modify-system-settings are appop
- * gates the user normally reaches through two or three levels of Settings. With
- * Shizuku running, GameCore can set them directly; without it, the app deep-links
- * to the right Settings screen and explains what to tap. Nothing here can be aimed
- * at another package.
+ * All three are declared in the app's own manifest and none can be granted by a runtime
+ * dialog. Usage access and modify-system-settings are appop gates the user normally
+ * reaches through two or three levels of Settings; with Shizuku running, GameCore can
+ * set them directly, and without it the app deep-links to the right Settings screen and
+ * explains what to tap.
+ *
+ * WRITE_SECURE_SETTINGS is the different one, and the difference is worth stating
+ * precisely because it is the reason the colour feature exists at all. It is declared
+ * `signature|privileged|development`; the `development` flag is what makes `pm grant`
+ * from a uid-2000 shell succeed, which is the same mechanism as `adb shell pm grant`.
+ * There is no Settings page for it and no appop behind it, so [appOp] is null and a
+ * device without Shizuku cannot be walked to a screen that grants it — the app says so
+ * rather than offering a button that cannot work.
+ *
+ * Nothing here can be aimed at another package.
  */
-enum class SelfGrantablePermission(val androidName: String, val userLabel: String) {
-    PACKAGE_USAGE_STATS("android.permission.PACKAGE_USAGE_STATS", "Usage access"),
-    WRITE_SETTINGS("android.permission.WRITE_SETTINGS", "Modify system settings"),
+enum class SelfGrantablePermission(
+    val androidName: String,
+    val userLabel: String,
+    /** The op behind it, for the versions where `pm grant` refuses. Null when there is none. */
+    val appOp: SelfAppOp? = null,
+) {
+    PACKAGE_USAGE_STATS(
+        "android.permission.PACKAGE_USAGE_STATS", "Usage access", SelfAppOp.GET_USAGE_STATS,
+    ),
+    WRITE_SETTINGS(
+        "android.permission.WRITE_SETTINGS", "Modify system settings", SelfAppOp.WRITE_SETTINGS,
+    ),
+    WRITE_SECURE_SETTINGS("android.permission.WRITE_SECURE_SETTINGS", "Change secure settings"),
 }
 
 /** The app-ops behind those two permissions, for the versions where `pm grant` will not do it. */

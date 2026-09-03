@@ -159,6 +159,21 @@ class OverlayViewModel @Inject constructor(
         local.value = local.value.copy(message = BUTTON_MOVED)
     }
 
+    /**
+     * Puts the control panel back to the width it shipped at.
+     *
+     * Through [SecurePreferenceStore.updatePanelWidth] rather than [updateButton], for the reason that
+     * writer exists: the panel can be open over this screen while the button is being dragged, and
+     * rewriting the whole config here would carry a stale x and y along with the width.
+     *
+     * The draft goes with it, because the card reads the draft in preference to the stored config — leaving
+     * one behind would reset the width and go on showing the figure it was reset from.
+     */
+    fun resetPanelWidth() {
+        preferences.updatePanelWidth(FloatingButtonConfig.DEFAULT_PANEL_WIDTH_DP)
+        local.value = local.value.copy(buttonDraft = null, message = PANEL_WIDTH_RESET)
+    }
+
     // ----------------------------------------------------------------------------------- the pill
 
     fun setPillVisible(visible: Boolean) {
@@ -281,6 +296,11 @@ class OverlayViewModel @Inject constructor(
         const val PILL_MOVED = "The pill is back at the left edge, a little below the top."
 
         const val BUTTON_MOVED = "The button is back at the left edge, about halfway down."
+
+        const val PANEL_WIDTH_RESET =
+            "The control panel is back to ${FloatingButtonConfig.DEFAULT_PANEL_WIDTH_DP} dp wide. It never " +
+                "opens wider than the screen it opens on, so on a narrow screen in portrait it may still " +
+                "be drawn narrower than that."
 
         const val ALL_HIDDEN =
             "Every overlay window is down — the button, the stats pill, the crosshair and any HUD. The " +

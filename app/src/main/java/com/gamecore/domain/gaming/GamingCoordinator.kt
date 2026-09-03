@@ -1,11 +1,14 @@
 package com.gamecore.domain.gaming
 
+import com.gamecore.core.model.ColorPreset
 import com.gamecore.core.model.GameProfile
+import com.gamecore.core.model.OptimizationAction
 import com.gamecore.core.model.ProfileApplication
 import com.gamecore.core.model.RestoreReport
 import com.gamecore.core.model.StopReason
 import com.gamecore.core.system.InstalledAppLister
 import com.gamecore.data.preferences.SecurePreferenceStore
+import com.gamecore.data.repository.ColorPresetRepository
 import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.domain.monitoring.PerformanceMonitor
 import com.gamecore.domain.overlay.OverlayController
@@ -78,6 +81,7 @@ class GamingCoordinator @Inject constructor(
     private val monitor: PerformanceMonitor,
     private val apps: InstalledAppLister,
     private val overlays: OverlayController,
+    private val colorPresets: ColorPresetRepository,
     private val preferences: SecurePreferenceStore,
 ) {
 
@@ -198,9 +202,38 @@ class GamingCoordinator @Inject constructor(
                 // device was optimized when GameCore could not read the change back would be exactly
                 // the invented statistic §24 forbids.
                 applied = (application?.appliedCount ?: 0) > 0,
+                colour = appliedColour(profile, application),
                 scope = scope,
             )
         }
+    }
+
+    /**
+     * The colour preset the session should record, or null if it should record none.
+     *
+     * Read back by id rather than taken from the result, because an [OptimizationResult] carries a
+     * sentence and not the fourteen values behind it, and the row wants both.
+     *
+     * Null unless the colour step reported [OptimizationResult.isApplied], which is the same rule
+     * [ProfileApplication.appliedCount] uses and holds here for the same reason: a preset whose writes
+     * the device accepted but would not read back has not been confirmed, and a history row naming the
+     * colour a screen was in when GameCore does not know it got there is an invented statistic. A
+     * profile with no preset, auto-apply switched off, and a device that refused the keys all record as
+     * a session that left the screen alone — which is what happened in all three cases.
+     *
+     * What is stored is the preset as the user authored it, including any field this device had no sink
+     * for. That is the reproducible fact months later; which of those fields the display could express
+     * belongs to the moment the profile was applied, and [ProfileApplication] said so there.
+     */
+    private suspend fun appliedColour(
+        profile: GameProfile,
+        application: ProfileApplication?,
+    ): ColorPreset? {
+        val presetId = profile.colorPresetId ?: return null
+        val applied = application?.results?.any {
+            it.action == OptimizationAction.APPLY_COLOR_CORRECTION && it.isApplied
+        } == true
+        return if (applied) colorPresets.preset(presetId) else null
     }
 
     /**
@@ -224,6 +257,7 @@ class GamingCoordinator @Inject constructor(
         event: GameEvent.Started,
         label: String,
         applied: Boolean,
+        colour: ColorPreset?,
         scope: CoroutineScope,
     ) {
         monitor.watch(event.packageName)
@@ -239,6 +273,12 @@ class GamingCoordinator @Inject constructor(
                 profileApplied = applied,
                 opening = opening,
                 nowMillis = event.atMillis,
+                // Resolved before this coroutine was launched, not here. The opening sample can take
+                // several seconds to arrive, and reading the preset back at that point would risk
+                // recording a name the user renamed in the meantime rather than the one that was
+                // applied.
+                colorPresetName = colour?.name,
+                colorCorrection = colour?.correction,
             )
 
             var recordedUpTo = opening.capturedAtMillis

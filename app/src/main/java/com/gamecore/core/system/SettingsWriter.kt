@@ -20,12 +20,16 @@ import javax.inject.Singleton
 /**
  * The only place GameCore writes to the settings provider.
  *
- * Two mechanisms reach the same keys and neither works for all of them. An app holding
- * WRITE_SETTINGS can write `Settings.System` directly; `Settings.Global` needs
- * WRITE_SECURE_SETTINGS, which is signature-level and which no installable app can ever
- * hold, so every global key requires the elevated shell. [WritableSetting.requiredAccess]
- * records which is which and this class picks the path — so no caller has to know, and no
- * caller can pick wrong.
+ * Three mechanisms reach these keys and none works for all of them. An app holding
+ * WRITE_SETTINGS can write `Settings.System` directly. `Settings.Global` needs
+ * WRITE_SECURE_SETTINGS, so every global key requires the elevated shell. `Settings
+ * .Secure` — the colour keys — needs the same permission, but that one *can* be held by
+ * an installed app: WRITE_SECURE_SETTINGS is declared `signature|privileged|development`
+ * and the `development` flag is what makes `pm grant` from a uid-2000 shell succeed. So
+ * once the user has granted it through Shizuku once, the secure writes happen in this
+ * process, which is the only path fast enough for a slider that applies as it moves.
+ * [WritableSetting.requiredAccess] and the namespace decide which path is taken — so no
+ * caller has to know, and no caller can pick wrong.
  *
  * Three rules hold for every write:
  *
@@ -62,6 +66,8 @@ class SettingsWriter @Inject constructor(
                     Settings.System.getString(context.contentResolver, setting.key)
                 SettingsNamespace.GLOBAL ->
                     Settings.Global.getString(context.contentResolver, setting.key)
+                SettingsNamespace.SECURE ->
+                    Settings.Secure.getString(context.contentResolver, setting.key)
             }
         } catch (error: Throwable) {
             null
@@ -99,6 +105,11 @@ class SettingsWriter @Inject constructor(
             setting.requiredAccess == AccessLevel.NORMAL &&
                 setting.namespace == SettingsNamespace.SYSTEM &&
                 permissions.hasWriteSettings() -> WriteMechanism.WRITE_SETTINGS
+            // Ahead of the shell deliberately: an in-process write costs a binder call
+            // to the settings provider, where the shell path costs a process launch.
+            // That difference is what a colour slider applying as it moves depends on.
+            setting.namespace == SettingsNamespace.SECURE &&
+                permissions.hasWriteSecureSettings() -> WriteMechanism.WRITE_SECURE_SETTINGS
             shell.isAvailable() -> WriteMechanism.SHIZUKU
             setting.requiredAccess == AccessLevel.NORMAL &&
                 setting.namespace == SettingsNamespace.SYSTEM -> WriteMechanism.NEEDS_WRITE_SETTINGS
@@ -150,16 +161,32 @@ class SettingsWriter @Inject constructor(
                     confirm(setting, value, previousValue, WriteMechanism.WRITE_SETTINGS)
                 }
 
-                WriteMechanism.SHIZUKU -> {
-                    val command = ShellCommand.putSetting(setting, value)
-                        ?: return@withContext SettingsWriteOutcome.Rejected(
-                            "\"$value\" is not a valid value for ${setting.key}.",
+                WriteMechanism.SHIZUKU -> writeThroughShell(setting, value, previousValue)
+
+                /**
+                 * The secure keys, written in this process because the user granted
+                 * WRITE_SECURE_SETTINGS through Shizuku at some earlier point.
+                 *
+                 * Both failure paths fall back to the shell rather than reporting a
+                 * refusal, because the grant is revocable: Shizuku's own manager and
+                 * several OEM permission managers can take it away between two
+                 * movements of a slider, and the app that notices by taking a
+                 * SecurityException is the app that keeps working.
+                 */
+                WriteMechanism.WRITE_SECURE_SETTINGS -> {
+                    val wrote = try {
+                        Settings.Secure.putString(context.contentResolver, setting.key, value)
+                    } catch (error: SecurityException) {
+                        return@withContext writeThroughShell(setting, value, previousValue)
+                    } catch (error: Throwable) {
+                        return@withContext SettingsWriteOutcome.Failed(
+                            "${setting.key} could not be written.",
                         )
-                    val result = shell.execute(command)
-                    if (!result.isSuccess) {
-                        return@withContext SettingsWriteOutcome.Failed(result.failureReason())
                     }
-                    confirm(setting, value, previousValue, WriteMechanism.SHIZUKU)
+                    if (!wrote) {
+                        return@withContext writeThroughShell(setting, value, previousValue)
+                    }
+                    confirm(setting, value, previousValue, WriteMechanism.WRITE_SECURE_SETTINGS)
                 }
 
                 WriteMechanism.NEEDS_WRITE_SETTINGS -> SettingsWriteOutcome.RequiresAccess(
@@ -182,6 +209,36 @@ class SettingsWriter @Inject constructor(
      */
     suspend fun restore(setting: WritableSetting, previousValue: String?): SettingsWriteOutcome =
         write(setting, previousValue ?: setting.restoreDefault)
+
+    /**
+     * The elevated-shell write, and the answer when there is no shell to write with.
+     *
+     * Its own function because two mechanisms end here: the keys that always need
+     * ADB-level authority, and the secure keys whose in-process grant has just been
+     * found to be gone.
+     */
+    private suspend fun writeThroughShell(
+        setting: WritableSetting,
+        value: String,
+        previousValue: String?,
+    ): SettingsWriteOutcome {
+        if (!shell.isAvailable()) {
+            return SettingsWriteOutcome.RequiresAccess(
+                detail = "Android does not let an ordinary app change ${setting.key}. " +
+                    "With Shizuku running, GameCore can set it directly.",
+                needsShizuku = true,
+            )
+        }
+        val command = ShellCommand.putSetting(setting, value)
+            ?: return SettingsWriteOutcome.Rejected(
+                "\"$value\" is not a valid value for ${setting.key}.",
+            )
+        val result = shell.execute(command)
+        if (!result.isSuccess) {
+            return SettingsWriteOutcome.Failed(result.failureReason())
+        }
+        return confirm(setting, value, previousValue, WriteMechanism.SHIZUKU)
+    }
 
     private suspend fun confirm(
         setting: WritableSetting,
@@ -229,12 +286,14 @@ class SettingsWriter @Inject constructor(
 /** Which path a write took, or would need. Surfaced so the UI can explain a refusal. */
 enum class WriteMechanism(val label: String) {
     WRITE_SETTINGS("Modify system settings"),
+    WRITE_SECURE_SETTINGS("Secure settings permission"),
     SHIZUKU("Shizuku"),
     NEEDS_WRITE_SETTINGS("Needs modify-system-settings"),
     NEEDS_SHIZUKU("Needs Shizuku"),
     ;
 
-    val isUsable: Boolean get() = this == WRITE_SETTINGS || this == SHIZUKU
+    val isUsable: Boolean
+        get() = this == WRITE_SETTINGS || this == WRITE_SECURE_SETTINGS || this == SHIZUKU
 }
 
 /**

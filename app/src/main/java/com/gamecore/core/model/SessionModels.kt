@@ -39,8 +39,43 @@ data class GameSession(
     val sampleCount: Int = 0,
     /** Why recording stopped. Null while running, and for rows written before this was recorded. */
     val stopReason: StopReason? = null,
+
+    /**
+     * The name of the colour preset that was on screen, or null when the display was left alone.
+     *
+     * Null is also what every session recorded before the colour feature existed reads back as,
+     * which is the truth about those sessions rather than a claim that no correction was active.
+     */
+    val colorPresetName: String? = null,
+
+    /**
+     * The correction's own values, kept alongside the name because the name does not survive the
+     * preset being renamed or deleted. A report of a six-week-old session should say what the
+     * screen was doing, not what a row that may no longer exist is called today.
+     */
+    val colorCorrection: ColorCorrection? = null,
 ) {
     val isRunning: Boolean get() = endedAtMillis == null
+
+    /** True when there is a colour reading to show. See [colorSummary] for the text. */
+    val hasColorReading: Boolean get() = colorPresetName != null || colorCorrection != null
+
+    /**
+     * The colour row of a session report, or null when the session has no reading.
+     *
+     * The preset's name leads because it is what the user recognises, and the values follow
+     * because the name may since have been renamed onto something else entirely.
+     */
+    val colorSummary: String?
+        get() {
+            val name = colorPresetName?.takeIf { it.isNotBlank() }
+            val values = colorCorrection?.summary
+            return when {
+                name != null && values != null -> "$name — $values"
+                name != null -> name
+                else -> values
+            }
+        }
 
     /**
      * Whether [durationMillis] is the length of the session or a floor under it.

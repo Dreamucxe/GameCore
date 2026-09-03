@@ -1,5 +1,6 @@
 package com.gamecore
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -8,8 +9,10 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import com.gamecore.domain.BackgroundServiceGate
 import com.gamecore.domain.StartupCoordinator
+import com.gamecore.ui.Destination
 import com.gamecore.ui.GameCoreRoot
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -17,7 +20,7 @@ import javax.inject.Inject
  * The only Activity with a UI, and the only one the launcher can start.
  *
  * It is deliberately thin. Everything about what is on screen belongs to [GameCoreRoot] and the
- * ViewModels under it; what is left here is the three things that are the *window's* to do and cannot
+ * ViewModels under it; what is left here is the four things that are the *window's* to do and cannot
  * be done from a composable:
  *
  *  - **The splash handover.** `Theme.GameCore.Starting` is named for both the application and this
@@ -29,6 +32,8 @@ import javax.inject.Inject
  *  - **Edge to edge.** The theme already makes both system bars transparent; this is the other half,
  *    and the screens inset themselves from `WindowInsets`.
  *  - **The once-per-process startup pass**, on a coroutine, after the window exists.
+ *  - **The intent handover.** An `Intent` is a window-level thing and a composable has no access to one,
+ *    so the extra naming a screen is read here, validated here, and handed down as a value.
  *
  * `configChanges` in the manifest covers rotation, size, locale, ui mode and font scale, so a rotation
  * does not restart this activity and Compose reads the new configuration directly. Nothing here holds
@@ -44,14 +49,52 @@ class MainActivity : ComponentActivity() {
 
     // MAIN_BODY
 
+    /**
+     * The screen an intent asked to be opened at, once, or null.
+     *
+     * A flow rather than a value read during composition, because the request can arrive after the window
+     * exists: this activity is the app's only one, so the overlay's colour tile reaches an already-running
+     * GameCore through [onNewIntent] rather than a fresh [onCreate]. Cleared as soon as the navigation has
+     * happened, so the screen is opened once and not again on the next recomposition.
+     */
+    private val openAt = MutableStateFlow<Destination?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Before super, which is where the library installs itself into the window.
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         lifecycleScope.launch { prepare() }
-        setContent { GameCoreRoot() }
+        openAt.value = destinationOf(intent)
+        setContent {
+            GameCoreRoot(openAt = openAt, onOpened = { openAt.value = null })
+        }
     }
+
+    /**
+     * A second intent for an activity that is already up — the overlay's colour tile, in practice.
+     *
+     * `setIntent` first, so that [getIntent] agrees with what was just handled: a configuration change
+     * that did slip past `configChanges` would otherwise recreate this activity from the *launch* intent
+     * and open the wrong screen.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        destinationOf(intent)?.let { openAt.value = it }
+    }
+
+    /**
+     * The requested screen, validated against the closed set in [Destination.fromExternal].
+     *
+     * This activity is exported, because a launcher icon requires it, so this extra can be sent by any app
+     * on the device. What that buys a sender is one of a handful of GameCore screens and nothing more —
+     * the extra is a token that is looked up in a map, never a route, a path, an id or a package name, so
+     * there is no value to smuggle and nothing to escape. An unrecognised token opens the app at Home,
+     * which is what a launcher tap does anyway.
+     */
+    private fun destinationOf(intent: Intent?): Destination? =
+        Destination.fromExternal(intent?.getStringExtra(EXTRA_DESTINATION))
 
     /**
      * The work a launch has to do once, in the order it has to happen.
@@ -71,5 +114,18 @@ class MainActivity : ComponentActivity() {
     private suspend fun prepare() {
         startup.run()
         services.syncDetection()
+    }
+
+    companion object {
+        /**
+         * The extra that names the screen to open at.
+         *
+         * Fully qualified, because an exported activity's extras share a namespace with every other app
+         * that sends it an intent, and a bare "destination" is the kind of key two apps collide on.
+         */
+        const val EXTRA_DESTINATION = "com.gamecore.extra.DESTINATION"
+
+        /** The colour editor, for the overlay panel's colour tile. One literal, shared with the route. */
+        const val DESTINATION_COLOUR = Destination.Colour.EXTERNAL
     }
 }

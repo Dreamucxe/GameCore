@@ -55,6 +55,9 @@ interface GameProfileDao {
 
     @Query("UPDATE game_profiles SET crosshair_preset_id = NULL WHERE crosshair_preset_id = :presetId")
     suspend fun clearCrosshairPreset(presetId: Long)
+
+    @Query("UPDATE game_profiles SET color_preset_id = NULL WHERE color_preset_id = :presetId")
+    suspend fun clearColorPreset(presetId: Long)
 }
 
 /**
@@ -136,4 +139,40 @@ interface CrosshairPresetDao {
 
     @Delete
     suspend fun delete(preset: CrosshairPresetEntity)
+}
+
+/**
+ * Colour presets. Deliberately the same shape as [CrosshairPresetDao].
+ *
+ * Ordered by id rather than by name, so the seven seeded presets keep the order they were
+ * written in and a preset the user saves appears at the end of the list where they left it
+ * — a list that re-sorts alphabetically as you type a name moves the row out from under
+ * the finger about to tap it.
+ *
+ * `REPLACE` on insert is what makes one method serve both "save this new preset" (id 0,
+ * autoGenerate assigns) and "save my edits" (id set, row replaced).
+ */
+@Dao
+interface ColorPresetDao {
+
+    @Query("SELECT * FROM color_presets ORDER BY id ASC")
+    fun observeAll(): Flow<List<ColorPresetEntity>>
+
+    @Query("SELECT * FROM color_presets WHERE id = :id LIMIT 1")
+    suspend fun byId(id: Long): ColorPresetEntity?
+
+    @Query("SELECT * FROM color_presets ORDER BY id ASC")
+    suspend fun all(): List<ColorPresetEntity>
+
+    @Query("SELECT COUNT(*) FROM color_presets")
+    suspend fun count(): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(preset: ColorPresetEntity): Long
+
+    @Query("DELETE FROM color_presets WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Delete
+    suspend fun delete(preset: ColorPresetEntity)
 }

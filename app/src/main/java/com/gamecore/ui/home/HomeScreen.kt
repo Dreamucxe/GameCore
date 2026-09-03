@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restore
@@ -485,6 +486,12 @@ private fun ShortcutCard(
             description = "A fixed aiming point, drawn over the screen",
             icon = Icons.Filled.Adjust,
             onClick = { onNavigate(Destination.Crosshair) },
+        )
+        NavRow(
+            title = "Colour correction",
+            description = "Channel gain, gamma, saturation and presets, applied to the display",
+            icon = Icons.Filled.Palette,
+            onClick = { onNavigate(Destination.Colour) },
         )
         NavRow(
             title = "Tools",

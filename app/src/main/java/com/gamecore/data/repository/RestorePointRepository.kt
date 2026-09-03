@@ -62,10 +62,11 @@ class RestorePointRepository @Inject constructor(
     /**
      * Records device state that is not a `settings` key at all.
      *
-     * Media volume goes through `AudioManager` and Do Not Disturb through the notification-policy
-     * API; neither has a `settings` key an app can reliably write, so neither can be described by a
-     * [WritableSetting]. They still have to be restorable, because a game session that ends with the
-     * phone silent is the same failure as one that ends with the display pinned.
+     * Media volume goes through `AudioManager`, Do Not Disturb through the notification-policy
+     * API, and the display size override through `wm size`; none of the three has a `settings` key an
+     * app can reliably write, so none can be described by a [WritableSetting]. They still have to be
+     * restorable, because a game session that ends with the phone silent is the same failure as one
+     * that ends with the display pinned.
      *
      * Stored under [NON_SETTING_NAMESPACE], which is not one of [SettingsNamespace]'s tokens, so
      * these rows resolve to a null [PendingRestore.setting] and the restore path dispatches on
@@ -155,6 +156,18 @@ class RestorePointRepository @Inject constructor(
 
         /** The [android.app.NotificationManager] interruption filter, by name. */
         const val KEY_DO_NOT_DISTURB = "do_not_disturb"
+
+        /**
+         * The display size override in `WxH`, or null when the display had none.
+         *
+         * `wm size` is a window-manager command rather than a `settings` key, so it cannot be a
+         * [WritableSetting] — but it is the single most important row in this table. A display
+         * override survives a reboot, so a session that ends without restoring this one leaves the
+         * device stretched indefinitely, and null here is the common case and the one that matters:
+         * it means the display had no override before GameCore set one, and [PendingRestore.restoresToUnset]
+         * turns it into `wm size reset`.
+         */
+        const val KEY_DISPLAY_SIZE = "display_size"
     }
 }
 

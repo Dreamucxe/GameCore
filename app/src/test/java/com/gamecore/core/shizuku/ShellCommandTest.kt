@@ -2,6 +2,7 @@ package com.gamecore.core.shizuku
 
 import com.gamecore.BuildConfig
 import com.gamecore.core.common.AccessLevel
+import com.gamecore.core.model.DisplaySize
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -40,11 +41,14 @@ class ShellCommandTest {
             add(ShellCommand.setSelfAppOp(BuildConfig.APPLICATION_ID, it, allow = true)!!)
         }
         add(ShellCommand.frameStats("com.example.game")!!)
+        add(ShellCommand.GetDisplaySize)
+        add(ShellCommand.setDisplaySize(DisplaySize(1080, 1440))!!)
+        add(ShellCommand.ResetDisplaySize)
     }
 
     @Test
-    fun `the only programs GameCore can invoke are these seven`() {
-        val allowed = setOf("id", "cat", "dumpsys", "settings", "getprop", "pm", "appops")
+    fun `the only programs GameCore can invoke are these eight`() {
+        val allowed = setOf("id", "cat", "dumpsys", "settings", "getprop", "pm", "appops", "wm")
         everyCommand().forEach { command ->
             assertTrue(
                 "unexpected program: ${command.argv}",
@@ -57,9 +61,12 @@ class ShellCommandTest {
     fun `nothing here can kill an app, lie to the thermal service or rewrite a game`() {
         // §24's absences, asserted rather than trusted to review. `am`, `cmd` and `su` are not
         // reachable at all, so neither is force-stop, thermal override or a compile of another app.
+        // `wm` is reachable, so its own dangerous subcommands are named here too: the only one this
+        // app can reach is `size`.
         val forbidden = setOf(
             "am", "cmd", "su", "sh", "rm", "mount", "setprop", "reboot", "kill", "killall",
             "force-stop", "trim-caches", "override-status", "compile", "install", "uninstall",
+            "density", "dismiss-keyguard", "overscan",
         )
         everyCommand().forEach { command ->
             command.argv.forEach { token ->
@@ -74,10 +81,11 @@ class ShellCommandTest {
         val writes = everyCommand().filterNot { it.isReadOnly }
         readOnly.forEach { assertEquals(ShellCommand.Effect.READ_ONLY, it.effect) }
         readOnly.forEach { assertFalse(it.argv.contains("put")) }
-        // Eleven settings keys, two self-grants and two self-appops. Nothing else writes.
-        assertEquals(11, WritableSetting.entries.size)
-        assertEquals(15, writes.size)
-        writes.forEach { assertTrue(it.argv.first() in setOf("settings", "pm", "appops")) }
+        // Nineteen settings keys, three self-grants, two self-appops and the two halves of a display
+        // size override. Nothing else writes.
+        assertEquals(19, WritableSetting.entries.size)
+        assertEquals(26, writes.size)
+        writes.forEach { assertTrue(it.argv.first() in setOf("settings", "pm", "appops", "wm")) }
     }
 
     @Test
@@ -262,6 +270,33 @@ class ShellCommandTest {
             ShellCommand.SurfaceFlingerLatency.argv,
         )
         assertEquals(listOf("dumpsys", "activity", "activities"), ShellCommand.TopActivity.argv)
+        assertEquals(listOf("wm", "size"), ShellCommand.GetDisplaySize.argv)
+    }
+
+    @Test
+    fun `a display size reaches exec as one WxH token and nothing else`() {
+        val set = ShellCommand.setDisplaySize(DisplaySize(1080, 1440))!!
+        assertEquals(listOf("wm", "size", "1080x1440"), set.argv)
+        assertEquals(ShellCommand.Effect.CHANGES_SETTING, set.effect)
+        assertEquals(DisplaySize(1080, 1440), set.size)
+
+        // The undo is its own command rather than a size that happens to equal the panel, because an
+        // override equal to native is still an override.
+        assertEquals(listOf("wm", "size", "reset"), ShellCommand.ResetDisplaySize.argv)
+        assertEquals(ShellCommand.Effect.CHANGES_SETTING, ShellCommand.ResetDisplaySize.effect)
+    }
+
+    @Test
+    fun `a display size that is not a plausible screen is refused before it is a command`() {
+        // The floor is what stops a mistyped number leaving a screen too small to correct it from, and a
+        // size override survives the reboot that would otherwise be the way out.
+        assertNull(ShellCommand.setDisplaySize(DisplaySize(0, 0)))
+        assertNull(ShellCommand.setDisplaySize(DisplaySize(-1080, -1440)))
+        assertNull(ShellCommand.setDisplaySize(DisplaySize(16, 16)))
+        assertNull(ShellCommand.setDisplaySize(DisplaySize(319, 1440)))
+        assertNull(ShellCommand.setDisplaySize(DisplaySize(1080, 100_000)))
+        assertNotNull(ShellCommand.setDisplaySize(DisplaySize(320, 320)))
+        assertNotNull(ShellCommand.setDisplaySize(DisplaySize(1440, 3200)))
     }
 
     @Test

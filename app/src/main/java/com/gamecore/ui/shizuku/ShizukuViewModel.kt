@@ -234,7 +234,7 @@ class ShizukuViewModel @Inject constructor(
         return null
     }
 
-    // ------------------------------------------------------------------------ the two direct grants
+    // ---------------------------------------------------------------------- the three direct grants
 
     private fun grantOffers(): List<GrantOffer> = SelfGrantablePermission.entries.map { access ->
         GrantOffer(
@@ -243,6 +243,7 @@ class ShizukuViewModel @Inject constructor(
             detail = when (access) {
                 SelfGrantablePermission.PACKAGE_USAGE_STATS -> USAGE_ACCESS_DETAIL
                 SelfGrantablePermission.WRITE_SETTINGS -> WRITE_SETTINGS_DETAIL
+                SelfGrantablePermission.WRITE_SECURE_SETTINGS -> WRITE_SECURE_SETTINGS_DETAIL
             },
         )
     }
@@ -250,6 +251,7 @@ class ShizukuViewModel @Inject constructor(
     private fun isGranted(access: SelfGrantablePermission): Boolean = when (access) {
         SelfGrantablePermission.PACKAGE_USAGE_STATS -> permissions.hasUsageAccess()
         SelfGrantablePermission.WRITE_SETTINGS -> permissions.hasWriteSettings()
+        SelfGrantablePermission.WRITE_SECURE_SETTINGS -> permissions.hasWriteSecureSettings()
     }
 
     // ------------------------------------------------------------------------ the capability report
@@ -356,6 +358,11 @@ class ShizukuViewModel @Inject constructor(
         const val WRITE_SETTINGS_DETAIL =
             "Lets GameCore write brightness, screen timeout, rotation and the display's refresh-rate " +
                 "bounds — the settings Android's own display page writes."
+
+        const val WRITE_SECURE_SETTINGS_DETAIL =
+            "Lets GameCore write the display's colour keys — night shift, colour mode, the colour-vision " +
+                "filter and extra dimming — which is what the colour correction screen applies. Android " +
+                "never grants this to an app on its own, so Shizuku or adb is the only way to hold it."
 
         const val BRIGHTNESS_DETAIL = "Writes the system brightness, and the automatic-brightness switch."
         const val ROTATION_DETAIL = "Holds the screen in one orientation for the length of a session."

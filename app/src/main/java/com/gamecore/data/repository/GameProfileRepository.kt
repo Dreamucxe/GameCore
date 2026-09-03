@@ -82,4 +82,16 @@ class GameProfileRepository @Inject constructor(
     suspend fun clearCrosshairReferences(presetId: Long) = withContext(io) {
         dao.clearCrosshairPreset(presetId)
     }
+
+    /**
+     * Detaches a deleted colour preset from every profile that used it.
+     *
+     * Same reason as the two above, with one extra consequence: a profile holding an id that
+     * resolves to nothing would apply no correction and report that it had, and the display
+     * would be left as whatever the previous game set. Null means "leave the screen alone",
+     * which is the only honest reading of a preset the user deleted.
+     */
+    suspend fun clearColorReferences(presetId: Long) = withContext(io) {
+        dao.clearColorPreset(presetId)
+    }
 }

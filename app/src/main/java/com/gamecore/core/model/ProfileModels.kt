@@ -39,6 +39,34 @@ data class GameProfile(
     val hudLayoutId: Long? = null,
     val crosshairPresetId: Long? = null,
 
+    // ---------------------------------------------------------------- colour
+    /**
+     * Which saved colour preset to apply while this game runs, or null to leave the screen's
+     * colour alone.
+     *
+     * An id rather than an embedded [ColorCorrection], so editing "Night" changes what every
+     * profile using it does — the alternative is fourteen columns copied into each profile and
+     * a user who edits a preset and cannot work out why their game still looks the same.
+     */
+    val colorPresetId: Long? = null,
+
+    // ---------------------------------------------------------- display size
+    /**
+     * The logical display size to stretch to while this game runs, or null to leave the
+     * display's own size alone.
+     *
+     * Pixels rather than an [AspectPreset], because a ratio is not a size until there is a
+     * panel to compute it against: "4:3" is 1080×1440 on one phone and 1440×1920 on another,
+     * and a profile that stored the ratio would have to re-derive it on every apply against a
+     * display that may already be overridden. Storing what was actually asked for keeps the
+     * request unambiguous, and [AspectPreset.of] turns it back into a chip label for the editor.
+     *
+     * The most consequential field in this class. A `wm size` override outlives a reboot, so a
+     * profile carrying one is a promise to put it back — see
+     * [com.gamecore.domain.display.DisplaySizeController].
+     */
+    val displaySize: DisplaySize? = null,
+
     // ---------------------------------------------------------- optimization
     val performanceMode: PerformanceMode = PerformanceMode.BALANCED,
     /** Only attempted when Shizuku is connected; skipped, not failed, when it is not. */
@@ -53,6 +81,13 @@ data class GameProfile(
             screenTimeoutMillis == null &&
             mediaVolumePercent == null &&
             !enableDoNotDisturb &&
+            // A colour preset counts: it writes device settings and restores them on exit,
+            // which is the same kind of change as brightness and not the same kind as an
+            // overlay the profile happens to raise.
+            colorPresetId == null &&
+            // A display size counts twice over: it writes device state and it is the one change
+            // here that survives a reboot, so a profile carrying one is never a no-op.
+            displaySize == null &&
             performanceMode == PerformanceMode.BALANCED &&
             !useShizukuOptimizations
 

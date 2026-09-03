@@ -103,11 +103,55 @@ enum class OptimizationAction(
             "the length of the session, then puts the previous mode back.",
         requiredAccess = AccessLevel.NORMAL,
     ),
+
+    APPLY_COLOR_CORRECTION(
+        label = "Apply colour correction",
+        explanation = "Writes the display keys a colour preset maps onto — the night-display " +
+            "white point, the colour mode, the colour-vision filter, extra dimming, inversion — " +
+            "and puts each of them back when the game closes. Android exposes no per-channel " +
+            "gain, gamma, contrast or hue rotation to any app at any privilege level GameCore " +
+            "uses, so a preset's remaining values are reported as unreachable on this device " +
+            "rather than quietly dropped.",
+        requiredAccess = AccessLevel.SHIZUKU,
+    ),
+
+    SET_DISPLAY_SIZE(
+        label = "Set display size",
+        explanation = "Overrides the logical size the display reports to apps — the same thing " +
+            "`wm size` does from a shell. A game handed a shorter logical display renders a " +
+            "shorter frame, and the compositor spreads that frame across the whole panel. It " +
+            "stretches the image: it is not a wider field of view, and no app can give a game " +
+            "one. The override outlives a reboot, so GameCore records the size the display had " +
+            "before it wrote one and puts it back when the session ends.",
+        requiredAccess = AccessLevel.SHIZUKU,
+    ),
     ;
 
     /** True for the actions a profile can request; the rest are undo steps. */
     val isProfileAction: Boolean
         get() = this != RELEASE_REFRESH_RATE && this != DISABLE_BATTERY_SAVER
+
+    /**
+     * True for the actions the two optimizer tiers carry out from an optimization request.
+     *
+     * False for two of them, and for the same underlying reason: the manager records a previous
+     * value for every key an action *could* touch before handing it to a tier, which works only
+     * because every other action here touches a fixed set of `settings` keys.
+     *
+     * [APPLY_COLOR_CORRECTION] touches between one and eight keys depending on what the preset
+     * asks for, so capturing all eight would leave restore rows for keys GameCore never wrote —
+     * and the restore at session end would then set a user's own colour-vision filter and
+     * inversion back to values they never chose. `ColorCorrectionController` records one row per
+     * key it actually writes.
+     *
+     * [SET_DISPLAY_SIZE] touches no `settings` key at all. `wm size` is a window-manager command,
+     * so there is nothing for the manager to capture or write; `DisplaySizeController` records the
+     * previous override under the repository's non-setting namespace and reads the new size back
+     * before reporting it. Both profile steps therefore go through their own controller and the
+     * tiers decline both actions.
+     */
+    val isEngineAction: Boolean
+        get() = this != APPLY_COLOR_CORRECTION && this != SET_DISPLAY_SIZE
 }
 
 /**

@@ -1,5 +1,6 @@
 package com.gamecore.domain.gaming
 
+import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.GameSession
 import com.gamecore.core.model.PerformanceSnapshot
 import com.gamecore.core.model.SessionSample
@@ -70,6 +71,12 @@ class SessionRecorder @Inject constructor(
      * starting battery level and whether a charger is attached both have to come from the same
      * instant the session starts, and this class is not allowed to sample (see the class notes).
      *
+     * [colorPresetName] and [colorCorrection] are the colour reading for the row, and both are
+     * parameters for the same reason: whether the display was actually corrected is something the
+     * caller watched happen, and this class reading the device would be reading it later and getting a
+     * different answer. Null in both means the display was left alone — which is also what every
+     * session recorded before the colour feature existed reads back as.
+     *
      * If a different game is somehow already being recorded, that session is finished as a switch
      * rather than abandoned. That is recovery from a caller's mistake, not a supported flow — leaving
      * it open would put a row with a null `ended_at` on disk for the next launch to repair, and
@@ -81,6 +88,8 @@ class SessionRecorder @Inject constructor(
         profileApplied: Boolean,
         opening: PerformanceSnapshot,
         nowMillis: Long = System.currentTimeMillis(),
+        colorPresetName: String? = null,
+        colorCorrection: ColorCorrection? = null,
     ): GameSession = mutex.withLock {
         state.value?.let { running ->
             if (running.packageName == packageName) return@withLock running
@@ -93,7 +102,11 @@ class SessionRecorder @Inject constructor(
             batteryPercent = opening.battery.levelPercent,
             profileApplied = profileApplied,
             nowMillis = nowMillis,
-        ).copy(wasCharging = opening.battery.isCharging)
+        ).copy(
+            wasCharging = opening.battery.isCharging,
+            colorPresetName = colorPresetName,
+            colorCorrection = colorCorrection,
+        )
 
         val session = started.copy(id = sessions.begin(started))
         // Dated from the snapshot's own capture time, not zero. The opening sample is taken after the

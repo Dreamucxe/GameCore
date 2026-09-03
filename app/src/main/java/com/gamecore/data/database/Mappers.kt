@@ -1,10 +1,16 @@
 package com.gamecore.data.database
 
 import com.gamecore.core.common.TextSanitizer
+import com.gamecore.core.model.ColorCodec
+import com.gamecore.core.model.ColorCorrection
+import com.gamecore.core.model.ColorPreset
+import com.gamecore.core.model.ColorVisionFilter
 import com.gamecore.core.model.CrosshairDesign
 import com.gamecore.core.model.CrosshairPreset
+import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.GameSession
+import com.gamecore.core.model.GammaMode
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HudWidget
@@ -47,6 +53,8 @@ internal object Mappers {
         showCrosshair = profile.showCrosshair,
         hudLayoutId = profile.hudLayoutId,
         crosshairPresetId = profile.crosshairPresetId,
+        colorPresetId = profile.colorPresetId,
+        displaySize = profile.displaySize?.argument,
         performanceMode = profile.performanceMode.name,
         useShizukuOptimizations = profile.useShizukuOptimizations,
         trackSession = profile.trackSession,
@@ -70,6 +78,12 @@ internal object Mappers {
         showCrosshair = entity.showCrosshair,
         hudLayoutId = entity.hudLayoutId,
         crosshairPresetId = entity.crosshairPresetId,
+        colorPresetId = entity.colorPresetId,
+        // Parsed rather than trusted, for the reason the enum names above are: an unparseable
+        // token becomes null, which every caller already reads as "leave the display alone".
+        // Better than a profile that cannot be opened because one row holds "1080x" — and
+        // better than stretching the display to a size nobody asked for.
+        displaySize = entity.displaySize?.let { DisplaySize.parse(it) },
         performanceMode = PerformanceMode.entries
             .firstOrNull { it.name == entity.performanceMode }
             ?: PerformanceMode.BALANCED,
@@ -169,6 +183,63 @@ internal object Mappers {
         imagePath = entity.imagePath,
     ).normalised()
 
+    // --------------------------------------------------------------------- colour
+
+    fun toEntity(preset: ColorPreset): ColorPresetEntity =
+        preset.normalised().let { normalised ->
+            val c = normalised.correction
+            ColorPresetEntity(
+                id = normalised.id,
+                name = TextSanitizer.sanitizeName(normalised.name, ColorPreset.MAX_NAME_LENGTH)
+                    .ifBlank { ColorPreset.DEFAULT_NAME },
+                redGain = c.redGain,
+                greenGain = c.greenGain,
+                blueGain = c.blueGain,
+                gammaMode = c.gammaMode.name,
+                gamma = c.gamma,
+                redGamma = c.redGamma,
+                greenGamma = c.greenGamma,
+                blueGamma = c.blueGamma,
+                saturation = c.saturation,
+                contrast = c.contrast,
+                hueDegrees = c.hueDegrees,
+                brightnessOffset = c.brightnessOffset,
+                visionFilter = c.visionFilter.name,
+                invertColors = c.invertColors,
+            )
+        }
+
+    /**
+     * A stored preset as a model.
+     *
+     * Both enum columns fall back to the neutral value rather than throwing, for the reason this
+     * object exists: an unrecognised name is what a row written by a newer build looks like to an
+     * older one, and a colour picker that crashes on one bad row is worse than one that shows that
+     * preset with its filter off.
+     */
+    fun toModel(entity: ColorPresetEntity): ColorPreset = ColorPreset(
+        id = entity.id,
+        name = entity.name,
+        correction = ColorCorrection(
+            redGain = entity.redGain,
+            greenGain = entity.greenGain,
+            blueGain = entity.blueGain,
+            gammaMode = GammaMode.entries.firstOrNull { it.name == entity.gammaMode }
+                ?: GammaMode.COMBINED,
+            gamma = entity.gamma,
+            redGamma = entity.redGamma,
+            greenGamma = entity.greenGamma,
+            blueGamma = entity.blueGamma,
+            saturation = entity.saturation,
+            contrast = entity.contrast,
+            hueDegrees = entity.hueDegrees,
+            brightnessOffset = entity.brightnessOffset,
+            visionFilter = ColorVisionFilter.entries.firstOrNull { it.name == entity.visionFilter }
+                ?: ColorVisionFilter.NONE,
+            invertColors = entity.invertColors,
+        ),
+    ).normalised()
+
     // ------------------------------------------------------------------- sessions
 
     fun toEntity(session: GameSession): SessionEntity = SessionEntity(
@@ -193,6 +264,13 @@ internal object Mappers {
         profileApplied = session.profileApplied,
         sampleCount = session.sampleCount,
         stopReason = session.stopReason?.name,
+        // Sanitised like every other user string on the way in, and encoded rather than
+        // spread over fourteen columns because a session's colour reading is written once
+        // and read once.
+        colorPreset = session.colorPresetName
+            ?.let { TextSanitizer.sanitizeName(it, ColorPreset.MAX_NAME_LENGTH) }
+            ?.takeIf { it.isNotBlank() },
+        colorValues = session.colorCorrection?.let(ColorCodec::encode),
     )
 
     fun toModel(entity: SessionEntity): GameSession = GameSession(
@@ -216,6 +294,11 @@ internal object Mappers {
         profileApplied = entity.profileApplied,
         sampleCount = entity.sampleCount,
         stopReason = StopReason.entries.firstOrNull { it.name == entity.stopReason },
+        colorPresetName = entity.colorPreset,
+        // Null for a row the codec cannot parse, which is the same as "no reading" to every
+        // caller. A report that renders one session without its colour line is a small loss;
+        // one that throws on the way to the list is not.
+        colorCorrection = ColorCodec.decode(entity.colorValues),
     )
 
     fun toEntity(sample: SessionSample): SessionSampleEntity = SessionSampleEntity(

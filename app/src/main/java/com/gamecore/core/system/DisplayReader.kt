@@ -11,6 +11,7 @@ import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.common.Observed
 import com.gamecore.core.model.DisplayMode
 import com.gamecore.core.model.DisplayReading
+import com.gamecore.core.model.DisplaySize
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
@@ -99,7 +100,39 @@ class DisplayReader @Inject constructor(
             .any { (_, group) -> group.map { it.refreshRate }.distinct().size > 1 }
     }
 
+    /**
+     * The display's size in pixels, as the platform reports it *to this process*.
+     *
+     * The same number [read] already carries, exposed on its own because it is asked for a different
+     * reason and by a caller that cannot afford the rest of [read]: it is the second witness
+     * `DisplaySizeController` uses to confirm a size override took effect. Independent of the shell's
+     * account of it, which is the point — `wm size` reports the window manager's settings row, and
+     * this reports the size the app's own configuration was rebuilt with.
+     *
+     * Note what it is not: the *native* size. Once an override is set this reports the overridden
+     * size, because that is what the display now is. Only `wm size` distinguishes the two, and nothing
+     * here pretends otherwise.
+     */
+    suspend fun logicalSize(): Observed<DisplaySize> = withContext(io) {
+        val display = defaultDisplay()
+            ?: return@withContext Observed.notPresent("This device has no default display")
+        val size = logicalResolution(display)
+        if (size.x > 0 && size.y > 0) {
+            Observed.of(DisplaySize(size.x, size.y), windowSource())
+        } else {
+            Observed.notPresent("This display did not report its size in pixels")
+        }
+    }
+
     // ---------------------------------------------------------------------- pieces
+
+    /** Which service answered [logicalResolution], which changes at API 30. */
+    private fun windowSource(): DataSource =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            DataSource.WINDOW_MANAGER
+        } else {
+            DataSource.DISPLAY_MANAGER
+        }
 
     private fun defaultDisplay(): Display? = try {
         val manager = context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager

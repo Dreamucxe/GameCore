@@ -17,7 +17,7 @@ import javax.inject.Singleton
 /**
  * What GameCore can change with permissions the user can grant in Settings.
  *
- * Five of the eleven actions live here, and all five are things the platform genuinely lets an
+ * Five of the thirteen actions live here, and all five are things the platform genuinely lets an
  * ordinary app do: three `Settings.System` keys behind WRITE_SETTINGS, the media stream through
  * `AudioManager`, and Do Not Disturb through the notification-policy API. Nothing in this tier needs
  * ADB-level authority, which is why §13's "the app must work without Shizuku" is a real claim rather
@@ -79,6 +79,16 @@ class StandardAndroidOptimizer @Inject constructor(
         OptimizationAction.ENABLE_BATTERY_SAVER,
         OptimizationAction.DISABLE_BATTERY_SAVER,
         -> CapabilityStatus.REQUIRES_SHIZUKU
+
+        // Not this tier's, and not the other's either: see OptimizationAction.isEngineAction. The
+        // profile's colour step goes straight to ColorCorrectionController, which owns the
+        // projection and its own restore rows. Unsupported is the truth *about this tier*.
+        OptimizationAction.APPLY_COLOR_CORRECTION -> CapabilityStatus.UNSUPPORTED
+
+        // Nor this one, and it could not be this tier's in any case: `wm size` is a window-manager
+        // command and there is no permission that hands it to an ordinary app. DisplaySizeController
+        // owns it, and reports REQUIRES_SHIZUKU itself when the shell is not there.
+        OptimizationAction.SET_DISPLAY_SIZE -> CapabilityStatus.UNSUPPORTED
     }
 
     override suspend fun apply(request: OptimizationRequest): OptimizationResult {
@@ -102,6 +112,20 @@ class StandardAndroidOptimizer @Inject constructor(
                 status = CapabilityStatus.REQUIRES_SHIZUKU,
                 detail = "This changes a global setting, which needs the elevated shell. " +
                     "No permission GameCore can ask you for unlocks it.",
+            )
+
+            OptimizationAction.APPLY_COLOR_CORRECTION -> action.blocked(
+                status = CapabilityStatus.UNSUPPORTED,
+                detail = "A colour preset is applied by GameCore's colour controller, not by the " +
+                    "optimization tiers — it writes a different number of keys depending on what " +
+                    "the preset asks for, and each one is recorded for restore individually.",
+            )
+
+            OptimizationAction.SET_DISPLAY_SIZE -> action.blocked(
+                status = CapabilityStatus.UNSUPPORTED,
+                detail = "A display size is set by GameCore's display-size controller, not by the " +
+                    "optimization tiers — it runs a window-manager command, reads the size back, " +
+                    "and keeps its own record of what the display was before.",
             )
 
             // Handled by the two helpers above; unreachable, and left as a branch rather than an

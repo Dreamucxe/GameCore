@@ -95,13 +95,17 @@ class ShizukuManager @Inject constructor(
     }
 
     /**
-     * Grants GameCore one of the two special accesses it cannot request with a dialog.
+     * Grants GameCore one of the special accesses it cannot request with a dialog.
      *
      * Usage access and modify-system-settings are appop gates that a normal app can
      * only send the user to Settings for. With Shizuku they can be set directly,
      * which turns a three-screen detour into one tap. Two paths are attempted because
      * neither works everywhere: `pm grant` handles the permission on some versions,
      * `appops set` handles the underlying op on the rest.
+     *
+     * WRITE_SECURE_SETTINGS has no op behind it and no Settings page in front of it, so
+     * for that one `pm grant` is the only path and its failure is reported as the final
+     * answer rather than retried against an op that does not exist.
      *
      * Reports what actually happened. A granted-looking failure would be worse than
      * useless here, because the very next thing the app does is try to read usage
@@ -120,10 +124,8 @@ class ShizukuManager @Inject constructor(
 
             // `pm grant` refuses appop-backed permissions on several versions with
             // "not a changeable permission type". The op itself is still settable.
-            val op = when (access) {
-                SelfGrantablePermission.PACKAGE_USAGE_STATS -> SelfAppOp.GET_USAGE_STATS
-                SelfGrantablePermission.WRITE_SETTINGS -> SelfAppOp.WRITE_SETTINGS
-            }
+            val op = access.appOp
+                ?: return@withContext GrantOutcome.Failed(grantResult.failureReason())
             val appOp = ShellCommand.setSelfAppOp(ownPackage, op, allow = true)
                 ?: return@withContext GrantOutcome.Failed(grantResult.failureReason())
 

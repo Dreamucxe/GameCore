@@ -76,6 +76,15 @@ data class PerformanceUiState(
  * Brightness, volume, rotation and screen timeout are all "set it to *what*" — they belong to a game
  * profile, which has the sliders, and to the tools screen, which has the live controls. Offering them
  * here with an invented default would change the user's device to a number nobody chose.
+ *
+ * Colour correction is the same argument with a stronger case: it needs a whole preset, it has its
+ * own screen with fourteen values and a live preview, and there is no sensible "apply some colour"
+ * button. This screen would only be able to guess.
+ *
+ * The display size is the strongest case of the three. It needs a width and a height, the presets
+ * that make it one tap are computed from the panel and live in the panel's own tile, and the override
+ * outlives a reboot — so a button here that guessed a size would leave the device stretched after a
+ * restart on behalf of a tap the user could not have meant.
  */
 private val PROFILE_ONLY_ACTIONS = setOf(
     OptimizationAction.SET_BRIGHTNESS,
@@ -83,6 +92,8 @@ private val PROFILE_ONLY_ACTIONS = setOf(
     OptimizationAction.LOCK_ROTATION,
     OptimizationAction.EXTEND_SCREEN_TIMEOUT,
     OptimizationAction.ENABLE_DO_NOT_DISTURB,
+    OptimizationAction.APPLY_COLOR_CORRECTION,
+    OptimizationAction.SET_DISPLAY_SIZE,
 )
 
 /**

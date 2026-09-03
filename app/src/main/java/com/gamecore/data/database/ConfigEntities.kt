@@ -65,6 +65,31 @@ data class GameProfileEntity(
     @ColumnInfo(name = "crosshair_preset_id")
     val crosshairPresetId: Long?,
 
+    /**
+     * The colour correction to apply for this game, or null to leave the screen alone.
+     *
+     * Nullable for the same reason as the two ids above, and added in schema version 2 — which
+     * is why the migration adds it as a plain nullable INTEGER with no default: a profile that
+     * existed before the colour feature did wanted nothing done to the display, and null is
+     * exactly that.
+     */
+    @ColumnInfo(name = "color_preset_id")
+    val colorPresetId: Long?,
+
+    /**
+     * The display size to stretch to while this game runs as a `WxH` token, or null to leave
+     * the display alone.
+     *
+     * One TEXT column rather than two nullable integers, because a width without a height is not
+     * a size and two columns can express that. The token is
+     * [com.gamecore.core.model.DisplaySize.argument] — the same string `wm size` takes — parsed
+     * back through [com.gamecore.core.model.DisplaySize.parse], which returns null for anything
+     * it does not recognise. Added in schema version 3, nullable with no default for the reason
+     * `color_preset_id` was: a profile written before this existed asked for nothing.
+     */
+    @ColumnInfo(name = "display_size")
+    val displaySize: String?,
+
     @ColumnInfo(name = "performance_mode")
     val performanceMode: String,
 
@@ -193,4 +218,72 @@ data class CrosshairPresetEntity(
 
     @ColumnInfo(name = "image_path")
     val imagePath: String?,
+)
+
+/**
+ * A colour preset's row. Flat, one column per slider, for the same reason
+ * [CrosshairPresetEntity] is flat and the opposite reason to the session's colour column.
+ *
+ * A preset is queried, listed, renamed and edited field by field, so its fields are
+ * columns: the picker sorts on them, and a future "which of my presets asks for gamma"
+ * is a `WHERE`, not fourteen string splits. The session's reading of the *same* fourteen
+ * values is one [com.gamecore.core.model.ColorCodec] string, because that one is written
+ * once with a session row and read once by a report.
+ *
+ * Both gamma sets are stored at once — the combined slider and the three per-channel
+ * ones — with [gammaMode] recording which the user was looking at. Storing only the
+ * active set would lose the other on every mode switch, and a preset that forgets half
+ * its values when you glance at the other tab is not a preset.
+ */
+@Entity(tableName = "color_presets")
+data class ColorPresetEntity(
+    @PrimaryKey(autoGenerate = true)
+    @ColumnInfo(name = "id")
+    val id: Long,
+
+    @ColumnInfo(name = "name")
+    val name: String,
+
+    @ColumnInfo(name = "red_gain")
+    val redGain: Int,
+
+    @ColumnInfo(name = "green_gain")
+    val greenGain: Int,
+
+    @ColumnInfo(name = "blue_gain")
+    val blueGain: Int,
+
+    /** The enum name, as with every other stored enum here. */
+    @ColumnInfo(name = "gamma_mode")
+    val gammaMode: String,
+
+    @ColumnInfo(name = "gamma")
+    val gamma: Int,
+
+    @ColumnInfo(name = "red_gamma")
+    val redGamma: Int,
+
+    @ColumnInfo(name = "green_gamma")
+    val greenGamma: Int,
+
+    @ColumnInfo(name = "blue_gamma")
+    val blueGamma: Int,
+
+    @ColumnInfo(name = "saturation")
+    val saturation: Int,
+
+    @ColumnInfo(name = "contrast")
+    val contrast: Int,
+
+    @ColumnInfo(name = "hue_degrees")
+    val hueDegrees: Int,
+
+    @ColumnInfo(name = "brightness_offset")
+    val brightnessOffset: Int,
+
+    @ColumnInfo(name = "vision_filter")
+    val visionFilter: String,
+
+    @ColumnInfo(name = "invert_colors")
+    val invertColors: Boolean,
 )

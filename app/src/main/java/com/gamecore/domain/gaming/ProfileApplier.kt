@@ -1,6 +1,13 @@
 package com.gamecore.domain.gaming
 
+import com.gamecore.core.common.AccessLevel
+import com.gamecore.core.common.Observed
+import com.gamecore.core.common.TextSanitizer
 import com.gamecore.core.common.valueOrNull
+import com.gamecore.core.model.CapabilityStatus
+import com.gamecore.core.model.ColorPreset
+import com.gamecore.core.model.DisplaySize
+import com.gamecore.core.model.DisplaySizeOutcome
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.OptimizationAction
 import com.gamecore.core.model.OptimizationResult
@@ -9,6 +16,11 @@ import com.gamecore.core.model.ProfileApplication
 import com.gamecore.core.model.RestoreReport
 import com.gamecore.core.shizuku.ShizukuManager
 import com.gamecore.core.system.DisplayReader
+import com.gamecore.core.system.SettingsWriteOutcome
+import com.gamecore.data.repository.ColorPresetRepository
+import com.gamecore.domain.color.ColorApplyResult
+import com.gamecore.domain.color.ColorCorrectionController
+import com.gamecore.domain.display.DisplaySizeController
 import com.gamecore.domain.optimization.OptimizationManager
 import com.gamecore.domain.optimization.OptimizationRequest
 import javax.inject.Inject
@@ -20,7 +32,7 @@ import javax.inject.Singleton
  * The translation is the whole job. A profile is a set of *wishes* — 90 Hz, 40% brightness, landscape,
  * Do Not Disturb on — and this class is where each wish becomes an [OptimizationRequest] or an
  * [OptimizationResult.Skipped] saying why it became nothing. Every profile-relevant action appears in
- * the result either way, so the report screen lists eleven rows with a status each rather than only
+ * the result either way, so the report screen lists ten rows with a status each rather than only
  * the ones that happened to run: "not requested" is information, and a row missing from a list is
  * not.
  *
@@ -40,13 +52,19 @@ import javax.inject.Singleton
  * happen: the rate settles, then the screen dims.
  *
  * Restore is not this class's decision — [OptimizationManager] records every previous value before it
- * writes, so [restore] is a delegation and not a second copy of the undo logic.
+ * writes, so [restore] is a delegation and not a second copy of the undo logic. Two steps do not travel
+ * through [OptimizationManager] and both record their own restore rows in the same table: colour,
+ * because the keys it writes depend on what the preset asks for, and display size, because it writes no
+ * settings key at all. [restore] still puts the display back without knowing either exists.
  */
 @Singleton
 class ProfileApplier @Inject constructor(
     private val optimizations: OptimizationManager,
     private val displayReader: DisplayReader,
     private val shizuku: ShizukuManager,
+    private val colorPresets: ColorPresetRepository,
+    private val color: ColorCorrectionController,
+    private val displaySize: DisplaySizeController,
 ) {
 
     /**
@@ -65,6 +83,8 @@ class ProfileApplier @Inject constructor(
         for (step in steps) {
             results += when (step) {
                 is Step.Attempt -> optimizations.apply(step.request, profile.packageName)
+                is Step.Colour -> applyColour(step.presetId, profile)
+                is Step.Stretch -> applyDisplaySize(step.size, profile)
                 is Step.Skip -> step.result
             }
         }
@@ -96,13 +116,33 @@ class ProfileApplier @Inject constructor(
     internal sealed interface Step {
         data class Attempt(val request: OptimizationRequest) : Step
         data class Skip(val result: OptimizationResult.Skipped) : Step
+
+        /**
+         * The colour preset to load and apply, by id.
+         *
+         * An id rather than a resolved [ColorPreset] because [plan] is pure and reads nothing; the
+         * row is fetched in [apply] where suspending is allowed. A separate variant rather than an
+         * [Attempt] because this step does not go through [OptimizationManager] — see the class
+         * documentation, and `OptimizationAction.isEngineAction`.
+         */
+        data class Colour(val presetId: Long) : Step
+
+        /**
+         * The size to stretch the display to.
+         *
+         * Carries the size itself rather than an id, because unlike a colour preset it is stored on the
+         * profile and needs no row fetched to be acted on. A separate variant for the same reason
+         * [Colour] is one: [com.gamecore.domain.display.DisplaySizeController] owns this write, its
+         * read-back and its restore row — see `OptimizationAction.isEngineAction`.
+         */
+        data class Stretch(val size: DisplaySize) : Step
     }
 
     /**
      * The ordered plan for [profile], with no device writes and no suspension.
      *
      * Pure so §31 can assert the translation directly: that `BALANCED` with every field null plans
-     * eight skips, that `PERFORMANCE` plans a peak pin even when the profile names no rate, that an
+     * ten skips, that `PERFORMANCE` plans a peak pin even when the profile names no rate, that an
      * explicit rate outranks the mode's, and that a profile with the shell switched off skips the two
      * global-settings changes instead of failing them.
      *
@@ -115,7 +155,9 @@ class ProfileApplier @Inject constructor(
         shellLive: Boolean,
     ): List<Step> = listOf(
         refreshStep(profile, supportedRates),
+        displaySizeStep(profile),
         brightnessStep(profile),
+        colourStep(profile),
         rotationStep(profile),
         timeoutStep(profile),
         volumeStep(profile),
@@ -165,10 +207,45 @@ class ProfileApplier @Inject constructor(
         }
     }
 
+    /**
+     * The display size, second in the plan because the panel's own two properties come before anything
+     * drawn on it: the rate settles, the display resizes, and only then is there a stable screen to dim.
+     *
+     * Not gated on [GameProfile.useShizukuOptimizations], unlike the two global-settings steps below. That
+     * gate is for changes a *mode* adds silently — a user who picks Performance did not ask for animations
+     * to be switched off by name, so a skip is the courteous reading of a shell they left switched off. A
+     * display size is named by the user field by field, like a refresh rate or a colour preset and unlike
+     * either of those; the honest answer when the shell is missing is
+     * [OptimizationResult.Blocked] with the way to fix it, which is what the controller returns.
+     */
+    private fun displaySizeStep(profile: GameProfile): Step =
+        profile.displaySize
+            ?.let { Step.Stretch(it) }
+            ?: skip(
+                OptimizationAction.SET_DISPLAY_SIZE,
+                "This profile leaves the display's own size alone.",
+            )
+
     private fun brightnessStep(profile: GameProfile): Step =
         profile.brightnessPercent
             ?.let { Step.Attempt(OptimizationRequest.brightness(it)) }
             ?: skip(OptimizationAction.SET_BRIGHTNESS, "This profile leaves brightness alone.")
+
+    /**
+     * The colour preset, placed straight after brightness because that is the order the user sees it
+     * in: the panel dims, then the white point moves.
+     *
+     * Null is honoured as literally here as everywhere else. A profile with no preset produces a skip,
+     * not a reset — resetting would mean GameCore taking the screen's colour away from whatever set it,
+     * which on a great many phones is Android's own night-display schedule.
+     */
+    private fun colourStep(profile: GameProfile): Step =
+        profile.colorPresetId
+            ?.let { Step.Colour(it) }
+            ?: skip(
+                OptimizationAction.APPLY_COLOR_CORRECTION,
+                "This profile leaves the screen's colour alone.",
+            )
 
     private fun rotationStep(profile: GameProfile): Step =
         profile.rotationLock
@@ -276,4 +353,158 @@ class ProfileApplier @Inject constructor(
 
     private fun skip(action: OptimizationAction, reason: String): Step =
         Step.Skip(OptimizationResult.Skipped(action, reason))
+
+    // ------------------------------------------------------------------------------ colour
+
+    /**
+     * Loads the profile's preset and hands it to [ColorCorrectionController].
+     *
+     * The one step that does not go through [OptimizationManager]. A preset writes between one and
+     * eight of the display's colour keys depending on what it asks for, and the controller records
+     * each one immediately before writing it; the manager's capture-then-write shape would have to
+     * record all eight up front, leaving restore rows for keys this preset never touched — and the
+     * revert at game exit would then hand back a colour-vision filter the user set themselves.
+     *
+     * A missing row is [OptimizationResult.Failed] rather than a skip. Deleting a preset detaches it
+     * from every profile in the same call, so an id that resolves to nothing means something went
+     * wrong rather than that the user changed their mind, and the report should say so.
+     */
+    private suspend fun applyColour(presetId: Long, profile: GameProfile): OptimizationResult {
+        val action = OptimizationAction.APPLY_COLOR_CORRECTION
+        val preset = colorPresets.preset(presetId) ?: return OptimizationResult.Failed(
+            action = action,
+            detail = "This profile points at a colour preset that no longer exists, so the screen " +
+                "was left as it was. Choose a preset again in the profile's colour field.",
+        )
+        return colourResult(action, preset, color.apply(preset.correction, profile.packageName))
+    }
+    /**
+     * One [ColorApplyResult] as one row of the profile report.
+     *
+     * Ordered by how loud the problem is rather than by how much of it succeeded, because a colour
+     * preset is one change to the user even though it is several writes underneath. A device that
+     * refused one of its keys has not applied the preset, and reporting "applied" because five of six
+     * went through is the overclaim §24 exists to prevent.
+     *
+     * The plan's limits never turn a success into a failure. A phone with no per-channel gamma control
+     * is not failing — it is a phone, and the preset's gamma had nowhere to go. That goes in the detail
+     * so a user whose screen looks less changed than the sliders suggested is told why.
+     */
+    private fun colourResult(
+        action: OptimizationAction,
+        preset: ColorPreset,
+        result: ColorApplyResult,
+    ): OptimizationResult {
+        val name = TextSanitizer.sanitizeForNotification(preset.name)
+            .ifBlank { ColorPreset.DEFAULT_NAME }
+        when (val access = result.access) {
+            is Observed.Restricted -> return OptimizationResult.Blocked(
+                action = action,
+                status = if (access.unlockedBy == AccessLevel.SHIZUKU) {
+                    CapabilityStatus.REQUIRES_SHIZUKU
+                } else {
+                    CapabilityStatus.REQUIRES_PERMISSION
+                },
+                detail = access.detail,
+            )
+
+            is Observed.Failed -> return OptimizationResult.Failed(action, access.detail)
+            is Observed.Value -> Unit
+        }
+        val outcomes = result.results.map { it.outcome }
+        val blocked = outcomes.filterIsInstance<SettingsWriteOutcome.RequiresAccess>().firstOrNull()
+        return when {
+            result.plan.writes.isEmpty() && result.plan.limits.isEmpty() ->
+                OptimizationResult.Skipped(action, "$name changes nothing, so nothing was written.")
+
+            result.plan.writes.isEmpty() -> OptimizationResult.NotHonoured(action, result.message)
+
+            outcomes.any {
+                it is SettingsWriteOutcome.Failed || it is SettingsWriteOutcome.Rejected
+            } -> OptimizationResult.Failed(action, result.message)
+
+            outcomes.any { it is SettingsWriteOutcome.NotHonoured } ->
+                OptimizationResult.NotHonoured(action, result.message)
+
+            blocked != null -> OptimizationResult.Blocked(
+                action = action,
+                status = if (blocked.needsShizuku) {
+                    CapabilityStatus.REQUIRES_SHIZUKU
+                } else {
+                    CapabilityStatus.REQUIRES_PERMISSION
+                },
+                detail = result.message,
+            )
+
+            outcomes.any { it is SettingsWriteOutcome.AppliedUnverified } ->
+                OptimizationResult.Unverified(action, colourDetail(name, result))
+
+            else -> OptimizationResult.Applied(action, colourDetail(name, result))
+        }
+    }
+
+    /** The applied line: the preset, how many keys it reached, and what it could not express. */
+    private fun colourDetail(name: String, result: ColorApplyResult): String = buildString {
+        append(name)
+        append(": ")
+        append(result.appliedCount)
+        append(if (result.appliedCount == 1) " display setting" else " display settings")
+        append(" changed")
+        if (result.plan.limits.isNotEmpty()) {
+            append(", ")
+            append(result.plan.limits.size)
+            append(" of its values have no equivalent on this device")
+        }
+        append('.')
+    }
+
+    // ------------------------------------------------------------------------ display size
+
+    /**
+     * Hands the profile's size to [DisplaySizeController] and reports what came back.
+     *
+     * The second step that does not go through [OptimizationManager], and the reason is simpler than
+     * colour's: `wm size` is a window-manager command, not a `settings` write, so the manager's
+     * capture-then-write shape has no key to capture. The controller records the size the display was
+     * running under the restore table's non-setting namespace, which is the same table [restore] drains —
+     * so this feature adds no second way to undo anything.
+     *
+     * The mapping is a translation and never a promotion. [DisplaySizeOutcome.isSuccess] is true for two
+     * cases only, both of them read back from the device, and every other case lands somewhere the user
+     * sees as unfinished: an override the display declined is [OptimizationResult.NotHonoured], a size
+     * this panel will not take is [OptimizationResult.Failed] because the profile is asking for something
+     * it will never get, and a missing shell is [OptimizationResult.Blocked] with the sentence that says
+     * why and what unlocks it.
+     */
+    private suspend fun applyDisplaySize(size: DisplaySize, profile: GameProfile): OptimizationResult {
+        val action = OptimizationAction.SET_DISPLAY_SIZE
+        return when (val outcome = displaySize.apply(size, profile.packageName)) {
+            // Restored cannot arrive from an apply — it is what a reset is confirmed by — and is mapped
+            // rather than lumped into an `else` so that a change to the outcome type surfaces here.
+            is DisplaySizeOutcome.Applied,
+            is DisplaySizeOutcome.Restored,
+            -> OptimizationResult.Applied(action, outcome.message)
+
+            // The one case whose own sentence is not reused. OptimizationResult.Unverified appends
+            // "(not confirmed)" to whatever detail it is given, and this outcome's message already says
+            // as much in words; twice over it reads like a stutter.
+            is DisplaySizeOutcome.AppliedUnverified -> OptimizationResult.Unverified(
+                action = action,
+                detail = "Asked for ${outcome.requested?.label ?: "the display's native size"} — " +
+                    outcome.reason,
+            )
+
+            is DisplaySizeOutcome.NotHonoured -> OptimizationResult.NotHonoured(action, outcome.message)
+
+            is DisplaySizeOutcome.SizeUnsupported -> OptimizationResult.Failed(action, outcome.message)
+
+            is DisplaySizeOutcome.RequiresAccess -> OptimizationResult.Blocked(
+                action = action,
+                status = CapabilityStatus.REQUIRES_SHIZUKU,
+                detail = outcome.message,
+            )
+
+            is DisplaySizeOutcome.Failed -> OptimizationResult.Failed(action, outcome.message)
+        }
+    }
 }

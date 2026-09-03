@@ -38,6 +38,24 @@
     <uses-permission android:name="android.permission.WRITE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
 
+    <!--
+      Screen colour correction, and nothing else.
+
+      The night-display warmth, the display colour mode, the daltonizer,
+      reduce-bright-colours and colour inversion are all keys in Settings.Secure.
+      Writing them needs this permission, which is declared
+      signature|privileged|development — the development flag is what lets `pm grant`
+      from a uid-2000 shell (Shizuku, or plain adb) grant it. Android will never grant
+      it to an installed app on its own, there is no Settings page for it, and GameCore
+      does not pretend otherwise: with it, the colour controls write directly and are
+      read back; without it, they report that they need Shizuku and change nothing.
+
+      Declared here because a permission absent from the manifest cannot be granted at
+      all, not even by adb.
+    -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
     <!-- Do Not Disturb, through NotificationManager.setInterruptionFilter(). Also a
          special access, checked with isNotificationPolicyAccessGranted(). -->
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />

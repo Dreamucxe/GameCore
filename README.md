@@ -3,10 +3,46 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v1.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v1.1%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · works
 fully offline
+
+---
+
+## New in 1.1 — colour correction
+
+A display colour screen, with the same values reachable from inside a game.
+
+- **Eleven values.** Red, green and blue gain; gamma as one slider or three; saturation,
+  contrast, hue rotation and a brightness offset. Every slider shows its number, and tapping
+  the number opens a keypad for an exact entry — held to the field's own range, so a hue turns
+  ±180° while a gain stops at ±100%, and an out-of-range entry is refused rather than quietly
+  clamped to something you did not type.
+- **Presets you own.** Seven ship — Vibrant, Warm, Cool, Night, Protanopia, Deuteranopia,
+  Tritanopia — and they are ordinary saved rows, not a fixed menu: open one, move a slider,
+  save it under a new name, rename it, delete it. There is no cap on how many you keep.
+- **Per game.** A profile can carry a colour preset. It is applied when the game comes to the
+  front and put back when it leaves, from the reading taken before the change — the same
+  restore rule every other profile field follows.
+- **In the overlay panel.** Saturation, contrast and hue sit directly under the existing volume
+  and brightness sliders, a Colour tile joins the action grid, and a long press on it drops your
+  saved presets in as chips. Everything applies as the slider moves, with no confirm step.
+- **In the session report.** Which preset, and which values, were active while the session ran.
+
+And the reason the feature is built the way it is: **Android exposes no per-channel colour
+matrix to an app.** `ColorDisplayManager`'s matrix and `SurfaceControl.setDisplayColorTransform`
+are hidden platform API that neither `WRITE_SECURE_SETTINGS` nor a shell running as uid 2000 can
+reach. So GameCore projects what you asked for onto the sinks that do exist on the device it is
+running on — night-display warmth, the display colour mode, the daltonizer,
+reduce-bright-colours, colour inversion — and the screen lists every write it would make, names
+each value this device has no sink for, and says why. A gamma slider that moved and quietly did
+nothing would have been easier to build, and would have been exactly the lie this project exists
+to avoid.
+
+Colour correction needs `WRITE_SECURE_SETTINGS`, which Android never grants an app on its own —
+Shizuku or a wireless-ADB pairing is the only way to hold it. Without it the screen says so and
+points at the setup, rather than presenting sliders that write nothing.
 
 ---
 
@@ -20,8 +56,7 @@ other way around: its central type is
 sealed interface Observed<out T> {
     data class Value<T>(val value: T, val source: DataSource, val precision: Precision)
     data class Restricted(val reason: RestrictionReason, val unlockedBy: AccessLevel?, ...)
-    data class Failed(val detail: String)
-    data object AwaitingSample
+    data class Failed(val detail: String, val cause: String?)
 }
 ```
 
@@ -52,8 +87,9 @@ unreachable at any privilege level.
 - A draggable gaming button that snaps to whichever edge its centre is nearer, stays on
   screen when the device rotates, and remembers where you left it.
 - Tapping it opens a control panel **directly below the button**, wherever the button
-  happens to be — brightness and media-volume sliders, screenshot, screen recording,
-  Do Not Disturb, orientation lock, flashlight, and a shortcut back into the game.
+  happens to be — brightness and media-volume sliders, saturation, contrast and hue,
+  screenshot, screen recording, Do Not Disturb, orientation lock, flashlight, colour presets,
+  display shape, and a shortcut back into the game.
 - A configurable performance pill: pick which stats it shows and set its position, size,
   opacity, corner radius, text size and update interval.
 - A crosshair overlay with ten designs — cross, dot, ring, ring-and-dot, cross-in-ring, T,
@@ -66,9 +102,9 @@ unreachable at any privilege level.
 
 ### Game profiles
 
-One profile per package, holding target refresh rate, brightness, orientation lock, screen
-timeout, media volume, Do Not Disturb, which overlays to raise, a HUD layout, a crosshair
-preset, a performance mode and whether to track the session.
+One profile per package, holding target refresh rate, brightness, display size, orientation
+lock, screen timeout, media volume, Do Not Disturb, which overlays to raise, a HUD layout, a
+crosshair preset, a colour preset, a performance mode and whether to track the session.
 
 Every adjustable field is nullable, and **null means leave it alone** — not "use a
 default". A profile that sets only brightness records what brightness was, changes it, and
@@ -94,7 +130,9 @@ headline figure.
 
 Every tracked session is written to an encrypted Room database: the game, start and end
 time, duration, battery delta, average and peak CPU load, average and peak memory use,
-average and peak temperature, the refresh rate it ran at and the network it used.
+average and peak temperature, the refresh rate it ran at, the network it used, and the colour
+preset and values the display was held at. A session recorded before 1.1 reads back as no
+colour reading rather than as a neutral one — an absence, not an invented zero.
 
 The session report draws those as graphs. The history screen filters, sorts, deletes and
 aggregates them. A session interrupted by the app's process being killed is repaired on the
@@ -125,8 +163,9 @@ and shows *"Not available on this device"* when it does not — rather than esti
 
 The app is fully usable without it. Shizuku (or a wireless-ADB pairing) raises the app to
 ADB-level authority, which is what most devices require for a *device-wide* refresh-rate
-change, for animation scales, and for a handful of `dumpsys` reads Android does not expose
-to ordinary apps.
+change, for animation scales, for the display's colour keys, for reading and reshaping the
+display's own size, and for a handful of `dumpsys` reads Android does not expose to ordinary
+apps.
 
 When it is absent, capabilities that need it say so and point at the setup screen. Nothing
 silently degrades into a fake result.
@@ -138,10 +177,11 @@ What the app can run with that authority is a closed, enumerated set:
 | `id` | confirming the shell's own uid before trusting it |
 | `cat` | `/proc/stat`, `/proc/meminfo` |
 | `dumpsys` | `thermalservice`, `battery`, `display`, `SurfaceFlinger --latency`, `gfxinfo` |
-| `settings get/put` | eleven specific keys, each with its own value range |
+| `settings get/put` | nineteen specific keys, each with its own value range |
 | `getprop` | three `ro.*` chipset properties |
-| `pm grant` | two permissions, **to this app only** |
+| `pm grant` | three permissions, **to this app only** |
 | `appops set` | two app-ops, **to this app only** |
+| `wm size` | reading the display's size, setting a per-game override, and clearing it |
 
 There is no shell interpreter in that list, so there is no string to inject into. Every
 argument that originates outside the app's own code — a package name from a stored profile,
@@ -166,6 +206,7 @@ switched on.
 | `WRITE_SETTINGS` | brightness, screen timeout and orientation lock |
 | `ACCESS_NOTIFICATION_POLICY` | the Do Not Disturb toggle |
 | `MODIFY_AUDIO_SETTINGS` | the volume slider |
+| `WRITE_SECURE_SETTINGS` | colour correction (granted through Shizuku or adb only) |
 | `ACCESS_NETWORK_STATE`, `INTERNET` | network type, latency and throughput |
 | `POST_NOTIFICATIONS` | any foreground service, since each must post one |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | detection and tracking surviving Doze |
@@ -210,14 +251,14 @@ Nothing runs when it is not needed — each service stops itself.
 ## Architecture
 
 Kotlin only, Jetpack Compose with Material 3, MVVM, Hilt, Coroutines and `StateFlow`. No
-Java, no XML layouts — the only XML is Android resources and the manifest. 168 source files,
-about 38k lines.
+Java, no XML layouts — the only XML is Android resources and the manifest. 177 source files,
+about 42k lines.
 
 ```
 app/
 ├── core/
 │   ├── common/       Observed<T>, AccessLevel, Formatters, TextSanitizer
-│   ├── model/        the domain types — profiles, HUD, sessions, readings
+│   ├── model/        the domain types — profiles, HUD, colour, sessions, readings
 │   ├── permissions/  the catalog and live permission state
 │   ├── system/       readers and controllers over the platform APIs
 │   ├── overlay/      window geometry, drag/snap arithmetic, the overlay hosts

@@ -7,7 +7,10 @@ import androidx.security.crypto.MasterKey
 import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.model.AccentChoice
 import com.gamecore.core.model.AppSettings
+import com.gamecore.core.model.ColorCorrection
+import com.gamecore.core.model.ColorVisionFilter
 import com.gamecore.core.model.FloatingButtonConfig
+import com.gamecore.core.model.GammaMode
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.OverlayConfig
 import com.gamecore.core.model.RecordingQuality
@@ -72,10 +75,24 @@ class SecurePreferenceStore @Inject constructor(
     private val buttonState: MutableStateFlow<FloatingButtonConfig> by lazy {
         MutableStateFlow(readButton())
     }
+    private val colorState: MutableStateFlow<ColorCorrection> by lazy {
+        MutableStateFlow(readColor())
+    }
 
     val settings: StateFlow<AppSettings> get() = settingsState.asStateFlow()
     val overlay: StateFlow<OverlayConfig> get() = overlayState.asStateFlow()
     val floatingButton: StateFlow<FloatingButtonConfig> get() = buttonState.asStateFlow()
+
+    /**
+     * Where the user left the colour sliders, preset or no preset.
+     *
+     * Kept apart from [activeColorPresetId] because they answer different questions. The id says
+     * which saved preset the values came from; this says what the values *are* — including after
+     * the user has dragged three sliders away from that preset without saving. Reopening the
+     * overlay panel has to show the second, or every adjustment made in a game is lost the moment
+     * the panel closes.
+     */
+    val colorCorrection: StateFlow<ColorCorrection> get() = colorState.asStateFlow()
 
     /** True when preferences are not persisting, so Settings can say so instead of lying. */
     val isPersisting: Boolean get() = prefs != null
@@ -90,6 +107,7 @@ class SecurePreferenceStore @Inject constructor(
         settingsState.value
         overlayState.value
         buttonState.value
+        colorState.value
         Unit
     }
 
@@ -240,6 +258,20 @@ class SecurePreferenceStore @Inject constructor(
         prefs?.edit()?.putInt(KEY_BUTTON_X, x)?.putInt(KEY_BUTTON_Y, y)?.apply()
     }
 
+    /**
+     * Records where the user let go of the panel's resize grip.
+     *
+     * Narrow for the same reason the two position writers are, and for one more: the panel is open
+     * while this is written, and [updateFloatingButton] would rewrite the button's x and y from a
+     * state the service may be a frame ahead of.
+     */
+    fun updatePanelWidth(widthDp: Int) {
+        val clamped = widthDp.coerceIn(FloatingButtonConfig.PANEL_WIDTH_RANGE)
+        val updated = buttonState.value.copy(panelWidthDp = clamped)
+        buttonState.value = updated
+        prefs?.edit()?.putInt(KEY_BUTTON_PANEL_WIDTH, clamped)?.apply()
+    }
+
     private fun readButton(): FloatingButtonConfig {
         val p = prefs ?: return FloatingButtonConfig()
         val defaults = FloatingButtonConfig()
@@ -252,6 +284,7 @@ class SecurePreferenceStore @Inject constructor(
             snapToEdge = p.getBoolean(KEY_BUTTON_SNAP, defaults.snapToEdge),
             idleOpacityPercent = p.getInt(KEY_BUTTON_IDLE_OPACITY, defaults.idleOpacityPercent),
             hapticFeedback = p.getBoolean(KEY_BUTTON_HAPTIC, defaults.hapticFeedback),
+            panelWidthDp = p.getInt(KEY_BUTTON_PANEL_WIDTH, defaults.panelWidthDp),
         ).normalised()
     }
 
@@ -265,6 +298,89 @@ class SecurePreferenceStore @Inject constructor(
             putBoolean(KEY_BUTTON_SNAP, value.snapToEdge)
             putInt(KEY_BUTTON_IDLE_OPACITY, value.idleOpacityPercent)
             putBoolean(KEY_BUTTON_HAPTIC, value.hapticFeedback)
+            putInt(KEY_BUTTON_PANEL_WIDTH, value.panelWidthDp)
+        }?.apply()
+    }
+
+    // ----------------------------------------------------------------- colour
+
+    /**
+     * Records a slider movement.
+     *
+     * Called on every change from both the full editor and the overlay panel's three quick
+     * sliders, which is many times per drag. `SharedPreferences.apply()` is asynchronous and
+     * batched by the framework, so this is a memory write plus an enqueued commit rather than a
+     * disk write per frame — but note what it is *not* doing: it does not apply anything to the
+     * display. Storing what the user chose and asking the settings provider to honour it are two
+     * different operations, and only one of them can fail.
+     */
+    fun updateColorCorrection(transform: (ColorCorrection) -> ColorCorrection) {
+        val updated = transform(colorState.value).normalised()
+        colorState.value = updated
+        writeColor(updated)
+    }
+
+    /** Replaces the stored values outright, for "load this preset into the sliders". */
+    fun setColorCorrection(correction: ColorCorrection) = updateColorCorrection { correction }
+
+    /**
+     * Which saved preset the sliders currently reflect, or null for values the user built by hand.
+     *
+     * Set alongside [setColorCorrection] when a preset is loaded, and cleared by the editor as soon
+     * as a slider moves — a chip still showing "Night" highlighted after the user has warmed it by
+     * another 20% is a label that has stopped being true.
+     */
+    var activeColorPresetId: Long?
+        get() = prefs?.getLong(KEY_ACTIVE_COLOR, -1L)?.takeIf { it > 0L }
+        set(value) {
+            prefs?.edit()?.putLong(KEY_ACTIVE_COLOR, value ?: -1L)?.apply()
+        }
+
+    private fun readColor(): ColorCorrection {
+        val p = prefs ?: return ColorCorrection.NEUTRAL
+        val defaults = ColorCorrection.NEUTRAL
+        return ColorCorrection(
+            redGain = p.getInt(KEY_COLOR_RED, defaults.redGain),
+            greenGain = p.getInt(KEY_COLOR_GREEN, defaults.greenGain),
+            blueGain = p.getInt(KEY_COLOR_BLUE, defaults.blueGain),
+            gammaMode = enumOrDefault(
+                p.getString(KEY_COLOR_GAMMA_MODE, null),
+                GammaMode.entries,
+                defaults.gammaMode,
+            ),
+            gamma = p.getInt(KEY_COLOR_GAMMA, defaults.gamma),
+            redGamma = p.getInt(KEY_COLOR_RED_GAMMA, defaults.redGamma),
+            greenGamma = p.getInt(KEY_COLOR_GREEN_GAMMA, defaults.greenGamma),
+            blueGamma = p.getInt(KEY_COLOR_BLUE_GAMMA, defaults.blueGamma),
+            saturation = p.getInt(KEY_COLOR_SATURATION, defaults.saturation),
+            contrast = p.getInt(KEY_COLOR_CONTRAST, defaults.contrast),
+            hueDegrees = p.getInt(KEY_COLOR_HUE, defaults.hueDegrees),
+            brightnessOffset = p.getInt(KEY_COLOR_BRIGHTNESS, defaults.brightnessOffset),
+            visionFilter = enumOrDefault(
+                p.getString(KEY_COLOR_FILTER, null),
+                ColorVisionFilter.entries,
+                defaults.visionFilter,
+            ),
+            invertColors = p.getBoolean(KEY_COLOR_INVERT, defaults.invertColors),
+        ).normalised()
+    }
+
+    private fun writeColor(value: ColorCorrection) {
+        prefs?.edit()?.apply {
+            putInt(KEY_COLOR_RED, value.redGain)
+            putInt(KEY_COLOR_GREEN, value.greenGain)
+            putInt(KEY_COLOR_BLUE, value.blueGain)
+            putString(KEY_COLOR_GAMMA_MODE, value.gammaMode.name)
+            putInt(KEY_COLOR_GAMMA, value.gamma)
+            putInt(KEY_COLOR_RED_GAMMA, value.redGamma)
+            putInt(KEY_COLOR_GREEN_GAMMA, value.greenGamma)
+            putInt(KEY_COLOR_BLUE_GAMMA, value.blueGamma)
+            putInt(KEY_COLOR_SATURATION, value.saturation)
+            putInt(KEY_COLOR_CONTRAST, value.contrast)
+            putInt(KEY_COLOR_HUE, value.hueDegrees)
+            putInt(KEY_COLOR_BRIGHTNESS, value.brightnessOffset)
+            putString(KEY_COLOR_FILTER, value.visionFilter.name)
+            putBoolean(KEY_COLOR_INVERT, value.invertColors)
         }?.apply()
     }
 
@@ -327,6 +443,7 @@ class SecurePreferenceStore @Inject constructor(
         settingsState.value = AppSettings()
         overlayState.value = OverlayConfig()
         buttonState.value = FloatingButtonConfig()
+        colorState.value = ColorCorrection.NEUTRAL
     }
 
     // --------------------------------------------------------------------- internals
@@ -392,11 +509,28 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_BUTTON_SNAP = "button_snap"
         const val KEY_BUTTON_IDLE_OPACITY = "button_idle_opacity"
         const val KEY_BUTTON_HAPTIC = "button_haptic"
+        const val KEY_BUTTON_PANEL_WIDTH = "button_panel_width"
 
         const val KEY_ACTIVE_CROSSHAIR = "active_crosshair"
         const val KEY_ACTIVE_HUD = "active_hud"
         const val KEY_SHOW_CROSSHAIR = "show_crosshair"
         const val KEY_SHOW_HUD = "show_hud"
         const val KEY_ASKED_BATTERY = "asked_battery"
+
+        const val KEY_ACTIVE_COLOR = "active_color"
+        const val KEY_COLOR_RED = "color_red"
+        const val KEY_COLOR_GREEN = "color_green"
+        const val KEY_COLOR_BLUE = "color_blue"
+        const val KEY_COLOR_GAMMA_MODE = "color_gamma_mode"
+        const val KEY_COLOR_GAMMA = "color_gamma"
+        const val KEY_COLOR_RED_GAMMA = "color_red_gamma"
+        const val KEY_COLOR_GREEN_GAMMA = "color_green_gamma"
+        const val KEY_COLOR_BLUE_GAMMA = "color_blue_gamma"
+        const val KEY_COLOR_SATURATION = "color_saturation"
+        const val KEY_COLOR_CONTRAST = "color_contrast"
+        const val KEY_COLOR_HUE = "color_hue"
+        const val KEY_COLOR_BRIGHTNESS = "color_brightness"
+        const val KEY_COLOR_FILTER = "color_filter"
+        const val KEY_COLOR_INVERT = "color_invert"
     }
 }

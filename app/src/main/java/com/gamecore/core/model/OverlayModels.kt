@@ -60,6 +60,11 @@ data class OverlayConfig(
  * middle of a game is a button that gets pressed by accident. The position is stored raw and
  * the snap applied at layout time, so switching the setting off puts the button back where it
  * was dragged rather than where it was snapped to.
+ *
+ * The control panel's width lives here too, and that is a deliberate choice rather than a
+ * convenience: the panel is this button's expanded form — the button opens it and the window is
+ * positioned from the button's centre — while [OverlayConfig] above is scoped to the stats pill,
+ * which is a separate window the user places separately.
  */
 data class FloatingButtonConfig(
     val show: Boolean = true,
@@ -71,11 +76,26 @@ data class FloatingButtonConfig(
     /** Fades to this while a game is in the foreground and the panel is closed. */
     val idleOpacityPercent: Int = 40,
     val hapticFeedback: Boolean = true,
+    /**
+     * How wide the control panel opens, in dp. One preference for every game.
+     *
+     * A *requested* width, not a promise: the clamp below cannot know how wide the screen is, so it
+     * only keeps the figure inside [PANEL_WIDTH_RANGE], and the overlay service clamps it a second
+     * time against the display the panel actually opens on. That second clamp is why the range's top
+     * end is worth reaching for on a phone — the panel opens over a game, and a game is usually
+     * landscape, where there is room for all of it.
+     *
+     * Height is not settable and deliberately so: the panel is measured against the gap between the
+     * button and the nearest screen edge and scrolls inside whatever that leaves, so a stored height
+     * would be a number the anchoring overrules.
+     */
+    val panelWidthDp: Int = DEFAULT_PANEL_WIDTH_DP,
 ) {
     fun normalised(): FloatingButtonConfig = copy(
         sizeDp = sizeDp.coerceIn(SIZE_RANGE),
         opacityPercent = opacityPercent.coerceIn(OPACITY_RANGE),
         idleOpacityPercent = idleOpacityPercent.coerceIn(IDLE_OPACITY_RANGE),
+        panelWidthDp = panelWidthDp.coerceIn(PANEL_WIDTH_RANGE),
     )
 
     companion object {
@@ -87,6 +107,39 @@ data class FloatingButtonConfig(
         /** A button below 30% is hard to find; below 10% while idle it is invisible, not subtle. */
         val OPACITY_RANGE = 30..100
         val IDLE_OPACITY_RANGE = 10..100
+
+        /**
+         * What the panel has always been, and now also what "Reset to default size" means.
+         *
+         * A stored width rather than a measured one, because the window has to be positioned before
+         * its content is measured: the panel is anchored to the same screen edge as the button that
+         * opened it, and the x for that is `screenWidth - width`. Knowing the width up front is what
+         * makes that exact — the alternative is adding the window at x = 0 and moving it after the
+         * first layout, which is a visible jump. Letting the user set the figure changes who chooses
+         * it, not when it is known.
+         */
+        const val DEFAULT_PANEL_WIDTH_DP = 268
+
+        /**
+         * Two action tiles per row, their gap and the panel's padding: 2 × 57 + 6 + 24.
+         *
+         * The floor is the grid rather than the header, because the grid is the widest thing the
+         * panel draws and one tile per row is a list, not a grid. `actionsPerRow` in
+         * `com.gamecore.core.overlay` does this arithmetic properly against its own constants and a
+         * test holds the two to the same answer at this width — this figure is the model's copy of a
+         * layout fact, and a copy that drifts is a panel whose narrowest setting clips a tile.
+         */
+        const val MIN_PANEL_WIDTH_DP = 144
+
+        /**
+         * Past a phone's portrait width, so that in portrait it is the screen — not this number —
+         * that decides how wide the panel can be, which is the honest limit to be bound by. Above
+         * that it is a ceiling on a landscape phone and a tablet, where a panel that kept growing
+         * would be a row of buttons with a hand's width of empty plate beside it.
+         */
+        const val MAX_PANEL_WIDTH_DP = 480
+
+        val PANEL_WIDTH_RANGE = MIN_PANEL_WIDTH_DP..MAX_PANEL_WIDTH_DP
     }
 }
 
