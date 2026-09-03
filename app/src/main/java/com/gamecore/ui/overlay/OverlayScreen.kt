@@ -19,13 +19,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.automirrored.rounded.CompareArrows
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,18 +36,25 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.OverlayConfig
+import com.gamecore.core.overlay.OverlayAction
 import com.gamecore.core.overlay.OverlayPalette
 import com.gamecore.core.overlay.PerformancePill
+import com.gamecore.core.overlay.actionsPerRow
 import com.gamecore.domain.monitoring.StatReading
 import com.gamecore.ui.Destination
 import com.gamecore.ui.components.ActionRow
@@ -60,6 +70,7 @@ import com.gamecore.ui.components.SectionCard
 import com.gamecore.ui.components.SliderRow
 import com.gamecore.ui.components.StatusChip
 import com.gamecore.ui.components.SwitchRow
+import com.gamecore.ui.components.TextFieldRow
 import com.gamecore.ui.components.Tone
 import com.gamecore.ui.components.colour
 import com.gamecore.ui.hud.conditionNote
@@ -90,6 +101,11 @@ fun OverlayScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val readings by viewModel.readings.collectAsStateWithLifecycle(emptyList())
     val padded = Modifier.padding(horizontal = ScreenPadding)
+
+    // Hoisted out of the card for the reason `ColorScreen` hoists its own: the cards are `LazyColumn`
+    // items, and an item scrolled off the screen is disposed. State kept inside the card would take the
+    // dialog down with it the moment the list moved under the user's finger.
+    var editingWidth by remember { mutableStateOf(false) }
 
     // The overlay permission is granted on another app's screen, and Android gives no callback for it.
     OnResume { viewModel.refreshPermission() }
@@ -141,6 +157,17 @@ fun OverlayScreen(
         }
 
         item {
+            PanelCard(
+                state = state,
+                onEdit = viewModel::editButton,
+                onCommit = viewModel::commitButton,
+                onEditWidth = { editingWidth = true },
+                onResetWidth = viewModel::resetPanelWidth,
+                modifier = padded,
+            )
+        }
+
+        item {
             PillCard(
                 state = state,
                 readings = readings,
@@ -164,6 +191,19 @@ fun OverlayScreen(
                 modifier = padded,
             )
         }
+    }
+
+    if (editingWidth) {
+        PanelWidthDialog(
+            value = state.button.panelWidthDp,
+            // Through `updateButton` rather than the draft pair: a typed figure is confirmed once and has
+            // no in-between states to preview, and the write clears any draft the slider left behind.
+            onSet = { width ->
+                editingWidth = false
+                viewModel.updateButton { it.copy(panelWidthDp = width) }
+            },
+            onDismiss = { editingWidth = false },
+        )
     }
 }
 
@@ -397,6 +437,238 @@ private fun PreviewButton(button: FloatingButtonConfig, percent: Int, caption: S
         )
     }
 }
+
+/**
+ * How wide the control panel opens — the one thing about the panel that is worth a setting.
+ *
+ * The panel is the floating button's expanded form, which is why this card sits under the button's rather
+ * than under the pill's: the width is stored on [FloatingButtonConfig] and the panel is positioned from the
+ * button that opened it. One width for every game, deliberately, because the panel is the same set of
+ * controls whichever game is running.
+ *
+ * The slider writes on release like every other slider here, and the figure beside it is tappable for an
+ * exact number — a dp width is the sort of value someone matches to a screenshot or to a figure they were
+ * given, and hunting for 268 with a thumb on a 336-step slider is not that.
+ *
+ * Width only. Height is not a setting and the note below says so, because a user who can set one dimension
+ * will look for the other: the panel is measured against the gap between the button and the nearest screen
+ * edge and scrolls inside whatever that leaves, so a stored height would be a number the anchoring
+ * overrules on every device that had less room than it asked for.
+ */
+@Composable
+private fun PanelCard(
+    state: OverlayUiState,
+    onEdit: ((FloatingButtonConfig) -> FloatingButtonConfig) -> Unit,
+    onCommit: () -> Unit,
+    onEditWidth: () -> Unit,
+    onResetWidth: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val button = state.button
+    val perRow = actionsPerRow(button.panelWidthDp)
+    SectionCard(
+        title = "Control panel",
+        subtitle = "What the floating button opens, and how wide it opens",
+        icon = Icons.Filled.Dashboard,
+        modifier = modifier,
+        action = { StatusChip(text = "$perRow across", tone = Tone.Muted) },
+    ) {
+        PanelPreview(button = button, perRow = perRow)
+        RowDivider()
+        SliderRow(
+            title = "Width",
+            value = button.panelWidthDp,
+            range = FloatingButtonConfig.PANEL_WIDTH_RANGE,
+            onValueChange = { width -> onEdit { it.copy(panelWidthDp = width) } },
+            valueLabel = "${button.panelWidthDp} dp",
+            description = "Wider fits more action tiles on a row. Tap the figure to type an exact one.",
+            onValueChangeFinished = onCommit,
+            onValueClick = onEditWidth,
+        )
+        RowDivider()
+        NoteBanner(
+            text = "Height is not a setting: the panel is as tall as its contents need, up to the room " +
+                "between the button and the nearest screen edge, and scrolls inside whatever that leaves. " +
+                "The width is a request too — the panel never opens wider than the screen it opens on, so " +
+                "in portrait it may be drawn narrower than the figure above.",
+            tone = Tone.Muted,
+            icon = Icons.Filled.Info,
+        )
+        RowDivider()
+        ActionRow {
+            Text(
+                text = "You can also drag the grip in the panel's bottom corner while a game is running.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onResetWidth) { Text("Reset to default size") }
+        }
+    }
+}
+
+/**
+ * The panel's proportions, drawn to scale rather than at size.
+ *
+ * A scale drawing rather than the real composable, which is the one preview on this screen that is not the
+ * live thing — and the reason is honest: at its widest the panel is 480 dp, and nothing 480 dp wide fits
+ * inside a settings card on a phone. Shrinking the real panel would misreport the only fact this card is
+ * about, since a panel drawn at half scale has tiles half the size of the ones a thumb has to hit.
+ *
+ * So what is drawn is the shape: the plate as a fraction of the widest it can be, and the action grid at
+ * the row count [actionsPerRow] will really give it — the same function the panel itself lays out with, so
+ * the number of tiles per row here is not an illustrator's guess. The grip is drawn with the panel's own
+ * icon, in its bottom corner, because a drag handle nobody finds is a feature nobody has.
+ */
+@Composable
+private fun PanelPreview(button: FloatingButtonConfig, perRow: Int) {
+    val scheme = MaterialTheme.colorScheme
+    val fraction = (button.panelWidthDp.toFloat() / FloatingButtonConfig.MAX_PANEL_WIDTH_DP)
+        .coerceIn(PREVIEW_MIN_FRACTION, 1f)
+    Column {
+        Text(
+            text = "PREVIEW",
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(scheme.surfaceVariant)
+                .border(1.dp, scheme.outlineVariant, RoundedCornerShape(12.dp))
+                .padding(10.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(fraction)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(OverlayPalette.PanelPlate)
+                    .padding(6.dp),
+                verticalArrangement = Arrangement.spacedBy(PREVIEW_GAP_DP.dp),
+            ) {
+                PreviewBar(fraction = 0.55f, colour = OverlayPalette.Muted)
+                OverlayAction.entries.chunked(perRow).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(PREVIEW_GAP_DP.dp)) {
+                        row.forEach { _ ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(PREVIEW_TILE_DP.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(OverlayPalette.Plate),
+                            )
+                        }
+                        // The last row's gap, held open so four tiles and three do not draw at
+                        // different widths. `ChoiceRow`'s idiom, and `PanelActions`' own.
+                        repeat(perRow - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PreviewBar(fraction = 0.6f, colour = OverlayPalette.Divider)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.CompareArrows,
+                        contentDescription = null,
+                        tint = scheme.primary,
+                        modifier = Modifier.size(PREVIEW_GRIP_DP.dp),
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "To scale, not to size: ${button.panelWidthDp} dp of a possible " +
+                "${FloatingButtonConfig.MAX_PANEL_WIDTH_DP}, with $perRow tiles per row.",
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** One line of the scale drawing: a header, or the level slider under the grid. */
+@Composable
+private fun PreviewBar(fraction: Float, colour: Color, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth(fraction)
+            .height(PREVIEW_BAR_DP.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(colour),
+    )
+}
+
+/**
+ * The panel's width, typed.
+ *
+ * `ColorScreen`'s dialog, with its rules rather than a variation on them: digits only, and "Set" stays
+ * disabled until what is typed is inside the range. Clamping silently would take "600" and store 480,
+ * which is not the figure the user typed and confirmed.
+ *
+ * No sign button here — a width has no negative half to reach.
+ */
+@Composable
+private fun PanelWidthDialog(value: Int, onSet: (Int) -> Unit, onDismiss: () -> Unit) {
+    val range = FloatingButtonConfig.PANEL_WIDTH_RANGE
+    var text by remember { mutableStateOf(value.toString()) }
+    val entered = text.trim().toIntOrNull()
+    val isValid = entered != null && entered in range
+    val rangeText = "${range.first} to ${range.last} dp"
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "Panel width", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column {
+                TextFieldRow(
+                    label = "Width in dp",
+                    value = text,
+                    onValueChange = { raw -> text = raw.filter { it.isDigit() } },
+                    placeholder = value.toString(),
+                    maxLength = range.last.toString().length,
+                    description = "Anything from $rangeText. The default is " +
+                        "${FloatingButtonConfig.DEFAULT_PANEL_WIDTH_DP}.",
+                    keyboardType = KeyboardType.Number,
+                )
+                if (!isValid && text.isNotBlank()) {
+                    Text(
+                        text = "That is outside $rangeText.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Tone.Warning.colour(),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { entered?.let(onSet) }, enabled = isValid) { Text("Set") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.large,
+    )
+}
+
+/**
+ * The scale drawing's own dimensions, in dp on the settings screen.
+ *
+ * Not the panel's, and not derived from them: these size a diagram inside a card, while the panel's
+ * constants size controls a thumb has to hit. Sharing them would tie a settings card's legibility to a
+ * touch target's minimum, and neither number would then be free to be right.
+ */
+private const val PREVIEW_TILE_DP = 16
+private const val PREVIEW_BAR_DP = 4
+private const val PREVIEW_GAP_DP = 4
+private const val PREVIEW_GRIP_DP = 12
+
+/**
+ * A floor under the plate's width as a fraction of the widest the panel can be.
+ *
+ * The range's own minimum draws at 0.3, so this catches only a config that reached the screen without
+ * [FloatingButtonConfig.normalised] — and `fillMaxWidth` takes nothing outside 0..1 at all. A card with an
+ * invisible plate and a caption under it explaining its proportions is the failure being avoided.
+ */
+private const val PREVIEW_MIN_FRACTION = 0.2f
 
 /**
  * §8's performance pill, previewed with the composable the service draws and the readings it draws from.

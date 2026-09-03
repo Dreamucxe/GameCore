@@ -4,13 +4,17 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.core.common.Formatters
+import com.gamecore.core.model.ColorCorrection
+import com.gamecore.core.model.ColorVisionFilter
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.system.AppLauncher
 import com.gamecore.core.system.InstalledAppLister
 import com.gamecore.data.preferences.SecurePreferenceStore
+import com.gamecore.data.repository.ColorPresetRepository
 import com.gamecore.data.repository.CrosshairRepository
 import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.data.repository.HudLayoutRepository
+import com.gamecore.domain.display.DisplaySizeController
 import com.gamecore.domain.optimization.DeviceCapabilityChecker
 import com.gamecore.ui.Destination
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -40,7 +44,9 @@ class ProfileEditorViewModel @Inject constructor(
     private val launcher: AppLauncher,
     private val hudLayouts: HudLayoutRepository,
     private val crosshairs: CrosshairRepository,
+    private val colours: ColorPresetRepository,
     private val capabilityChecker: DeviceCapabilityChecker,
+    private val displaySize: DisplaySizeController,
     preferences: SecurePreferenceStore,
 ) : ViewModel() {
 
@@ -62,6 +68,12 @@ class ProfileEditorViewModel @Inject constructor(
         viewModelScope.launch {
             editing.value = editing.value.copy(capabilities = capabilityChecker.current())
         }
+        // Its own launch and not part of the capability read, because it is a shell round trip on a screen
+        // whose other fields are local: the editor draws with the display-size control absent and fills it
+        // in when `wm size` answers, rather than holding the whole form back on the slowest read.
+        viewModelScope.launch {
+            editing.value = editing.value.copy(display = displaySize.state())
+        }
         viewModelScope.launch {
             val layouts = hudLayouts.layouts.first().map {
                 NamedOption(
@@ -78,6 +90,16 @@ class ProfileEditorViewModel @Inject constructor(
                 NamedOption(id = it.id, name = it.name, detail = it.design.label)
             }
             editing.value = editing.value.copy(crosshairs = presets)
+        }
+        // Seeded here as well as on the colour screen, for the same reason the crosshairs are: a user who
+        // reaches the profile editor first should be choosing between the seven built-ins, not reading
+        // "nothing saved yet" about a feature that ships with presets.
+        viewModelScope.launch {
+            colours.seedDefaultsIfEmpty()
+            val presets = colours.presets.first().map {
+                NamedOption(id = it.id, name = it.name, detail = it.correction.optionDetail())
+            }
+            editing.value = editing.value.copy(colourPresets = presets)
         }
     }
 
@@ -211,4 +233,19 @@ class ProfileEditorViewModel @Inject constructor(
     fun dismissMessage() {
         editing.value = editing.value.copy(message = null)
     }
+}
+
+/**
+ * A colour preset in four words or fewer, for the chip beside the picker.
+ *
+ * Not [com.gamecore.core.model.ColorCorrection.summary], which names every changed value and is right on the
+ * colour screen and far too long for a chip. The count comes first because it is what distinguishes two
+ * presets in a list; the filter and the inversion are named only when they are the whole of what a preset
+ * does, which is exactly the case for the three colour-vision built-ins.
+ */
+private fun ColorCorrection.optionDetail(): String = when {
+    changedFields.isNotEmpty() -> Formatters.count(changedFields.size, "value")
+    visionFilter != ColorVisionFilter.NONE -> visionFilter.label
+    invertColors -> "Inverted"
+    else -> "No change"
 }

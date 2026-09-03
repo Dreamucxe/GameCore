@@ -16,3 +16,6 @@ keystore.properties
 .idea
 *.iml
 .DS_Store
+
+# Internal working notes, not part of the published project.
+/HANDOFF.md

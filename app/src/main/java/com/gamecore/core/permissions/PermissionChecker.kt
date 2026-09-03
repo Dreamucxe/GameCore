@@ -84,6 +84,24 @@ class PermissionChecker @Inject constructor(
         false
     }
 
+    /**
+     * WRITE_SECURE_SETTINGS — the gate on every colour-correction key.
+     *
+     * Checked with `checkSelfPermission` and nothing else, because unlike the two ops
+     * above there is no op behind this one and no `canWrite`-style helper for it: it is
+     * an ordinary permission that Android will simply never grant on its own. It is held
+     * only if the user has run `pm grant` for it, through Shizuku or through adb, and it
+     * survives until something revokes it — which is why this is asked again before each
+     * write rather than cached, in exactly the same spirit as [hasOverlayPermission].
+     *
+     * It is not listed in [GamePermission], deliberately: every entry in that catalogue
+     * has a Settings screen the permissions centre can send the user to, and this one has
+     * none. Offering a button that opens nothing would be worse than explaining the one
+     * path that works.
+     */
+    fun hasWriteSecureSettings(): Boolean =
+        hasRuntimePermission(android.Manifest.permission.WRITE_SECURE_SETTINGS)
+
     // ---------------------------------------------------------- special accesses
 
     /** Do Not Disturb, through `NotificationManager.setInterruptionFilter`. */

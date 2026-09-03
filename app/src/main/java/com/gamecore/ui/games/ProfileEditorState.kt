@@ -1,7 +1,13 @@
 package com.gamecore.ui.games
 
+import com.gamecore.core.common.AccessLevel
+import com.gamecore.core.common.Observed
+import com.gamecore.core.common.valueOrNull
+import com.gamecore.core.model.AspectChoice
 import com.gamecore.core.model.CapabilityStatus
 import com.gamecore.core.model.DeviceCapabilities
+import com.gamecore.core.model.DisplaySize
+import com.gamecore.core.model.DisplaySizeState
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.RefreshRateMechanism
 
@@ -25,8 +31,21 @@ data class ProfileEditorUiState(
     /** Whether the profile's package is on the device. True until the check says otherwise. */
     val isGameInstalled: Boolean = true,
     val capabilities: DeviceCapabilities = DeviceCapabilities.UNKNOWN,
+    /**
+     * What `wm size` says this display is, or why it could not be asked.
+     *
+     * Called [display] and not `displaySize`, because `profile.displaySize` is the other half of the pair
+     * and means the opposite thing: this is the panel the device has, that is the size the user has chosen
+     * to put on it. Two fields a letter apart would be read as the same field twice.
+     *
+     * Restricted until it has been read, which on a device with no elevated shell it stays. Every shape the
+     * editor offers is computed from the physical size, so this being absent is what makes the whole
+     * display-size control absent — there is no assumed panel to fall back on.
+     */
+    val display: Observed<DisplaySizeState> = Observed.awaitingSample("Reading this display's size."),
     val hudLayouts: List<NamedOption> = emptyList(),
     val crosshairs: List<NamedOption> = emptyList(),
+    val colourPresets: List<NamedOption> = emptyList(),
     val apps: List<AppOption> = emptyList(),
     val isPickerOpen: Boolean = false,
     val isLoadingApps: Boolean = false,
@@ -52,6 +71,34 @@ data class ProfileEditorUiState(
      */
     val refreshRateChoices: List<Float>
         get() = if (capabilities.hasVariableRefreshRate) capabilities.supportedRefreshRates else emptyList()
+
+    /**
+     * The shapes this display can be stretched to, or empty when its size could not be read.
+     *
+     * Empty rather than a guess, for the reason [display] gives. A row of ratios computed from an assumed
+     * 1080×2400 would offer sizes larger than the panel on a smaller device, and the profile would carry
+     * them until a session refused them.
+     */
+    val aspectChoices: List<AspectChoice>
+        get() = display.valueOrNull?.options ?: emptyList()
+
+    /**
+     * The panel's own size, for validating a size the user types in.
+     *
+     * Null is the reason the custom fields are not offered at all: [DisplaySize.rejectionFor] needs
+     * something to check a request against, and without the panel there is nothing to check.
+     */
+    val physicalSize: DisplaySize?
+        get() = display.valueOrNull?.physical
+
+    /**
+     * True when the display's size is missing and Shizuku is the thing that would supply it.
+     *
+     * Drives the "Set up" button beside the note, on the same rule the refresh-rate note follows: the offer
+     * appears where it would actually help, and not on a device where the answer would still be no.
+     */
+    val displayNeedsShizuku: Boolean
+        get() = (display as? Observed.Restricted)?.unlockedBy == AccessLevel.SHIZUKU
 }
 
 /** One app in the picker. Carries what the list row draws, and the reason a row may be unselectable. */
@@ -63,7 +110,7 @@ data class AppOption(
     val hasProfile: Boolean,
 )
 
-/** A saved thing the user can point a profile at: a HUD layout, a crosshair preset. */
+/** A saved thing the user can point a profile at: a HUD layout, a crosshair preset, a colour preset. */
 data class NamedOption(val id: Long, val name: String, val detail: String? = null)
 
 /**

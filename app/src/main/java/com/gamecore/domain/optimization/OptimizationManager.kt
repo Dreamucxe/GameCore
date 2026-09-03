@@ -13,6 +13,7 @@ import com.gamecore.core.system.SettingsWriteOutcome
 import com.gamecore.core.system.SettingsWriter
 import com.gamecore.data.repository.PendingRestore
 import com.gamecore.data.repository.RestorePointRepository
+import com.gamecore.domain.display.DisplaySizeController
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -53,6 +54,7 @@ class OptimizationManager @Inject constructor(
     private val elevated: ShizukuOptimizer,
     private val settings: SettingsWriter,
     private val audio: AudioControls,
+    private val displaySize: DisplaySizeController,
     private val restorePoints: RestorePointRepository,
 ) {
 
@@ -70,11 +72,16 @@ class OptimizationManager @Inject constructor(
     /**
      * The same for every action, as one map.
      *
-     * One call rather than eleven from the UI, because each status can involve a settings read and a
+     * One call rather than a dozen from the UI, because each status can involve a settings read and a
      * shell liveness check, and a screen that resolves them one at a time renders in stages.
+     *
+     * The default list is the actions the tiers actually carry out. Asking a tier about
+     * [OptimizationAction.APPLY_COLOR_CORRECTION] is meaningless — neither claims it, and whether
+     * the display's colour keys are writable is [com.gamecore.domain.color.ColorCorrectionController]'s
+     * question, answered by its own `access()`.
      */
     suspend fun statuses(
-        actions: List<OptimizationAction> = OptimizationAction.entries,
+        actions: List<OptimizationAction> = OptimizationAction.entries.filter { it.isEngineAction },
     ): Map<OptimizationAction, CapabilityStatus> =
         actions.associateWith { statusFor(it) }
 
@@ -307,6 +314,22 @@ class OptimizationManager @Inject constructor(
         OptimizationAction.SET_MEDIA_VOLUME,
         OptimizationAction.ENABLE_DO_NOT_DISTURB,
         -> emptyList()
+
+        // Empty, and not because the action writes nothing. It writes between one and eight of the
+        // display's colour keys depending on what the preset asks for, and `ColorCorrectionController`
+        // records each one immediately before writing it. Listing all eight here would record rows
+        // for keys this correction never touches, and the restore at session end would hand back a
+        // colour-vision filter the user set themselves. Nothing routes this action through here —
+        // `OptimizationAction.isEngineAction` is false for it and both tiers decline it — so this
+        // branch exists to keep the `when` exhaustive and to say why.
+        OptimizationAction.APPLY_COLOR_CORRECTION -> emptyList()
+
+        // Empty because there is no settings key involved at all. `wm size` is a window-manager
+        // command, not a row in `settings`, so there is nothing here for [capture] to read before
+        // the write or [restoreSetting] to put back after it. `DisplaySizeController` records the
+        // size the display had under the repository's non-setting namespace and the restore is
+        // dispatched by key below. Like the branch above, nothing routes this action through here.
+        OptimizationAction.SET_DISPLAY_SIZE -> emptyList()
     }
 
     // -------------------------------------------------------------------- restoring
@@ -333,6 +356,15 @@ class OptimizationManager @Inject constructor(
                     ?.let { name -> DoNotDisturbState.entries.firstOrNull { it.name == name } }
                     ?: return "No Do Not Disturb mode was recorded to go back to."
                 audio.setDoNotDisturbState(mode).restoreFailure("Do Not Disturb")
+            }
+
+            // A null previous value is the ordinary case rather than a missing recording, so unlike the
+            // two above there is nothing to refuse here: it means the display had no override before
+            // GameCore set one, and the way back is `wm size reset`. The controller reads the result back
+            // before reporting it, so a row only clears once the display has actually returned.
+            RestorePointRepository.KEY_DISPLAY_SIZE -> {
+                val outcome = displaySize.restore(row.previousValue)
+                if (outcome.isSuccess) null else "The display size is still changed: ${outcome.message}"
             }
 
             else -> "This version of GameCore does not know how to restore \"${row.key}\"."

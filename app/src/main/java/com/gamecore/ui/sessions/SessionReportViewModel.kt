@@ -211,6 +211,7 @@ class SessionReportViewModel @Inject constructor(
         refreshRateRow(session),
         frameRateRow(session),
         latencyRow(session),
+        colourRow(session),
         readoutOf(
             label = "Samples taken",
             value = session.sampleCount.toString(),
@@ -218,6 +219,41 @@ class SessionReportViewModel @Inject constructor(
             tone = if (session.hasMeaningfulAggregates) Tone.Neutral else Tone.Muted,
         ),
     )
+
+    /**
+     * The colour preset that was on screen while the session ran.
+     *
+     * Three states, and telling them apart is the point of the row. A name with values means a preset
+     * was applied and confirmed. Values with no name means the preset's name has since been emptied or
+     * renamed away, which is exactly why the values are stored beside it. Neither reads as absent,
+     * because "no preset was applied for this game" and "this session predates GameCore recording the
+     * display's colour" are not distinguishable from the row — so the detail names both rather than
+     * choosing one.
+     *
+     * The name goes in the value and the figures go in the detail, rather than
+     * [GameSession.colorSummary] in a single string: a correction can change eight fields at once, and
+     * that is a paragraph rather than a figure.
+     */
+    private fun colourRow(session: GameSession): Readout {
+        if (!session.hasColorReading) {
+            return readoutOf(
+                label = "Screen colour",
+                value = ABSENT,
+                detail = "No colour preset was applied for this game, or this session was recorded " +
+                    "before GameCore recorded the display's colour.",
+                tone = Tone.Muted,
+            )
+        }
+        return readoutOf(
+            label = "Screen colour",
+            value = session.colorPresetName?.takeIf { it.isNotBlank() } ?: "Custom values",
+            detail = session.colorCorrection?.summary?.let {
+                "$it. What the preset asked for; anything this display had no control for was " +
+                    "reported as unreachable when the profile was applied."
+            } ?: "The preset's values were not recorded with this session.",
+            tone = Tone.Neutral,
+        )
+    }
 
     /**
      * The drain rate, or the reason it cannot be quoted.

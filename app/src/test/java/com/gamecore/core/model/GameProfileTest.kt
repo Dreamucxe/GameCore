@@ -42,6 +42,8 @@ class GameProfileTest {
         assertNull(profile.mediaVolumePercent)
         assertNull(profile.hudLayoutId)
         assertNull(profile.crosshairPresetId)
+        assertNull(profile.colorPresetId)
+        assertNull(profile.displaySize)
     }
 
     @Test
@@ -57,6 +59,12 @@ class GameProfileTest {
         assertFalse(base.copy(performanceMode = PerformanceMode.BATTERY_SAVER).changesNothing)
         assertFalse(base.copy(performanceMode = PerformanceMode.CUSTOM).changesNothing)
         assertFalse(base.copy(useShizukuOptimizations = true).changesNothing)
+        // A colour preset is a display write like any other, so a profile carrying one has something
+        // to unwind when the game exits.
+        assertFalse(base.copy(colorPresetId = 3L).changesNothing)
+        // A display size more so than anything else here: a `wm size` override survives a reboot, so a
+        // profile holding one is never a profile that leaves the device as it found it.
+        assertFalse(base.copy(displaySize = DisplaySize(1080, 1440)).changesNothing)
     }
 
     @Test

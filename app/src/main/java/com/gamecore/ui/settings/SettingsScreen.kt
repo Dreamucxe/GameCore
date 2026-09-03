@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Speed
@@ -174,7 +175,7 @@ fun SettingsScreen(
                 modifier = padded,
             )
         }
-        item { AboutCard(modifier = padded) }
+        item { AboutCard(onNavigate = onNavigate, modifier = padded) }
     }
 
     if (state.pendingClearHistory) {
@@ -627,7 +628,10 @@ private fun shareIntent(uri: Uri): Intent = Intent(Intent.ACTION_SEND).apply {
 
 /** The build, the device it is on, and the short version of what this app will not do. */
 @Composable
-private fun AboutCard(modifier: Modifier = Modifier) {
+private fun AboutCard(
+    onNavigate: (Destination) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     SectionCard(title = "About", icon = Icons.Filled.PhoneAndroid, modifier = modifier) {
         KeyValueRow(label = "GameCore", value = BuildConfig.VERSION_NAME)
         KeyValueRow(
@@ -640,6 +644,13 @@ private fun AboutCard(modifier: Modifier = Modifier) {
             text = ABOUT_TEXT,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        RowDivider()
+        NavRow(
+            title = "Developer",
+            onClick = { onNavigate(Destination.Developer) },
+            description = "Who made GameCore, and the three places to reach them.",
+            icon = Icons.Filled.Person,
         )
     }
 }

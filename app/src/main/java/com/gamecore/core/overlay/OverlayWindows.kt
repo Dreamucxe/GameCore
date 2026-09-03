@@ -204,6 +204,46 @@ class OverlayWindows(
         return OverlayPlacement(params.x, params.y, ScreenEdge.FLOATING)
     }
 
+    /**
+     * Resizes a live window's width, keeping its right edge on screen. A no-op for a slot that is
+     * not showing.
+     *
+     * A sibling of [move] rather than a widening of it, because [move] compares only x and y and
+     * returns early when both already match — a width-only change through it would be dropped
+     * without a sign. The two things a caller cannot do separately are done together here: widening
+     * a window whose left edge is already well to the right pushes its right edge off screen, and
+     * the x that fixes that depends on the new width, so setting the width and re-clamping x in one
+     * `updateViewLayout` is what stops the panel from spending a frame hanging over the edge.
+     *
+     * [marginPx] is the same edge inset [frameFor] and the panel's opening x are given, so a resize
+     * lands the window exactly where a fresh open would have.
+     *
+     * Also `updateViewLayout` rather than remove-and-add, for the reason [move] gives: re-adding a
+     * `ComposeView` restarts composition, and here that would mean the panel's sliders snapping back
+     * to their loaded values in the middle of a drag.
+     */
+    fun resize(slot: OverlaySlot, width: Int, marginPx: Int = 0): Boolean {
+        val manager = windowManager ?: return false
+        val view = live[slot] ?: return false
+        val params = view.layoutParams as? WindowManager.LayoutParams ?: return false
+        val frame = frameFor(width, view.height, marginPx)
+        val x = if (frame.isMeasured) {
+            params.x.coerceIn(marginPx.coerceAtMost(frame.maxX), frame.maxX)
+        } else {
+            params.x
+        }
+        if (params.width == width && params.x == x) return true
+        params.width = width
+        params.x = x
+        return try {
+            manager.updateViewLayout(view, params)
+            true
+        } catch (gone: IllegalArgumentException) {
+            live.remove(slot)
+            false
+        }
+    }
+
     fun hide(slot: OverlaySlot) {
         val view = live.remove(slot) ?: return
         try {

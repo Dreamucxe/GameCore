@@ -52,6 +52,14 @@ class ShizukuOptimizer @Inject constructor(
     override suspend fun statusFor(action: OptimizationAction): CapabilityStatus = when (action) {
         OptimizationAction.SET_MEDIA_VOLUME,
         OptimizationAction.ENABLE_DO_NOT_DISTURB,
+        // Colour is a shell-level write and this tier still does not claim it: it is carried out by
+        // ColorCorrectionController, which writes one to eight keys depending on the preset and
+        // records each for restore as it goes. See OptimizationAction.isEngineAction.
+        OptimizationAction.APPLY_COLOR_CORRECTION,
+        // Nor the display size, and for a plainer reason: `wm size` is not a `settings` write at all,
+        // so it does not go through SettingsWriter and there is no key for the manager to capture.
+        // DisplaySizeController owns the command, the read-back and its own restore row.
+        OptimizationAction.SET_DISPLAY_SIZE,
         -> CapabilityStatus.UNSUPPORTED
 
         // A 60 Hz-only panel is unsupported no matter who is asking; the shell cannot add a mode.
@@ -90,6 +98,22 @@ class ShizukuOptimizer @Inject constructor(
                 status = CapabilityStatus.UNSUPPORTED,
                 detail = "Do Not Disturb is set through the notification-policy API, not through " +
                     "the shell. GameCore asks for policy access instead.",
+            )
+
+            OptimizationAction.APPLY_COLOR_CORRECTION -> action.blocked(
+                status = CapabilityStatus.UNSUPPORTED,
+                detail = "A colour preset is applied by GameCore's colour controller, which writes " +
+                    "as many of the display's colour keys as the preset needs and records each one " +
+                    "for restore. Routing it through here would capture all eight and hand back " +
+                    "keys GameCore never touched.",
+            )
+
+            OptimizationAction.SET_DISPLAY_SIZE -> action.blocked(
+                status = CapabilityStatus.UNSUPPORTED,
+                detail = "A display size is set by GameCore's display-size controller, which runs " +
+                    "the window-manager command, reads the size back, and keeps the record of what " +
+                    "the display was before — an override that outlives a reboot needs an owner " +
+                    "that does all three.",
             )
 
             // Routed by the two helpers above. Enumerated rather than folded into an `else` so that

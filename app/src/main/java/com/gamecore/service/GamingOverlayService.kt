@@ -11,12 +11,16 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.gamecore.MainActivity
 import com.gamecore.R
+import com.gamecore.core.common.AccessLevel
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.common.NotificationChannels
+import com.gamecore.core.common.Observed
 import com.gamecore.core.common.unavailabilityText
 import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.AccentChoice
+import com.gamecore.core.model.AspectChoice
 import com.gamecore.core.model.CrosshairPreset
+import com.gamecore.core.model.DisplaySizeState
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
@@ -31,11 +35,11 @@ import com.gamecore.core.overlay.OverlayFrame
 import com.gamecore.core.overlay.OverlayLevel
 import com.gamecore.core.overlay.OverlayLevelState
 import com.gamecore.core.overlay.OverlayPanelState
+import com.gamecore.core.overlay.OverlayPreset
 import com.gamecore.core.overlay.OverlaySlot
 import com.gamecore.core.overlay.OverlayViewHost
 import com.gamecore.core.overlay.OverlayWindowSpec
 import com.gamecore.core.overlay.OverlayWindows
-import com.gamecore.core.overlay.PANEL_WIDTH_DP
 import com.gamecore.core.overlay.PerformancePill
 import com.gamecore.core.permissions.PermissionChecker
 import com.gamecore.core.system.AudioControls
@@ -46,8 +50,12 @@ import com.gamecore.core.system.ScreenCaptureController
 import com.gamecore.core.system.ScreenRotation
 import com.gamecore.core.system.TorchControls
 import com.gamecore.data.preferences.SecurePreferenceStore
+import com.gamecore.data.repository.ColorPresetRepository
 import com.gamecore.data.repository.CrosshairRepository
 import com.gamecore.data.repository.HudLayoutRepository
+import com.gamecore.domain.color.ColorApplyResult
+import com.gamecore.domain.color.ColorCorrectionController
+import com.gamecore.domain.display.DisplaySizeController
 import com.gamecore.domain.gaming.GamingCoordinator
 import com.gamecore.domain.monitoring.HudStatReader
 import com.gamecore.domain.monitoring.PerformanceMonitor
@@ -117,9 +125,15 @@ class GamingOverlayService : GameCoreService() {
 
     @Inject lateinit var displayReader: DisplayReader
 
+    @Inject lateinit var displaySize: DisplaySizeController
+
     @Inject lateinit var torch: TorchControls
 
     @Inject lateinit var capture: ScreenCaptureController
+
+    @Inject lateinit var colour: ColorCorrectionController
+
+    @Inject lateinit var colorPresets: ColorPresetRepository
 
     override val notificationId: Int = NotificationChannels.ID_OVERLAY
 
@@ -164,6 +178,20 @@ class GamingOverlayService : GameCoreService() {
 
     private val panelOpen = MutableStateFlow(false)
 
+    /**
+     * The width the open panel is drawn at, in dp, while it is open.
+     *
+     * Held here rather than remembered inside the composable because a resize has to change two things at
+     * once: the plate the panel draws and the window it is drawn in. The grip reports a new width, this
+     * flow moves the plate, and [OverlayWindows.resize] moves the window in the same frame — a plate that
+     * grew while its window did not would be a panel clipped by its own edge for as long as the drag
+     * lasted, and a window that grew while its plate did not would be a band of empty screen beside it.
+     *
+     * Seeded from the stored preference at every open and written back once on release, so this is the
+     * in-flight value and [FloatingButtonConfig.panelWidthDp] is the remembered one.
+     */
+    private val panelWidth = MutableStateFlow(FloatingButtonConfig.DEFAULT_PANEL_WIDTH_DP)
+
     private val accent = MutableStateFlow(Color(AccentChoice.CYAN.argb))
 
     private var panelJob: Job? = null
@@ -176,6 +204,17 @@ class GamingOverlayService : GameCoreService() {
      * their finger.
      */
     private var draggingButton = false
+
+    /**
+     * The same guard for the panel's resize grip.
+     *
+     * The settings screen writes the panel's width to preferences, [reconcile] re-applies it to an open
+     * panel, and both are wanted — that is what makes the slider a live preview over a game. But the grip
+     * writes to the same preference on release, and a reconcile that landed between two drag frames would
+     * re-apply the last *stored* width in the middle of the gesture and drag the edge back out from under
+     * the finger.
+     */
+    private var resizingPanel = false
 
     /**
      * The frame the stored button and pill coordinates were last placed in.
@@ -395,6 +434,7 @@ class GamingOverlayService : GameCoreService() {
         val pill = preferences.overlay.value.normalised()
         if (request.button) {
             showButton(button)
+            applyPanelWidth(button.panelWidthDp)
         } else {
             closePanel()
             manager.hide(OverlaySlot.BUTTON)
@@ -629,10 +669,16 @@ class GamingOverlayService : GameCoreService() {
      * What the height does decide is how much of the panel fits, so the room on the chosen side is passed
      * down as the panel's cap. A button parked near the bottom of the screen gets a shorter, scrolling
      * panel rather than one whose last row of buttons is under the edge.
+     *
+     * The width, by contrast, is the user's and is known before anything is drawn — which is what lets the
+     * x above be exact. [panelWidthFor] is what keeps a figure chosen on a portrait settings screen from
+     * opening a panel wider than the landscape game it opens over.
      */
     private fun openPanel() {
         val manager = windows ?: return
-        val width = px(PANEL_WIDTH_DP)
+        val widthDp = panelWidthFor(preferences.floatingButton.value.normalised().panelWidthDp)
+        panelWidth.value = widthDp
+        val width = px(widthDp)
         val margin = px(EDGE_MARGIN_DP)
         val gap = px(PANEL_GAP_DP)
         val frame = manager.frameFor(width, 0, margin)
@@ -669,14 +715,21 @@ class GamingOverlayService : GameCoreService() {
             val state by panel.collectAsState()
             val readings by pillReadings.collectAsState()
             val tint by accent.collectAsState()
+            val live by panelWidth.collectAsState()
             OverlayControlPanel(
                 state = state,
                 readings = readings,
                 accent = tint,
                 maxHeightDp = maxHeightDp,
+                widthDp = live,
                 onAction = ::onAction,
+                onLongAction = ::onLongAction,
+                onPreset = ::onPreset,
+                onAspect = ::onAspect,
                 onDragLevel = ::onDragLevel,
                 onCommitLevel = ::onCommitLevel,
+                onResize = ::resizePanelTo,
+                onResizeFinished = ::finishPanelResize,
                 onDismiss = ::closePanel,
             )
         }
@@ -691,8 +744,84 @@ class GamingOverlayService : GameCoreService() {
     private fun closePanel() {
         panelJob?.cancel()
         panelJob = null
+        // A grip drag still in flight when the window goes is still the user's choice, and the disposal of
+        // the composition is not guaranteed to deliver a cancel to the detector that would have persisted
+        // it. Only when one was in flight, though: [panelWidth] also holds screen-clamped widths, and
+        // writing one of those back would turn a panel narrowed to fit this screen into the width stored
+        // for every screen.
+        if (resizingPanel) finishPanelResize()
         if (panelOpen.value) panelOpen.value = false
         windows?.hide(OverlaySlot.PANEL)
+    }
+
+    /**
+     * One frame of a grip drag: clamp, resize the plate and its window together, write nothing.
+     *
+     * Nothing is written for the reason [dragButtonTo] gives — a preference write per touch event is a
+     * keystore round trip per touch event — and for one more: the width is clamped against the screen on
+     * the way in, so a drag that runs past the edge would otherwise store the clamp again on every frame.
+     */
+    private fun resizePanelTo(widthDp: Int) {
+        if (setPanelWidth(widthDp)) resizingPanel = true
+    }
+
+    /** The finger lifted: persist once, for every game and every open from here on. */
+    private fun finishPanelResize() {
+        if (!resizingPanel) return
+        resizingPanel = false
+        preferences.updatePanelWidth(panelWidth.value)
+    }
+
+    /**
+     * Re-applies a width changed elsewhere to a panel that is already open.
+     *
+     * This is what makes the settings screen's slider a live preview rather than a number: the panel is up,
+     * the slider writes, [observe]'s `floatingButton` collector reconciles, and the panel on screen follows
+     * the finger on the slider. Ignored while the grip is being dragged — see [resizingPanel].
+     */
+    private fun applyPanelWidth(requestedDp: Int) {
+        if (resizingPanel) return
+        setPanelWidth(requestedDp)
+    }
+
+    /**
+     * The one place the open panel's width changes. True when it did.
+     *
+     * Both the window and the flow the composable collects, in that order and in one call, because they are
+     * two halves of the same change — see [panelWidth].
+     */
+    private fun setPanelWidth(requestedDp: Int): Boolean {
+        val manager = windows ?: return false
+        if (!panelOpen.value) return false
+        val clamped = panelWidthFor(requestedDp)
+        if (clamped == panelWidth.value) return false
+        panelWidth.value = clamped
+        manager.resize(OverlaySlot.PANEL, px(clamped), px(EDGE_MARGIN_DP))
+        return true
+    }
+
+    /**
+     * The stored width, clamped to the screen the panel is on.
+     *
+     * The second of the two clamps [FloatingButtonConfig.panelWidthDp] describes. The first, its
+     * `normalised()`, holds the figure inside [FloatingButtonConfig.PANEL_WIDTH_RANGE] and can do no more
+     * than that — a data class has no display to measure. This one is the honest limit: the panel opens
+     * over a game, [FloatingButtonConfig.MAX_PANEL_WIDTH_DP] is deliberately wider than a phone in
+     * portrait, and a width the screen cannot hold would put the grip past the edge with nothing left to
+     * drag it back by.
+     *
+     * Floored at [FloatingButtonConfig.MIN_PANEL_WIDTH_DP] rather than at whatever the screen leaves: two
+     * action tiles per row is the narrowest thing that is still a grid, and on a screen too narrow for even
+     * that, a panel a few dp wider than its margins allow is better than one that has quietly become a
+     * single column of buttons.
+     */
+    private fun panelWidthFor(requestedDp: Int): Int {
+        val requested = requestedDp.coerceIn(FloatingButtonConfig.PANEL_WIDTH_RANGE)
+        val frame = windows?.frameFor(0, 0) ?: return requested
+        if (!frame.isMeasured) return requested
+        val room = (dp(frame.screenWidth) - EDGE_MARGIN_DP * 2)
+            .coerceAtLeast(FloatingButtonConfig.MIN_PANEL_WIDTH_DP)
+        return requested.coerceAtMost(room)
     }
 
     /**
@@ -763,9 +892,33 @@ class GamingOverlayService : GameCoreService() {
         if (rotation.valueOrNull == true) active += OverlayAction.ROTATION_LOCK
         rotation.unavailabilityText()?.let { unavailable[OverlayAction.ROTATION_LOCK] = it }
 
+        // The colour tile is asked the narrow question — is *GameCore's* correction still in force — for
+        // the reason [ColorCorrectionController.isEngagedByGameCore] gives: the full read is up to eight
+        // shell round trips, and this panel is sitting over a game.
+        if (colour.isEngagedByGameCore()) active += OverlayAction.COLOR
+
+        // Deliberately never marked unavailable, unlike every other action here. A tap on it opens the
+        // colour editor, and authoring a preset works on a device that cannot write a single colour key —
+        // greying it out would take away the one screen that explains *why* the sliders are dimmed. The
+        // access problem belongs to the controls that would actually be refused, and [levelStates] puts it
+        // on all three of them.
+
         if (!gaming.isTracking) {
             unavailable[OverlayAction.STOP_SESSION] = getString(R.string.overlay_no_session)
         }
+
+        // One read for the whole of the shape tile: whether it can be used at all, whether the display is
+        // off its native size, which shapes this panel can take, and which of them is on screen now all
+        // come out of the same [DisplaySizeController.state] call. Held to the rule the colour tile is held
+        // to a few lines up — a window sitting over a game does not get to ask `wm` four separate times.
+        //
+        // The plate means the *display* is stretched, not that GameCore stretched it, which is the same
+        // thing the rotation tile above reports and for the same reason: a player who finds their screen the
+        // wrong shape needs the tile that fixes it to be lit, whoever set it.
+        val sizes = displaySize.state()
+        val sizeState = sizes.valueOrNull
+        if (sizeState?.isOverridden == true) active += OverlayAction.ASPECT
+        sizes.unavailabilityText()?.let { unavailable[OverlayAction.ASPECT] = it }
 
         panel.value = OverlayPanelState(
             gameLabel = gaming.gameLabel.ifEmpty { request.gameLabel },
@@ -774,11 +927,40 @@ class GamingOverlayService : GameCoreService() {
             // What was tried and refused wins over what could be worked out in advance.
             unavailable = unavailable + denied,
             levels = levelStates(),
+            presets = colorPresets.all().map { OverlayPreset(it.id, it.name) },
+            // Carried over rather than defaulted. This is the one field in the state that is the user's
+            // own doing and not a fact about the device, and a re-probe runs after every action — a
+            // screenshot taken with the chips open would otherwise fold them away.
+            presetsExpanded = panel.value.presetsExpanded,
+            activePresetId = preferences.activeColorPresetId,
+            // Empty on a device whose panel size could not be read, which is the honest answer: every shape
+            // here is computed from that size, so without it there is not even a native chip to offer.
+            aspects = sizeState?.options ?: emptyList(),
+            // Carried over for the same reason [presetsExpanded] is.
+            aspectsExpanded = panel.value.aspectsExpanded,
+            activeAspect = sizeState?.activePreset,
+            aspectNote = sizeState?.let(::aspectNote),
         )
     }
 
     /**
-     * Where volume and brightness stand.
+     * What to say under the shape chips, or null when the chips say it themselves.
+     *
+     * Only the custom case needs words. A display sitting on one of the four shapes has that chip filled,
+     * and a sentence repeating it would be noise; a display running a size the user typed into a profile
+     * leaves every chip unfilled, and *that* row has to explain itself or it reads as one that failed to
+     * load. The unreadable case is not handled here — the row has its own sentence for having no chips at
+     * all, and the tile is already carrying the reason it cannot be used.
+     */
+    private fun aspectNote(state: DisplaySizeState): String? = if (state.isCustom) {
+        getString(R.string.overlay_aspect_custom, state.active.label, state.active.aspectLabel)
+    } else {
+        null
+    }
+
+    /**
+     * Where volume and brightness stand — the two device levels; the colour ones are
+     * [colourLevelStates]' business, because they answer a different question.
      *
      * The two questions are kept apart because they have different answers. A level that could not be
      * *read* has no percentage to draw; a level that reads but cannot be *written* has a number and a
@@ -798,18 +980,53 @@ class GamingOverlayService : GameCoreService() {
                 .takeIf { !displayControls.canSetBrightness() }
         return mapOf(
             OverlayLevel.VOLUME to OverlayLevelState(
-                percent = volume.valueOrNull,
+                value = volume.valueOrNull,
                 reason = deniedLevels[OverlayLevel.VOLUME] ?: volume.unavailabilityText(),
             ),
             OverlayLevel.BRIGHTNESS to OverlayLevelState(
-                percent = brightness.valueOrNull,
+                value = brightness.valueOrNull,
                 reason = brightnessReason,
             ),
-        )
+        ) + colourLevelStates()
     }
 
     /**
-     * Re-reads the two levels without re-probing the buttons.
+     * Where the three quick colour sliders stand — and it is a different shape of answer.
+     *
+     * The value is never unreadable, because it is not read from the device: a correction is GameCore's
+     * own stored intent, and [SecurePreferenceStore.colorCorrection] holds the fourteen values the user
+     * last set whether or not this display could express them. That is also what makes the panel reopen
+     * where the user left off.
+     *
+     * So the two facts that vary are the other two. [OverlayLevelState.reason] is the write mechanism:
+     * every colour key is in `Settings.Secure`, so one missing access dims all three at once, and the
+     * sentence names Shizuku as the way to fix it. [OverlayLevelState.note] is the field's reach on this
+     * hardware, which is the fact the colour feature needs and volume and brightness never did — a hue
+     * rotation is stored, travels with a preset and is honoured on a device that has a colour matrix,
+     * and there is no `Settings.Secure` key for it here. Dimming that slider would strand the value; the
+     * note is how the panel says so without pretending the control is broken.
+     *
+     * The live plan is preferred over the standing probe because it is the more specific truth: it
+     * describes the value the user actually has set, where [ColorCorrectionController.reachability]
+     * describes the field in the abstract. Both are pure arithmetic — see [ColorProjection] — so this
+     * costs nothing beyond the one access check the sliders share.
+     */
+    private suspend fun colourLevelStates(): Map<OverlayLevel, OverlayLevelState> {
+        val correction = preferences.colorCorrection.value
+        val plan = colour.preview(correction)
+        val accessReason = colour.access().unavailabilityText()
+        return OverlayLevel.entries.mapNotNull { level ->
+            val field = level.colourField ?: return@mapNotNull null
+            level to OverlayLevelState(
+                value = correction.valueOf(field),
+                reason = deniedLevels[level] ?: accessReason,
+                note = plan.limitFor(field)?.message ?: colour.reachability(field)?.message,
+            )
+        }.toMap()
+    }
+
+    /**
+     * Re-reads the sliders without re-probing the buttons.
      *
      * Run after a slider is committed. The buttons' capabilities can go through the elevated shell and
      * have not changed because the volume moved, so paying for that round trip on every drag release is
@@ -836,11 +1053,11 @@ class GamingOverlayService : GameCoreService() {
      * something to read. Nothing touches the device here: a write per drag frame would be sixty settings
      * writes a second, each one possibly a shell command.
      */
-    private fun onDragLevel(level: OverlayLevel, percent: Int) {
+    private fun onDragLevel(level: OverlayLevel, value: Int) {
         val current = panel.value
         val state = current.levelFor(level)
-        if (!state.isUsable || state.percent == percent) return
-        panel.value = current.copy(levels = current.levels + (level to state.copy(percent = percent)))
+        if (!state.isUsable || state.value == value) return
+        panel.value = current.copy(levels = current.levels + (level to state.copy(value = value)))
     }
 
     /**
@@ -851,14 +1068,133 @@ class GamingOverlayService : GameCoreService() {
      * the slider should show — [refreshLevels] is what moves it there.
      */
     private fun onCommitLevel(level: OverlayLevel) {
-        val requested = panel.value.levelFor(level).percent ?: return
+        val requested = panel.value.levelFor(level).value ?: return
         lifecycleScope.launch {
             val outcome = when (level) {
                 OverlayLevel.VOLUME -> audio.setMediaVolumePercent(requested)
                 OverlayLevel.BRIGHTNESS -> displayControls.setBrightnessPercent(requested)
+                // All three take the same path and differ only by the field they carry, which is why
+                // [OverlayLevel.applyTo] does the writing: the field the slider was drawn from is the
+                // field it writes to, structurally.
+                OverlayLevel.SATURATION,
+                OverlayLevel.CONTRAST,
+                OverlayLevel.HUE,
+                -> commitColour(level, requested)
             }
             reportLevel(level, outcome)
             if (panelOpen.value) refreshLevels()
+        }
+    }
+
+    /**
+     * Stores one colour value, then applies the whole correction.
+     *
+     * Stored first and unconditionally, because the store is the user's intent and the apply is what this
+     * display can make of it. A hue this device has no sink for still has to survive the panel closing,
+     * still has to travel into a preset the user saves later, and still has to be the number the slider
+     * comes back to — §24's honesty cuts this way too: refusing to remember a value because the hardware
+     * cannot express it is its own kind of lie.
+     *
+     * The whole correction goes to [ColorCorrectionController.apply] rather than the one field, because a
+     * colour sink is not per-field: the night display's temperature is the red−blue difference and the
+     * daltonizer is a mode, so a saturation change can move a key that the previous drag of a different
+     * slider also moved. Applying the correction as a unit is what keeps the eight sinks consistent with
+     * the fourteen values, and it is the same call the profile applier makes.
+     *
+     * The preset link is dropped, because it is no longer true. A user who loads "Night" and then drags
+     * saturation is not on Night any more, and leaving the chip highlighted would have the panel claiming
+     * a preset is applied when the values on screen are the user's own.
+     */
+    private suspend fun commitColour(level: OverlayLevel, value: Int): ControlOutcome {
+        preferences.updateColorCorrection { level.applyTo(it, value) }
+        preferences.activeColorPresetId = null
+        return colour.apply(
+            correction = preferences.colorCorrection.value,
+            // The game the change was made for, so a correction still in force months later can be
+            // attributed in session history rather than appearing from nowhere.
+            packageName = coordinator.gaming.value.playing,
+        ).toOutcome()
+    }
+
+    /**
+     * A colour apply in the panel's vocabulary, so [reportLevel] needs no colour-specific branch.
+     *
+     * The restricted case is kept distinct from a failure on purpose: it is the one outcome the user can
+     * do something about, and [ControlOutcome.RequiresAccess.needsShizuku] is what decides which button
+     * the app offers them. Everything else that did not fully apply is a failure with the sentence the
+     * result already composed.
+     */
+    private fun ColorApplyResult.toOutcome(): ControlOutcome = when {
+        access is Observed.Restricted -> ControlOutcome.RequiresAccess(
+            detail = message,
+            needsShizuku = (access as Observed.Restricted).unlockedBy == AccessLevel.SHIZUKU,
+        )
+        isApplied -> ControlOutcome.Applied()
+        else -> ControlOutcome.Failed(message)
+    }
+
+    /**
+     * A long press, which only the colour tile has: it drops the saved presets into the panel.
+     *
+     * No coroutine and no re-probe. The presets are already in the state — [probePanel] reads them — so
+     * the row appears on the press rather than a database round trip later, and a gesture that has to be
+     * held already feels slow enough without waiting for storage. The empty case is the composable's, and
+     * it says so in words rather than opening a blank row.
+     */
+    private fun onLongAction(action: OverlayAction) {
+        if (!action.hasPresets) return
+        panel.value = panel.value.copy(presetsExpanded = !panel.value.presetsExpanded)
+    }
+
+    /**
+     * A preset chip: load its values, remember which one it was, and apply.
+     *
+     * Read back by id rather than carried in the window state — §24A.2, the reason [OverlayPreset] holds
+     * a name and an id and not fourteen values.
+     *
+     * A preset deleted in the editor while this panel sat over a game is a real case, and the honest
+     * answer is to say so and take the chip away rather than to apply the last thing that was there.
+     */
+    private fun onPreset(id: Long) {
+        lifecycleScope.launch {
+            val preset = colorPresets.preset(id)
+            if (preset == null) {
+                toast(getString(R.string.overlay_preset_missing))
+                if (panelOpen.value) probePanel()
+                return@launch
+            }
+            preferences.setColorCorrection(preset.correction)
+            preferences.activeColorPresetId = preset.id
+            val result = colour.apply(preset.correction, coordinator.gaming.value.playing)
+            // Silent only when the screen actually changed. A preset whose every value this display has no
+            // sink for "applies" without a single write, and a chip that lights up over an unchanged screen
+            // is exactly the button §32 rules out — so the sentence the result carries is shown.
+            if (!result.isApplied || result.plan.engagesNothing) toast(result.message)
+            if (panelOpen.value) probePanel()
+        }
+    }
+
+    /**
+     * A shape chip: stretch the display to it, or take the stretch off.
+     *
+     * Applies on the tap with no confirmation step, which is what "instant apply" means and what every
+     * other control in this panel does — and it is safe to do here for a reason worth naming: the row's
+     * first chip is always native, so the undo for a tap the user regrets is one tap away and is on screen
+     * already. [DisplaySizeController.apply] refuses a size the panel cannot take before writing anything,
+     * so the chips cannot walk the display somewhere it cannot come back from.
+     *
+     * The outcome is announced whenever it is not a confirmed success. A display size that was asked for
+     * and silently ignored is the specific failure §3 names — some builds decline an override for the
+     * built-in screen — and the chip row would otherwise sit there with nothing filled and nothing said.
+     *
+     * Re-probed afterwards for the same reason the colour chips are: the plate on the tile, the filled
+     * chip and the note under the row are all read from the display, not from what was just requested.
+     */
+    private fun onAspect(choice: AspectChoice) {
+        lifecycleScope.launch {
+            val outcome = displaySize.apply(choice.preset, coordinator.gaming.value.playing)
+            if (!outcome.isSuccess) toast(outcome.message)
+            if (panelOpen.value) probePanel()
         }
     }
 
@@ -889,6 +1225,21 @@ class GamingOverlayService : GameCoreService() {
                 report(action, audio.setDoNotDisturb(!silencing))
             }
             OverlayAction.ROTATION_LOCK -> report(action, toggleRotationLock())
+            // The one tile that opens a screen instead of changing something. Its filled plate still means
+            // what every other plate in this grid means — the correction is in force — but fourteen values,
+            // a gamma mode and a preset library do not fit in a window that has to stay out of the way of a
+            // game, and the three sliders above are the part of it that belongs here. So the tap is a door,
+            // and the long press is the shortcut to the thing users want most often: their saved presets.
+            OverlayAction.COLOR -> {
+                closePanel()
+                openApp(MainActivity.DESTINATION_COLOUR)
+            }
+            // Opens the shape chips rather than a screen, unlike the tile above it. The whole control is
+            // four sizes computed from this display, and they fit in a row; there is nothing left over to
+            // put on a screen. So the tap that would have been a door is the control itself, and the way
+            // back to native is the first chip it reveals.
+            OverlayAction.ASPECT ->
+                panel.value = panel.value.copy(aspectsExpanded = !panel.value.aspectsExpanded)
             OverlayAction.STOP_SESSION -> {
                 closePanel()
                 // Through the coordinator, which routes it through the detector: that is what suppresses
@@ -966,9 +1317,18 @@ class GamingOverlayService : GameCoreService() {
         }
     }
 
-    private fun openApp() {
+    /**
+     * Brings GameCore to the front, optionally on a particular screen.
+     *
+     * [destination] is one of [MainActivity]'s own constants and never anything the user typed. That is
+     * the whole of the contract: the activity treats the extra as untrusted and matches it against a
+     * closed list, so a third-party app that guesses the extra's name can reach a GameCore screen and
+     * nothing else — no path, no id, no package name travels this way.
+     */
+    private fun openApp(destination: String? = null) {
         val intent = Intent(this, MainActivity::class.java)
             .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+        destination?.let { intent.putExtra(MainActivity.EXTRA_DESTINATION, it) }
         try {
             startActivity(intent)
         } catch (denied: SecurityException) {

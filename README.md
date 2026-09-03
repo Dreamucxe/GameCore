@@ -89,7 +89,7 @@ unreachable at any privilege level.
 - Tapping it opens a control panel **directly below the button**, wherever the button
   happens to be — brightness and media-volume sliders, saturation, contrast and hue,
   screenshot, screen recording, Do Not Disturb, orientation lock, flashlight, colour presets,
-  and a shortcut back into the game.
+  display shape, and a shortcut back into the game.
 - A configurable performance pill: pick which stats it shows and set its position, size,
   opacity, corner radius, text size and update interval.
 - A crosshair overlay with ten designs — cross, dot, ring, ring-and-dot, cross-in-ring, T,
@@ -102,9 +102,9 @@ unreachable at any privilege level.
 
 ### Game profiles
 
-One profile per package, holding target refresh rate, brightness, orientation lock, screen
-timeout, media volume, Do Not Disturb, which overlays to raise, a HUD layout, a crosshair
-preset, a colour preset, a performance mode and whether to track the session.
+One profile per package, holding target refresh rate, brightness, display size, orientation
+lock, screen timeout, media volume, Do Not Disturb, which overlays to raise, a HUD layout, a
+crosshair preset, a colour preset, a performance mode and whether to track the session.
 
 Every adjustable field is nullable, and **null means leave it alone** — not "use a
 default". A profile that sets only brightness records what brightness was, changes it, and
@@ -163,8 +163,9 @@ and shows *"Not available on this device"* when it does not — rather than esti
 
 The app is fully usable without it. Shizuku (or a wireless-ADB pairing) raises the app to
 ADB-level authority, which is what most devices require for a *device-wide* refresh-rate
-change, for animation scales, for the display's colour keys, and for a handful of `dumpsys`
-reads Android does not expose to ordinary apps.
+change, for animation scales, for the display's colour keys, for reading and reshaping the
+display's own size, and for a handful of `dumpsys` reads Android does not expose to ordinary
+apps.
 
 When it is absent, capabilities that need it say so and point at the setup screen. Nothing
 silently degrades into a fake result.
@@ -180,6 +181,7 @@ What the app can run with that authority is a closed, enumerated set:
 | `getprop` | three `ro.*` chipset properties |
 | `pm grant` | three permissions, **to this app only** |
 | `appops set` | two app-ops, **to this app only** |
+| `wm size` | reading the display's size, setting a per-game override, and clearing it |
 
 There is no shell interpreter in that list, so there is no string to inject into. Every
 argument that originates outside the app's own code — a package name from a stored profile,

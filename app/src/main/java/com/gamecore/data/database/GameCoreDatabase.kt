@@ -6,7 +6,7 @@ import androidx.room.RoomDatabase
 /**
  * The one database.
  *
- * Seven tables, one file, one passphrase. The file itself is encrypted by SQLCipher rather than
+ * Eight tables, one file, one passphrase. The file itself is encrypted by SQLCipher rather than
  * relying on the app sandbox alone: §24A.5 asks for session data and profiles to be stored
  * encrypted, and on a device where the sandbox has been opened up — the rooted case §24A.13 tells
  * this app to expect and degrade for — an unencrypted Room file is a plain SQLite file readable by
@@ -14,8 +14,19 @@ import androidx.room.RoomDatabase
  * which is Keystore-backed, so the key is not in the encrypted file's own directory.
  *
  * `exportSchema = true` writes the schema JSON into `app/schemas` at build time. It costs nothing
- * and it is the only way a migration for version 2 can be written and tested rather than guessed
- * at, which matters for a database holding history a user cannot regenerate.
+ * and it is what made version 2's migration writable rather than guessable, which matters for a
+ * database holding history a user cannot regenerate.
+ *
+ * **Version 2** adds the `color_presets` table, `game_profiles.color_preset_id`, and the two
+ * colour columns on `sessions`. [GameCoreMigrations.MIGRATION_1_2] is registered in
+ * [com.gamecore.di.DatabaseModule] and is a real migration — there is no
+ * `fallbackToDestructiveMigration` anywhere in this app, because a user who installs an update
+ * should not lose six months of sessions to a schema change.
+ *
+ * **Version 3** adds `game_profiles.display_size`, one nullable TEXT column. No new table and no
+ * session columns: a display size is a request a profile carries, and the reading worth keeping
+ * about one is whether it was honoured, which the restore ledger already records.
+ * [GameCoreMigrations.MIGRATION_2_3].
  *
  * There are no `@TypeConverter`s registered anywhere in this class, deliberately. Enums are stored
  * as their names and parsed back defensively in [Mappers]; a converter would move that parsing
@@ -28,11 +39,12 @@ import androidx.room.RoomDatabase
         HudLayoutEntity::class,
         HudWidgetEntity::class,
         CrosshairPresetEntity::class,
+        ColorPresetEntity::class,
         SessionEntity::class,
         SessionSampleEntity::class,
         RestorePointEntity::class,
     ],
-    version = 1,
+    version = 3,
     exportSchema = true,
 )
 abstract class GameCoreDatabase : RoomDatabase() {
@@ -42,6 +54,8 @@ abstract class GameCoreDatabase : RoomDatabase() {
     abstract fun hudLayouts(): HudLayoutDao
 
     abstract fun crosshairPresets(): CrosshairPresetDao
+
+    abstract fun colorPresets(): ColorPresetDao
 
     abstract fun sessions(): SessionDao
 

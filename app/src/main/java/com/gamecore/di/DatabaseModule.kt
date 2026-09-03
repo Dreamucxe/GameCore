@@ -2,8 +2,10 @@ package com.gamecore.di
 
 import android.content.Context
 import androidx.room.Room
+import com.gamecore.data.database.ColorPresetDao
 import com.gamecore.data.database.CrosshairPresetDao
 import com.gamecore.data.database.GameCoreDatabase
+import com.gamecore.data.database.GameCoreMigrations
 import com.gamecore.data.database.GameProfileDao
 import com.gamecore.data.database.HudLayoutDao
 import com.gamecore.data.database.RestorePointDao
@@ -64,9 +66,10 @@ object DatabaseModule {
             GameCoreDatabase.FILE_NAME,
         )
             .openHelperFactory(SupportOpenHelperFactory(passphrase))
-            // Version 1. There is nothing to migrate from, and a destructive fallback declared now
-            // would quietly delete a user's history the first time a real migration was missed.
-            // A future version adds a migration here; it does not add `fallbackToDestructive`.
+            // Real migrations, no destructive fallback. `GameCoreMigrations.ALL` is additive
+            // statement by statement, so a user updating from the version that had no colour
+            // feature keeps every session and profile they had.
+            .addMigrations(*GameCoreMigrations.ALL)
             .build()
     }
 
@@ -79,6 +82,9 @@ object DatabaseModule {
     @Provides
     fun crosshairPresetDao(database: GameCoreDatabase): CrosshairPresetDao =
         database.crosshairPresets()
+
+    @Provides
+    fun colorPresetDao(database: GameCoreDatabase): ColorPresetDao = database.colorPresets()
 
     @Provides
     fun sessionDao(database: GameCoreDatabase): SessionDao = database.sessions()

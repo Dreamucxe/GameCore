@@ -90,6 +90,26 @@ data class SessionEntity(
      */
     @ColumnInfo(name = "stop_reason")
     val stopReason: String? = null,
+
+    /**
+     * The name of the colour preset that was on screen while this session ran, sanitised on
+     * the way in like every other user-supplied string, or NULL when the display was left
+     * alone. Added in schema version 2, so NULL is also what every session recorded before
+     * the colour feature existed reads back as — which is the truth about those sessions.
+     */
+    @ColumnInfo(name = "color_preset")
+    val colorPreset: String? = null,
+
+    /**
+     * The same correction as a [com.gamecore.core.model.ColorCodec] string.
+     *
+     * The name alone would not survive the preset being renamed or deleted, and a report of a
+     * session six weeks old should say what the screen was doing, not what a row that no longer
+     * exists is called now. One column rather than fourteen because a session's colour reading
+     * is written once and read once, and is never filtered on.
+     */
+    @ColumnInfo(name = "color_values")
+    val colorValues: String? = null,
 )
 
 /**

@@ -22,6 +22,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -38,8 +39,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.gamecore.ui.color.ColorScreen
 import com.gamecore.ui.components.ScreenPadding
 import com.gamecore.ui.crosshair.CrosshairScreen
+import com.gamecore.ui.developer.DeveloperScreen
 import com.gamecore.ui.games.GamesScreen
 import com.gamecore.ui.games.ProfileEditorScreen
 import com.gamecore.ui.home.HomeScreen
@@ -54,6 +57,8 @@ import com.gamecore.ui.settings.SettingsScreen
 import com.gamecore.ui.shizuku.ShizukuScreen
 import com.gamecore.ui.theme.GameCoreTheme
 import com.gamecore.ui.tools.ToolsScreen
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * The whole app above the screens: the theme, the back stack, and the bar that floats over both.
@@ -76,15 +81,30 @@ import com.gamecore.ui.tools.ToolsScreen
  * of it would leave the user unsure which of the two gestures keeps their unsaved profile edit.
  */
 @Composable
-fun GameCoreRoot(viewModel: RootViewModel = hiltViewModel()) {
+fun GameCoreRoot(
+    viewModel: RootViewModel = hiltViewModel(),
+    openAt: StateFlow<Destination?> = remember { MutableStateFlow<Destination?>(null) },
+    onOpened: () -> Unit = {},
+) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route
+    val requested by openAt.collectAsStateWithLifecycle()
 
     // One navigator for both the bar and the screens, so a tab tap and a card tap cannot end up with
     // different back-stack rules for the same destination.
     val open: (Destination) -> Unit = remember(navController) { { navController.open(it) } }
+
+    // A screen an intent asked for, pushed on top of Home rather than replacing it, so the back gesture
+    // out of it lands where a launch does instead of closing the app. Cleared through [onOpened] the
+    // moment it is acted on: a request that stayed set would reopen the screen the first time the user
+    // navigated away from it.
+    LaunchedEffect(requested) {
+        val destination = requested ?: return@LaunchedEffect
+        navController.openFromIntent(destination)
+        onOpened()
+    }
 
     GameCoreTheme(settings) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -236,6 +256,12 @@ private fun GameCoreNav(
             CrosshairScreen(onBack = back, onNavigate = open)
         }
 
+        // Reached from the overlay panel's colour tile as well as from inside the app, which is why
+        // `openFromIntent` exists — see [Destination.Colour].
+        composable(Destination.Colour.route) {
+            ColorScreen(onBack = back, onNavigate = open)
+        }
+
         composable(Destination.Shizuku.route) {
             ShizukuScreen(onNavigate = open)
         }
@@ -246,6 +272,10 @@ private fun GameCoreNav(
 
         composable(Destination.Tools.route) {
             ToolsScreen(onBack = back)
+        }
+
+        composable(Destination.Developer.route) {
+            DeveloperScreen(onBack = back)
         }
 
         composable(Destination.Overlay.route) {
@@ -314,6 +344,19 @@ private fun NavHostController.open(destination: Destination) {
 private fun NavHostController.push(route: String) {
     if (!isSettled()) return
     navigate(route) { launchSingleTop = true }
+}
+
+/**
+ * Opens a screen an intent asked for, without the settle guard the taps use.
+ *
+ * [isSettled] is there to tell a second tap from a second destination, and this is neither: on a cold
+ * start the request arrives before Home has finished its cross-fade, so the guard would drop it and the
+ * intent the user sent from the overlay would be silently forgotten — a tile that does nothing, which is
+ * the §32 failure. `launchSingleTop` covers the only duplicate this can produce, which is the same screen
+ * asked for twice while it is already on top.
+ */
+private fun NavHostController.openFromIntent(destination: Destination) {
+    navigate(destination.route) { launchSingleTop = true }
 }
 
 /**

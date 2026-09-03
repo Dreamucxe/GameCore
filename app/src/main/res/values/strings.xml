@@ -73,6 +73,13 @@
     <string name="overlay_capture_failed">Screen capture could not be started</string>
     <string name="overlay_open_failed">GameCore could not be brought to the front</string>
     <string name="overlay_brightness_needs_access">Needs system-settings access or Shizuku</string>
+    <string name="overlay_preset_missing">That colour preset has been deleted</string>
+    <!--
+      Drawn under the shape chips when the display is running a size none of them describes, which is the
+      ordinary state for a size typed into a profile by hand. It exists so that a row with nothing filled in
+      says why rather than looking like a row that failed to load.
+    -->
+    <string name="overlay_aspect_custom">Running %1$s — %2$s, which is not one of these shapes</string>
 
     <!--
       Screen capture. The consent dialog is the system's, so these only cover what happens on either side

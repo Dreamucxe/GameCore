@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
@@ -32,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gamecore.core.common.TextSanitizer
@@ -100,6 +102,11 @@ fun SwitchRow(
  * again on release via [onValueChangeFinished] — the live one so the HUD preview follows the thumb, the
  * final one so a caller that persists (a preference write, a window update) does so once per gesture
  * instead of forty times.
+ *
+ * [onValueClick] makes the figure itself tappable, for a range a thumb cannot land on exactly: hue is 361
+ * positions wide and a gain is 201, so a user who wants −12% has to be able to say so. Null by default,
+ * because a tappable label with nothing behind it is §32's button that does nothing — the readout only
+ * becomes a target on the screens that offer typing, and stays plain text everywhere else.
  */
 @Composable
 fun SliderRow(
@@ -112,6 +119,7 @@ fun SliderRow(
     description: String? = null,
     enabled: Boolean = true,
     onValueChangeFinished: (() -> Unit)? = null,
+    onValueClick: (() -> Unit)? = null,
 ) {
     Column(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -129,6 +137,18 @@ fun SliderRow(
                 text = valueLabel,
                 style = StatValueCompactStyle,
                 color = MaterialTheme.colorScheme.primary,
+                // A plate around the figure only when it can be tapped, so the target looks like one.
+                // `Role.Button` rather than the default, because "Saturation, +45%" read as a button is
+                // what tells a screen-reader user the figure is a second way in and not just a value.
+                modifier = if (onValueClick != null && enabled) {
+                    Modifier
+                        .clip(MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable(role = Role.Button, onClick = onValueClick)
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                } else {
+                    Modifier
+                },
             )
         }
         if (description != null) {
@@ -342,6 +362,11 @@ private fun StepButton(text: String, enabled: Boolean, onClick: () -> Unit) {
  * way to storage. Newlines from a paste are flattened for the same reason. The *full* sanitiser runs on
  * save rather than per keystroke — it trims and collapses whitespace, which would delete the space the
  * user just typed in the middle of a name.
+ *
+ * [keyboardType] is here for the fourth thing the user types, which is a number: the colour editor's
+ * tap-the-figure entry, where a full alphabetic keyboard for a value between −100 and 100 is three extra
+ * taps and a wrong first guess. It only asks for a keyboard — the range check belongs to the caller that
+ * knows the range.
  */
 @Composable
 fun TextFieldRow(
@@ -352,6 +377,7 @@ fun TextFieldRow(
     placeholder: String = "",
     maxLength: Int = TextSanitizer.MAX_NAME_LENGTH,
     description: String? = null,
+    keyboardType: KeyboardType = KeyboardType.Text,
 ) {
     val scheme = MaterialTheme.colorScheme
     Column(modifier = modifier.fillMaxWidth().padding(vertical = 6.dp)) {
@@ -369,6 +395,7 @@ fun TextFieldRow(
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = scheme.onSurface),
                 cursorBrush = SolidColor(scheme.primary),
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 12.dp),

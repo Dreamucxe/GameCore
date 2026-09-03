@@ -83,6 +83,29 @@ sealed interface Destination {
         override val route = "overlay"
     }
 
+    /**
+     * Who wrote this and where to find them. The last row of Settings.
+     *
+     * Not in [external], and it would be harmless there — the screen holds three of its own addresses and
+     * reads nothing from an intent. It stays out because nothing outside the app has a reason to ask for it.
+     */
+    data object Developer : Destination {
+        override val route = "developer"
+    }
+
+    /**
+     * The colour correction editor: fourteen values, the gamma mode and the preset library.
+     *
+     * The one destination reachable from outside the app — the overlay panel's colour tile opens it while
+     * a game is in front, because the panel has room for three sliders and not for the editor. [EXTERNAL]
+     * is the token that travels in the intent; see [fromExternal] for why it is a token and not a route.
+     */
+    data object Colour : Destination {
+        override val route = "colour"
+
+        const val EXTERNAL = "colour"
+    }
+
     /** The profile editor. A new profile is `profile/0`, since Room ids start at 1. */
     data object ProfileEditor : Destination {
         override val route = "profile/{$ARG_PACKAGE}"
@@ -112,5 +135,22 @@ sealed interface Destination {
 
         /** A new HUD layout. Not a real row id, so it cannot collide with one. */
         const val NEW_LAYOUT = 0L
+
+        /**
+         * The destinations GameCore is willing to be opened *at* by an intent, and nothing else.
+         *
+         * [MainActivity] is exported — it has to be, it is the launcher activity — so the extra that
+         * carries this arrives from wherever the sender likes. A closed map is what makes that safe: the
+         * only thing an intent can do is name one of these tokens, and anything else lands on Home. No
+         * route string, no id, no package name and no path is ever taken from an intent, so there is
+         * nothing for a caller to smuggle a value through.
+         *
+         * A token rather than the route itself, so that a route can be renamed — or given an argument —
+         * without changing what outside callers are allowed to ask for.
+         */
+        private val external: Map<String, Destination> = mapOf(Colour.EXTERNAL to Colour)
+
+        /** The destination an intent asked for, or null for anything unrecognised. */
+        fun fromExternal(token: String?): Destination? = external[token?.trim()]
     }
 }

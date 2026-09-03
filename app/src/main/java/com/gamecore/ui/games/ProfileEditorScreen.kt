@@ -16,12 +16,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SportsEsports
@@ -40,12 +42,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.core.common.Formatters
+import com.gamecore.core.common.unavailabilityText
+import com.gamecore.core.model.AspectPreset
 import com.gamecore.core.model.CapabilityStatus
+import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.PerformanceMode
 import com.gamecore.core.model.ScreenOrientationLock
@@ -65,6 +71,7 @@ import com.gamecore.ui.components.SectionCard
 import com.gamecore.ui.components.SliderRow
 import com.gamecore.ui.components.StatusChip
 import com.gamecore.ui.components.SwitchRow
+import com.gamecore.ui.components.TextFieldRow
 import com.gamecore.ui.components.Tone
 import com.gamecore.ui.components.colour
 
@@ -283,12 +290,15 @@ private fun GameCard(
 }
 
 /**
- * Refresh rate, brightness, orientation, screen timeout.
+ * Refresh rate, brightness, orientation, screen timeout, and the colour preset the game runs under.
  *
  * The refresh-rate control lists only rates this panel actually reported, and says which mechanism will
  * be used to set them. §24B's MediaTek case is called out by name where the chipset is one of the known
  * unreliable ones: the standard API accepts the request and ignores it, so the profile says the change
  * will be verified and reported rather than assumed.
+ *
+ * The colour preset is here rather than with the overlays because it is not one: it changes the display
+ * itself, for every app on screen, which is the same category as brightness and refresh rate.
  */
 @Composable
 private fun DisplaySection(
@@ -338,6 +348,9 @@ private fun DisplaySection(
         }
 
         RowDivider()
+        DisplaySizeRows(state = state, profile = profile, onEdit = onEdit, onNavigate = onNavigate)
+
+        RowDivider()
         OptionalPercent(
             title = "Brightness",
             value = profile.brightnessPercent,
@@ -382,7 +395,174 @@ private fun DisplaySection(
             Spacer(modifier = Modifier.height(6.dp))
             NoteBanner(text = it, tone = Tone.Muted, icon = Icons.Filled.Info)
         }
+
+        RowDivider()
+        OptionPicker(
+            title = "Colour correction",
+            options = state.colourPresets,
+            selectedId = profile.colorPresetId,
+            onSelect = { id -> onEdit { it.copy(colorPresetId = id) } },
+            emptyMessage = "No colour presets saved yet.",
+            emptyActionLabel = "Make one",
+            onEmptyAction = { onNavigate(Destination.Colour) },
+            icon = Icons.Filled.Palette,
+        )
+        if (profile.colorPresetId != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            NoteBanner(
+                text = "Applied to the whole display when this game starts, and put back when it closes. " +
+                    "A device that will not let GameCore write display settings skips it, and the session " +
+                    "report says so rather than claiming it worked.",
+                tone = Tone.Muted,
+                icon = Icons.Filled.Info,
+            )
+        }
     }
+}
+
+/**
+ * The display's shape: a row of ratios, a size the user can type, and what either one will do.
+ *
+ * The most consequential control in this editor, and the copy is written accordingly. Three facts have to
+ * survive the user's skim, and none of them are decoration:
+ *
+ *  - It **stretches**. A game handed a shorter logical display draws its scene into that shape and the
+ *    compositor spreads the result over the panel. It is not a wider field of view, and the note says so in
+ *    those words because "aspect ratio" is exactly the phrase people expect a wider view from.
+ *  - It **outlives a reboot**. `wm size` is not a runtime setting, so the restore is the app's promise
+ *    rather than the platform's — and the note points at the Home screen, where an outstanding change is
+ *    listed until GameCore has actually put it back.
+ *  - Only sizes **smaller than the panel** are offered. A larger logical display is supersampling, which
+ *    costs frame rate and widens nothing; [DisplaySize.rejectionFor] refuses it with that sentence.
+ *
+ * The whole control is absent, with the reason, on a device whose panel size could not be read. Every shape
+ * here is computed from that size and so is every rejection, so there is nothing to draw that would not be
+ * a guess — see [ProfileEditorUiState.display].
+ */
+@Composable
+private fun DisplaySizeRows(
+    state: ProfileEditorUiState,
+    profile: GameProfile,
+    onEdit: ((GameProfile) -> GameProfile) -> Unit,
+    onNavigate: (Destination) -> Unit,
+) {
+    Text(text = "Display size", style = MaterialTheme.typography.bodyLarge)
+    Spacer(modifier = Modifier.height(6.dp))
+    val physical = state.physicalSize
+    if (physical == null) {
+        NoteBanner(
+            text = state.display.unavailabilityText() ?: DISPLAY_SIZE_UNREADABLE,
+            tone = Tone.Muted,
+            icon = Icons.Filled.Info,
+            action = if (state.displayNeedsShizuku) {
+                { TextButton(onClick = { onNavigate(Destination.Shizuku) }) { Text("Set up") } }
+            } else {
+                null
+            },
+        )
+        return
+    }
+
+    // Turned to match the panel before it is compared to anything. A user who typed 1920 × 1080 on a
+    // portrait phone meant the same display as 1080 × 1920, and a row that highlighted neither chip would
+    // be the editor disagreeing with itself about what the profile holds.
+    val chosen = profile.displaySize?.orientedLike(physical)
+    val presetSizes = state.aspectChoices.map { it.size }
+    val custom = chosen?.takeIf { size -> presetSizes.none { it.matches(size) } }
+    ChoiceRow(
+        options = listOf<DisplaySize?>(null) + presetSizes + listOfNotNull(custom),
+        selected = chosen,
+        onSelect = { size -> onEdit { it.copy(displaySize = size) } },
+        label = { size ->
+            if (size == null) "Leave alone" else AspectPreset.of(size, physical)?.label ?: "Custom"
+        },
+        perRow = 3,
+    )
+    Spacer(modifier = Modifier.height(6.dp))
+    NoteBanner(text = DISPLAY_SIZE_STRETCH, tone = Tone.Muted, icon = Icons.Filled.AspectRatio)
+    if (chosen != null) {
+        Spacer(modifier = Modifier.height(6.dp))
+        NoteBanner(
+            text = "Sets this display to ${chosen.label} — ${chosen.aspectLabel} — while the game is " +
+                "open, and puts it back when it closes. A size override outlives a reboot, so GameCore " +
+                "records what it found first and the Home screen lists the change until it is undone.",
+            tone = Tone.Muted,
+            icon = Icons.Filled.Info,
+        )
+    }
+    CustomSizeFields(physical = physical, chosen = chosen, onEdit = onEdit)
+}
+
+/**
+ * Two numbers, for the shape none of the chips is.
+ *
+ * The text lives here rather than in the profile, and that is the whole point of the composable: a
+ * half-typed width is not a size. Writing each keystroke through would put "1 × 1080" into the profile on
+ * the way to "1080 × 1080" and leave it there if the user navigated away mid-number, and GameCore would
+ * then refuse its own saved size at the next game launch. So the fields carry text, the profile only ever
+ * receives a pair that passes [DisplaySize.rejectionFor], and a pair that does not is shown the reason.
+ *
+ * Keyed on the size the profile holds, so the fields and the chips stay one control: tapping 4:3 fills them
+ * in, tapping "Leave alone" empties them, and a size typed here that resolves to a ratio lights that chip.
+ *
+ * Emptying both fields clears the profile's size. The alternative — ignoring an emptied pair — leaves the
+ * chips claiming a size the fields no longer show, which is the editor lying about what it will do.
+ */
+@Composable
+private fun CustomSizeFields(
+    physical: DisplaySize,
+    chosen: DisplaySize?,
+    onEdit: ((GameProfile) -> GameProfile) -> Unit,
+) {
+    var width by remember(chosen) { mutableStateOf(chosen?.widthPixels?.toString() ?: "") }
+    var height by remember(chosen) { mutableStateOf(chosen?.heightPixels?.toString() ?: "") }
+
+    // Takes the text as arguments rather than reading the state, so it commits what was just typed instead
+    // of what this composition was drawn with.
+    fun commit(rawWidth: String, rawHeight: String) {
+        if (rawWidth.isBlank() && rawHeight.isBlank()) {
+            onEdit { it.copy(displaySize = null) }
+            return
+        }
+        val size = DisplaySize.parse("${rawWidth}x$rawHeight")?.orientedLike(physical) ?: return
+        if (size.rejectionFor(physical) == null) onEdit { it.copy(displaySize = size) }
+    }
+
+    val typed = DisplaySize.parse("${width}x$height")?.orientedLike(physical)
+    val rejection = typed?.rejectionFor(physical)
+    Spacer(modifier = Modifier.height(2.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        TextFieldRow(
+            label = "Custom width",
+            value = width,
+            onValueChange = { text ->
+                width = text.filter(Char::isDigit)
+                commit(width, height)
+            },
+            placeholder = physical.widthPixels.toString(),
+            maxLength = SIZE_FIELD_DIGITS,
+            keyboardType = KeyboardType.Number,
+            modifier = Modifier.weight(1f),
+        )
+        TextFieldRow(
+            label = "Custom height",
+            value = height,
+            onValueChange = { text ->
+                height = text.filter(Char::isDigit)
+                commit(width, height)
+            },
+            placeholder = physical.heightPixels.toString(),
+            maxLength = SIZE_FIELD_DIGITS,
+            keyboardType = KeyboardType.Number,
+            modifier = Modifier.weight(1f),
+        )
+    }
+    NoteBanner(
+        text = rejection ?: "This panel is ${physical.label}. Either way round means the same display — " +
+            "GameCore turns the pair to match the panel. Leave both empty to leave the size alone.",
+        tone = if (rejection == null) Tone.Muted else Tone.Warning,
+        icon = Icons.Filled.Info,
+    )
 }
 
 /**
@@ -729,3 +909,21 @@ private fun AppRow(app: AppOption, onClick: () -> Unit, modifier: Modifier = Mod
         }
     }
 }
+
+/**
+ * What a display-size change actually does, in the two sentences it takes to be honest about it.
+ *
+ * The second sentence is the one that matters and the reason this is a constant rather than an inline
+ * string: it is the same claim §3 requires the overlay's chip row to make, and the two should not be free
+ * to drift apart into a strict version and a friendly one.
+ */
+private const val DISPLAY_SIZE_STRETCH =
+    "This stretches the display: the game is handed a shorter screen and the picture is reshaped to fill " +
+        "the panel. It is not a wider field of view, and no game sees more of the world because of it."
+
+/** Said when `wm size` could not be read and the [Observed] reason came back empty. */
+private const val DISPLAY_SIZE_UNREADABLE =
+    "This display's size could not be read, so GameCore has nothing to compute shapes from."
+
+/** Four digits reaches 9999, which is past every panel that has shipped and every one that will fit. */
+private const val SIZE_FIELD_DIGITS = 4
