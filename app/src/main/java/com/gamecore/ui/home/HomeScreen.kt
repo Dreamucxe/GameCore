@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.core.common.Formatters
+import com.gamecore.core.model.MemoryReclaimReport
 import com.gamecore.domain.gaming.GamingState
 import com.gamecore.ui.Destination
 import com.gamecore.ui.components.ABSENT
@@ -142,6 +143,16 @@ fun HomeScreen(
                 SessionCard(
                     gaming = state.gaming,
                     onStop = viewModel::stopSession,
+                    modifier = padded,
+                )
+            }
+        }
+
+        state.gaming.reclaim?.let { report ->
+            item {
+                ReclaimNotice(
+                    report = report,
+                    onDismiss = viewModel::dismissReclaim,
                     modifier = padded,
                 )
             }
@@ -283,6 +294,50 @@ private fun RepairNotice(
             TextButton(onClick = onDismiss) { Text("OK") }
         }
     }
+}
+
+/**
+ * What the launch's memory pass did, in one sentence, once.
+ *
+ * A banner and not a card, because it is the shortest-lived thing on this screen: it appears for one
+ * launch, says what happened, and goes when the user acknowledges it or the next game starts. There is no
+ * "details" affordance and no per-app list — the apps are closed, a list of them would only invite the
+ * user to look for one that is not there, and GameCore is not going to reopen them.
+ *
+ * The sentence is [com.gamecore.core.model.MemoryReclaimReport.Completed.summary] verbatim, including the
+ * cases where it declines to give a figure. §24 again: a pass that closed four apps and could not measure
+ * what that freed says so, rather than the banner filling in a plausible number.
+ *
+ * Muted rather than accented when nothing was closed or nothing ran. A skip and an empty pass are both
+ * "GameCore did nothing to your apps", which is reassurance and not news, and colouring them like an
+ * action would teach the user to distrust the colour.
+ */
+@Composable
+private fun ReclaimNotice(
+    report: MemoryReclaimReport,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val text: String
+    val tone: Tone
+    when (report) {
+        is MemoryReclaimReport.Skipped -> {
+            text = report.reason
+            tone = Tone.Muted
+        }
+
+        is MemoryReclaimReport.Completed -> {
+            text = report.summary()
+            tone = if (report.touchedNothing) Tone.Muted else Tone.Accent
+        }
+    }
+    NoteBanner(
+        text = text,
+        tone = tone,
+        icon = Icons.Filled.Memory,
+        modifier = modifier,
+        action = { TextButton(onClick = onDismiss) { Text("OK") } },
+    )
 }
 
 /**

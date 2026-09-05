@@ -53,8 +53,10 @@ import com.gamecore.ui.performance.PerformanceScreen
 import com.gamecore.ui.permissions.PermissionsScreen
 import com.gamecore.ui.sessions.SessionReportScreen
 import com.gamecore.ui.sessions.SessionsScreen
+import com.gamecore.ui.settings.NeverCloseScreen
 import com.gamecore.ui.settings.SettingsScreen
 import com.gamecore.ui.shizuku.ShizukuScreen
+import com.gamecore.ui.storage.GameStorageScreen
 import com.gamecore.ui.theme.GameCoreTheme
 import com.gamecore.ui.tools.ToolsScreen
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -91,6 +93,7 @@ fun GameCoreRoot(
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     val requested by openAt.collectAsStateWithLifecycle()
+    val onTab = Destination.top.any { it.route == route }
 
     // One navigator for both the bar and the screens, so a tab tap and a card tap cannot end up with
     // different back-stack rules for the same destination.
@@ -118,7 +121,7 @@ fun GameCoreRoot(
                         .displayCutoutPadding(),
                 )
                 AnimatedVisibility(
-                    visible = Destination.top.any { it.route == route },
+                    visible = onTab,
                     modifier = Modifier.align(Alignment.BottomCenter),
                     enter = fadeIn(tween(BAR_IN_MILLIS)) + slideInVertically(tween(BAR_IN_MILLIS)) { it / 2 },
                     exit = fadeOut(tween(BAR_OUT_MILLIS)) + slideOutVertically(tween(BAR_OUT_MILLIS)) { it / 2 },
@@ -280,6 +283,14 @@ private fun GameCoreNav(
 
         composable(Destination.Overlay.route) {
             OverlayScreen(onBack = back, onNavigate = open)
+        }
+
+        composable(Destination.NeverClose.route) {
+            NeverCloseScreen(onBack = back)
+        }
+
+        composable(Destination.GameStorage.route) {
+            GameStorageScreen(onBack = back, onNavigate = open)
         }
 
         composable(

@@ -82,6 +82,54 @@ internal object GameCoreMigrations {
         }
     }
 
+    /**
+     * Version 3 → 4: the per-game switch for closing background apps at launch.
+     *
+     * The first additive column in this file with a default, and the first that is `NOT NULL`. Both
+     * follow from what the column means: the other three additions were "which preset, if any", where
+     * absence is a complete answer, and this one is "should GameCore close your other apps", where
+     * absence is not an answer at all. `DEFAULT 0` is the whole point — every profile that existed
+     * before this feature did reads back with the feature off, which is also what a profile created
+     * after it reads back as until the user turns it on.
+     *
+     * The entity field is a plain non-null `Boolean` with no `@ColumnInfo(defaultValue = …)`: the
+     * default belongs to this migration, which is where existing rows are filled in, and declaring it
+     * on the entity as well would put a `defaultValue` in the exported schema that the migrated table
+     * does not carry, failing Room's own schema verification for a value nothing reads.
+     */
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "ALTER TABLE `game_profiles` " +
+                    "ADD COLUMN `free_ram_on_launch` INTEGER NOT NULL DEFAULT 0",
+            )
+        }
+    }
+
+    /**
+     * Version 4 → 5: the per-session latency probe log.
+     *
+     * Six nullable INTEGER columns on `sessions`, and nullable rather than `DEFAULT 0` for the reason
+     * the colour columns are: absence here is a complete answer. A session recorded before this feature
+     * existed had no log kept for it, and filling those rows with zeroes would state that no probe
+     * failed and none spiked during a session nobody was counting — a measurement invented by a
+     * migration. NULL reads back as "no log", which is what happened.
+     *
+     * `latency_probes` is the presence flag the mapper tests, so all six are written together or not at
+     * all. Deliberately six columns and not a table: the samples are already summarised by the time
+     * they get here, and a session's probe log is written with the session and read with it.
+     */
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `latency_probes` INTEGER")
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `latency_failed` INTEGER")
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `latency_spikes` INTEGER")
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `latency_worst` INTEGER")
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `latency_jitter` INTEGER")
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `latency_failed_run` INTEGER")
+        }
+    }
+
     /** Every migration, in order, for [androidx.room.RoomDatabase.Builder.addMigrations]. */
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 }

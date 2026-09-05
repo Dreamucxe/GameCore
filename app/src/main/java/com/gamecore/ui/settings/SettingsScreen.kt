@@ -12,10 +12,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Shield
@@ -322,6 +324,11 @@ private fun OverlaysCard(
  * The switch is worded as a preference and not as a capability: turning it on does not grant usage access,
  * and a settings screen that implies otherwise is how an app ends up promising behaviour the device will
  * refuse. The description says where the grant lives.
+ *
+ * The never-close list is last and is a row rather than a switch, because it is the one thing on this card
+ * with no effect of its own — it only narrows what the per-game "free RAM on launch" switch is allowed to
+ * do. It lives here, next to the profiles it constrains, rather than under Access: nothing about it is a
+ * permission, and its count reads as "none" rather than "0 apps" so an empty list does not look broken.
  */
 @Composable
 private fun GamesCard(
@@ -361,6 +368,26 @@ private fun GamesCard(
                 "the game is still loading.",
             canDecrease = state.detectionSeconds > DETECTION_SECONDS_RANGE.first,
             canIncrease = state.detectionSeconds < DETECTION_SECONDS_RANGE.last,
+        )
+        RowDivider()
+        NavRow(
+            title = "Never close these apps",
+            onClick = { onNavigate(Destination.NeverClose) },
+            description = "Kept running when a profile frees memory on launch, on top of everything " +
+                "GameCore already leaves alone.",
+            icon = Icons.Filled.Memory,
+            trailing = if (state.settings.neverKillPackages.isEmpty()) {
+                "None"
+            } else {
+                Formatters.count(state.settings.neverKillPackages.size, "app")
+            },
+        )
+        NavRow(
+            title = "Game storage",
+            onClick = { onNavigate(Destination.GameStorage) },
+            description = "What each game is holding in cache, and clearing the part of it that is safe " +
+                "to delete. Saves are never touched.",
+            icon = Icons.Filled.CleaningServices,
         )
     }
 }

@@ -58,17 +58,27 @@ class OverlayController @Inject constructor(
     fun hasPermission(): Boolean = permissions.hasOverlayPermission()
 
     /**
-     * Publishes the button and pill the user's preferences ask for.
+     * Publishes the overlays the user's preferences ask for, including which crosshair and HUD layout.
      *
      * Called when the app is opened, not from `Application.onCreate` and not from a boot receiver:
      * GameCore has no `RECEIVE_BOOT_COMPLETED`, so an overlay the user enabled comes back the next time
      * they open the app or a tracked game starts, which is the honest behaviour to build the settings
      * copy around.
+     *
+     * The two ids are the load-bearing part. `activeCrosshairPresetId` and `activeHudLayoutId` are the
+     * durable record of what the user chose on the crosshair and HUD screens — `hideEverything` clears
+     * them alongside the visibility flags for exactly that reason — and a process that starts without
+     * reading them back has a request that says "draw a crosshair" and cannot say which one.
      */
     fun restoreManualState() {
-        val button = preferences.floatingButton.value.show
-        val pill = preferences.overlay.value.showPill
-        manual = manual.copy(button = button, pill = pill)
+        manual = manual.copy(
+            button = preferences.floatingButton.value.show,
+            pill = preferences.overlay.value.showPill,
+            crosshair = preferences.showCrosshairOverlay,
+            crosshairPresetId = preferences.activeCrosshairPresetId ?: manual.crosshairPresetId,
+            hud = preferences.showHudOverlay,
+            hudLayoutId = preferences.activeHudLayoutId ?: manual.hudLayoutId,
+        )
         if (!requested.value.fromProfile) publish(manual)
     }
 
@@ -80,14 +90,16 @@ class OverlayController @Inject constructor(
      * Shows or hides the crosshair, optionally switching which preset is drawn.
      *
      * A null [presetId] keeps whichever preset was already selected, so the crosshair editor can toggle
-     * the live preview without having to re-state its own id on every call.
+     * the live preview without having to re-state its own id on every call — and falls back to the one
+     * the user last picked, so the control panel's own toggle draws that rather than whichever preset
+     * happens to have the lowest row id.
      */
     fun setCrosshair(visible: Boolean, presetId: Long? = null) = update {
-        it.copy(crosshair = visible, crosshairPresetId = presetId ?: it.crosshairPresetId)
+        it.withCrosshair(visible, presetId, preferences.activeCrosshairPresetId)
     }
 
     fun setHud(visible: Boolean, layoutId: Long? = null) = update {
-        it.copy(hud = visible, hudLayoutId = layoutId ?: it.hudLayoutId)
+        it.withHud(visible, layoutId, preferences.activeHudLayoutId)
     }
 
     /** Hides everything, manual and profile alike. The panel's own "stop overlay" and Settings' switch. */
@@ -102,6 +114,10 @@ class OverlayController @Inject constructor(
      * The label comes from the caller rather than from `profile.label` because the coordinator resolves
      * the installed application label first — a game renamed by an update should appear in the panel
      * header under the name the user sees in their launcher.
+     *
+     * A profile that switches the crosshair on without naming a preset — the switch is above the picker,
+     * so it is on before there is anything to pick from, and "None" is the picker's first option — falls
+     * back to the one the user last chose rather than to whatever the renderer would guess.
      */
     fun applyProfile(profile: GameProfile, gameLabel: String) {
         publish(
@@ -110,7 +126,8 @@ class OverlayController @Inject constructor(
                 pill = profile.showPerformancePill,
                 crosshair = profile.showCrosshair,
                 hud = profile.hudLayoutId != null,
-                crosshairPresetId = profile.crosshairPresetId,
+                crosshairPresetId = profile.crosshairPresetId
+                    ?: preferences.activeCrosshairPresetId,
                 hudLayoutId = profile.hudLayoutId,
                 gameLabel = gameLabel,
                 fromProfile = true,

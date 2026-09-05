@@ -72,6 +72,20 @@ data class GameProfile(
     /** Only attempted when Shizuku is connected; skipped, not failed, when it is not. */
     val useShizukuOptimizations: Boolean = false,
     val trackSession: Boolean = true,
+
+    /**
+     * Close background apps when this game starts, so it has the memory they were holding.
+     *
+     * Off by default, and the only field in this class whose effect is on *other* applications
+     * rather than on a device setting — which is why it is opt-in per game rather than a global
+     * switch, and why [com.gamecore.domain.memory.BackgroundAppReclaimer] reports every app it
+     * left running along with the reason it left it.
+     *
+     * Needs Shizuku to do the job properly: without it the platform is asked to close apps and
+     * does not say what it did, so the report says "asked" rather than "closed". The profile
+     * editor says so before the switch is turned on.
+     */
+    val freeRamOnLaunch: Boolean = false,
 ) {
     /** True when applying this would write nothing, so the UI can say so plainly. */
     val changesNothing: Boolean
@@ -89,7 +103,12 @@ data class GameProfile(
             // here that survives a reboot, so a profile carrying one is never a no-op.
             displaySize == null &&
             performanceMode == PerformanceMode.BALANCED &&
-            !useShizukuOptimizations
+            !useShizukuOptimizations &&
+            // Leaves nothing behind to restore, so it is not a change in the sense the rest of
+            // this list means. It is still emphatically not nothing: a profile whose only setting
+            // is this one closes the user's background apps, and a UI that called that "changes
+            // nothing" would be lying about the one thing here that touches another app.
+            !freeRamOnLaunch
 
     companion object {
         /** A new profile for a game the user just picked: overlay on, nothing written. */
@@ -118,10 +137,14 @@ enum class ScreenOrientationLock(val label: String) {
  * The four performance presets, with what each one actually does written down.
  *
  * [explanation] is shown next to every one of these in the UI, and it is deliberately a list
- * of settings rather than a promise about frame rates. None of these modes frees memory,
- * kills background apps, or "boosts" anything — Android does not expose a way for an app to
- * do any of that, and the ones that claim to are writing settings and taking credit for the
- * scheduler's own behaviour.
+ * of settings rather than a promise about frame rates. No mode here frees memory or "boosts"
+ * anything — Android does not expose a way for an app to make a device faster, and the ones
+ * that claim to are writing settings and taking credit for the scheduler's own behaviour.
+ *
+ * Closing background applications is [GameProfile.freeRamOnLaunch]'s job and not a mode's, on
+ * purpose. It acts on the user's *other* apps rather than on this device setting or that one,
+ * it is off unless it is asked for, and it reports what it measured afterwards — so it is a
+ * switch the user throws deliberately rather than a side effect of picking "Performance".
  */
 enum class PerformanceMode(
     val label: String,

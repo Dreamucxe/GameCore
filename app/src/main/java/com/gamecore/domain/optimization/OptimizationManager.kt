@@ -1,7 +1,9 @@
 package com.gamecore.domain.optimization
 
 import com.gamecore.core.common.Observed
+import com.gamecore.core.common.map
 import com.gamecore.core.model.CapabilityStatus
+import com.gamecore.core.model.ChangeOrigin
 import com.gamecore.core.model.OptimizationAction
 import com.gamecore.core.model.OptimizationResult
 import com.gamecore.core.model.RestoreReport
@@ -47,6 +49,13 @@ import javax.inject.Singleton
  * A key whose current value cannot be read is not written at all: a change GameCore cannot undo is
  * not one it makes. That is the strictest rule in this file and it is deliberate — the alternative is
  * a phone left pinned at 60 Hz by an app that has forgotten it did that.
+ *
+ * **A key the user has changed since GameCore wrote it belongs to the user.** [WriteLedger] holds what
+ * the last write left on each key; a [ChangeOrigin.AUTOMATIC] apply reads the key first and skips the
+ * action when the two disagree, and the same check runs before every restore. Without it, switching Do
+ * Not Disturb off from the notification shade during a game was undone twice over — once by the
+ * session's own restore writing the recorded mode back, and again by the next start re-applying the
+ * profile over the top.
  */
 @Singleton
 class OptimizationManager @Inject constructor(
@@ -56,6 +65,7 @@ class OptimizationManager @Inject constructor(
     private val audio: AudioControls,
     private val displaySize: DisplaySizeController,
     private val restorePoints: RestorePointRepository,
+    private val writeLog: DeviceWriteLog,
 ) {
 
     /** Both tiers, in tie-break order: the permission path is preferred when both can do it. */
@@ -90,18 +100,28 @@ class OptimizationManager @Inject constructor(
      *
      * [packageName] is the game the change was made for, stored with the restore point so session
      * history can say which profile is responsible for a setting that is still pending.
+     *
+     * [origin] settles what happens when the user has moved this setting by hand since GameCore last
+     * wrote it: an automatic change gives way and reports [OptimizationResult.Skipped], a change the
+     * user asked for goes ahead. It defaults to the user's, because everything except the profile
+     * applier is a button somebody just pressed — and a Performance screen that refused to pin a
+     * refresh rate on the grounds that the user had changed it in Android Settings would be a worse
+     * bug than the one this guard fixes.
      */
     suspend fun apply(
         request: OptimizationRequest,
         packageName: String? = null,
+        origin: ChangeOrigin = ChangeOrigin.USER,
     ): OptimizationResult {
         val action = request.action
         val choice = best(action)
         if (!choice.status.isUsable) {
             return OptimizationResult.Blocked(action, choice.status, explain(action, choice.status))
         }
-        capture(action, packageName)?.let { return it }
-        return choice.optimizer.apply(request)
+        capture(action, packageName, origin)?.let { return it }
+        val outcome = choice.optimizer.apply(request)
+        remember(action)
+        return outcome
     }
 
     /**
@@ -117,7 +137,8 @@ class OptimizationManager @Inject constructor(
     suspend fun applyAll(
         requests: List<OptimizationRequest>,
         packageName: String? = null,
-    ): List<OptimizationResult> = requests.map { apply(it, packageName) }
+        origin: ChangeOrigin = ChangeOrigin.USER,
+    ): List<OptimizationResult> = requests.map { apply(it, packageName, origin) }
 
     /** For the dashboard's "n settings still changed" line. A count, not a list. */
     suspend fun pendingRestoreCount(): Int = restorePoints.pendingCount()
@@ -133,25 +154,45 @@ class OptimizationManager @Inject constructor(
      * the table and lands in [RestoreReport.outstanding], so the dashboard can offer to retry rather
      * than the app quietly forgetting. That is why [RestoreReport.failures] exists: "3 settings still
      * changed" with the reasons underneath is actionable, and a silent partial restore is not.
+     *
+     * A key the user has taken over since GameCore wrote it is the exception: its row is cleared
+     * without being written and counted in [RestoreReport.keptByUser]. See [claimedByUser] for why
+     * that is not a shortcut.
      */
     suspend fun restoreAll(): RestoreReport {
         val pending = restorePoints.pending()
         if (pending.isEmpty()) return RestoreReport.NOTHING_TO_DO
         var restored = 0
+        var keptByUser = 0
         val failures = mutableListOf<String>()
         for (row in pending) {
+            val key = DeviceKey(row.namespace, row.key)
+            if (claimedByUser(row, key)) {
+                // The row goes and the claim stays. That asymmetry is the point: the user owns this key
+                // now, so the next profile that wants it has to leave it alone as well.
+                restorePoints.clear(row.namespace, row.key)
+                keptByUser++
+                continue
+            }
             val failure = restoreOne(row)
             if (failure == null) {
                 restorePoints.clear(row.namespace, row.key)
+                // Back at the user's own value, so GameCore is no longer the last thing to have written
+                // this key. Holding the claim would have every later apply refuse a setting the user
+                // never touched.
+                writeLog.release(key)
                 restored++
             } else {
+                // Kept on purpose: the device still holds GameCore's value, so the next apply may
+                // still write over it, and the retry this row represents has to know that too.
                 failures += failure
             }
         }
         return RestoreReport(
             restored = restored,
-            outstanding = pending.size - restored,
+            outstanding = pending.size - restored - keptByUser,
             failures = failures,
+            keptByUser = keptByUser,
         )
     }
 
@@ -206,66 +247,153 @@ class OptimizationManager @Inject constructor(
     // --------------------------------------------------------------- restore capture
 
     /**
-     * Records the pre-change state for everything [action] is about to touch.
+     * Records the pre-change state for everything [action] is about to touch, and settles whether the
+     * change may be made at all.
      *
-     * Returns null when the capture is complete and the write may go ahead, or the
-     * [OptimizationResult] to report when it could not be — the one case where GameCore refuses a
-     * change the user asked for. An unreadable key is rare (reads need no permission and fall back to
-     * the shell), and the refusal is the honest response: without a recorded value there is nothing to
-     * put back, and a setting silently kept is worse than a change not made.
+     * Returns null when the write may go ahead, or the [OptimizationResult] to report instead. Two
+     * things stop it, and they are the only cases where GameCore declines to do as it is told:
      *
-     * An [Observed.Restricted] read is *not* that case. A key the platform is defaulting reads as
+     *  - **A key that cannot be read.** Rare — reads need no permission and fall back to the shell —
+     *    and the refusal is the honest response: without a recorded value there is nothing to put
+     *    back, and a setting silently kept is worse than a change not made.
+     *  - **A key the user has changed since GameCore wrote it**, for a [ChangeOrigin.AUTOMATIC] change
+     *    only. One contradicted key skips the whole action rather than that key alone: brightness is a
+     *    level *and* a mode, and honouring half of a pair leaves the device in a state no profile ever
+     *    described.
+     *
+     * An [Observed.Restricted] read is neither of those. A key the platform is defaulting reads as
      * absent, which is a real state and restores as [WritableSetting.restoreDefault] — `min_refresh_rate`
      * is unset on most stock builds and that is exactly the state a release should return it to.
+     *
+     * Every key is read before any row is recorded. A refusal on the second key of a pair would
+     * otherwise leave a restore row for the first, and a row for a key nothing ever wrote has the
+     * dashboard reporting a setting as changed when it is not.
      */
     private suspend fun capture(
         action: OptimizationAction,
         packageName: String?,
+        origin: ChangeOrigin,
     ): OptimizationResult? {
-        for (setting in settingsTouchedBy(action)) {
-            when (val current = settings.read(setting)) {
-                is Observed.Value -> restorePoints.record(setting, current.value, packageName)
-                is Observed.Restricted -> restorePoints.record(setting, null, packageName)
-                is Observed.Failed -> return unreadable(action, setting.userDescription)
+        val readings = readKeys(action)
+        readings.firstOrNull { it.unreadable }?.let { return unreadable(action, it.what) }
+        if (origin == ChangeOrigin.AUTOMATIC) {
+            val claimed = writeLog.current()
+            if (readings.any { claimed.userChanged(it.key, it.value) }) return userOwns(action)
+        }
+        for (reading in readings) {
+            if (reading.setting != null) {
+                restorePoints.record(
+                    setting = reading.setting,
+                    previousValue = reading.value,
+                    packageName = packageName,
+                )
+            } else {
+                restorePoints.record(
+                    key = reading.key.name,
+                    previousValue = reading.value,
+                    packageName = packageName,
+                )
             }
         }
-        return when (action) {
-            OptimizationAction.SET_MEDIA_VOLUME -> {
-                val level = audio.mediaVolumePercent()
-                if (level is Observed.Value) {
-                    restorePoints.record(
-                        key = RestorePointRepository.KEY_MEDIA_VOLUME,
-                        previousValue = level.value.toString(),
-                        packageName = packageName,
-                    )
-                    null
-                } else {
-                    unreadable(action, "the current media volume")
-                }
-            }
+        return null
+    }
 
-            OptimizationAction.ENABLE_DO_NOT_DISTURB -> {
-                val mode = audio.doNotDisturbState()
-                if (mode is Observed.Value) {
-                    restorePoints.record(
-                        key = RestorePointRepository.KEY_DO_NOT_DISTURB,
-                        previousValue = mode.value.name,
-                        packageName = packageName,
-                    )
-                    null
-                } else {
-                    unreadable(action, "the current Do Not Disturb mode")
-                }
+    /**
+     * Records what the device is left holding, so the next automatic apply and the session's restore
+     * can tell GameCore's own value from one the user chose afterwards.
+     *
+     * Called after the write whatever the write returned. A write that failed left the user's value in
+     * place, and claiming that value would cost them the setting on every later attempt.
+     *
+     * Reads the keys again rather than trusting what was asked for, because the device is what decides:
+     * 50% of a fifteen-step volume stream is 53%, and `"120"` written to a float key reads back
+     * `"120.0"`. A baseline that disagreed with what a read returns would call every key the user's on
+     * the next poll. It is also cheap — [SettingsWriter] answers from the settings provider without a
+     * shell round trip whenever the key has a value, which is exactly the case here.
+     */
+    private suspend fun remember(action: OptimizationAction) {
+        val readings = readKeys(action)
+        if (readings.isEmpty()) return
+        writeLog.update { current ->
+            readings.fold(current) { soFar, reading ->
+                // A key that has become unreadable has no baseline worth keeping, and dropping the
+                // claim lets the next apply proceed. That is the right way round: acting on a setting
+                // GameCore cannot read is a smaller fault than refusing to act because of a failed read.
+                if (reading.unreadable) soFar.released(reading.key)
+                else soFar.wrote(reading.key, reading.value)
             }
-
-            else -> null
         }
     }
+
+    /** One key an action touches, with what the device says about it right now. */
+    private data class Reading(
+        val key: DeviceKey,
+        /** Null for the two keys that live outside the settings provider. */
+        val setting: WritableSetting?,
+        /** How to name this key in a sentence to the user. */
+        val what: String,
+        val observed: Observed<String>,
+    ) {
+        /** The value as the restore table stores it: null for a key the platform is defaulting. */
+        val value: String? get() = (observed as? Observed.Value)?.value
+
+        val unreadable: Boolean get() = observed is Observed.Failed
+    }
+
+    /**
+     * Reads every key [action] writes, in the order it writes them.
+     *
+     * One function for both sides of the write — [capture] before it, [remember] after — because the
+     * two have to agree exactly on which keys an action owns. Two lists would drift, and the failure
+     * would be silent: a key captured but never claimed is a key the user can never take over.
+     */
+    private suspend fun readKeys(action: OptimizationAction): List<Reading> =
+        settingsTouchedBy(action).map { setting ->
+            Reading(
+                key = DeviceKey.of(setting),
+                setting = setting,
+                what = setting.userDescription,
+                observed = settings.read(setting),
+            )
+        } + when (action) {
+            OptimizationAction.SET_MEDIA_VOLUME -> listOf(
+                Reading(
+                    key = DeviceKey.nonSetting(RestorePointRepository.KEY_MEDIA_VOLUME),
+                    setting = null,
+                    what = "the media volume",
+                    observed = audio.mediaVolumePercent().map { it.toString() },
+                ),
+            )
+
+            OptimizationAction.ENABLE_DO_NOT_DISTURB -> listOf(
+                Reading(
+                    key = DeviceKey.nonSetting(RestorePointRepository.KEY_DO_NOT_DISTURB),
+                    setting = null,
+                    what = "the Do Not Disturb mode",
+                    observed = audio.doNotDisturbState().map { it.name },
+                ),
+            )
+
+            else -> emptyList()
+        }
 
     private fun unreadable(action: OptimizationAction, what: String) = OptimizationResult.Failed(
         action = action,
         detail = "GameCore could not read $what, so it did not change it — a change it cannot " +
             "put back is not one it will make.",
+    )
+
+    /**
+     * The report for a change GameCore chose not to make because the user had already made their own.
+     *
+     * [OptimizationResult.Skipped] rather than a failure, because nothing went wrong: the device is in
+     * the state the most recent instruction asked for, and that instruction was the user's. Skips are
+     * counted out of [com.gamecore.core.model.ProfileApplication.attemptedCount] for the same reason,
+     * so a profile that leaves one setting to the user still reports the rest honestly.
+     */
+    private fun userOwns(action: OptimizationAction) = OptimizationResult.Skipped(
+        action = action,
+        reason = "You changed this yourself after GameCore set it, so it has been left alone.",
     )
 
     /**
@@ -278,8 +406,8 @@ class OptimizationManager @Inject constructor(
      * min first can never produce that.
      *
      * Media volume and Do Not Disturb are absent because neither has a settings key an app can rely
-     * on; [capture] handles them through the audio API and stores them under the repository's
-     * non-setting namespace.
+     * on; [readKeys] reads them through the audio API instead and [capture] stores them under the
+     * repository's non-setting namespace.
      */
     private fun settingsTouchedBy(action: OptimizationAction): List<WritableSetting> = when (action) {
         OptimizationAction.SET_BRIGHTNESS -> listOf(
@@ -325,7 +453,7 @@ class OptimizationManager @Inject constructor(
         OptimizationAction.APPLY_COLOR_CORRECTION -> emptyList()
 
         // Empty because there is no settings key involved at all. `wm size` is a window-manager
-        // command, not a row in `settings`, so there is nothing here for [capture] to read before
+        // command, not a row in `settings`, so there is nothing here for [readKeys] to read before
         // the write or [restoreSetting] to put back after it. `DisplaySizeController` records the
         // size the display had under the repository's non-setting namespace and the restore is
         // dispatched by key below. Like the branch above, nothing routes this action through here.
@@ -333,6 +461,53 @@ class OptimizationManager @Inject constructor(
     }
 
     // -------------------------------------------------------------------- restoring
+
+    /**
+     * Whether [row]'s key has been changed by the user since GameCore wrote it, in which case the
+     * recorded value is not to be put back.
+     *
+     * This is the restore side of the rule [capture] applies, and it is not optional extra care. A user
+     * whose normal state is "priority only", given total silence by a profile and switching Do Not
+     * Disturb off by hand during the game, would otherwise have "priority only" written back at session
+     * end — which from the notification shade is indistinguishable from GameCore turning Do Not Disturb
+     * on again, and is the second half of the bug that was reported.
+     *
+     * False for anything [DeviceWriteLog] does not track. The colour keys are tracked even though this
+     * class never writes them — [com.gamecore.domain.color.ColorCorrectionController] claims each sink
+     * as it writes it, into the same log, precisely so that they are guarded here — while
+     * [DisplaySizeController]'s row is not, and restores exactly as it always did: `wm size` is a
+     * window-manager override with no tile and no settings key, so there is no way for a user to change
+     * it by hand and nothing for [liveValue] to read.
+     */
+    private suspend fun claimedByUser(row: PendingRestore, key: DeviceKey): Boolean {
+        val claimed = writeLog.current()
+        if (!claimed.tracks(key)) return false
+        return when (val live = liveValue(row)) {
+            is Observed.Value -> claimed.userChanged(key, live.value)
+            // Unset is a state, not a missing answer: a key GameCore wrote and something has since
+            // cleared is a key it no longer owns.
+            is Observed.Restricted -> claimed.userChanged(key, null)
+            // A failed read, or a key with no way to read it: no evidence either way, so the recorded
+            // value goes back. A setting left changed is the failure this table exists to prevent, and
+            // between the two mistakes it is the worse one.
+            else -> false
+        }
+    }
+
+    /** What the device holds for [row]'s key now, or null when there is no way to ask. */
+    private suspend fun liveValue(row: PendingRestore): Observed<String>? {
+        val setting = row.setting
+        if (setting != null) return settings.read(setting)
+        return when (row.key) {
+            RestorePointRepository.KEY_MEDIA_VOLUME ->
+                audio.mediaVolumePercent().map { it.toString() }
+
+            RestorePointRepository.KEY_DO_NOT_DISTURB ->
+                audio.doNotDisturbState().map { it.name }
+
+            else -> null
+        }
+    }
 
     /**
      * Puts one row back. Null when it is genuinely back, otherwise the sentence to show.

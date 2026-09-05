@@ -3,13 +3,14 @@ package com.gamecore.core.system
 import com.gamecore.core.common.DataSource
 import com.gamecore.core.common.Observed
 import com.gamecore.core.common.TextSanitizer
+import com.gamecore.core.model.AppProcessState
 import com.gamecore.core.model.DisplayMode
 import com.gamecore.core.model.FrameTiming
 import com.gamecore.core.model.ThermalSensor
 import com.gamecore.core.model.ThermalStatus
 
 /**
- * Parsers for the four `dumpsys` sections GameCore reads through Shizuku.
+ * Parsers for the `dumpsys` sections GameCore reads through Shizuku.
  *
  * These formats are not API. They differ between Android versions and between vendors,
  * and a section that is present on one device is empty on the next. So the rule
@@ -211,6 +212,91 @@ internal object DumpsysParsers {
         return Observed.Failed("The activity dump did not name a resumed activity")
     }
 
+    // ---------------------------------------------------------- running processes
+
+    /**
+     * Every package with a live process, and the platform's own word for what each one is doing.
+     *
+     * Read from `dumpsys activity processes` before any app is closed and read again afterwards,
+     * which makes this one function both the enumeration and the verification for the launch-time
+     * memory reclaim. Three things about the shape of what comes back are load-bearing.
+     *
+     * It is keyed by package rather than by process. A package with three processes is one app to the
+     * user and one argument to `am kill`, and the state kept against it is the most protective of the
+     * three: a music player whose foreground service sits in `com.player:playback` while its UI
+     * process is cached must not be closed, and per-process states would have offered the cached half
+     * of it as a candidate.
+     *
+     * A row whose adjustment label is not recognised becomes [AppProcessState.UNKNOWN] rather than
+     * being dropped or assumed idle, and an app GameCore cannot describe is one it will not close.
+     *
+     * A dump that yields no rows at all is [Observed.Failed] and not an empty map. An empty map would
+     * read as "nothing is running", which is both false and the reading under which every candidate
+     * looks closable.
+     */
+    fun parseRunningProcesses(text: String): Observed<Map<String, AppProcessState>> {
+        val byPackage = LinkedHashMap<String, AppProcessState>()
+        for (line in text.lineSequence()) {
+            val match = PROCESS_ROW.find(line) ?: continue
+            // `com.player:playback` and `com.player` are one app to the user and one argument to a
+            // close, so the process suffix goes before the name is validated as a package.
+            val processName = match.groupValues[1].substringBefore(':')
+            val packageName = TextSanitizer.validatePackageName(processName) ?: continue
+            val state = stateFor(match.groupValues[2])
+            val known = byPackage[packageName]
+            byPackage[packageName] = if (known == null) state else moreProtective(known, state)
+        }
+        return if (byPackage.isEmpty()) {
+            Observed.Failed("The activity dump did not list any running processes")
+        } else {
+            Observed.of(byPackage, DataSource.DUMPSYS_SHIZUKU)
+        }
+    }
+
+    /**
+     * One `(adjType)` label as one of the six states.
+     *
+     * Matched by prefix and substring rather than by equality, because the labels compose: a process
+     * holding a foreground service and an activity is `fg-service-act` on some releases and
+     * `fg-service` on others, and a cached process that once started a service is
+     * `cch-started-services`. The `cch` test comes first so that the last one reads as cached, which
+     * is what it is — the service it started is gone.
+     *
+     * `fixed`, `system` and the other labels for a persistent platform process fall through to
+     * [AppProcessState.UNKNOWN], which is not a claim that GameCore could not tell what they are. It
+     * is that whether an app is part of the system is a package-manager question and not a
+     * process-list one, so the filter asks it there and reports
+     * [com.gamecore.core.model.ProtectionReason.SYSTEM_APP] rather than this.
+     *
+     * Anything else unrecognised is UNKNOWN for the reason UNKNOWN protects: the label set grows with
+     * each release, and this file will always be behind the newest one.
+     */
+    private fun stateFor(label: String): AppProcessState = when {
+        label.startsWith("cch") || label in IDLE_LABELS -> AppProcessState.CACHED
+        label.contains("fg-service") -> AppProcessState.FOREGROUND_SERVICE
+        label.contains("top-activity") || label in TOP_LABELS -> AppProcessState.TOP
+        label == "home" -> AppProcessState.HOME
+        label in PERCEPTIBLE_LABELS -> AppProcessState.PERCEPTIBLE
+        label in BACKGROUND_LABELS || label.contains("service") ->
+            AppProcessState.BACKGROUND_SERVICE
+        else -> AppProcessState.UNKNOWN
+    }
+
+    /**
+     * The state a package keeps when its processes disagree.
+     *
+     * Expressed in terms of [AppProcessState.protection] and the enum's own declaration order rather
+     * than a second ranking kept in step with it. A state that protects beats one that does not, so
+     * an unreadable process protects a package whose other process is merely cached; between two that
+     * both protect, or two that both do not, the earlier declaration wins, which is the order that
+     * enum documents itself as being in.
+     */
+    private fun moreProtective(a: AppProcessState, b: AppProcessState): AppProcessState = when {
+        (a.protection != null) != (b.protection != null) -> if (a.protection != null) a else b
+        a.ordinal <= b.ordinal -> a
+        else -> b
+    }
+
     // --------------------------------------------------------- surfaceflinger probe
 
     /**
@@ -286,6 +372,39 @@ internal object DumpsysParsers {
     )
 
     private val WHITESPACE = Regex("""\s+""")
+
+    /**
+     * The tail of one process row: `4021:com.example.app/u0a234 (cch-empty)`.
+     *
+     * Anchored on the only two tokens that have kept their shape across every release this app
+     * supports — `pid:processName/uid`, which is `ProcessRecord.toShortString`, and the adjustment
+     * label in brackets after it. Everything printed before them on the row has not kept its shape:
+     * the columns for oom adjustment, scheduling group, process state and trim level have been
+     * renamed, reordered and added to between Android 8 and 15, and a parser that counted them would
+     * read the wrong field on the next release instead of failing where it could be seen.
+     *
+     * The lazy middle allows for the releases that print a column or two between the two anchors
+     * while still preferring the common case where the bracket follows immediately.
+     */
+    private val PROCESS_ROW = Regex(
+        """\d+:([A-Za-z][A-Za-z0-9_.]*(?::[A-Za-z0-9_.]+)?)/\S+""" +
+            """(?:\s+[^\s()]+)*?\s+\(([a-z][a-z0-9-]{0,31})\)""",
+    )
+
+    /** Held in memory and doing nothing, whatever it was doing before. */
+    private val IDLE_LABELS = setOf("previous", "previous-expired", "empty")
+
+    /** On screen, or the thing the user is interacting with even if it is not drawing. */
+    private val TOP_LABELS = setOf("top-sleeping", "bound-top", "instrumentation")
+
+    /** Something the user can see or hear, or that something on screen is reading from. */
+    private val PERCEPTIBLE_LABELS = setOf(
+        "imp-fg", "force-fg", "force-imp", "vis-activity", "vis-provider", "pause-activity",
+        "stop-activity", "perceptible", "provider", "recent-provider", "heavy", "backup",
+    )
+
+    /** Something wants it alive, but nothing the user is looking at depends on it. */
+    private val BACKGROUND_LABELS = setOf("service", "service-b", "started-services", "imp-bg")
 
     /** `Temperature.TYPE_CPU`. The only HAL type constant GameCore needs to recognise. */
     private const val HAL_TYPE_CPU = 0

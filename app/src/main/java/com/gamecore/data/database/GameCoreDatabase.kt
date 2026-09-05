@@ -28,6 +28,19 @@ import androidx.room.RoomDatabase
  * about one is whether it was honoured, which the restore ledger already records.
  * [GameCoreMigrations.MIGRATION_2_3].
  *
+ * **Version 4** adds `game_profiles.free_ram_on_launch`, one `NOT NULL DEFAULT 0` integer, for the
+ * per-game switch that closes background apps when a game starts. No new table: what one pass did is
+ * reported to the user while the game is running and is not history worth keeping — a count of apps
+ * closed a fortnight ago says nothing about the device today, and storing which of the user's apps
+ * were closed and when would be a log of their app usage that this app has no reason to hold.
+ * [GameCoreMigrations.MIGRATION_3_4].
+ *
+ * **Version 5** adds six nullable integer columns on `sessions` for the latency probe log — how many
+ * probes went out, how many did not complete, how many came back far above the session's own average,
+ * the worst reading, the jitter and the longest unbroken run of failures. Columns rather than a table
+ * because they are a summary by the time they arrive, and nullable because absence is the truth about
+ * every session recorded before the log existed. [GameCoreMigrations.MIGRATION_4_5].
+ *
  * There are no `@TypeConverter`s registered anywhere in this class, deliberately. Enums are stored
  * as their names and parsed back defensively in [Mappers]; a converter would move that parsing
  * into generated code where the fallback for an unrecognised name is a thrown exception rather
@@ -44,7 +57,7 @@ import androidx.room.RoomDatabase
         SessionSampleEntity::class,
         RestorePointEntity::class,
     ],
-    version = 3,
+    version = 5,
     exportSchema = true,
 )
 abstract class GameCoreDatabase : RoomDatabase() {

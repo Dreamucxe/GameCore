@@ -30,6 +30,24 @@
         tools:ignore="QueryAllPackagesPermission" />
 
     <!--
+      The per-profile "free RAM on launch" switch, and nothing else.
+
+      A normal permission, granted at install, and the weaker of the two paths behind
+      that switch: ActivityManager.killBackgroundProcesses() asks the platform to close
+      an app's cached processes and reports nothing about what it did, so the platform's
+      own rules decide the outcome — the foreground app and anything holding a service
+      are out of its reach whatever GameCore passes it. GameCore still filters first, and
+      on that path the summary says "asked Android to close" rather than claiming a count
+      it could not verify.
+
+      With Shizuku the same switch enumerates what is actually running, closes through
+      the elevated shell, and re-reads the list to confirm; that path needs no permission
+      here. Neither path runs unless a profile asks for it — the switch is off by default
+      and it is the only setting in GameCore whose effect is on the user's other apps.
+    -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+
+    <!--
       Brightness, rotation lock and the refresh-rate settings are writes to
       Settings.System, which needs this special access (Settings > Special app
       access > Modify system settings). Declared, requested only when the user asks

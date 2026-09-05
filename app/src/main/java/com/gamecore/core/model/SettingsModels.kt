@@ -1,5 +1,7 @@
 package com.gamecore.core.model
 
+import com.gamecore.core.common.TextSanitizer
+
 /**
  * Everything in Settings that is not a profile, a layout or a preset.
  *
@@ -59,13 +61,30 @@ data class AppSettings(
 
     /** Has the user been shown the one-time explanation of what this app can and cannot do? */
     val hasSeenIntroduction: Boolean = false,
+
+    /**
+     * Packages the launch-time memory reclaim must never close, whatever state they are in.
+     *
+     * The user's own list, on top of the protections
+     * [com.gamecore.domain.memory.ReclaimFilter] applies without being asked. It exists because
+     * GameCore cannot know that the app in the background is a heart-rate monitor, or a recorder
+     * mid-take, or a download the user is waiting on — the filter can only see what Android says
+     * the process is doing, and a cached process that matters is indistinguishable from one that
+     * does not.
+     *
+     * Additive only. Nothing the user puts here makes the reclaim close something it otherwise
+     * would not, so a malformed entry costs the feature nothing and is dropped on read.
+     */
+    val neverKillPackages: List<String> = emptyList(),
 ) {
     /**
      * Clamps every numeric field into a range the rest of the app can rely on.
      *
      * Called on read as well as on write. A value read back from a file that was edited by hand,
      * or written by a version with different bounds, is not trusted just because it came out of
-     * storage.
+     * storage. [neverKillPackages] is held to the same rule: every entry is validated as a package
+     * name here, so a hand-edited file cannot put arbitrary text in front of the user or into an
+     * argument list, and duplicates collapse.
      */
     fun normalised(): AppSettings = copy(
         uiScalePercent = uiScalePercent.coerceIn(MIN_UI_SCALE, MAX_UI_SCALE),
@@ -74,6 +93,10 @@ data class AppSettings(
         sampleIntervalMillis = sampleIntervalMillis
             .coerceIn(MIN_SAMPLE_INTERVAL, MAX_SAMPLE_INTERVAL),
         latencyHost = latencyHost.trim().ifBlank { DEFAULT_LATENCY_HOST },
+        neverKillPackages = neverKillPackages
+            .mapNotNull { TextSanitizer.validatePackageName(it) }
+            .distinct()
+            .take(MAX_NEVER_KILL_ENTRIES),
     )
 
     companion object {
@@ -105,6 +128,12 @@ data class AppSettings(
          * reference host, which is what it is.
          */
         const val DEFAULT_LATENCY_HOST = "1.1.1.1"
+
+        /**
+         * A ceiling on the never-close list, so that a corrupted file cannot turn one preference
+         * into a set the filter walks for every candidate. Far above any plausible real list.
+         */
+        const val MAX_NEVER_KILL_ENTRIES = 200
     }
 }
 

@@ -9,6 +9,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import com.gamecore.domain.BackgroundServiceGate
 import com.gamecore.domain.StartupCoordinator
+import com.gamecore.domain.overlay.OverlayController
 import com.gamecore.ui.Destination
 import com.gamecore.ui.GameCoreRoot
 import dagger.hilt.android.AndroidEntryPoint
@@ -47,7 +48,7 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var services: BackgroundServiceGate
 
-    // MAIN_BODY
+    @Inject lateinit var overlays: OverlayController
 
     /**
      * The screen an intent asked to be opened at, once, or null.
@@ -110,10 +111,17 @@ class MainActivity : ComponentActivity() {
      * one place detection can be restored after a reboot or a force-stop, which is why it runs on every
      * launch rather than only when a switch is touched — the user's answer to "watch for my games" is
      * in the settings, and this is the launch acting on it.
+     *
+     * [OverlayController.restoreManualState] is the same sentence for the overlay windows, and last
+     * because it publishes a request the moment it runs: the crosshair, HUD, button and pill the user
+     * left switched on come back here, with the preset and layout they were left on. Nothing else reads
+     * those stored choices, so without this call a fresh process knows the user wants a crosshair but
+     * not which one.
      */
     private suspend fun prepare() {
         startup.run()
         services.syncDetection()
+        overlays.restoreManualState()
     }
 
     companion object {

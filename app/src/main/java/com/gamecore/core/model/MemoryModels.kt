@@ -11,10 +11,16 @@ import com.gamecore.core.common.Observed
  * from `/proc/meminfo`, which SELinux policy denies on some vendor kernels, so each
  * of those fields carries its own absence.
  *
- * There is deliberately no "RAM that could be freed" field. Killing background
- * applications to produce a larger available figure is what a fake booster does:
- * Android relaunches them within seconds, the user's music stops, and no frame is
- * gained. GameCore reports what the platform reports.
+ * There is deliberately no "RAM that could be freed" field, and there never will be:
+ * a figure like that is a forecast about what other applications would do next,
+ * dressed up as a reading taken now. It is also the number a fake booster leads with.
+ *
+ * A profile's "free RAM on launch" pass does close background applications, and what
+ * that actually freed is reported as a *measured* delta on
+ * [MemoryReclaimReport.Completed.freedBytes] — two readings of [availableBytes] with
+ * the pass between them, which is allowed to come out negative and sometimes does,
+ * because the game was loading at the same time. A field here could not honestly do
+ * that. This type says what the platform says about memory right now.
  */
 data class MemoryReading(
     val totalBytes: Long,

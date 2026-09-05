@@ -21,9 +21,12 @@ import com.gamecore.data.preferences.SecurePreferenceStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
@@ -78,6 +81,10 @@ class PerformanceMonitor @Inject constructor(
     private val capabilityState = MutableStateFlow<FrameRateCapability>(
         FrameRateCapability.Unavailable(FrameRateCapability.NO_GAME_SELECTED),
     )
+    private val probeStream = MutableSharedFlow<Observed<LatencyProbe>>(
+        replay = 0,
+        extraBufferCapacity = PROBE_BUFFER,
+    )
 
     /** The rolling window for the graphs. Cleared when the loop stops, not when a screen closes. */
     val history: StateFlow<MetricHistory> = historyState.asStateFlow()
@@ -94,6 +101,25 @@ class PerformanceMonitor @Inject constructor(
 
     /** What the frame-rate field of a snapshot can possibly be, and why. */
     val frameRateCapability: StateFlow<FrameRateCapability> = capabilityState.asStateFlow()
+
+    /**
+     * Every probe this loop actually sends, once each.
+     *
+     * The snapshots are not a substitute for this. A snapshot carries the last probe's outcome on every
+     * tick until the next one — that is what makes the dashboard readable between probes — so anything
+     * folding snapshots counts one handshake [LATENCY_EVERY_TICKS] times, and a probe that failed becomes
+     * indistinguishable from a tick that never probed once it is flattened into a sample's nullable
+     * millis. A session log built that way would be arithmetic on repeats.
+     *
+     * So this emits on the one branch of [latencyFor] where a handshake was attempted, and on no other:
+     * measurement switched off and no connection are not attempts, and reporting them as such would turn
+     * a setting the user chose into a claim about their network. One emission is one probe.
+     *
+     * A [MutableSharedFlow] rather than a state: with no session recording there is no subscriber and the
+     * emissions are simply dropped, and two identical round trips in a row are two events, which a state
+     * holding the last value would collapse into one.
+     */
+    val latencyProbes: SharedFlow<Observed<LatencyProbe>> = probeStream.asSharedFlow()
 
     @Volatile
     private var watched: String? = null
@@ -241,6 +267,10 @@ class PerformanceMonitor @Inject constructor(
      * timeout, and doing that inside the first sample would delay the dashboard's first paint by
      * seconds on a device with no route. The first probe lands on tick [LATENCY_EVERY_TICKS] and the
      * field says "waiting" until then, which is true.
+     *
+     * The one branch that sends a handshake is also the one branch that publishes to [latencyProbes],
+     * for the reason given on that property: the returns above are the app declining to measure, not
+     * measurements that failed.
      */
     private suspend fun latencyFor(
         tick: Long,
@@ -256,7 +286,9 @@ class PerformanceMonitor @Inject constructor(
                 .also { cachedLatency = it }
         }
         if (tick == 0L || tick % LATENCY_EVERY_TICKS != 0L) return cachedLatency
-        return latencyProber.probe(host = settings.latencyHost).also { cachedLatency = it }
+        return latencyProber.probe(host = settings.latencyHost)
+            .also { cachedLatency = it }
+            .also { probeStream.emit(it) }
     }
 
     /**
@@ -298,5 +330,14 @@ class PerformanceMonitor @Inject constructor(
 
         /** A tick value no modulo test matches, so [sampleOnce] reuses caches rather than refreshing. */
         const val FORCED_TICK = -1L
+
+        /**
+         * Slack in [latencyProbes] so publishing a probe never stalls the sampling loop.
+         *
+         * Probes are ~10 s apart and the recorder's fold is arithmetic under a mutex, so this is never
+         * reached in practice. It is sized rather than dropped on overflow because a probe silently
+         * discarded is exactly the kind of quiet inaccuracy the log exists to remove.
+         */
+        const val PROBE_BUFFER = 4
     }
 }

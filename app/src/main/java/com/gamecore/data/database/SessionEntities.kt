@@ -110,6 +110,41 @@ data class SessionEntity(
      */
     @ColumnInfo(name = "color_values")
     val colorValues: String? = null,
+
+    /**
+     * The session's probe log, spread across six columns because every one of them is a plain integer
+     * and none is ever read without the others. Added in schema version 5.
+     *
+     * [latencyProbes] is the presence flag: NULL in that column means no log was kept, which is what
+     * every session recorded before version 5 honestly reads back as, and 0 means a log was kept and no
+     * probe went out. The mapper builds a [com.gamecore.core.model.LatencyLog] only when it is non-NULL,
+     * so the distinction survives the round trip rather than collapsing into a row of zeroes that would
+     * read as "the connection was perfect".
+     *
+     * No samples table for latency and no second average: the aggregate lives in `avg_latency`, and a
+     * two-hour session's few hundred handshakes are summarised here rather than stored one per row.
+     */
+    @ColumnInfo(name = "latency_probes")
+    val latencyProbes: Int? = null,
+
+    /** Probes that did not complete. Never a packet-loss count — see [com.gamecore.core.model.LatencyLog]. */
+    @ColumnInfo(name = "latency_failed")
+    val latencyFailed: Int? = null,
+
+    @ColumnInfo(name = "latency_spikes")
+    val latencySpikes: Int? = null,
+
+    /** The slowest completed probe, or NULL when none completed. */
+    @ColumnInfo(name = "latency_worst")
+    val latencyWorst: Int? = null,
+
+    /** Mean absolute deviation between consecutive probes, or NULL below two of them. */
+    @ColumnInfo(name = "latency_jitter")
+    val latencyJitter: Int? = null,
+
+    /** The longest unbroken run of probes that did not complete. */
+    @ColumnInfo(name = "latency_failed_run")
+    val latencyFailedRun: Int? = null,
 )
 
 /**

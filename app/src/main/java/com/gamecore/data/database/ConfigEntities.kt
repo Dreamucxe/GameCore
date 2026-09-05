@@ -96,6 +96,17 @@ data class GameProfileEntity(
     @ColumnInfo(name = "use_shizuku")
     val useShizukuOptimizations: Boolean,
 
+    /**
+     * Whether to close background apps when this game starts.
+     *
+     * Added in schema version 4, and the first additive column here that is not nullable: "leave
+     * the user's other apps alone" is a real default rather than an absence of instruction, so the
+     * migration adds it as `INTEGER NOT NULL DEFAULT 0` and every profile written before the
+     * feature existed reads back as off — which is also what it is for a new profile.
+     */
+    @ColumnInfo(name = "free_ram_on_launch")
+    val freeRamOnLaunch: Boolean,
+
     @ColumnInfo(name = "track_session")
     val trackSession: Boolean,
 

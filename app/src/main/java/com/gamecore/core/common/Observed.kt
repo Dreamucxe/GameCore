@@ -232,6 +232,7 @@ enum class DataSource(val label: String, val access: AccessLevel) {
     TRAFFIC_STATS("TrafficStats", AccessLevel.NORMAL),
     SOCKET_PROBE("TCP handshake", AccessLevel.NORMAL),
     STORAGE_MANAGER("StatFs", AccessLevel.NORMAL),
+    STORAGE_STATS("StorageStatsManager", AccessLevel.NORMAL),
     USAGE_STATS("UsageStatsManager", AccessLevel.NORMAL),
     PACKAGE_MANAGER("PackageManager", AccessLevel.NORMAL),
     SETTINGS_PROVIDER("Settings provider", AccessLevel.NORMAL),

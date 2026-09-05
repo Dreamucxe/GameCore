@@ -156,6 +156,10 @@ private fun DrawScope.drawSeries(
  *
  * The ceiling and floor of the range are printed beside the plot, because a line without a scale is a
  * shape rather than a measurement — and this app's whole claim is that its numbers mean something.
+ *
+ * [note] is for the caveat a line cannot carry. A series whose points are not one reading each — a value
+ * held between refreshes, for instance — draws a shape that overstates how long something lasted, and the
+ * fix is to say so under the plot rather than to leave the reader to assume otherwise.
  */
 @Composable
 fun GraphCard(
@@ -166,6 +170,7 @@ fun GraphCard(
     seriesLabel: String? = null,
     secondary: List<Float> = emptyList(),
     secondaryLabel: String? = null,
+    note: String? = null,
     format: (Float) -> String = { it.toInt().toString() },
     emptyMessage: String = "Collecting samples.",
 ) {
@@ -202,6 +207,14 @@ fun GraphCard(
                 if (secondaryLabel != null && secondary.size >= MetricHistory.MIN_PLOTTABLE) {
                     LegendKey(secondaryLabel, ChartAlternate)
                 }
+            }
+            if (note != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

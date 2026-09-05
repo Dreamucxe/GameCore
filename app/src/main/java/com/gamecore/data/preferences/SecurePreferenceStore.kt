@@ -151,6 +151,7 @@ class SecurePreferenceStore @Inject constructor(
                 defaults.recordingQuality,
             ),
             hasSeenIntroduction = p.getBoolean(KEY_SEEN_INTRO, defaults.hasSeenIntroduction),
+            neverKillPackages = readNeverKill(p),
         ).normalised()
     }
 
@@ -173,8 +174,24 @@ class SecurePreferenceStore @Inject constructor(
             putBoolean(KEY_CONFIRM_DISCARD, value.confirmBeforeDiscard)
             putString(KEY_RECORDING_QUALITY, value.recordingQuality.name)
             putBoolean(KEY_SEEN_INTRO, value.hasSeenIntroduction)
+            putString(KEY_NEVER_KILL, value.neverKillPackages.joinToString(SEPARATOR))
         }?.apply()
     }
+
+    /**
+     * The never-close list, as package names joined by a separator.
+     *
+     * The same shape as the pill's stat list and for the same reason — order is the order the user
+     * added them, which is the order the editor shows. `AppSettings.normalised()` validates every
+     * entry, so nothing that fails to be a package name survives a read even if it is sitting in the
+     * file. Absent or empty reads back as an empty list rather than a default, because a default
+     * never-close list would be GameCore deciding which of the user's apps matter.
+     */
+    private fun readNeverKill(p: SharedPreferences): List<String> =
+        p.getString(KEY_NEVER_KILL, null)
+            ?.split(SEPARATOR)
+            ?.filter { it.isNotBlank() }
+            .orEmpty()
 
     // -------------------------------------------------------------------- overlay
 
@@ -489,6 +506,7 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_CONFIRM_DISCARD = "confirm_discard"
         const val KEY_RECORDING_QUALITY = "recording_quality"
         const val KEY_SEEN_INTRO = "seen_intro"
+        const val KEY_NEVER_KILL = "never_kill"
 
         const val KEY_SHOW_PILL = "pill_show"
         const val KEY_PILL_X = "pill_x"

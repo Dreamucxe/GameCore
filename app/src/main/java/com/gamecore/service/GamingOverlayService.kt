@@ -304,12 +304,19 @@ class GamingOverlayService : GameCoreService() {
     }
 
     /**
-     * Loads the crosshair a request names, or the first saved one when it names none.
+     * Loads the crosshair the request names.
      *
-     * Falling back to the first preset rather than to nothing: the request can come from a game profile
-     * whose chosen preset was deleted, and a crosshair the user asked for that silently does not appear
-     * is worse than one that is not the exact design they picked. The repository seeds defaults, so
-     * "first saved preset" is never empty in practice.
+     * The request names one whenever there is one to name: [OverlayController] fills the id in from the
+     * preset the user last picked when the caller does not supply it, so the panel's own toggle and a
+     * profile that switches the crosshair on without choosing a design both arrive here with an id. That
+     * matters because the fallback below cannot tell "this preset was deleted" from "nobody said which",
+     * and answering the second with the lowest-numbered saved preset is every design in the list looking
+     * like the first one.
+     *
+     * The fallback is kept for what is left: an id that no longer exists, and a user who has never picked
+     * a crosshair at all. A crosshair that was asked for and silently does not appear is worse than one
+     * that is not the exact design intended, and the repository seeds defaults, so "first saved preset" is
+     * never empty in practice.
      *
      * Combined against the saved list rather than read once per request, so a preset edited while its
      * crosshair is on screen redraws without the window being taken down and put back. The crosshair screen
@@ -334,9 +341,11 @@ class GamingOverlayService : GameCoreService() {
     /**
      * Loads the HUD layout a request names.
      *
-     * No fallback here, unlike the crosshair: a HUD is the user's own arrangement of widgets, and showing
-     * a different layout than the one a profile asked for would put stats they did not choose over their
-     * game. A missing layout means no HUD window and a greyed HUD button in the panel.
+     * A named layout that is not there is no HUD at all, unlike the crosshair: a HUD is the user's own
+     * arrangement of widgets, and showing a different layout than the one a profile asked for would put
+     * stats they did not choose over their game. That means no HUD window and a greyed HUD button in the
+     * panel. An *unnamed* one takes the first saved layout, which after [OverlayController] has filled in
+     * the last one the user picked can only be a user who has never picked one.
      *
      * Observed rather than read once, for the same reason as the crosshair: a widget moved in the HUD
      * builder moves on the live overlay when the builder saves.
@@ -1215,8 +1224,23 @@ class GamingOverlayService : GameCoreService() {
                 // than a temporary override: the settings screen shows the same switch.
                 preferences.updateOverlay { it.copy(showPill = next) }
             }
-            OverlayAction.CROSSHAIR -> overlays.setCrosshair(!overlays.desired.value.crosshair)
-            OverlayAction.HUD -> overlays.setHud(!overlays.desired.value.hud)
+            OverlayAction.CROSSHAIR -> {
+                val request = overlays.desired.value
+                val next = !request.crosshair
+                overlays.setCrosshair(next)
+                // Persisted like the pill, and for the same reason, with one condition the pill does not
+                // need: these two flags are the manual state the next launch is rebuilt from, and while a
+                // profile is driving the overlay the controller deliberately leaves the manual request
+                // alone. Writing the flag then would put the stored state out of step with it — the
+                // profile's session-long override would outlive the session.
+                if (!request.fromProfile) preferences.showCrosshairOverlay = next
+            }
+            OverlayAction.HUD -> {
+                val request = overlays.desired.value
+                val next = !request.hud
+                overlays.setHud(next)
+                if (!request.fromProfile) preferences.showHudOverlay = next
+            }
             OverlayAction.SCREENSHOT -> takeScreenshot()
             OverlayAction.RECORD -> toggleRecording()
             OverlayAction.FLASHLIGHT -> report(action, torch.toggle())

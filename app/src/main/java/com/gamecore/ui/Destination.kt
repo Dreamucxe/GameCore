@@ -84,6 +84,29 @@ sealed interface Destination {
     }
 
     /**
+     * The apps a profile's "free RAM on launch" pass will never close.
+     *
+     * Reached from Settings and not from the profile editor, even though the switch that gives it a
+     * purpose is per-game: the list itself is one list for the whole device, and a per-game screen that
+     * edited a global setting would read as a per-game one.
+     */
+    data object NeverClose : Destination {
+        override val route = "never-close"
+    }
+
+    /**
+     * What each game is holding in cache, and the one part of it GameCore can delete.
+     *
+     * Reached from Settings rather than from a game's profile, for the same reason [NeverClose] is: the
+     * screen measures every game on the device at once, and the delete it offers is not a setting that
+     * gets applied when a game launches. Nothing about it belongs to one profile.
+     */
+    data object GameStorage : Destination {
+        override val route = "game-storage"
+    }
+
+
+    /**
      * Who wrote this and where to find them. The last row of Settings.
      *
      * Not in [external], and it would be harmless there — the screen holds three of its own addresses and

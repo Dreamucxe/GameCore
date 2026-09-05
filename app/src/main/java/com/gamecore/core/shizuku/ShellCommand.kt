@@ -14,17 +14,32 @@ import com.gamecore.core.model.DisplaySize
  * can do with ADB-level authority is therefore reviewable in one place, and the
  * review is enforced by the compiler rather than by convention.
  *
- * Three kinds of command are deliberately *absent*, and the absence is the point:
+ * Four kinds of command are deliberately *absent*, and the absence is the point:
  *
- *  * `am force-stop`, `am kill`, `pm trim-caches`. Killing other applications to
- *    free memory is what a fake "RAM booster" does: Android relaunches them
- *    moments later, the user's music stops, and no frame is gained. GameCore has no
- *    path to any of them at any privilege level.
+ *  * `am force-stop` and `pm trim-caches`. Force-stop ends an app whatever it is
+ *    doing and cancels its alarms and its jobs with it; trim-caches empties every
+ *    application's cache so that a number on a dial can move. Both are what a fake
+ *    "RAM booster" reaches for, and neither is reachable from here at any privilege
+ *    level. [ClearSharedCache] is not a way back to the second: it names one package,
+ *    is built only for a package the user tapped, and reaches one directory that the
+ *    owning app itself is required to treat as disposable.
+ *  * `pm clear`. It empties an app's data directory, which is where saves, logins and
+ *    settings live. The cache feature exists precisely because that command is the
+ *    wrong tool for it, and no argument about convenience gets it into this file.
  *  * `cmd thermalservice override-status`. Lying to the thermal service about how
  *    hot the device is switches off the protection that keeps it from damaging
  *    itself. Not exposed for any profile setting, ever.
  *  * `cmd package compile`, and anything else that rewrites another application's
  *    on-disk artefacts. GameCore does not modify games.
+ *
+ * `am kill` stood in that first bullet until the launch-time memory reclaim was built,
+ * and [KillBackgroundApp] is the result, so the change is written down here rather than
+ * quietly made. What that command reaches is the platform's own
+ * `killBackgroundProcesses`, bounded to processes Android already ranks as expendable;
+ * what reaches it is one feature, off by default, which reads the process list before it
+ * builds a single command and names every app it left running along with the reason. The
+ * bullet still holds for the two commands it now names. What this file can no longer
+ * claim is that no path to closing an app exists at all.
  *
  * Arguments are validated by the factory functions in [ShellCommand.Companion]
  * rather than trusted: an index is range-checked, a package name has to match the
@@ -44,8 +59,14 @@ sealed class ShellCommand(
      * Whether running this changes anything.
      *
      * [Effect.CHANGES_SETTING] commands are the only ones a game profile may apply.
-     * Each is paired with a read of the current value, and the optimizer records
-     * that value before writing so the change can be undone when the game exits.
+     * Every one that writes a value is paired with a read of that value taken
+     * beforehand, and the optimizer records it before writing so the change can be
+     * undone when the game exits. Two write no value and cannot be undone —
+     * [KillBackgroundApp] and [ClearSharedCache], since a closed app comes back when the
+     * user opens it and a cache refills as the game runs, not when GameCore restores
+     * something — so both are accounted for in the report of the pass that ran them
+     * rather than in the restore ledger. Neither is reachable from a profile: one is the
+     * launch-time reclaim, the other is a button the user pressed.
      */
     enum class Effect { READ_ONLY, CHANGES_SETTING }
 
@@ -131,6 +152,29 @@ sealed class ShellCommand(
     data object TopActivity : ShellCommand(
         listOf("dumpsys", "activity", "activities"),
         "Read the foreground activity",
+        Effect.READ_ONLY,
+    )
+
+    /**
+     * Every running process, each with the platform's own label for why it is still alive.
+     *
+     * The read that makes closing background apps checkable rather than hopeful, and it answers both
+     * questions the reclaim pass has out of one dump. Which packages have a process at all: closing an
+     * app that was not running is how a booster inflates its count, and an app GameCore never saw
+     * running is one it never claims to have closed. And what each one is doing: the LRU list prints
+     * `(top-activity)`, `(fg-service)`, `(cch-empty)` and a dozen others after each process name, which
+     * is the difference between a cached app nobody will miss and the one playing the user's music.
+     *
+     * Read a second time, unchanged, after the closes — a package still in the list was not closed,
+     * whatever the shell said on the way out.
+     *
+     * `dumpsys activity services` was the obvious alternative for the foreground-service half and is
+     * not used: it answers one of the two questions and would need this dump beside it to answer the
+     * other, and two dumps during a game launch cost twice what one does.
+     */
+    data object RunningProcesses : ShellCommand(
+        listOf("dumpsys", "activity", "processes"),
+        "Read running processes and what each is doing",
         Effect.READ_ONLY,
     )
 
@@ -343,6 +387,106 @@ sealed class ShellCommand(
     )
 
     /**
+     * Ends the background processes of one package, and nothing more than those.
+     *
+     * The exception to the first bullet at the top of this file, and narrow enough to be worth stating
+     * precisely. `am kill` reaches `ActivityManager.killBackgroundProcesses` inside the platform — the
+     * same call GameCore makes on its own behalf when there is no shell to run this one — so what it can
+     * do is bounded by that method rather than by the authority running it: processes the platform ranks
+     * at or below a plain background service, and no others. A package with an activity on screen, a
+     * foreground service, or a provider something else is reading survives it, and the command reports
+     * success either way, having done nothing.
+     *
+     * That bound is why this is `kill` and not `force-stop`. Force-stop ends an app whatever it is doing
+     * and takes its alarms and jobs with it; this is closer to what the platform does by itself under
+     * memory pressure, a few seconds earlier and to a chosen set.
+     *
+     * GameCore does not lean on the bound. [com.gamecore.domain.memory.BackgroundAppReclaimer] reads
+     * [RunningProcesses] first and will not build this command for an app it saw in a protected state,
+     * or for one whose state it could not read — "the platform would have ignored it anyway" is a reason
+     * not to fear a mistake, not a reason to make one.
+     *
+     * `--user current` rather than the default of every user: a work profile's apps are not this user's
+     * to close, and the pass that chose this package never enumerated them.
+     */
+    class KillBackgroundApp private constructor(val packageName: String) : ShellCommand(
+        listOf("am", "kill", "--user", "current", packageName),
+        "Close the background processes of $packageName",
+        Effect.CHANGES_SETTING,
+    ) {
+        companion object {
+            /**
+             * Null unless the argument is a well-formed package name, checked here for the reason
+             * [GfxInfoFrameStats.of] checks: the value came from a profile, an allowlist or another
+             * app's process list, none of which are GameCore's own code.
+             */
+            fun of(packageName: String): KillBackgroundApp? =
+                TextSanitizer.validatePackageName(packageName)?.let { KillBackgroundApp(it) }
+        }
+    }
+
+    /**
+     * Deletes the shared-storage cache directory of one package, and nothing else under it.
+     *
+     * The whole of what GameCore can do about a game's cache, and narrower than the phrase
+     * "clear cache" suggests, so the boundary is worth stating as a path rather than as a promise.
+     * `/storage/emulated/<user>/Android/data/<pkg>/cache` is the directory the platform hands the
+     * owning app through `getExternalCacheDir`, and the contract on it is the app's own: the system
+     * may delete it when storage runs low, so an app that keeps anything it needs there has already
+     * lost it without GameCore's help. Its siblings are left alone and are not reachable through
+     * this command at all — `files` next to it holds saves, `Android/obb/<pkg>` holds the downloaded
+     * assets a re-download would cost gigabytes to replace, and neither appears in any argv here.
+     *
+     * The internal cache, `/data/data/<pkg>/cache`, is not in reach and is not attempted. A shell
+     * running as uid 2000 cannot read another app's data directory, GameCore holds no root path to
+     * one, and the honest form of that is a reported platform limit with the app's own storage page
+     * offered — not a command that fails and is called a failure of the device.
+     *
+     * `rm -rf` on a single literal path, exec'd as an argument vector with no shell anywhere in the
+     * chain, so there is no glob to expand and no word-splitting to exploit; the target is the
+     * directory itself rather than its contents, because a wildcard would need a shell to mean
+     * anything. `-f` is what makes an
+     * already-absent directory exit zero, which is the common case for a game that has never
+     * written to shared storage, and is why the caller measures the cache again afterwards instead
+     * of reading success out of the exit code.
+     *
+     * Both arguments are validated. The package name goes through the platform's grammar, which
+     * admits no `/` and no `..`, so no traversal survives it. The user id is the app's own, derived
+     * from its uid rather than accepted from a caller, and range-checked anyway.
+     */
+    class ClearSharedCache private constructor(
+        val packageName: String,
+        val userId: Int,
+        val path: String,
+    ) : ShellCommand(
+        listOf("rm", "-rf", path),
+        "Clear the shared-storage cache of $packageName",
+        Effect.CHANGES_SETTING,
+    ) {
+        companion object {
+
+            /**
+             * Null unless both arguments are usable.
+             *
+             * The id bound is deliberately loose — Android numbers secondary users and work
+             * profiles from 10 upwards and a device can hold several — and its job is only to keep
+             * a nonsensical value out of a path, not to guess which users exist.
+             */
+            fun of(packageName: String, userId: Int): ClearSharedCache? {
+                val valid = TextSanitizer.validatePackageName(packageName) ?: return null
+                if (userId < 0 || userId > MAX_USER_ID) return null
+                return ClearSharedCache(valid, userId, sharedCachePath(valid, userId))
+            }
+
+            /** The directory [of] targets, exposed so a caller can name it without building one. */
+            fun sharedCachePath(packageName: String, userId: Int): String =
+                "/storage/emulated/$userId/Android/data/$packageName/cache"
+
+            const val MAX_USER_ID = 999
+        }
+    }
+
+    /**
      * The call-site surface.
      *
      * Each of these delegates to the validating factory on the command it builds, so
@@ -379,6 +523,17 @@ sealed class ShellCommand(
 
         fun frameStats(packageName: String): GfxInfoFrameStats? =
             GfxInfoFrameStats.of(packageName)
+
+        /** Null when the package name is malformed. See [KillBackgroundApp]. */
+        fun killBackgroundApp(packageName: String): KillBackgroundApp? =
+            KillBackgroundApp.of(packageName)
+
+        /**
+         * Null when the package name is malformed or the user id is not a plausible one.
+         * See [ClearSharedCache] for what this does and does not reach.
+         */
+        fun clearSharedCache(packageName: String, userId: Int): ClearSharedCache? =
+            ClearSharedCache.of(packageName, userId)
 
         /**
          * Validates a package name. Exposed so a caller that has to decide whether a

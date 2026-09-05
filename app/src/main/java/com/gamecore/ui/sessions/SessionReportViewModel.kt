@@ -1,12 +1,19 @@
 package com.gamecore.ui.sessions
 
+import android.content.Intent
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.model.GameSession
+import com.gamecore.core.model.LatencyLog
+import com.gamecore.core.model.LatencyVerdict
+import com.gamecore.core.model.SessionCard
 import com.gamecore.core.model.SessionSample
 import com.gamecore.data.preferences.SecurePreferenceStore
+import com.gamecore.data.repository.CardResult
+import com.gamecore.data.repository.SessionCardRenderer
 import com.gamecore.data.repository.SessionRepository
 import com.gamecore.ui.Destination
 import com.gamecore.ui.components.ABSENT
@@ -38,6 +45,7 @@ class SessionReportViewModel @Inject constructor(
     savedState: SavedStateHandle,
     private val repository: SessionRepository,
     private val preferences: SecurePreferenceStore,
+    private val cards: SessionCardRenderer,
 ) : ViewModel() {
 
     /**
@@ -56,6 +64,18 @@ class SessionReportViewModel @Inject constructor(
 
     val state: StateFlow<SessionReportUiState> = editing.asStateFlow()
 
+    /**
+     * The loaded session, kept for the shareable card.
+     *
+     * §24A.2 governs what the UI receives, and this is not that — no composable can see it. The card needs
+     * the session's own fields rather than this screen's strings, and re-reading the row to draw a picture
+     * of data already in memory would be a second query for nothing.
+     */
+    private var loaded: GameSession? = null
+
+    /** The URI of a card that has been written and not yet handed to the share sheet. Never in state. */
+    private var pending: Uri? = null
+
     init {
         load()
     }
@@ -72,6 +92,7 @@ class SessionReportViewModel @Inject constructor(
                 )
                 return@launch
             }
+            loaded = session
             val samples = repository.samples(session.id)
             editing.value = editing.value.copy(
                 isLoading = false,
@@ -117,6 +138,64 @@ class SessionReportViewModel @Inject constructor(
 
     fun dismissMessage() {
         editing.value = editing.value.copy(message = null)
+    }
+
+    // ------------------------------------------------------------------------ the shareable card
+
+    /**
+     * Draws the card for this session and reports it ready through [SessionReportUiState.cardReady].
+     *
+     * What the card says comes from [SessionCard] rather than from the strings on this screen. The two are
+     * saying the same things about the same session, but a row here is read next to a graph, a caveat and a
+     * settings screen, while a card is read alone in somebody's chat window — so the card states its own
+     * caveats in its own words, and that decision lives in a model with a test around it.
+     *
+     * The accent is the user's own choice, because the card is this app's output and should look like the
+     * app they configured. Everything else about it is fixed, dark included.
+     */
+    fun shareCard() {
+        val session = loaded ?: return
+        if (editing.value.isRenderingCard) return
+        editing.value = editing.value.copy(isRenderingCard = true, message = null)
+        viewModelScope.launch {
+            val result = cards.render(
+                card = SessionCard.from(session),
+                accentArgb = preferences.settings.value.accent.argb,
+            )
+            pending = (result as? CardResult.Written)?.uri
+            editing.value = editing.value.copy(
+                isRenderingCard = false,
+                cardReady = pending != null,
+                message = when {
+                    pending != null -> null
+                    result is CardResult.Written -> CARD_NOT_SHAREABLE
+                    else -> CARD_FAILED
+                },
+            )
+        }
+    }
+
+    /**
+     * The share sheet's intent for the card that was just written, or null when there is none.
+     *
+     * Built here rather than in the composable so the `content://` URI and its read grant never reach the
+     * presentation layer — the same reason the captures list hands out an `Intent` instead of a `Uri`.
+     */
+    fun cardIntent(): Intent? {
+        val uri = pending ?: return null
+        return Intent(Intent.ACTION_SEND)
+            .setType(CARD_MIME)
+            .putExtra(Intent.EXTRA_STREAM, uri)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+
+    /** Consumes the one-shot, and says so when nothing on the device would take the image. */
+    fun cardShared(shared: Boolean) {
+        pending = null
+        editing.value = editing.value.copy(
+            cardReady = false,
+            message = if (shared) editing.value.message else CARD_NO_APP,
+        )
     }
 
     // ------------------------------------------------------------------------ the header
@@ -211,6 +290,7 @@ class SessionReportViewModel @Inject constructor(
         refreshRateRow(session),
         frameRateRow(session),
         latencyRow(session),
+        connectionRow(session),
         colourRow(session),
         readoutOf(
             label = "Samples taken",
@@ -354,16 +434,73 @@ class SessionReportViewModel @Inject constructor(
         tone = if (session.averageFrameRate == null) Tone.Muted else Tone.Neutral,
     )
 
-    private fun latencyRow(session: GameSession): Readout = readoutOf(
-        label = "Network latency",
-        value = session.averageLatencyMillis?.let { Formatters.millis(it) } ?: ABSENT,
-        detail = if (session.averageLatencyMillis == null) {
-            "Latency measurement was off during this session, or no reply came back."
-        } else {
-            "Round trip to the host set in Settings — not to the game's own server."
-        },
-        tone = if (session.averageLatencyMillis == null) Tone.Muted else Tone.Neutral,
-    )
+    /**
+     * The average round trip, or which of several absences applies.
+     *
+     * The old single sentence — "measurement was off, or no reply came back" — was two unrelated facts
+     * offered as a guess, and the probe log now knows which of them it was. A dash beside "no probe was
+     * sent" is a setting; a dash beside "none of 340 probes completed" is a network.
+     */
+    private fun latencyRow(session: GameSession): Readout {
+        val average = session.averageLatencyMillis
+        val log = session.latencyLog
+        return readoutOf(
+            label = "Network latency",
+            value = average?.let { Formatters.millis(it) } ?: ABSENT,
+            detail = when {
+                average != null ->
+                    "Averaged over the samples. A TCP handshake with the host set in Settings — not a " +
+                        "ping, and not the game's own server."
+
+                log == null -> "No latency figure was recorded for this session."
+
+                log.attempts == 0 ->
+                    "No probe was sent: latency measurement is off in Settings, or the device was not " +
+                        "connected while this game was open."
+
+                log.completedProbes == 0 ->
+                    "None of the ${Formatters.count(log.attempts, "probe")} sent during this session " +
+                        "completed, so there is no round trip to average."
+
+                // Probes completed but none reached a stored sample — a session that ended between the
+                // probe and the next tick. Rare, and worth saying rather than papering over.
+                else -> "Probes completed, but none of them landed in a stored sample, so this session " +
+                    "has no average to show."
+            },
+            tone = if (average == null) Tone.Muted else Tone.Neutral,
+        )
+    }
+
+    /**
+     * Whether the connection held up, from GameCore's own probes rather than from the average.
+     *
+     * The average is the wrong figure for this question: a session that sat at 30 ms and jumped to 900 ms
+     * eleven times averages out near 40 ms and reads as a good connection, which is precisely the session
+     * a player remembers as unplayable. The log counts the events instead.
+     *
+     * A null log is its own answer — sessions recorded before the log existed had nothing counted, and
+     * saying "stable" about those would be inventing the measurement. [LatencyVerdict] carries the word
+     * and [LatencyLog.summary] the figures behind it.
+     */
+    private fun connectionRow(session: GameSession): Readout {
+        val log = session.latencyLog ?: return readoutOf(
+            label = "Connection",
+            value = ABSENT,
+            detail = "This session was recorded before GameCore kept a log of its own probes.",
+            tone = Tone.Muted,
+        )
+        return readoutOf(
+            label = "Connection",
+            value = log.verdict.label,
+            detail = log.summary,
+            tone = when (log.verdict) {
+                LatencyVerdict.STABLE -> Tone.Good
+                LatencyVerdict.SPIKY -> Tone.Warning
+                LatencyVerdict.UNRELIABLE, LatencyVerdict.DOWN -> Tone.Danger
+                LatencyVerdict.UNMEASURED -> Tone.Muted
+            },
+        )
+    }
 
     // ------------------------------------------------------------------------ the graphs
 
@@ -376,6 +513,11 @@ class SessionReportViewModel @Inject constructor(
      *
      * Percentages plot against 0–100 so the height of the line means something; temperature and frame rate
      * auto-scale, because 38–44 °C against 0–100 is a flat line that hides the movement the graph is for.
+     *
+     * The latency line is the one series whose points are not one reading each, and it carries a note
+     * saying so: probes are sent every fifth sample and the samples in between repeat the last result, so
+     * a single slow handshake draws as a plateau rather than as the spike it was. The `Connection` figure
+     * above counts the events; this shows roughly when they happened.
      */
     private fun graphsOf(samples: List<SessionSample>): List<SessionGraph> {
         val cpu = samples.mapNotNull { it.cpuPercent }
@@ -383,6 +525,7 @@ class SessionReportViewModel @Inject constructor(
         val temperature = samples.mapNotNull { it.temperatureDeciCelsius?.let { deci -> deci / 10f } }
         val battery = samples.mapNotNull { it.batteryPercent?.toFloat() }
         val frames = samples.mapNotNull { it.frameRate }
+        val latency = samples.mapNotNull { it.latencyMillis?.toFloat() }
         return listOf(
             SessionGraph(
                 title = "Processor and memory",
@@ -418,6 +561,16 @@ class SessionReportViewModel @Inject constructor(
                 unit = "fps",
                 seriesLabel = "Frames",
                 emptyMessage = "This device does not expose reliable frame timing, so none was recorded.",
+            ),
+            SessionGraph(
+                title = "Network latency",
+                points = latency,
+                range = if (latency.isEmpty()) 0f..200f else autoRange(latency),
+                unit = "ms",
+                seriesLabel = "Round trip",
+                emptyMessage = "No probe completed during this session, so there is nothing to plot.",
+                note = "Each probe holds its value until the next one, so a slow handshake draws wider " +
+                    "than the moment it happened. Nothing here is a lost packet.",
             ),
         )
     }
@@ -463,6 +616,11 @@ class SessionReportViewModel @Inject constructor(
     private companion object {
         const val MISSING_ID = -1L
         const val WARM_DECI_CELSIUS = 420
+
+        const val CARD_MIME = "image/png"
+        const val CARD_FAILED = "The card could not be created. Storage may be full."
+        const val CARD_NOT_SHAREABLE = "The card was created, but this device would not share it."
+        const val CARD_NO_APP = "No app on this device can accept an image."
 
         const val PROFILE_APPLIED =
             "A profile was applied for this game when it started, and the settings it changed were put " +

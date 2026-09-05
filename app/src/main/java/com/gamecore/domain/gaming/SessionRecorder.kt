@@ -1,11 +1,14 @@
 package com.gamecore.domain.gaming
 
+import com.gamecore.core.common.Observed
 import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.GameSession
+import com.gamecore.core.model.LatencyProbe
 import com.gamecore.core.model.PerformanceSnapshot
 import com.gamecore.core.model.SessionSample
 import com.gamecore.core.model.StopReason
 import com.gamecore.data.repository.SessionRepository
+import com.gamecore.domain.monitoring.LatencyLogger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,6 +55,14 @@ class SessionRecorder @Inject constructor(
     /** Samples taken but not yet written. Only ever touched under [mutex]. */
     private val pending = mutableListOf<SessionSample>()
 
+    /**
+     * The running fold of this session's probe outcomes. Only ever touched under [mutex].
+     *
+     * Separate from [pending] because it is not a batch waiting for a write: it is the whole log, folded
+     * to a handful of counters, and it reaches disk as six columns on the session row at the next flush.
+     */
+    private var latency = LatencyLogger.EMPTY
+
     private val state = MutableStateFlow<GameSession?>(null)
 
     /**
@@ -95,6 +106,9 @@ class SessionRecorder @Inject constructor(
             if (running.packageName == packageName) return@withLock running
             finishLocked(running, StopReason.SWITCHED_GAME, nowMillis)
         }
+        // After the switch above, not before: the outgoing session's log belongs to the row that was
+        // just written, and clearing it first would file this game's probes under the last game.
+        latency = LatencyLogger.EMPTY
 
         val started = GameSession.starting(
             packageName = packageName,
@@ -144,6 +158,28 @@ class SessionRecorder @Inject constructor(
             wasCharging = session.wasCharging || snapshot.battery.isCharging,
         )
         if (pending.size >= FLUSH_EVERY) flushLocked()
+    }
+
+    /**
+     * Adds one latency probe's outcome to the session's log.
+     *
+     * Separate from [offer] because a probe and a sample arrive at different rates: the monitor probes
+     * roughly every fifth tick, and the sample in between carries the last probe's result again so the
+     * dashboard has something to show. Folding samples would therefore count one handshake five times
+     * and could not tell a probe that failed from a tick that never probed — which is the whole reason
+     * this feature is not a query over `session_samples`.
+     *
+     * The fold is arithmetic, so it costs nothing to do under the same lock as everything else, and the
+     * result is published to [active] immediately. It reaches disk at the next flush, which gives the
+     * log the same half-minute durability bound as the samples rather than a write per probe.
+     *
+     * Does nothing when no session is running, for [offer]'s reason: the monitor's loop outlives the
+     * game by a few seconds and those probes belong to no session.
+     */
+    suspend fun offerProbe(probe: Observed<LatencyProbe>): Unit = mutex.withLock {
+        val session = state.value ?: return
+        latency = latency.record(probe)
+        state.value = session.copy(latencyLog = latency.log)
     }
 
     /**

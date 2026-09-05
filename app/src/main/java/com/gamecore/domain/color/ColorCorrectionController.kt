@@ -4,6 +4,7 @@ import android.os.Build
 import com.gamecore.core.common.DataSource
 import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.common.Observed
+import com.gamecore.core.model.ChangeOrigin
 import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.ColorField
 import com.gamecore.core.shizuku.WritableSetting
@@ -15,6 +16,8 @@ import com.gamecore.core.system.SettingsWriteOutcome
 import com.gamecore.core.system.SettingsWriter
 import com.gamecore.core.system.WriteMechanism
 import com.gamecore.data.repository.RestorePointRepository
+import com.gamecore.domain.optimization.DeviceKey
+import com.gamecore.domain.optimization.DeviceWriteLog
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -43,11 +46,20 @@ import javax.inject.Singleton
  *
  * **A value that cannot be read is not written.** Same rule as the optimizer: a change
  * with no recorded previous value cannot be put back, so it is refused and said so.
+ *
+ * **A sink the user has set themselves since GameCore wrote it is the user's.** Night light,
+ * greyscale and extra dim are one tap from the notification shade, so a correction applied
+ * automatically at the start of a session must not write back over a change made during the
+ * last one. Each write claims what it left in [DeviceWriteLog]; an automatic apply reads the
+ * claims first and passes over the sinks that no longer hold them. The same log guards the
+ * restore, in [com.gamecore.domain.optimization.OptimizationManager], because these rows
+ * share its table.
  */
 @Singleton
 class ColorCorrectionController @Inject constructor(
     private val settings: SettingsWriter,
     private val restorePoints: RestorePointRepository,
+    private val writeLog: DeviceWriteLog,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) {
 
@@ -108,23 +120,58 @@ class ColorCorrectionController @Inject constructor(
      * is more use than one that stopped at the first obstacle. [packageName] is the game
      * the change was made for, stored with each restore point so session history can
      * attribute a setting that is still pending.
+     *
+     * [origin] is what separates the user asking for this from a profile asserting it. A
+     * correction the user applied — from the colour screen, or from the panel over the game —
+     * is their most recent instruction and is written whatever the sinks currently hold. An
+     * automatic one passes over the sinks [keptByUser] finds the user has taken over since.
      */
     suspend fun apply(
         correction: ColorCorrection,
         packageName: String? = null,
+        origin: ChangeOrigin = ChangeOrigin.USER,
     ): ColorApplyResult = withContext(io) {
         val plan = preview(correction)
         val access = access()
         if (access !is Observed.Value) {
             return@withContext ColorApplyResult(plan, emptyList(), emptyList(), access)
         }
-        val results = plan.writes.map { applyOne(it, access.value, packageName) }
+        val kept = if (origin == ChangeOrigin.AUTOMATIC) keptByUser(plan) else emptyList()
+        val results = plan.writes
+            .filterNot { it.setting in kept }
+            .map { applyOne(it, access.value, packageName) }
         ColorApplyResult(
             plan = plan,
             results = results,
-            restored = disengageAllExcept(plan.sinks),
+            restored = disengageAllExcept(plan.sinks + kept),
             access = access,
+            keptByUser = kept,
         )
+    }
+
+    /**
+     * Which colour sinks the user has set themselves since GameCore last wrote them.
+     *
+     * Asked of two sets at once, because both have the same consequence. The sinks this
+     * correction wants to write are the reported half: re-asserting one over a change made
+     * from the shade is the bug. The sinks a *previous* correction engaged and this one does
+     * not are the other half — handing one of those back writes the pre-session value over
+     * the user's own, which from the outside looks the same as GameCore turning the thing on
+     * again.
+     *
+     * Only keys [writeLog] holds a claim for are read, so this costs nothing on a device
+     * where GameCore has not written a colour key yet. An unreadable key is not evidence of
+     * anything and is left to [applyOne], which refuses it for want of a restore point.
+     */
+    private suspend fun keptByUser(plan: ColorPlan): List<WritableSetting> {
+        val claimed = writeLog.current()
+        return (plan.writes.map { it.setting } + ColorProjection.ALL_SINKS)
+            .distinct()
+            .filter { claimed.tracks(DeviceKey.of(it)) }
+            .filter { setting ->
+                val live = settings.read(setting)
+                live is Observed.Value && claimed.userChanged(DeviceKey.of(setting), live.value)
+            }
     }
 
     /**
@@ -259,6 +306,10 @@ class ColorCorrectionController @Inject constructor(
      * is not tidiness — the panel's colour sliders apply as they move, and re-writing
      * `night_display_activated=1` on every frame of a drag is a binder call per frame for
      * no change at all.
+     *
+     * Every path out of here except the refusal ends in a [claim], so that the next
+     * automatic correction and the session's restore can both tell what GameCore left on
+     * this sink from what the user set afterwards.
      */
     private suspend fun applyOne(
         write: ColorWrite,
@@ -278,6 +329,7 @@ class ColorCorrectionController @Inject constructor(
             )
         }
         if (current is Observed.Value && current.value.trim() == write.value) {
+            writeLog.wrote(DeviceKey.of(write.setting), current.value)
             return ColorSinkResult(
                 write = write,
                 outcome = SettingsWriteOutcome.Applied(
@@ -287,7 +339,42 @@ class ColorCorrectionController @Inject constructor(
                 ),
             )
         }
-        return ColorSinkResult(write, settings.write(write.setting, write.value))
+        val outcome = settings.write(write.setting, write.value)
+        claim(write.setting, outcome, current)
+        return ColorSinkResult(write, outcome)
+    }
+
+    /**
+     * Tells [writeLog] what this sink holds now, taking the outcome's word for it.
+     *
+     * Never the value that was requested: devices normalise, and a claim that disagreed
+     * with what a read returns would call the sink the user's on the next correction.
+     * [before] is the read taken a moment ago, which is still the answer for the outcomes
+     * where nothing reached the provider.
+     *
+     * A write that went through unverified claims nothing. There is no value GameCore can
+     * stand behind, and no claim is the safe way round — the sink stays writable and its
+     * restore row stays restorable, which is how it behaved before this log existed.
+     */
+    private fun claim(
+        setting: WritableSetting,
+        outcome: SettingsWriteOutcome,
+        before: Observed<String>,
+    ) {
+        val key = DeviceKey.of(setting)
+        when (outcome) {
+            is SettingsWriteOutcome.Applied -> writeLog.wrote(key, outcome.value)
+            is SettingsWriteOutcome.NotHonoured -> writeLog.wrote(key, outcome.actual)
+            is SettingsWriteOutcome.AppliedUnverified -> writeLog.release(key)
+            is SettingsWriteOutcome.RequiresAccess,
+            is SettingsWriteOutcome.Rejected,
+            is SettingsWriteOutcome.Failed,
+            -> when (before) {
+                is Observed.Value -> writeLog.wrote(key, before.value)
+                is Observed.Restricted -> writeLog.wrote(key, null)
+                is Observed.Failed -> writeLog.release(key)
+            }
+        }
     }
 
     /**
@@ -297,6 +384,12 @@ class ColorCorrectionController @Inject constructor(
      * wrote the key at some point. A row is cleared only when the value has gone back and
      * been read back; anything else stays pending, so the dashboard's "settings still
      * changed" count stays true and the next restore retries it.
+     *
+     * A sink that is genuinely back gives up its claim in [writeLog] with its row. The
+     * device now holds the user's own pre-session value, and a claim left behind would have
+     * the next automatic correction read that value, decide the user had just set it, and
+     * pass over the sink for the rest of the process — the guard turning into a worse
+     * version of the bug it was added for.
      */
     private suspend fun disengageAllExcept(engaged: List<WritableSetting>): List<ColorRestore> =
         restorePoints.pending()
@@ -309,7 +402,10 @@ class ColorCorrectionController @Inject constructor(
                 val outcome = settings.restore(setting, row.previousValue)
                 val done = outcome is SettingsWriteOutcome.Applied ||
                     (outcome is SettingsWriteOutcome.AppliedUnverified && row.restoresToUnset)
-                if (done) restorePoints.clear(setting)
+                if (done) {
+                    restorePoints.clear(setting)
+                    writeLog.release(DeviceKey.of(setting))
+                }
                 ColorRestore(setting = setting, outcome = outcome, cleared = done)
             }
 }
@@ -361,19 +457,27 @@ data class ColorEngagement(
 }
 
 /**
- * Everything one apply did: the plan, the per-sink outcomes, the sinks handed back, and
- * whether GameCore was allowed to write at all.
+ * Everything one apply did: the plan, the per-sink outcomes, the sinks handed back, the sinks
+ * left to the user, and whether GameCore was allowed to write at all.
  *
- * The four together are what makes the feature honest. [ColorPlan.limits] says what this
- * device cannot express, [results] says what happened to what it can, [access] says
- * whether the question even got as far as the provider, and [message] turns the lot into
- * the one sentence the panel has room for.
+ * The five together are what makes the feature honest. [ColorPlan.limits] says what this
+ * device cannot express, [results] says what happened to what it can, [keptByUser] says what
+ * was deliberately not touched, [access] says whether the question even got as far as the
+ * provider, and [message] turns the lot into the one sentence the panel has room for.
  */
 data class ColorApplyResult(
     val plan: ColorPlan,
     val results: List<ColorSinkResult>,
     val restored: List<ColorRestore>,
     val access: Observed<WriteMechanism>,
+    /**
+     * Sinks passed over because the user had set them since GameCore did.
+     *
+     * Always empty for a correction the user asked for: the guard runs on automatic applies
+     * only, because an explicit instruction is the most recent thing the user has said about
+     * the display and outranks anything they said before it.
+     */
+    val keptByUser: List<WritableSetting> = emptyList(),
 ) {
     val isBlocked: Boolean get() = access !is Observed.Value
 
@@ -385,9 +489,9 @@ data class ColorApplyResult(
     val isApplied: Boolean get() = !isBlocked && failures.isEmpty()
 
     /**
-     * One sentence, in this order of priority: no access, nothing applicable, partial
-     * failure, applied. Limits are mentioned but never lead — the user asked for a change
-     * and wants to know whether it happened first.
+     * One sentence, in this order of priority: no access, nothing applicable, nothing left to
+     * write, partial failure, applied. Limits are mentioned but never lead — the user asked
+     * for a change and wants to know whether it happened first.
      */
     val message: String
         get() = when {
@@ -396,18 +500,35 @@ data class ColorApplyResult(
             plan.writes.isEmpty() && plan.limits.isNotEmpty() ->
                 "Nothing in this correction can be applied on this device."
             plan.writes.isEmpty() -> "Colour correction is off."
+            results.isEmpty() && keptByUser.isNotEmpty() ->
+                "You changed the screen's colour yourself after GameCore set it, so it has " +
+                    "been left alone."
             failures.isNotEmpty() -> failures.first().let { failure ->
                 val what = failure.setting.userDescription
-                if (appliedCount > 0) {
+                val sentence = if (appliedCount > 0) {
                     "Applied $appliedCount of ${results.size} changes. $what did not take."
                 } else {
                     "$what could not be changed."
                 }
+                sentence + keptClause
             }
             plan.limits.isNotEmpty() ->
                 "Applied. ${plan.limits.size} of the values you set have no equivalent on " +
-                    "this device."
-            else -> "Applied."
+                    "this device." + keptClause
+            else -> "Applied.$keptClause"
+        }
+
+    /**
+     * The sinks left to the user, as a clause the sentences above can append.
+     *
+     * Counted rather than named. [WritableSetting.userDescription] is a whole sentence with a
+     * full stop of its own, which reads as a stutter mid-sentence, and the panel has one line.
+     */
+    private val keptClause: String
+        get() = when (keptByUser.size) {
+            0 -> ""
+            1 -> " One value was left as you set it."
+            else -> " ${keptByUser.size} values were left as you set them."
         }
 }
 

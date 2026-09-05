@@ -181,12 +181,17 @@ class GamesViewModel @Inject constructor(
             val report = applier.restore()
             local.value = local.value.copy(
                 busyPackage = null,
-                message = when {
-                    report.didNothing -> "There was nothing to put back."
-                    report.isComplete -> "Put back ${Formatters.count(report.restored, "setting")}."
-                    else -> "Put back ${report.restored}. ${report.outstanding} still need an access " +
-                        "GameCore does not currently have."
-                },
+                message = listOfNotNull(
+                    when {
+                        report.didNothing -> "There was nothing to put back."
+                        // Nothing to claim credit for: everything pending turned out to be the user's.
+                        report.restored == 0 && report.isComplete -> null
+                        report.isComplete -> "Put back ${Formatters.count(report.restored, "setting")}."
+                        else -> "Put back ${report.restored}. ${report.outstanding} still need an access " +
+                            "GameCore does not currently have."
+                    },
+                    report.keptNote,
+                ).joinToString(" "),
             )
         }
     }

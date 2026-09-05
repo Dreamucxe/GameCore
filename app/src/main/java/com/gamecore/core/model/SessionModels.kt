@@ -54,6 +54,20 @@ data class GameSession(
      * screen was doing, not what a row that may no longer exist is called today.
      */
     val colorCorrection: ColorCorrection? = null,
+
+    /**
+     * What the latency probes did across the session, or null when there is no log at all.
+     *
+     * The two absences are different and both are representable. Null means no log was kept — every
+     * session recorded before this existed reads back that way, and saying "no probe failed" about
+     * those would be inventing a measurement. [LatencyLog.EMPTY] means a log was kept and nothing went
+     * into it, which is what an offline session or a session with latency measurement switched off
+     * really looks like.
+     *
+     * [averageLatencyMillis] stays the only average. A second one derived from the log could disagree
+     * with it by a millisecond and put two figures for one thing on the same screen.
+     */
+    val latencyLog: LatencyLog? = null,
 ) {
     val isRunning: Boolean get() = endedAtMillis == null
 
@@ -132,6 +146,10 @@ data class GameSession(
             startedAtMillis = nowMillis,
             batteryStartPercent = batteryPercent,
             profileApplied = profileApplied,
+            // Empty rather than null from the first second: a session being recorded now has a probe
+            // log, even before a probe has gone out. Null is reserved for the sessions that never had
+            // one, so the report can tell "nothing was measured" from "this predates the log".
+            latencyLog = LatencyLog.EMPTY,
         )
     }
 }

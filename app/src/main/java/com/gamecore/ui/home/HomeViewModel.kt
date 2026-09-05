@@ -167,12 +167,17 @@ class HomeViewModel @Inject constructor(
             local.value = local.value.copy(
                 isRestoring = false,
                 outstandingRestores = report.outstanding,
-                message = when {
-                    report.didNothing -> "There was nothing left to put back."
-                    report.isComplete -> "Restored ${Formatters.count(report.restored, "setting")}."
-                    else -> "Restored ${report.restored} of ${report.restored + report.outstanding}. " +
-                        "The rest need an access GameCore does not currently have."
-                },
+                message = listOfNotNull(
+                    when {
+                        report.didNothing -> "There was nothing left to put back."
+                        // Nothing to claim credit for: everything pending turned out to be the user's.
+                        report.restored == 0 && report.isComplete -> null
+                        report.isComplete -> "Restored ${Formatters.count(report.restored, "setting")}."
+                        else -> "Restored ${report.restored} of ${report.restored + report.outstanding}. " +
+                            "The rest need an access GameCore does not currently have."
+                    },
+                    report.keptNote,
+                ).joinToString(" "),
             )
             // A restore can change what is available — a refresh rate released back to the panel's
             // default, battery saver switched back on — so the cached capability answer is now a guess.
@@ -209,6 +214,14 @@ class HomeViewModel @Inject constructor(
 
     /** Ends the tracked session from the dashboard. The game itself is left alone. */
     fun stopSession() = coordinator.stopCurrent(StopReason.STOPPED_BY_USER)
+
+    /**
+     * Clears the launch's memory summary.
+     *
+     * Delegated rather than tracked here: the report is a fact about the launch and not about this
+     * screen, and [LocalState] is only for the things this ViewModel is the sole owner of.
+     */
+    fun dismissReclaim() = coordinator.dismissReclaim()
 
     private companion object {
         /**

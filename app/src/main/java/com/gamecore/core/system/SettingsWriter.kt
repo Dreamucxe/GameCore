@@ -255,7 +255,7 @@ class SettingsWriter @Inject constructor(
                 mechanism = mechanism,
                 reason = "the value could not be read back",
             )
-            valuesMatch(expected, actual) -> SettingsWriteOutcome.Applied(
+            settingValuesMatch(expected, actual) -> SettingsWriteOutcome.Applied(
                 value = actual,
                 previousValue = previousValue,
                 mechanism = mechanism,
@@ -268,19 +268,24 @@ class SettingsWriter @Inject constructor(
         }
     }
 
-    /**
-     * Compares numerically when both sides parse as numbers, exactly otherwise.
-     *
-     * The settings provider normalises: "60" written to a float key reads back "60.0",
-     * and "1" written to an animation scale reads back "1.0". Comparing those as strings
-     * would report every successful float write as unhonoured.
-     */
-    private fun valuesMatch(expected: String, actual: String): Boolean {
-        if (expected == actual) return true
-        val a = expected.toFloatOrNull()
-        val b = actual.toFloatOrNull()
-        return a != null && b != null && kotlin.math.abs(a - b) < 0.01f
-    }
+}
+
+/**
+ * Compares two settings values numerically when both sides parse as numbers, exactly otherwise.
+ *
+ * The settings provider normalises: "60" written to a float key reads back "60.0", and "1" written
+ * to an animation scale reads back "1.0". Comparing those as strings would report every successful
+ * float write as unhonoured — and, in [com.gamecore.domain.optimization.WriteLedger], would report a
+ * key GameCore had just written as one the user had changed by hand.
+ *
+ * Top-level and shared for that second reason: the write side and the "is this value still the one
+ * GameCore left" side have to agree on what equality means, and two copies of this would drift.
+ */
+internal fun settingValuesMatch(expected: String, actual: String): Boolean {
+    if (expected == actual) return true
+    val a = expected.toFloatOrNull()
+    val b = actual.toFloatOrNull()
+    return a != null && b != null && kotlin.math.abs(a - b) < 0.01f
 }
 
 /** Which path a write took, or would need. Surfaced so the UI can explain a refusal. */

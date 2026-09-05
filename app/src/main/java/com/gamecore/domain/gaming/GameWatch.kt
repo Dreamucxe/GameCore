@@ -38,7 +38,7 @@ sealed interface Sighting {
  * and "usage access is revoked mid-session" with a fake clock and a list of sightings, and neither is
  * reachable through a real poll loop in a JVM test.
  *
- * Four behaviours are deliberate and are the whole substance of the class:
+ * Five behaviours are deliberate and are the whole substance of the class:
  *
  *  1. **A game that leaves the foreground has not necessarily stopped.** The notification shade, a
  *     quick reply, an incoming call and the share sheet all take the foreground for a few seconds.
@@ -60,6 +60,19 @@ sealed interface Sighting {
  *     never expires it, so a user who opens GameCore mid-game keeps their session and their overlay
  *     for as long as they stay, and the stop they eventually get is still dated from the moment the
  *     game actually left the screen rather than from when they put the phone down.
+ *
+ *  5. **A game returning after a real absence is a new sitting, not a continuation.** [graceMillis] is
+ *     the line between an interruption and a stop, and it is applied to the game coming *back* as well
+ *     as to it being away: a return inside the window is the non-event of point 1, and a return after
+ *     it is a stop dated when the game left followed by a start dated now.
+ *
+ *     Without this the two clocks that deliberately do not ring — point 4's, and the absence carried
+ *     untouched through blindness in point 3 — would silently continue a session the game had left,
+ *     because the reading that resolves the ambiguity is the one that says the game is back. That is
+ *     the bug behind "changing a game's profile after leaving the game and pressing play again does
+ *     nothing until you restart GameCore": the profile is re-read on every [GameEvent.Started] and
+ *     nowhere else, so a return that announced nothing was a return that kept the settings applied
+ *     from the profile as it read twenty minutes ago.
  *
  * [events] is what the last [saw] produced, and it is a list because one reading can mean two things:
  * switching straight from one tracked game to another is a stop and a start, in that order.
@@ -109,7 +122,7 @@ data class GameWatch(
         graceMillis: Long = DEFAULT_GRACE_MILLIS,
         blindMillis: Long = DEFAULT_BLIND_MILLIS,
     ): GameWatch = when (sighting) {
-        is Sighting.Tracked -> sawTracked(sighting.packageName, nowMillis)
+        is Sighting.Tracked -> sawTracked(sighting.packageName, nowMillis, graceMillis)
         is Sighting.Other -> sawSomethingElse(nowMillis, graceMillis)
         is Sighting.Inspecting -> sawInspecting(nowMillis)
         is Sighting.Unreadable -> sawNothing(sighting.detail, nowMillis, blindMillis)
@@ -135,9 +148,30 @@ data class GameWatch(
 
     // ------------------------------------------------------------------------ transitions
 
-    private fun sawTracked(packageName: String, nowMillis: Long): GameWatch = when {
+    private fun sawTracked(
+        packageName: String,
+        nowMillis: Long,
+        graceMillis: Long,
+    ): GameWatch = when {
         // Stopped by hand and still in front. Nothing to report and nothing to restart.
         packageName == suppressedPackage -> GameWatch(suppressedPackage = packageName)
+
+        // The same game, back after longer off-screen than an interruption is allowed to last. Two
+        // events, stop first and for the same reason the game-switch branch below gives: the previous
+        // sitting's settings have to be put back before the current profile is applied over them.
+        //
+        // The stop is dated when the game left rather than now, so the interval the user spent in
+        // GameCore or out of sight is not credited to the session — and the start is dated now, because
+        // that is when this sitting began. Reachable only through the two clocks that do not ring on
+        // their own: [Sighting.Inspecting] and an absence carried through blindness. An ordinary
+        // absence has already ended the session by the time it is this old.
+        packageName == runningPackage && absentPast(graceMillis, nowMillis) -> GameWatch(
+            runningPackage = packageName,
+            events = listOf(
+                GameEvent.Stopped(packageName, absentSinceMillis ?: nowMillis, StopReason.LEFT_FOREGROUND),
+                GameEvent.Started(packageName, nowMillis),
+            ),
+        )
 
         // Still there, or back inside the grace window. The absence clock is cleared either way,
         // which is what makes a shade pull followed by a return a non-event.
@@ -160,6 +194,18 @@ data class GameWatch(
         )
     }
 
+    /**
+     * Whether the running game has been off-screen for at least the whole grace window.
+     *
+     * False when it is on screen, so a game that never left cannot be treated as one that came back.
+     * `>=` for the same reason [sawSomethingElse] uses it: a grace of zero means "no grace" rather than
+     * "one extra poll".
+     */
+    private fun absentPast(graceMillis: Long, nowMillis: Long): Boolean {
+        val since = absentSinceMillis ?: return false
+        return nowMillis - since >= graceMillis
+    }
+
     private fun sawSomethingElse(nowMillis: Long, graceMillis: Long): GameWatch {
         val running = runningPackage ?: return GameWatch()
         val since = absentSinceMillis ?: nowMillis
@@ -180,6 +226,10 @@ data class GameWatch(
      * so a player who checks the graph for two minutes and then closes both apps gets a session
      * ending where the game ended. Not ringing matters for the obvious reason: the session summary
      * being read would close under the reader.
+     *
+     * So this is the one path on which the absence clock can outlive the grace window, and [sawTracked]
+     * is where that is settled: the game coming back after this long away is a new sitting rather than a
+     * continuation of the one that was being read about.
      */
     private fun sawInspecting(nowMillis: Long): GameWatch {
         val running = runningPackage

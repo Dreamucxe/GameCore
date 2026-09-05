@@ -8,9 +8,14 @@ import com.gamecore.core.common.AccessLevel
  * [explanation] is not marketing copy and it is not optional — §17 requires that every optimization
  * explain itself, and the honest explanation for most of these is "it writes a setting you could
  * write yourself in Settings, from one place, and puts it back afterwards". Nothing in this list
- * frees memory, kills background processes, or raises a clock, because Android does not let an app
- * do any of those and the apps that claim to are writing settings and taking credit for the
- * scheduler.
+ * frees memory or raises a clock, because Android does not let an app do either and the apps that
+ * claim to are writing settings and taking credit for the scheduler.
+ *
+ * Closing background applications is deliberately *not* an action here. Every entry in this enum is
+ * a device setting with a restore point, applied on launch and put back on exit; a closed app has no
+ * restore point, cannot be reopened by GameCore, and is the user's own to decide about — so it lives
+ * behind its own per-profile switch ([GameProfile.freeRamOnLaunch]) and reports itself separately,
+ * rather than arriving as one item in a profile's applied list.
  *
  * [requiredAccess] is the *usual* requirement, not a verdict. The capability checker asks the device
  * rather than trusting this field: `screen_brightness` is writable with WRITE_SETTINGS on stock
@@ -279,21 +284,65 @@ data class ProfileApplication(
 }
 
 /**
+ * Who asked for a change, which settles what happens when the user has since moved the same setting
+ * by hand.
+ *
+ * The distinction is not decoration. A profile re-applying Do Not Disturb over the user's manual
+ * "off" is a bug; the Performance screen refusing to pin a refresh rate because the user changed it
+ * in Android Settings first would be a worse one. Both go through the same call, so the caller has to
+ * say which it is.
+ */
+enum class ChangeOrigin {
+
+    /** The user asked for this, now. It is made whatever state the device is already in. */
+    USER,
+
+    /**
+     * GameCore acting on a standing preference by itself — a profile applied because a game came to
+     * the foreground.
+     *
+     * A key the user has changed since GameCore last wrote it is left alone, because the user's
+     * change is the more recent instruction of the two.
+     */
+    AUTOMATIC,
+}
+
+/**
  * What came of putting the device back.
  *
  * [outstanding] is the field that matters. A restore that could not finish leaves rows in the restore
  * table, and this is what the dashboard reads to say "3 settings still changed" with a button to
  * retry — the alternative being a device left pinned to 120 Hz by an app that has forgotten it did
  * that.
+ *
+ * [keptByUser] is neither of the other two on purpose. A setting the user took over during the
+ * session is not restored — writing over it is the bug [com.gamecore.domain.optimization.WriteLedger]
+ * exists to stop — but counting it as [restored] would claim GameCore put something back that it
+ * deliberately left, and counting it as [outstanding] would nag the user to retry a write that fights
+ * them.
  */
 data class RestoreReport(
     val restored: Int,
     val outstanding: Int,
     val failures: List<String>,
+    val keptByUser: Int = 0,
 ) {
     val isComplete: Boolean get() = outstanding == 0
 
-    val didNothing: Boolean get() = restored == 0 && outstanding == 0
+    val didNothing: Boolean get() = restored == 0 && outstanding == 0 && keptByUser == 0
+
+    /**
+     * The sentence for the settings the user took over, or null when they took none.
+     *
+     * Here rather than in each screen because all three places that report a restore say "put back"
+     * or "restored" in their own voice and then need this same clause after it.
+     */
+    val keptNote: String?
+        get() = when (keptByUser) {
+            0 -> null
+            1 -> "1 setting was left as you set it."
+            else -> "$keptByUser settings were left as you set them."
+        }
 
     companion object {
         val NOTHING_TO_DO = RestoreReport(restored = 0, outstanding = 0, failures = emptyList())

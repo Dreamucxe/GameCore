@@ -6,16 +6,23 @@ import com.gamecore.core.common.AccessLevel
 import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.model.ShizukuState
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import rikka.shizuku.Shizuku
 import java.io.ByteArrayOutputStream
+import java.io.Closeable
 import java.io.InputStream
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -62,6 +69,10 @@ class ShizukuShell @Inject constructor(
      * profile being applied fires several settings writes at once, and letting six
      * `settings put` processes exist simultaneously on a low-memory device is a
      * needless risk for operations that complete in milliseconds anyway.
+     *
+     * The cost of serialising is that one command that does not finish is every
+     * command's problem, which is why [execute] bounds both the command and the wait
+     * for this lock rather than only the command.
      */
     private val executionLock = Mutex()
 
@@ -200,12 +211,14 @@ class ShizukuShell @Inject constructor(
     }
 
     /**
-     * Runs one enumerated command.
+     * Runs one enumerated command, and returns inside [timeoutMillis] whatever the
+     * device does with it.
      *
-     * Both pipes are drained before waiting on the process. A `dumpsys display` on a
-     * device with several displays fills the pipe buffer, and a `waitFor` that has
-     * not been read from deadlocks against a full buffer — the classic mistake with
-     * this API, and one that would hang the sampler thread rather than fail.
+     * Two independent bounds, and the second one is not decoration. [drainWithin] is
+     * where the first one lives and why it has to exist at all; this adds the wait for
+     * [executionLock], so a command that somehow still fails to let go costs the app one
+     * honest failure per caller rather than every elevated reading it has for the life
+     * of the process.
      */
     override suspend fun execute(command: ShellCommand, timeoutMillis: Long): ShellResult =
         withContext(io) {
@@ -215,33 +228,49 @@ class ShizukuShell @Inject constructor(
                     accessLevel,
                 )
             }
-            executionLock.withLock { runProcess(command, timeoutMillis) }
+            withTimeoutOrNull(QUEUE_TIMEOUT_MILLIS) {
+                executionLock.withLock { runProcess(command, timeoutMillis) }
+            } ?: ShellResult.failure(
+                "The elevated shell did not free up, so this command was not run.",
+                accessLevel,
+            )
         }
 
-    private fun runProcess(command: ShellCommand, timeoutMillis: Long): ShellResult {
+    /**
+     * Spawns the process, drains it inside its budget, and reports what it did.
+     *
+     * The drain itself is [drainWithin], which is where the bound lives and the one
+     * part of this that can be checked without a device. What is left here is the
+     * result assembly and the second half of the budget: a wait that gets whatever
+     * the drain did not spend, rather than a fresh copy of the whole allowance.
+     */
+    private suspend fun runProcess(command: ShellCommand, timeoutMillis: Long): ShellResult {
         val started = System.currentTimeMillis()
-        var process: Process? = null
+        val process = newProcess(command.argv.toTypedArray())
+            ?: return ShellResult.failure(
+                "Shizuku could not start a process on this device.",
+                accessLevel,
+            )
+
         return try {
-            process = newProcess(command.argv.toTypedArray())
-                ?: return ShellResult.failure(
-                    "Shizuku could not start a process on this device.",
-                    accessLevel,
-                )
+            val drained = process.drainWithin(timeoutMillis, io)
+                ?: return ShellResult.timeout(accessLevel, timeoutMillis)
 
-            val out = process.inputStream.readAllTextSafely(MAX_OUTPUT_BYTES)
-            val err = process.errorStream.readAllTextSafely(MAX_ERROR_BYTES)
-
-            if (!process.waitForTimeout(timeoutMillis)) {
-                process.destroy()
+            val remaining = timeoutMillis - (System.currentTimeMillis() - started)
+            if (!process.waitForTimeout(remaining.coerceAtLeast(0))) {
                 return ShellResult.timeout(accessLevel, timeoutMillis)
             }
             ShellResult(
                 exitCode = process.exitValue(),
-                stdout = out,
-                stderr = err,
+                stdout = drained.stdout,
+                stderr = drained.stderr,
                 accessLevel = accessLevel,
                 durationMillis = System.currentTimeMillis() - started,
             )
+        } catch (cancelled: CancellationException) {
+            // A cancelled read is not a failed command, and reporting it as one would have a
+            // screen that closed mid-sample print a device error it invented.
+            throw cancelled
         } catch (error: Throwable) {
             ShellResult(
                 exitCode = -1,
@@ -251,10 +280,7 @@ class ShizukuShell @Inject constructor(
                 durationMillis = System.currentTimeMillis() - started,
             )
         } finally {
-            try {
-                process?.destroy()
-            } catch (ignored: Throwable) {
-            }
+            process.destroyQuietly()
         }
     }
 
@@ -286,12 +312,76 @@ class ShizukuShell @Inject constructor(
         )
 
         /**
-         * Caps on captured output. `dumpsys SurfaceFlinger --latency` is small, but
-         * `dumpsys display` on a foldable is not, and an unbounded read on a 4 GB
-         * phone that is currently running a game is a real OOM risk.
+         * How long a command will wait for the one in front of it before giving up.
+         *
+         * Longer than [ElevatedShell.LONG_TIMEOUT], deliberately: a genuinely slow
+         * `dumpsys` ahead of you in the queue is not a stuck shell, and refusing a
+         * command because another one was slow would be a fault invented by the fix.
+         * Short enough, equally deliberately, that a shell nothing can unstick shows
+         * up as a sentence on the screen instead of a spinner that never resolves.
          */
-        private const val MAX_OUTPUT_BYTES = 2 * 1024 * 1024
-        private const val MAX_ERROR_BYTES = 32 * 1024
+        private const val QUEUE_TIMEOUT_MILLIS = 20_000L
+    }
+}
+
+/** What a process said for itself, once both of its pipes have been read to the end. */
+internal data class Drained(val stdout: String, val stderr: String)
+
+/**
+ * Reads both of a process's pipes to the end, or gives up and returns null.
+ *
+ * Split out of [ShizukuShell] because this is the decision the fix rests on and it is
+ * the one part of the shell that can be checked on a machine with no Shizuku: given a
+ * process that stops talking without closing its pipes, does the read end?
+ *
+ * Both pipes are drained before anyone waits on the process, and that ordering is not
+ * optional — a `dumpsys display` on a device with several displays fills the pipe
+ * buffer, and a `waitFor` that has not been read from deadlocks against a full buffer.
+ * It has its own failure mode, though, and it is the one that produced the bug this
+ * function exists for: a read on a pipe whose writer is alive and silent blocks until
+ * that writer closes it. A timeout applied *after* the drain cannot interrupt that, and
+ * neither can cancellation, because a native read is not a suspension point. A remote
+ * process wedged behind a busy `system_server` therefore used to hold the shell's
+ * execution lock for the life of the app's process, and every elevated read after it
+ * queued behind it forever — which is why the screen resolution section could sit on
+ * "Measuring…" until GameCore was force-stopped.
+ *
+ * So the drain is watched, and the watchdog closes the descriptors rather than
+ * cancelling anything. Android signals the threads blocked on a file descriptor when it
+ * is closed, so the read fails, [readAllTextSafely] returns the empty string it returns
+ * for every other unreadable stream, and this returns null inside [timeoutMillis] with
+ * the lock released. `destroy` follows the close rather than replacing it: killing the
+ * remote process is the tidy end and the one that stops a stray `dumpsys` costing CPU,
+ * but it is a binder round trip, and a binder that has stopped answering is one of the
+ * ways to arrive here.
+ *
+ * [watchdogDispatcher] has to be one with a thread to spare — the drain blocks the
+ * caller's, so a watchdog sharing it would not run until the thing it is watching had
+ * already finished.
+ */
+internal suspend fun Process.drainWithin(
+    timeoutMillis: Long,
+    watchdogDispatcher: CoroutineDispatcher,
+): Drained? {
+    // Held as locals so the watchdog closes the same two objects the drain is reading.
+    val out = inputStream
+    val err = errorStream
+    val abandoned = AtomicBoolean(false)
+
+    return coroutineScope {
+        val watchdog = launch(watchdogDispatcher) {
+            delay(timeoutMillis)
+            abandoned.set(true)
+            out.closeQuietly()
+            err.closeQuietly()
+            destroyQuietly()
+        }
+
+        val stdout = out.readAllTextSafely(MAX_OUTPUT_BYTES)
+        val stderr = err.readAllTextSafely(MAX_ERROR_BYTES)
+        watchdog.cancel()
+
+        if (abandoned.get()) null else Drained(stdout, stderr)
     }
 }
 
@@ -326,6 +416,34 @@ internal fun InputStream.readAllTextSafely(maxBytes: Int): String = try {
 }
 
 /**
+ * Closes a descriptor, and in doing so lets go of any thread blocked reading it.
+ *
+ * The reason this exists rather than an inline `try`/`catch`: the close is not
+ * housekeeping here, it is the mechanism. Android signals the threads blocked on a
+ * file descriptor when that descriptor is closed, which is the only thing that ends
+ * an uninterruptible read on a pipe whose writer has gone quiet without closing it.
+ * The exception it raises on the reading side is caught there — see
+ * [readAllTextSafely] — and read as "nothing further was said", which is true.
+ */
+internal fun Closeable.closeQuietly() {
+    try {
+        close()
+    } catch (ignored: Throwable) {
+    }
+}
+
+/**
+ * Kills the remote process if the binder is still listening, and says nothing if it
+ * is not. Called on every path, including the ones where it has already exited.
+ */
+internal fun Process.destroyQuietly() {
+    try {
+        destroy()
+    } catch (ignored: Throwable) {
+    }
+}
+
+/**
  * `Process.waitFor(timeout, unit)` exists from API 26, which is this app's minSdk,
  * but the `Process` Shizuku returns is a remote proxy whose implementation need not
  * honour it. Polling `exitValue()` as a fallback keeps a hung command from blocking
@@ -354,3 +472,11 @@ internal fun Process.waitForTimeout(timeoutMillis: Long): Boolean {
 }
 
 private const val POLL_INTERVAL_MILLIS = 25L
+
+/**
+ * Caps on captured output. `dumpsys SurfaceFlinger --latency` is small, but `dumpsys
+ * display` on a foldable is not, and an unbounded read on a 4 GB phone that is
+ * currently running a game is a real OOM risk.
+ */
+private const val MAX_OUTPUT_BYTES = 2 * 1024 * 1024
+private const val MAX_ERROR_BYTES = 32 * 1024

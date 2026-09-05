@@ -14,6 +14,7 @@ import com.gamecore.core.model.GammaMode
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HudWidget
+import com.gamecore.core.model.LatencyLog
 import com.gamecore.core.model.PerformanceMode
 import com.gamecore.core.model.ScreenOrientationLock
 import com.gamecore.core.model.SessionSample
@@ -58,6 +59,7 @@ internal object Mappers {
         performanceMode = profile.performanceMode.name,
         useShizukuOptimizations = profile.useShizukuOptimizations,
         trackSession = profile.trackSession,
+        freeRamOnLaunch = profile.freeRamOnLaunch,
         updatedAtMillis = nowMillis,
     )
 
@@ -89,6 +91,7 @@ internal object Mappers {
             ?: PerformanceMode.BALANCED,
         useShizukuOptimizations = entity.useShizukuOptimizations,
         trackSession = entity.trackSession,
+        freeRamOnLaunch = entity.freeRamOnLaunch,
     )
 
     // ------------------------------------------------------------------------ hud
@@ -271,6 +274,15 @@ internal object Mappers {
             ?.let { TextSanitizer.sanitizeName(it, ColorPreset.MAX_NAME_LENGTH) }
             ?.takeIf { it.isNotBlank() },
         colorValues = session.colorCorrection?.let(ColorCodec::encode),
+        // All six or none. `latencyProbes` is the presence flag on the way back in, so writing a
+        // failure count beside a NULL probe count would produce a row that reads as "no log kept"
+        // and quietly discards the rest of it.
+        latencyProbes = session.latencyLog?.completedProbes,
+        latencyFailed = session.latencyLog?.failedProbes,
+        latencySpikes = session.latencyLog?.spikes,
+        latencyWorst = session.latencyLog?.worstMillis,
+        latencyJitter = session.latencyLog?.jitterMillis,
+        latencyFailedRun = session.latencyLog?.longestFailureRun,
     )
 
     fun toModel(entity: SessionEntity): GameSession = GameSession(
@@ -299,6 +311,20 @@ internal object Mappers {
         // caller. A report that renders one session without its colour line is a small loss;
         // one that throws on the way to the list is not.
         colorCorrection = ColorCodec.decode(entity.colorValues),
+        // A log exists iff the probe count does. The three counts fall back to zero rather than
+        // failing the read: a row hand-edited into a half-log should lose the counts it does not
+        // have, not the session. `worst` and `jitter` stay nullable inside a present log, because
+        // "no probe completed" and "fewer than two completed" are both real states of a real log.
+        latencyLog = entity.latencyProbes?.let { probes ->
+            LatencyLog(
+                completedProbes = probes,
+                failedProbes = entity.latencyFailed ?: 0,
+                spikes = entity.latencySpikes ?: 0,
+                worstMillis = entity.latencyWorst,
+                jitterMillis = entity.latencyJitter,
+                longestFailureRun = entity.latencyFailedRun ?: 0,
+            )
+        },
     )
 
     fun toEntity(sample: SessionSample): SessionSampleEntity = SessionSampleEntity(

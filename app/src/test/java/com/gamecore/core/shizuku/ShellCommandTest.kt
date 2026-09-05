@@ -31,6 +31,7 @@ class ShellCommandTest {
         add(ShellCommand.DisplayDump)
         add(ShellCommand.SurfaceFlingerLatency)
         add(ShellCommand.TopActivity)
+        add(ShellCommand.RunningProcesses)
         WritableSetting.entries.forEach { add(ShellCommand.getSetting(it)) }
         WritableSetting.entries.forEach { add(ShellCommand.putSetting(it, it.restoreDefault)!!) }
         ReadableProperty.entries.forEach { add(ShellCommand.getProp(it)) }
@@ -44,11 +45,15 @@ class ShellCommandTest {
         add(ShellCommand.GetDisplaySize)
         add(ShellCommand.setDisplaySize(DisplaySize(1080, 1440))!!)
         add(ShellCommand.ResetDisplaySize)
+        add(ShellCommand.killBackgroundApp("com.example.background")!!)
+        add(ShellCommand.clearSharedCache("com.example.game", 0)!!)
     }
 
     @Test
-    fun `the only programs GameCore can invoke are these eight`() {
-        val allowed = setOf("id", "cat", "dumpsys", "settings", "getprop", "pm", "appops", "wm")
+    fun `the only programs GameCore can invoke are these ten`() {
+        val allowed = setOf(
+            "id", "cat", "dumpsys", "settings", "getprop", "pm", "appops", "wm", "am", "rm",
+        )
         everyCommand().forEach { command ->
             assertTrue(
                 "unexpected program: ${command.argv}",
@@ -58,15 +63,21 @@ class ShellCommandTest {
     }
 
     @Test
-    fun `nothing here can kill an app, lie to the thermal service or rewrite a game`() {
-        // §24's absences, asserted rather than trusted to review. `am`, `cmd` and `su` are not
-        // reachable at all, so neither is force-stop, thermal override or a compile of another app.
-        // `wm` is reachable, so its own dangerous subcommands are named here too: the only one this
-        // app can reach is `size`.
+    fun `nothing here can force-stop an app, wipe app data or rewrite a game`() {
+        // §24's absences, asserted rather than trusted to review. `cmd` and `su` are not reachable at
+        // all, so neither is a thermal override nor a compile of another application. The three programs
+        // with authority over anything outside GameCore — `wm`, `am` and `rm` — have their own dangerous
+        // subcommands named here as well, because a reachable program is not a reachable subcommand:
+        // `wm` can reach only `size`, `am` only `kill`, and `rm` only one cache directory.
+        //
+        // `clear` and `trim-caches` are on this list because of the cache feature, not despite it. The
+        // first takes the user's saves with it and the second is the whole device at once; the feature
+        // deletes one directory belonging to one package the user tapped, and neither shortcut becomes
+        // admissible because a screen now exists that would have a use for them.
         val forbidden = setOf(
-            "am", "cmd", "su", "sh", "rm", "mount", "setprop", "reboot", "kill", "killall",
-            "force-stop", "trim-caches", "override-status", "compile", "install", "uninstall",
-            "density", "dismiss-keyguard", "overscan",
+            "cmd", "su", "sh", "mount", "setprop", "reboot", "killall", "force-stop",
+            "stop-app", "trim-caches", "clear", "broadcast", "override-status", "compile", "install",
+            "uninstall", "density", "dismiss-keyguard", "overscan",
         )
         everyCommand().forEach { command ->
             command.argv.forEach { token ->
@@ -76,16 +87,84 @@ class ShellCommandTest {
     }
 
     @Test
+    fun `the one command that closes an app reaches only background processes`() {
+        // `am` and `kill` came off the list above when the launch-time reclaim was built, so the bound
+        // that made them admissible is asserted here in their place: one `am` command exists, `kill` is
+        // the only subcommand it names, and it is aimed at one user rather than every user on the
+        // device. `force-stop` remains forbidden above.
+        val am = everyCommand().filter { it.argv.first() == "am" }
+        assertEquals(1, am.size)
+        assertEquals(
+            listOf("am", "kill", "--user", "current", "com.example.background"),
+            am.single().argv,
+        )
+        assertEquals(ShellCommand.Effect.CHANGES_SETTING, am.single().effect)
+    }
+
+    @Test
+    fun `a cache clear is one directory in shared storage, and the path is not assembled by a shell`() {
+        // `rm` came off the forbidden list when this feature was built, so the bound that made it
+        // admissible is asserted in its place. Three separate arguments reaching exec directly: there is
+        // no shell in the pipeline, so the path is one token whatever it contains — no glob, no word
+        // split, no `&&`. The directory is the one Android documents as disposable and requires the
+        // owning app to treat as such.
+        val clear = ShellCommand.clearSharedCache("com.example.game", 0)!!
+        assertEquals(
+            listOf("rm", "-rf", "/storage/emulated/0/Android/data/com.example.game/cache"),
+            clear.argv,
+        )
+        assertEquals(ShellCommand.Effect.CHANGES_SETTING, clear.effect)
+        assertFalse(clear.isReadOnly)
+        assertEquals("com.example.game", clear.packageName)
+
+        // The two directories beside it hold a download the user paid for with their data allowance and
+        // whatever the game chose to keep. Neither is named by any command in this file.
+        val path = clear.argv.last()
+        assertTrue(path.endsWith("/cache"))
+        assertFalse(path.contains("/files"))
+        assertFalse(path.contains("/obb"))
+
+        // The screen names the same directory when it explains itself, and gets it from here rather
+        // than from a second copy of the string.
+        assertEquals(path, ShellCommand.ClearSharedCache.sharedCachePath("com.example.game", 0))
+    }
+
+    @Test
+    fun `a cache clear is refused unless the package and the user are both plausible`() {
+        // The package name arrives from a stored profile or a package-manager query and is validated by
+        // the same grammar as everywhere else, which is what makes traversal unreachable: a name that
+        // could climb out of the directory is not a name that reaches the argv.
+        assertNull(ShellCommand.clearSharedCache("../../../data/data", 0))
+        assertNull(ShellCommand.clearSharedCache("com.example.game/../../other", 0))
+        assertNull(ShellCommand.clearSharedCache("com.example.game;rm -rf /", 0))
+        assertNull(ShellCommand.clearSharedCache("com.example.game cache", 0))
+        assertNull(ShellCommand.clearSharedCache("nodots", 0))
+        assertNull(ShellCommand.clearSharedCache("", 0))
+
+        // The user id is read from the app's own uid rather than assumed to be zero, so the range is
+        // checked too: a negative id would put `..` in the path by arithmetic rather than by string.
+        assertNull(ShellCommand.clearSharedCache("com.example.game", -1))
+        assertNull(ShellCommand.clearSharedCache("com.example.game", 1000))
+        assertNotNull(ShellCommand.clearSharedCache("com.example.game", 999))
+        assertEquals(
+            "/storage/emulated/10/Android/data/com.example.game/cache",
+            ShellCommand.clearSharedCache("com.example.game", 10)!!.argv.last(),
+        )
+    }
+
+    @Test
     fun `a read never changes anything and a write always says that it does`() {
         val readOnly = everyCommand().filter { it.isReadOnly }
         val writes = everyCommand().filterNot { it.isReadOnly }
         readOnly.forEach { assertEquals(ShellCommand.Effect.READ_ONLY, it.effect) }
         readOnly.forEach { assertFalse(it.argv.contains("put")) }
-        // Nineteen settings keys, three self-grants, two self-appops and the two halves of a display
-        // size override. Nothing else writes.
+        // Nineteen settings keys, three self-grants, two self-appops, the two halves of a display size
+        // override, the one close and the one cache delete. Nothing else writes.
         assertEquals(19, WritableSetting.entries.size)
-        assertEquals(26, writes.size)
-        writes.forEach { assertTrue(it.argv.first() in setOf("settings", "pm", "appops", "wm")) }
+        assertEquals(28, writes.size)
+        writes.forEach {
+            assertTrue(it.argv.first() in setOf("settings", "pm", "appops", "wm", "am", "rm"))
+        }
     }
 
     @Test
@@ -250,6 +329,25 @@ class ShellCommandTest {
     }
 
     @Test
+    fun `a package name from an allowlist or a process dump is validated the same way`() {
+        // The close takes its argument from a parsed dump and from a list the user typed, which is one
+        // hop further from GameCore's own code than the profile the frame-timing read uses. A rejected
+        // name yields no command, so an unparseable line in a dump costs that app nothing.
+        assertNull(ShellCommand.killBackgroundApp(""))
+        assertNull(ShellCommand.killBackgroundApp("   "))
+        assertNull(ShellCommand.killBackgroundApp("nodots"))
+        assertNull(ShellCommand.killBackgroundApp("com.example.app:remote"))
+        assertNull(ShellCommand.killBackgroundApp("com.example.app; id"))
+        assertNull(ShellCommand.killBackgroundApp("com.example.app -f"))
+        assertNull(ShellCommand.killBackgroundApp("--user"))
+        assertNull(ShellCommand.killBackgroundApp("../../etc/passwd"))
+        assertEquals(
+            "com.example.app",
+            ShellCommand.killBackgroundApp("com.example.app")?.packageName,
+        )
+    }
+
+    @Test
     fun `the properties GameCore reads identify the chipset and nothing else`() {
         assertEquals(listOf("getprop", "ro.board.platform"), ShellCommand.getProp(ReadableProperty.BOARD_PLATFORM).argv)
         assertEquals(listOf("getprop", "ro.hardware"), ShellCommand.getProp(ReadableProperty.HARDWARE).argv)
@@ -270,6 +368,8 @@ class ShellCommandTest {
             ShellCommand.SurfaceFlingerLatency.argv,
         )
         assertEquals(listOf("dumpsys", "activity", "activities"), ShellCommand.TopActivity.argv)
+        assertEquals(listOf("dumpsys", "activity", "processes"), ShellCommand.RunningProcesses.argv)
+        assertTrue(ShellCommand.RunningProcesses.isReadOnly)
         assertEquals(listOf("wm", "size"), ShellCommand.GetDisplaySize.argv)
     }
 

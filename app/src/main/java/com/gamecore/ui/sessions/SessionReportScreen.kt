@@ -2,21 +2,29 @@ package com.gamecore.ui.sessions
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -34,6 +42,7 @@ import com.gamecore.ui.components.SectionCard
 import com.gamecore.ui.components.StatEntry
 import com.gamecore.ui.components.StatStrip
 import com.gamecore.ui.components.Tone
+import com.gamecore.ui.components.startIntentSafely
 
 /**
  * §21's report on one session: the figures, the graphs, and what they rest on.
@@ -50,10 +59,19 @@ fun SessionReportScreen(
     viewModel: SessionReportViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     // Deleting the session is done from here, and there is nothing left to show afterwards.
     LaunchedEffect(state.isDeleted) {
         if (state.isDeleted) onBack()
+    }
+
+    // Share is one tap: the card is drawn and then handed straight to the sheet. A PNG left in the app's
+    // own storage that the user never asked to keep is not a feature, so nothing here shows it first.
+    LaunchedEffect(state.cardReady) {
+        if (!state.cardReady) return@LaunchedEffect
+        val intent = viewModel.cardIntent()
+        viewModel.cardShared(shared = intent != null && context.startIntentSafely(intent))
     }
 
     val padded = Modifier.padding(horizontal = ScreenPadding)
@@ -69,7 +87,27 @@ fun SessionReportScreen(
                 subtitle = state.subtitle.ifEmpty { null },
                 onBack = onBack,
                 action = if (!state.isMissing && !state.isLoading) {
-                    { TextButton(onClick = viewModel::askDelete) { Text("Delete") } }
+                    {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = viewModel::shareCard,
+                                enabled = !state.isRenderingCard,
+                            ) {
+                                if (state.isRenderingCard) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp,
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Filled.Share,
+                                        contentDescription = "Share a card for this session",
+                                    )
+                                }
+                            }
+                            TextButton(onClick = viewModel::askDelete) { Text("Delete") }
+                        }
+                    }
                 } else {
                     null
                 },
@@ -128,6 +166,7 @@ fun SessionReportScreen(
                     secondaryLabel = graph.secondaryLabel,
                     format = { "${it.toInt()}${graph.unit}" },
                     emptyMessage = graph.emptyMessage,
+                    note = graph.note,
                 )
             }
 

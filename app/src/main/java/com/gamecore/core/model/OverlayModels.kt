@@ -208,6 +208,27 @@ data class OverlayRequest(
 ) {
     val anythingVisible: Boolean get() = button || pill || crosshair || hud
 
+    /**
+     * Switches the crosshair on or off, and settles which preset it draws.
+     *
+     * Three sources for the id, in the order they win: the one the caller named, the one already in this
+     * request — so the crosshair editor can toggle its own preview without restating its id — and
+     * [remembered], the preset the user last picked. That third one is what [crosshairPresetId]'s "the one
+     * the user last picked" means in practice, and it is why this is a function rather than a `copy`: a
+     * request assembled without it asks for *a* crosshair rather than *the user's* crosshair, and the
+     * renderer cannot tell those two apart. It draws the lowest-numbered saved preset for both, which is
+     * every design looking like the first one in the list.
+     *
+     * Null survives only when there has never been a pick at all, which is the single case the renderer's
+     * own fallback is there for.
+     */
+    fun withCrosshair(visible: Boolean, presetId: Long?, remembered: Long?): OverlayRequest =
+        copy(crosshair = visible, crosshairPresetId = presetId ?: crosshairPresetId ?: remembered)
+
+    /** The HUD's equivalent, for the same reason: a layout the user arranged is not "any layout". */
+    fun withHud(visible: Boolean, layoutId: Long?, remembered: Long?): OverlayRequest =
+        copy(hud = visible, hudLayoutId = layoutId ?: hudLayoutId ?: remembered)
+
     companion object {
         val NONE = OverlayRequest()
     }

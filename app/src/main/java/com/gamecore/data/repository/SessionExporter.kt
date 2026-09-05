@@ -114,6 +114,16 @@ class SessionExporter @Inject constructor(
             oneDecimal(session.averageRefreshRate),
             oneDecimal(session.averageFrameRate),
             session.averageLatencyMillis?.toString().orEmpty(),
+            // Blank rather than 0 for a session with no log, for the reason every other absence here is
+            // blank: a zero in `latency_probes_failed` is a claim that nothing failed, and a session
+            // recorded before the log existed makes no such claim.
+            session.latencyLog?.completedProbes?.toString().orEmpty(),
+            session.latencyLog?.failedProbes?.toString().orEmpty(),
+            session.latencyLog?.spikes?.toString().orEmpty(),
+            session.latencyLog?.worstMillis?.toString().orEmpty(),
+            session.latencyLog?.jitterMillis?.toString().orEmpty(),
+            session.latencyLog?.longestFailureRun?.toString().orEmpty(),
+            session.latencyLog?.verdict?.name.orEmpty(),
             if (session.profileApplied) "yes" else "no",
             session.sampleCount.toString(),
         ).joinToString(separator = ",") { escape(it) }
@@ -163,7 +173,9 @@ class SessionExporter @Inject constructor(
                 "battery_start_percent,battery_end_percent,battery_points_lost,battery_percent_per_hour," +
                 "was_charging,cpu_average_percent,cpu_peak_percent,memory_average_percent," +
                 "memory_peak_percent,temperature_average_celsius,temperature_peak_celsius," +
-                "refresh_rate_average_hz,frame_rate_average_fps,latency_average_ms,profile_applied," +
+                "refresh_rate_average_hz,frame_rate_average_fps,latency_average_ms," +
+                "latency_probes_completed,latency_probes_failed,latency_spikes,latency_worst_ms," +
+                "latency_jitter_ms,latency_longest_failure_run,connection_verdict,profile_applied," +
                 "sample_count"
     }
 }

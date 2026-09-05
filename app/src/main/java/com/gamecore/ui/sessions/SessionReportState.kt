@@ -31,6 +31,17 @@ data class SessionReportUiState(
     val pendingDelete: Boolean = false,
     val confirmBeforeDelete: Boolean = true,
     val isDeleted: Boolean = false,
+    /** True while the PNG is being drawn, so the share action cannot be started twice. */
+    val isRenderingCard: Boolean = false,
+    /**
+     * Set when a card has been written and is waiting to be handed to the share sheet.
+     *
+     * A one-shot, consumed by [SessionReportViewModel.cardShared] the moment the sheet is launched, in the
+     * same way [isDeleted] is consumed by navigating. A flag rather than the `content://` URI itself: the
+     * ViewModel keeps that and builds the intent, so a read grant never reaches a composable — the same
+     * rule the captures list follows.
+     */
+    val cardReady: Boolean = false,
     val message: String? = null,
 ) {
     val hasGraphs: Boolean get() = graphs.any { it.isPlottable }
@@ -53,6 +64,8 @@ data class SessionGraph(
     val secondaryLabel: String? = null,
     /** Said instead of drawing, when there is nothing honest to plot. */
     val emptyMessage: String = "Not enough samples to draw a line.",
+    /** A caveat printed under the plot, for a series whose points are not one reading each. */
+    val note: String? = null,
     val tone: Tone = Tone.Accent,
 ) {
     val isPlottable: Boolean get() = points.size >= MIN_POINTS

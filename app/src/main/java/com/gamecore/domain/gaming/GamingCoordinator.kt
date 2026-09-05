@@ -1,7 +1,9 @@
 package com.gamecore.domain.gaming
 
+import com.gamecore.core.model.ChangeOrigin
 import com.gamecore.core.model.ColorPreset
 import com.gamecore.core.model.GameProfile
+import com.gamecore.core.model.MemoryReclaimReport
 import com.gamecore.core.model.OptimizationAction
 import com.gamecore.core.model.ProfileApplication
 import com.gamecore.core.model.RestoreReport
@@ -10,6 +12,7 @@ import com.gamecore.core.system.InstalledAppLister
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.ColorPresetRepository
 import com.gamecore.data.repository.GameProfileRepository
+import com.gamecore.domain.memory.BackgroundAppReclaimer
 import com.gamecore.domain.monitoring.PerformanceMonitor
 import com.gamecore.domain.overlay.OverlayController
 import kotlinx.coroutines.CoroutineScope
@@ -42,6 +45,16 @@ data class GamingState(
     val application: ProfileApplication? = null,
     /** The outcome of the last restore, kept so an incomplete one can be reported and retried. */
     val lastRestore: RestoreReport? = null,
+    /**
+     * What the launch's memory pass did, or null when the profile did not ask for one.
+     *
+     * Its own field rather than part of [application], because it is not part of applying a profile:
+     * nothing here is written to the device, nothing is restored on exit, and the two exhaustive
+     * `when`s over [com.gamecore.core.model.OptimizationAction] should not grow a case for an action
+     * that has no restore point. It is a reading about other apps, taken once, shown once, and not
+     * stored anywhere.
+     */
+    val reclaim: MemoryReclaimReport? = null,
 ) {
     val isTracking: Boolean get() = playing != null
 
@@ -67,6 +80,9 @@ data class GamingState(
  *  - **One sampling job, cancelled and joined.** [SessionRecorder] buffers samples and writes them in
  *    batches under a lock; a sampler still running while the session is being closed could append to
  *    a session that has already been aggregated. `cancelAndJoin` before `end` makes that impossible.
+ *  - **Free memory last, if at all.** [BackgroundAppReclaimer] is the one step here that acts on the
+ *    user's *other* apps, it is off unless a profile asks for it, and it is the slowest — so it runs
+ *    once everything the user is waiting for is already done.
  *
  * Nothing here decides *whether* to act — a profile that is disabled, a user who has switched auto-
  * apply or session tracking off, and a game with no profile at all are all filtered before anything
@@ -81,6 +97,7 @@ class GamingCoordinator @Inject constructor(
     private val monitor: PerformanceMonitor,
     private val apps: InstalledAppLister,
     private val overlays: OverlayController,
+    private val reclaimer: BackgroundAppReclaimer,
     private val colorPresets: ColorPresetRepository,
     private val preferences: SecurePreferenceStore,
 ) {
@@ -131,6 +148,18 @@ class GamingCoordinator @Inject constructor(
     }
 
     /**
+     * Drops the last launch's memory summary once the user has read it.
+     *
+     * Cleared here rather than remembered as "dismissed" by whatever showed it. The report belongs to a
+     * launch, and a flag on a screen would either outlive that launch — swallowing the next game's
+     * summary — or be lost on a configuration change and bring the banner back. Nothing is undone by
+     * this: the apps stay closed, the sentence about them stops being on screen.
+     */
+    fun dismissReclaim() {
+        state.value = state.value.copy(reclaim = null)
+    }
+
+    /**
      * Closes an open session because the *host* is going away, not because the game stopped.
      *
      * [stopCurrent] cannot do this. It routes through the detector so the stop becomes one of
@@ -163,7 +192,7 @@ class GamingCoordinator @Inject constructor(
     // --------------------------------------------------------------------------- a game starts
 
     /**
-     * Applies the profile, then starts recording, and only as far as the settings allow.
+     * Applies the profile, starts recording, frees memory, and only as far as the settings allow.
      *
      * The profile is re-read rather than trusted from the detector's tracked set: the set is observed
      * asynchronously, so a profile disabled or deleted in the second between the poll and this call
@@ -190,7 +219,13 @@ class GamingCoordinator @Inject constructor(
         // once the loading screen is over reads as a coincidence rather than as a feature.
         overlays.applyProfile(profile, label)
 
-        val application = if (settings.autoApplyProfiles) applier.apply(profile, event.atMillis) else null
+        val application = if (settings.autoApplyProfiles) {
+            // Automatic, so a setting the user changed by hand mid-session is left as they left it
+            // rather than being written over by the profile every time the game comes back.
+            applier.apply(profile, event.atMillis, ChangeOrigin.AUTOMATIC)
+        } else {
+            null
+        }
         state.value = state.value.copy(application = application)
 
         if (settings.trackSessions && profile.trackSession) {
@@ -205,6 +240,34 @@ class GamingCoordinator @Inject constructor(
                 colour = appliedColour(profile, application),
                 scope = scope,
             )
+        }
+
+        if (profile.freeRamOnLaunch) freeMemoryFor(event)
+    }
+
+    /**
+     * Closes background apps for a profile that asked for it, last of everything this launch does.
+     *
+     * Last on purpose. The pass is two to four seconds of shell round trips — a dump, one `am kill`
+     * per app, a settle, then a second dump to check — and every step above it is something the user
+     * is waiting for: the overlay, the settings that make the game run the way they configured it,
+     * and the session row's start. Running it first would buy the game its memory a couple of seconds
+     * sooner and delay all three, which is the wrong trade for a switch that is off by default.
+     *
+     * The recording is deliberately already running by the time this starts, so the samples taken
+     * across the pass are in the session like any others. That is the honest record: the memory line
+     * of a session that began with a reclaim should show what actually happened to memory, not skip
+     * the interval GameCore was responsible for.
+     *
+     * The report is dropped rather than published if the game is no longer the one being tracked.
+     * [shutdown] runs outside the detector's loop — a service being destroyed while this pass is in
+     * flight — and a banner about the game the user just left, attached to whatever state replaced it,
+     * would be worse than no banner.
+     */
+    private suspend fun freeMemoryFor(event: GameEvent.Started) {
+        val report = reclaimer.reclaim(event.packageName)
+        if (state.value.playing == event.packageName) {
+            state.value = state.value.copy(reclaim = report)
         }
     }
 
@@ -252,6 +315,13 @@ class GamingCoordinator @Inject constructor(
      * Samples are filtered by capture time rather than taken as they arrive: [PerformanceMonitor]
      * publishes a `StateFlow`, so a new collector is handed the current value immediately and the
      * opening sample would otherwise be recorded twice.
+     *
+     * The probes are collected separately from the samples, and from the monitor's own probe stream
+     * rather than off the snapshots, because a snapshot repeats the last probe's outcome on every tick
+     * between probes: folding snapshots would count one handshake five times over and could not tell a
+     * probe that failed from a tick that never probed. It is a child of [sampling] so that `cancelAndJoin`
+     * in [onStopped] covers both, and it starts after the row exists — a probe offered before `begin`
+     * has nowhere to go and is dropped by the recorder.
      */
     private suspend fun startRecording(
         event: GameEvent.Started,
@@ -280,6 +350,8 @@ class GamingCoordinator @Inject constructor(
                 colorPresetName = colour?.name,
                 colorCorrection = colour?.correction,
             )
+
+            launch { monitor.latencyProbes.collect { recorder.offerProbe(it) } }
 
             var recordedUpTo = opening.capturedAtMillis
             monitor.snapshots.filterNotNull().collect { snapshot ->

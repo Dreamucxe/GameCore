@@ -1,11 +1,13 @@
 package com.gamecore.core.model
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The overlay configs' clamps, which are what make a config assembled anywhere safe to draw.
+ * The overlay configs' clamps, which are what make a config assembled anywhere safe to draw, and the rule
+ * that decides which saved crosshair or HUD layout a request actually means.
  *
  * The panel width is the one worth the most care, because it arrives from three places that cannot check
  * each other: a slider, a typed figure in a dialog, and a drag on the panel's own grip in the middle of a
@@ -82,5 +84,75 @@ class OverlayModelsTest {
         val crowded = OverlayConfig(stats = HudStat.entries.toList()).normalised()
         assertTrue(HudStat.entries.size > OverlayConfig.MAX_STATS)
         assertEquals(OverlayConfig.MAX_STATS, crowded.stats.size)
+    }
+
+    // ------------------------------------------------------------------- which crosshair, which layout
+
+    /**
+     * The bug these four cover, reported as "only one crosshair does the job".
+     *
+     * Every path that switches the crosshair on other than the crosshair screen's own button used to pass
+     * no preset id — the control panel's toggle, a profile with the switch on and the picker left at None,
+     * and any fresh process, because the id the user picked was stored and never read back. The renderer
+     * cannot distinguish a request with no id from one naming a deleted preset, so it fell back to the
+     * lowest-numbered saved preset for both, and every design the user selected came out as that one.
+     */
+    @Test
+    fun `a named preset is the one that gets drawn`() {
+        val request = OverlayRequest().withCrosshair(visible = true, presetId = 7L, remembered = 2L)
+        assertTrue(request.crosshair)
+        assertEquals(7L, request.crosshairPresetId)
+    }
+
+    @Test
+    fun `a toggle that names nothing keeps the preset already in the request`() {
+        val showing = OverlayRequest(crosshair = true, crosshairPresetId = 7L)
+        val hidden = showing.withCrosshair(visible = false, presetId = null, remembered = 2L)
+        assertEquals(7L, hidden.crosshairPresetId)
+        val back = hidden.withCrosshair(visible = true, presetId = null, remembered = 2L)
+        assertEquals(7L, back.crosshairPresetId)
+        assertTrue(back.crosshair)
+    }
+
+    /** The control panel's toggle in a process that has not been to the crosshair screen. */
+    @Test
+    fun `a toggle with nothing to keep falls back to the remembered pick`() {
+        val request = OverlayRequest.NONE.withCrosshair(visible = true, presetId = null, remembered = 2L)
+        assertEquals(2L, request.crosshairPresetId)
+    }
+
+    @Test
+    fun `an id survives only as null when there has never been a pick`() {
+        val request = OverlayRequest.NONE.withCrosshair(visible = true, presetId = null, remembered = null)
+        assertTrue(request.crosshair)
+        assertNull(request.crosshairPresetId)
+    }
+
+    /** Same rule, same reason: a HUD layout the user arranged is not interchangeable with another. */
+    @Test
+    fun `the hud resolves its layout the same way`() {
+        assertEquals(9L, OverlayRequest().withHud(true, layoutId = 9L, remembered = 4L).hudLayoutId)
+        assertEquals(4L, OverlayRequest.NONE.withHud(true, layoutId = null, remembered = 4L).hudLayoutId)
+        assertEquals(
+            9L,
+            OverlayRequest(hud = true, hudLayoutId = 9L)
+                .withHud(visible = false, layoutId = null, remembered = 4L)
+                .hudLayoutId,
+        )
+    }
+
+    /** Neither helper is a way to change anything else about the request. */
+    @Test
+    fun `resolving a crosshair leaves the rest of the request alone`() {
+        val driven = OverlayRequest(
+            button = true,
+            pill = true,
+            hud = true,
+            hudLayoutId = 9L,
+            gameLabel = "Some Game",
+            fromProfile = true,
+        )
+        val after = driven.withCrosshair(visible = true, presetId = 7L, remembered = null)
+        assertEquals(driven.copy(crosshair = true, crosshairPresetId = 7L), after)
     }
 }

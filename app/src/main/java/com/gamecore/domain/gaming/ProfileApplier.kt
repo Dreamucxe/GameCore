@@ -5,6 +5,7 @@ import com.gamecore.core.common.Observed
 import com.gamecore.core.common.TextSanitizer
 import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.CapabilityStatus
+import com.gamecore.core.model.ChangeOrigin
 import com.gamecore.core.model.ColorPreset
 import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.DisplaySizeOutcome
@@ -72,18 +73,24 @@ class ProfileApplier @Inject constructor(
      *
      * [ProfileApplication.results] has one entry per profile-relevant change whether or not it was
      * attempted, so the caller can render the whole picture without knowing which fields were set.
+     *
+     * [origin] is [ChangeOrigin.AUTOMATIC] when a game coming to the foreground caused this, and the
+     * user's otherwise. It decides what happens to a setting the user has changed by hand since the
+     * profile last wrote it: an automatic apply leaves it alone, and the user pressing "apply now" —
+     * which is also how they re-arm a setting they took over — does not.
      */
     suspend fun apply(
         profile: GameProfile,
         nowMillis: Long = System.currentTimeMillis(),
+        origin: ChangeOrigin = ChangeOrigin.USER,
     ): ProfileApplication {
         val rates = displayReader.supportedRates().valueOrNull.orEmpty()
         val steps = plan(profile, rates, shellLive = shizuku.isConnected)
         val results = mutableListOf<OptimizationResult>()
         for (step in steps) {
             results += when (step) {
-                is Step.Attempt -> optimizations.apply(step.request, profile.packageName)
-                is Step.Colour -> applyColour(step.presetId, profile)
+                is Step.Attempt -> optimizations.apply(step.request, profile.packageName, origin)
+                is Step.Colour -> applyColour(step.presetId, profile, origin)
                 is Step.Stretch -> applyDisplaySize(step.size, profile)
                 is Step.Skip -> step.result
             }
@@ -368,15 +375,27 @@ class ProfileApplier @Inject constructor(
      * A missing row is [OptimizationResult.Failed] rather than a skip. Deleting a preset detaches it
      * from every profile in the same call, so an id that resolves to nothing means something went
      * wrong rather than that the user changed their mind, and the report should say so.
+     *
+     * [origin] goes through to the controller for the same reason it goes to the manager: an automatic
+     * apply must not write over a colour the user set from the shade during the last session, and an
+     * apply the user asked for must not be second-guessed.
      */
-    private suspend fun applyColour(presetId: Long, profile: GameProfile): OptimizationResult {
+    private suspend fun applyColour(
+        presetId: Long,
+        profile: GameProfile,
+        origin: ChangeOrigin,
+    ): OptimizationResult {
         val action = OptimizationAction.APPLY_COLOR_CORRECTION
         val preset = colorPresets.preset(presetId) ?: return OptimizationResult.Failed(
             action = action,
             detail = "This profile points at a colour preset that no longer exists, so the screen " +
                 "was left as it was. Choose a preset again in the profile's colour field.",
         )
-        return colourResult(action, preset, color.apply(preset.correction, profile.packageName))
+        return colourResult(
+            action = action,
+            preset = preset,
+            result = color.apply(preset.correction, profile.packageName, origin),
+        )
     }
     /**
      * One [ColorApplyResult] as one row of the profile report.
@@ -419,6 +438,12 @@ class ProfileApplier @Inject constructor(
 
             result.plan.writes.isEmpty() -> OptimizationResult.NotHonoured(action, result.message)
 
+            // Every sink the preset asks for is one the user has since set themselves. Nothing was
+            // written and nothing failed, which is what a skip is: the device is in the state the most
+            // recent instruction asked for, and that instruction was the user's.
+            result.results.isEmpty() && result.keptByUser.isNotEmpty() ->
+                OptimizationResult.Skipped(action, result.message)
+
             outcomes.any {
                 it is SettingsWriteOutcome.Failed || it is SettingsWriteOutcome.Rejected
             } -> OptimizationResult.Failed(action, result.message)
@@ -443,13 +468,18 @@ class ProfileApplier @Inject constructor(
         }
     }
 
-    /** The applied line: the preset, how many keys it reached, and what it could not express. */
+    /** The applied line: the preset, how many keys it reached, what it left, and what it could not express. */
     private fun colourDetail(name: String, result: ColorApplyResult): String = buildString {
         append(name)
         append(": ")
         append(result.appliedCount)
         append(if (result.appliedCount == 1) " display setting" else " display settings")
         append(" changed")
+        if (result.keptByUser.isNotEmpty()) {
+            append(", ")
+            append(result.keptByUser.size)
+            append(" left as you set them")
+        }
         if (result.plan.limits.isNotEmpty()) {
             append(", ")
             append(result.plan.limits.size)

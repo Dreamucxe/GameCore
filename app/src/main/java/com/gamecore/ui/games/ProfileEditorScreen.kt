@@ -749,6 +749,11 @@ private fun OptionPicker(
  * [PerformanceMode.explanation] is rendered verbatim rather than summarised. Those sentences are where
  * §14's honesty requirement lives — "it does not raise CPU or GPU clocks — no app can" — and a screen
  * that paraphrased them into "optimises performance" would undo the whole point of writing them.
+ *
+ * "Free RAM on launch" sits here rather than in Settings because it is a per-game decision, and its
+ * description names the apps that are never closed rather than promising a figure. It is the one switch
+ * in this editor whose effect lands on the user's *other* apps, so what it will not touch is the part
+ * worth reading before it goes on.
  */
 @Composable
 private fun PerformanceSection(
@@ -797,6 +802,25 @@ private fun PerformanceSection(
                     "anything. Without it, most of it will be skipped.",
                 tone = Tone.Warning,
                 icon = Icons.Filled.Info,
+            )
+        }
+        RowDivider()
+        SwitchRow(
+            title = "Free RAM on launch",
+            checked = profile.freeRamOnLaunch,
+            onCheckedChange = { on -> onEdit { it.copy(freeRamOnLaunch = on) } },
+            description = "Closes apps sitting in the background when this game starts, so it gets " +
+                "the memory they were holding. Your launcher, keyboard, anything playing or recording, " +
+                "and anything on your never-close list are left alone.",
+        )
+        if (profile.freeRamOnLaunch && !state.capabilities.hasElevatedAccess) {
+            NoteBanner(
+                text = "Without Shizuku, GameCore asks Android to close each app and Android does not " +
+                    "say what it did — so the summary will say what it asked for rather than what it " +
+                    "closed, and system apps stay out of reach either way.",
+                tone = Tone.Muted,
+                icon = Icons.Filled.Info,
+                action = { TextButton(onClick = { onNavigate(Destination.Shizuku) }) { Text("Set up") } },
             )
         }
     }
