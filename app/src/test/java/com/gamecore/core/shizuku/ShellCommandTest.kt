@@ -47,12 +47,15 @@ class ShellCommandTest {
         add(ShellCommand.ResetDisplaySize)
         add(ShellCommand.killBackgroundApp("com.example.background")!!)
         add(ShellCommand.clearSharedCache("com.example.game", 0)!!)
+        add(ShellCommand.readCpuAffinity(4021)!!)
+        add(ShellCommand.setCpuAffinity(4021, 0xf0)!!)
     }
 
     @Test
-    fun `the only programs GameCore can invoke are these ten`() {
+    fun `the only programs GameCore can invoke are these eleven`() {
         val allowed = setOf(
             "id", "cat", "dumpsys", "settings", "getprop", "pm", "appops", "wm", "am", "rm",
+            "taskset",
         )
         everyCommand().forEach { command ->
             assertTrue(
@@ -65,19 +68,26 @@ class ShellCommandTest {
     @Test
     fun `nothing here can force-stop an app, wipe app data or rewrite a game`() {
         // §24's absences, asserted rather than trusted to review. `cmd` and `su` are not reachable at
-        // all, so neither is a thermal override nor a compile of another application. The three programs
-        // with authority over anything outside GameCore — `wm`, `am` and `rm` — have their own dangerous
-        // subcommands named here as well, because a reachable program is not a reachable subcommand:
-        // `wm` can reach only `size`, `am` only `kill`, and `rm` only one cache directory.
+        // all, so neither is a thermal override nor a compile of another application. The four programs
+        // with authority over anything outside GameCore — `wm`, `am`, `rm` and `taskset` — have their own
+        // dangerous subcommands named here as well, because a reachable program is not a reachable
+        // subcommand: `wm` can reach only `size`, `am` only `kill`, `rm` only one cache directory, and
+        // `taskset` only `-ap`, which is a mask and never a command to run.
         //
         // `clear` and `trim-caches` are on this list because of the cache feature, not despite it. The
         // first takes the user's saves with it and the second is the whole device at once; the feature
         // deletes one directory belonging to one package the user tapped, and neither shortcut becomes
         // admissible because a screen now exists that would have a use for them.
+        //
+        // `chrt`, `renice`, `nice` and `ionice` are here because of the affinity feature, for the same
+        // reason. Pinning a game to a set of cores is a bounded change the user can be told the truth
+        // about; raising its scheduling priority or its I/O class above the rest of the device is not the
+        // same kind of thing, is not what was asked for, and has no argv in this app.
         val forbidden = setOf(
             "cmd", "su", "sh", "mount", "setprop", "reboot", "killall", "force-stop",
             "stop-app", "trim-caches", "clear", "broadcast", "override-status", "compile", "install",
             "uninstall", "density", "dismiss-keyguard", "overscan",
+            "chrt", "renice", "nice", "ionice",
         )
         everyCommand().forEach { command ->
             command.argv.forEach { token ->
@@ -153,17 +163,71 @@ class ShellCommandTest {
     }
 
     @Test
+    fun `pinning cores names one process, every thread in it, and nothing else about it`() {
+        // `taskset` came off the forbidden list when the affinity presets were built, so the bounds that
+        // made it admissible are asserted in its place. Four tokens, exec'd directly: the flags, a mask,
+        // and a pid. `-p` is what makes this a change to an existing process rather than a way to launch
+        // one — without it `taskset` runs a command, and no factory here can spell that. `-a` is what
+        // makes it whole-process, which is what was asked for: pinning the main thread and leaving the
+        // render thread behind would look like a working feature and would not be one.
+        val set = ShellCommand.setCpuAffinity(4021, 0xf0)!!
+        assertEquals(listOf("taskset", "-ap", "f0", "4021"), set.argv)
+        assertEquals(ShellCommand.Effect.CHANGES_SETTING, set.effect)
+        assertFalse(set.isReadOnly)
+        assertEquals(4021, set.pid)
+        assertEquals(0xf0, set.mask)
+
+        val read = ShellCommand.readCpuAffinity(4021)!!
+        assertEquals(listOf("taskset", "-ap", "4021"), read.argv)
+        assertTrue(read.isReadOnly)
+        assertEquals(4021, read.pid)
+
+        // The mask is a set of cores and nothing more. Nothing in either vector names a priority, a
+        // cgroup or a scheduling policy, and the forbidden-token test above holds the programs that would.
+        listOf(set, read).forEach { command ->
+            assertEquals("taskset", command.argv.first())
+            assertTrue("-p is what bounds this to an existing process", command.argv[1].contains('p'))
+            assertTrue("-a is what makes it whole-process", command.argv[1].contains('a'))
+            assertEquals(0, command.argv.count { it.startsWith("--") })
+        }
+    }
+
+    @Test
+    fun `an affinity command is refused for a pid Linux could not have issued or a mask with no cores`() {
+        // A pid is a number from a parsed dump, so it is bounded like every other outside value. Zero is
+        // the scheduler and a negative number is a process *group* — a whole tree of processes rather
+        // than the one the user configured — which is the argument this rejection exists to stop.
+        assertNull(ShellCommand.setCpuAffinity(0, 0xf0))
+        assertNull(ShellCommand.setCpuAffinity(-1, 0xf0))
+        assertNull(ShellCommand.setCpuAffinity(-4021, 0xf0))
+        assertNull(ShellCommand.setCpuAffinity(Int.MAX_VALUE, 0xf0))
+        assertNull(ShellCommand.readCpuAffinity(0))
+        assertNull(ShellCommand.readCpuAffinity(-1))
+        assertNotNull(ShellCommand.readCpuAffinity(1))
+        assertNotNull(ShellCommand.setCpuAffinity(4_194_304, 0xf0))
+
+        // An empty mask is the one mask that is definitely wrong: a process allowed to run on no core at
+        // all does not run. A mask naming a core this device lacks is not checkable here and is not
+        // pretended to be — it comes from the measured core layout, and `taskset` refuses it if it ever
+        // did not.
+        assertNull(ShellCommand.setCpuAffinity(4021, 0))
+        assertEquals("1", ShellCommand.setCpuAffinity(4021, 1)!!.argv[2])
+        assertEquals("ff", ShellCommand.setCpuAffinity(4021, 0xff)!!.argv[2])
+        assertEquals("ffffffff", ShellCommand.setCpuAffinity(4021, -1)!!.argv[2])
+    }
+
+    @Test
     fun `a read never changes anything and a write always says that it does`() {
         val readOnly = everyCommand().filter { it.isReadOnly }
         val writes = everyCommand().filterNot { it.isReadOnly }
         readOnly.forEach { assertEquals(ShellCommand.Effect.READ_ONLY, it.effect) }
         readOnly.forEach { assertFalse(it.argv.contains("put")) }
         // Nineteen settings keys, three self-grants, two self-appops, the two halves of a display size
-        // override, the one close and the one cache delete. Nothing else writes.
+        // override, the one close, the one cache delete and the one affinity write. Nothing else writes.
         assertEquals(19, WritableSetting.entries.size)
-        assertEquals(28, writes.size)
+        assertEquals(29, writes.size)
         writes.forEach {
-            assertTrue(it.argv.first() in setOf("settings", "pm", "appops", "wm", "am", "rm"))
+            assertTrue(it.argv.first() in setOf("settings", "pm", "appops", "wm", "am", "rm", "taskset"))
         }
     }
 

@@ -82,6 +82,19 @@
     <string name="overlay_aspect_custom">Running %1$s — %2$s, which is not one of these shapes</string>
 
     <!--
+      Why the refresh tile is dimmed on a display that reads fine but has only one mode.
+
+      Distinct from the unreadable case, which carries the reason the read failed instead. Both dim the
+      tile, and they are not the same fact: one has nothing to offer and never will, the other might on a
+      device where the mode list can be read. Saying "could not be read" about a 60 Hz panel would send the
+      user looking for a permission that would change nothing.
+
+      Worded as the profile editor's own single-rate banner is, minus its second clause, which a tile has no
+      room for: two sentences about one piece of hardware would eventually disagree about it.
+    -->
+    <string name="overlay_refresh_single_rate">This panel runs at one rate only</string>
+
+    <!--
       Screen capture. The consent dialog is the system's, so these only cover what happens on either side
       of it: a permission the platform then refused to turn into a projection, and a device where the
       capture APIs are missing altogether.

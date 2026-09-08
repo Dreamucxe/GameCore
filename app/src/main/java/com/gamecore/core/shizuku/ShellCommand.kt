@@ -3,6 +3,7 @@ package com.gamecore.core.shizuku
 import com.gamecore.BuildConfig
 import com.gamecore.core.common.AccessLevel
 import com.gamecore.core.common.TextSanitizer
+import com.gamecore.core.model.CpuAffinityMask
 import com.gamecore.core.model.DisplaySize
 
 /**
@@ -40,6 +41,23 @@ import com.gamecore.core.model.DisplaySize
  * builds a single command and names every app it left running along with the reason. The
  * bullet still holds for the two commands it now names. What this file can no longer
  * claim is that no path to closing an app exists at all.
+ *
+ * `taskset` is the second such amendment, and it crosses a line the rest of this file does
+ * not, so it is recorded in the same way. Every other command here either reads something
+ * global or writes something about *this* device — a settings key, a display size,
+ * GameCore's own permissions. [SetCpuAffinity] is the first that takes a handle to another
+ * running process and changes how the kernel schedules it. Four things bound it. It is
+ * built only for the pid of the game the user configured, resolved from the same
+ * [RunningProcesses] dump the reclaim pass already reads, so there is no second way to name
+ * a process and no way to name one the user did not choose. It writes an affinity mask and
+ * nothing else — not a priority, not a cgroup, not a scheduling policy, none of which
+ * appear in any argv here. The mask comes from one of two presets computed from this
+ * device's own core layout, never from typed input. And the previous mask is read first and
+ * recorded in the same restore ledger every other change goes through, so it is undone by
+ * the mechanism that undoes refresh rate rather than by a second one. `-a` is present
+ * because the brief is whole-process affinity: without it the kernel moves one thread and
+ * leaves the render thread wherever it was, which is a change that reads as working and is
+ * not.
  *
  * Arguments are validated by the factory functions in [ShellCommand.Companion]
  * rather than trusted: an index is range-checked, a package name has to match the
@@ -177,6 +195,32 @@ sealed class ShellCommand(
         "Read running processes and what each is doing",
         Effect.READ_ONLY,
     )
+
+    /**
+     * Reads the affinity mask of every thread in one process.
+     *
+     * The read half of the pair, and the reason the write half can be verified rather than
+     * hoped about. `taskset -ap <pid>` prints one `current affinity mask:` line per thread,
+     * which is what makes both checks possible: the mask before a change is what goes into
+     * the restore ledger, and the masks after one are what decide whether the kernel
+     * actually took it. A shell that exits zero has told you the syscall returned, not that
+     * every thread moved — a thread created between the write and the read has the mask it
+     * inherited, and a game engine that pins its own threads may have overridden it back.
+     *
+     * Read-only and reaching another process, which no other read here does. `-p` is the
+     * whole reason it is safe to say that: without it `taskset` runs a command, and this
+     * file exposes no way to spell that.
+     */
+    class ReadCpuAffinity private constructor(val pid: Int) : ShellCommand(
+        listOf("taskset", "-ap", pid.toString()),
+        "Read which cores process $pid may run on",
+        Effect.READ_ONLY,
+    ) {
+        companion object {
+            /** Null unless the pid is one Linux could have issued. See [validPidOrNull]. */
+            fun of(pid: Int): ReadCpuAffinity? = validPidOrNull(pid)?.let { ReadCpuAffinity(it) }
+        }
+    }
 
     /** Reads one key from the settings provider, so a write can be undone. */
     class GetSetting private constructor(
@@ -487,6 +531,54 @@ sealed class ShellCommand(
     }
 
     /**
+     * Restricts one process, and every thread in it, to a set of cores.
+     *
+     * The only command in this file that changes how another process runs rather than what
+     * some setting on this device says, and the top-of-file note records why it is admitted
+     * and what bounds it. What it does not do is worth being equally exact about: it sets a
+     * mask, which is a *permission* to use cores, not a reservation of them and not a clock
+     * speed. Nothing else about the process changes — not its priority, not its cgroup, not
+     * its scheduling policy — because none of those has an argv here.
+     *
+     * `-a` is required, not decorative. Plain `-p` moves the thread whose id was named and
+     * leaves every other thread in the process where it was, so on a game that means the
+     * main thread is pinned and the render thread — the one that misses frames — is not.
+     * A whole-process change is what was asked for, so `-a` is baked into the vector rather
+     * than being a parameter a caller could forget.
+     *
+     * The mask is validated only for being non-zero, and that bound is honest about what it
+     * can check. Zero cores is the one mask that is definitely wrong — a process allowed to
+     * run nowhere does not run — while a mask naming a core this device does not have is
+     * something the factory has no way to detect, because a command does not know the core
+     * count. That check belongs to the caller, which derives every mask it passes from
+     * [com.gamecore.core.model.CpuClusterLayout], read from this device's own `cpufreq`
+     * nodes. If one ever got through, `taskset` answers with `EINVAL` and the result is
+     * reported as not honoured, which is the correct outcome and not a silent one.
+     */
+    class SetCpuAffinity private constructor(
+        val pid: Int,
+        val mask: Int,
+    ) : ShellCommand(
+        listOf("taskset", "-ap", CpuAffinityMask.hex(mask), pid.toString()),
+        "Keep process $pid on cores ${CpuAffinityMask.hex(mask)}",
+        Effect.CHANGES_SETTING,
+    ) {
+        companion object {
+            /**
+             * Null unless the pid could have been issued by Linux and the mask names at
+             * least one core. Arguments are in pid-then-mask order even though the vector
+             * is mask-then-pid, because every other function in this feature takes the pid
+             * first and an argv's order is `taskset`'s business rather than a caller's.
+             */
+            fun of(pid: Int, mask: Int): SetCpuAffinity? {
+                val validPid = validPidOrNull(pid) ?: return null
+                if (mask == 0) return null
+                return SetCpuAffinity(validPid, mask)
+            }
+        }
+    }
+
+    /**
      * The call-site surface.
      *
      * Each of these delegates to the validating factory on the command it builds, so
@@ -535,6 +627,15 @@ sealed class ShellCommand(
         fun clearSharedCache(packageName: String, userId: Int): ClearSharedCache? =
             ClearSharedCache.of(packageName, userId)
 
+        /** Null when the pid is not one Linux could have issued. */
+        fun readCpuAffinity(pid: Int): ReadCpuAffinity? = ReadCpuAffinity.of(pid)
+
+        /**
+         * Null when the pid is implausible or the mask names no cores at all. See
+         * [SetCpuAffinity] for what a mask is and is not.
+         */
+        fun setCpuAffinity(pid: Int, mask: Int): SetCpuAffinity? = SetCpuAffinity.of(pid, mask)
+
         /**
          * Validates a package name. Exposed so a caller that has to decide whether a
          * profile's stored package is still usable can ask without building a command.
@@ -553,6 +654,28 @@ sealed class ShellCommand(
             String.format(java.util.Locale.US, "%.1f", value)
     }
 }
+
+/**
+ * A process id, or null if that number is not one.
+ *
+ * File-private and shared by the two `taskset` commands, so the bound is written once. The
+ * ceiling is `pid_max`'s own upper limit — Linux defaults the runtime value to 32768 and lets a
+ * kernel raise it to 2^22, and Android kernels do — so this rejects what could never be a pid
+ * rather than pretending to know what this kernel's current ceiling is. Zero and negatives are
+ * refused outright: pid 0 is the scheduler and a negative argument to `taskset` is a process
+ * *group*, which is a different and much wider thing than the one process this feature is
+ * allowed to touch.
+ *
+ * A pid that passes here can still be gone, or belong to something else entirely by the time the
+ * command runs — pids are reused. Nothing about that is fixable in a validator, so the caller
+ * resolves the pid from a process dump immediately before use and verifies the result afterwards
+ * rather than trusting either end.
+ */
+private fun validPidOrNull(pid: Int): Int? =
+    if (pid > 0 && pid <= MAX_PID) pid else null
+
+/** 2^22, the largest value Linux will accept for `pid_max`. */
+private const val MAX_PID = 4_194_304
 
 /**
  * The three settings tables GameCore touches.

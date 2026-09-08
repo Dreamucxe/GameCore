@@ -15,6 +15,7 @@ import com.gamecore.core.system.SettingsWriteOutcome
 import com.gamecore.core.system.SettingsWriter
 import com.gamecore.data.repository.PendingRestore
 import com.gamecore.data.repository.RestorePointRepository
+import com.gamecore.domain.cpu.CpuAffinityController
 import com.gamecore.domain.display.DisplaySizeController
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -64,6 +65,7 @@ class OptimizationManager @Inject constructor(
     private val settings: SettingsWriter,
     private val audio: AudioControls,
     private val displaySize: DisplaySizeController,
+    private val cpuAffinity: CpuAffinityController,
     private val restorePoints: RestorePointRepository,
     private val writeLog: DeviceWriteLog,
 ) {
@@ -458,6 +460,13 @@ class OptimizationManager @Inject constructor(
         // size the display had under the repository's non-setting namespace and the restore is
         // dispatched by key below. Like the branch above, nothing routes this action through here.
         OptimizationAction.SET_DISPLAY_SIZE -> emptyList()
+
+        // Empty for the same reason and one more besides: not only is there no settings key, there is
+        // no *device* state here. The affinity mask belongs to one running process, which this class
+        // has no pid for — finding one would mean a process dump per apply, from the layer whose job
+        // is settings. `CpuAffinityController` records the mask under the game's package name and the
+        // restore is dispatched by key below. Nothing routes this action through here either.
+        OptimizationAction.SET_CPU_AFFINITY -> emptyList()
     }
 
     // -------------------------------------------------------------------- restoring
@@ -540,6 +549,19 @@ class OptimizationManager @Inject constructor(
             RestorePointRepository.KEY_DISPLAY_SIZE -> {
                 val outcome = displaySize.restore(row.previousValue)
                 if (outcome.isSuccess) null else "The display size is still changed: ${outcome.message}"
+            }
+
+            // The one row whose subject is a process, and the one whose "success" includes having
+            // written nothing. `CpuAffinityController.restore` answers NothingToRestore when the game
+            // has exited — the mask went with it — and that is genuinely done, so the row clears. What
+            // keeps it pending is the shell not answering, which is the case that is worth retrying.
+            RestorePointRepository.KEY_CPU_AFFINITY -> {
+                val outcome = cpuAffinity.restore(row.previousValue, row.packageName)
+                if (outcome.isSuccess) {
+                    null
+                } else {
+                    "That game's core assignment is still changed: ${outcome.message}"
+                }
             }
 
             else -> "This version of GameCore does not know how to restore \"${row.key}\"."

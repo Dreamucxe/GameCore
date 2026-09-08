@@ -51,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.OverlayConfig
+import com.gamecore.core.model.PanelLayoutStyle
 import com.gamecore.core.overlay.OverlayAction
 import com.gamecore.core.overlay.OverlayPalette
 import com.gamecore.core.overlay.PerformancePill
@@ -465,15 +466,39 @@ private fun PanelCard(
     modifier: Modifier = Modifier,
 ) {
     val button = state.button
+    val split = button.panelLayout == PanelLayoutStyle.SPLIT_EDGES
     val perRow = actionsPerRow(button.panelWidthDp)
     SectionCard(
         title = "Control panel",
-        subtitle = "What the floating button opens, and how wide it opens",
+        subtitle = "What the floating button opens, and the shape it opens in",
         icon = Icons.Filled.Dashboard,
         modifier = modifier,
-        action = { StatusChip(text = "$perRow across", tone = Tone.Muted) },
+        action = {
+            StatusChip(
+                text = if (split) "Two plates" else "$perRow across",
+                tone = Tone.Muted,
+            )
+        },
     ) {
-        PanelPreview(button = button, perRow = perRow)
+        if (split) SplitPanelPreview() else PanelPreview(button = button, perRow = perRow)
+        RowDivider()
+        Text(
+            text = "LAYOUT",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ChoiceRow(
+            options = PanelLayoutStyle.entries,
+            selected = button.panelLayout,
+            onSelect = { style -> onEdit { it.copy(panelLayout = style) } },
+            label = { it.label },
+            perRow = 2,
+        )
+        Text(
+            text = button.panelLayout.description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         RowDivider()
         SliderRow(
             title = "Width",
@@ -481,28 +506,46 @@ private fun PanelCard(
             range = FloatingButtonConfig.PANEL_WIDTH_RANGE,
             onValueChange = { width -> onEdit { it.copy(panelWidthDp = width) } },
             valueLabel = "${button.panelWidthDp} dp",
-            description = "Wider fits more action tiles on a row. Tap the figure to type an exact one.",
+            description = if (split) {
+                "Kept for the centered layout. Split edges sizes its own plates against the screen."
+            } else {
+                "Wider fits more action tiles on a row. Tap the figure to type an exact one."
+            },
             onValueChangeFinished = onCommit,
             onValueClick = onEditWidth,
+            enabled = !split,
         )
         RowDivider()
         NoteBanner(
-            text = "Height is not a setting: the panel is as tall as its contents need, up to the room " +
-                "between the button and the nearest screen edge, and scrolls inside whatever that leaves. " +
-                "The width is a request too — the panel never opens wider than the screen it opens on, so " +
-                "in portrait it may be drawn narrower than the figure above.",
+            text = if (split) {
+                "Split edges is as tall as the screen and as wide as it needs to be on each side, so " +
+                    "neither dimension is a setting. Each plate takes a share of the screen's width and " +
+                    "scrolls on its own; the gap between them is the game, and tapping it closes the " +
+                    "panel. There is no resize grip in this layout — the width slider above is saved for " +
+                    "the centered one and takes effect when you switch back."
+            } else {
+                "Height is not a setting: the panel is as tall as its contents need, up to the room " +
+                    "between the button and the nearest screen edge, and scrolls inside whatever that " +
+                    "leaves. The width is a request too — the panel never opens wider than the screen it " +
+                    "opens on, so in portrait it may be drawn narrower than the figure above."
+            },
             tone = Tone.Muted,
             icon = Icons.Filled.Info,
         )
         RowDivider()
         ActionRow {
             Text(
-                text = "You can also drag the grip in the panel's bottom corner while a game is running.",
+                text = if (split) {
+                    "Split edges suits a landscape game held in two hands. In portrait there is less " +
+                        "width to divide, so the plates are narrower and the game between them is a strip."
+                } else {
+                    "You can also drag the grip in the panel's bottom corner while a game is running."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onResetWidth) { Text("Reset to default size") }
+            TextButton(onClick = onResetWidth, enabled = !split) { Text("Reset to default size") }
         }
     }
 }
@@ -581,6 +624,102 @@ private fun PanelPreview(button: FloatingButtonConfig, perRow: Int) {
         Text(
             text = "To scale, not to size: ${button.panelWidthDp} dp of a possible " +
                 "${FloatingButtonConfig.MAX_PANEL_WIDTH_DP}, with $perRow tiles per row.",
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * The split layout's proportions, as its own drawing rather than [PanelPreview] bent into a new shape.
+ *
+ * Separate because there is nothing left to share. [PanelPreview]'s whole subject is one number — how
+ * wide the user set the plate, and how many tiles that buys per row — and this layout has no such
+ * number: each plate takes a fixed share of whatever screen it opens on, and the tiles inside are two
+ * across because that is what a plate a third of a screen wide fits. Reusing the other preview would
+ * mean passing it a width it does not use and a row count it did not compute, to draw a shape it was
+ * not written for.
+ *
+ * What is worth showing here is the arrangement, so that is all it draws: two plates against the edges,
+ * the game between them, and readouts against controls. The middle is drawn as the game rather than as
+ * empty space, because that gap is the entire reason to choose this layout.
+ */
+@Composable
+private fun SplitPanelPreview() {
+    val scheme = MaterialTheme.colorScheme
+    Column {
+        Text(
+            text = "PREVIEW",
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(scheme.surfaceVariant)
+                .border(1.dp, scheme.outlineVariant, RoundedCornerShape(12.dp))
+                .padding(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(PREVIEW_GAP_DP.dp),
+        ) {
+            // Readouts: a header, then the stat rows and the level sliders.
+            Column(
+                modifier = Modifier
+                    .weight(SPLIT_PREVIEW_PLATE_WEIGHT)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(OverlayPalette.PanelPlate)
+                    .padding(6.dp),
+                verticalArrangement = Arrangement.spacedBy(PREVIEW_GAP_DP.dp),
+            ) {
+                PreviewBar(fraction = 0.7f, colour = OverlayPalette.Muted)
+                repeat(SPLIT_PREVIEW_READOUT_ROWS) {
+                    PreviewBar(fraction = 1f, colour = OverlayPalette.Plate)
+                }
+                PreviewBar(fraction = 0.8f, colour = OverlayPalette.Divider)
+            }
+            // The game. Named in the drawing because the gap is the point.
+            Box(
+                modifier = Modifier.weight(SPLIT_PREVIEW_GAME_WEIGHT),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "GAME",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant,
+                )
+            }
+            // Controls: the action grid, two tiles across.
+            Column(
+                modifier = Modifier
+                    .weight(SPLIT_PREVIEW_PLATE_WEIGHT)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(OverlayPalette.PanelPlate)
+                    .padding(6.dp),
+                verticalArrangement = Arrangement.spacedBy(PREVIEW_GAP_DP.dp),
+            ) {
+                OverlayAction.entries.chunked(SPLIT_PREVIEW_TILES_PER_ROW).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(PREVIEW_GAP_DP.dp)) {
+                        row.forEach { _ ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(PREVIEW_TILE_DP.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(OverlayPalette.Plate),
+                            )
+                        }
+                        repeat(SPLIT_PREVIEW_TILES_PER_ROW - row.size) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Readouts on one edge, controls on the other, the game between them. Each plate " +
+                "scrolls on its own and the whole height of the screen is available.",
             style = MaterialTheme.typography.labelSmall,
             color = scheme.onSurfaceVariant,
         )
@@ -669,6 +808,26 @@ private const val PREVIEW_GRIP_DP = 12
  * invisible plate and a caption under it explaining its proportions is the failure being avoided.
  */
 private const val PREVIEW_MIN_FRACTION = 0.2f
+
+/**
+ * The split drawing's proportions, as weights rather than fractions of the maximum.
+ *
+ * Weights because that drawing has no maximum to be a fraction of: the real layout divides whatever
+ * screen it opens on, so what the card has to convey is the ratio between the plates and the game, and
+ * a ratio is what these are. They are the diagram's own figures and not the layout's — `splitPlateWidth`
+ * in `com.gamecore.core.overlay` decides the real share against the real screen — because a card 340 dp
+ * wide drawn at the true share would give each plate about 100 dp, which is too narrow to show a grid in
+ * at all. Erring wider here shows the arrangement; matching the arithmetic would show a smudge.
+ *
+ * Two tiles per row for the same reason the real plate settles there: a third of a phone's landscape
+ * width is a little over 200 dp, and `actionsPerRow` gives 2 across at that width.
+ */
+private const val SPLIT_PREVIEW_PLATE_WEIGHT = 1f
+private const val SPLIT_PREVIEW_GAME_WEIGHT = 0.7f
+private const val SPLIT_PREVIEW_TILES_PER_ROW = 2
+
+/** Stats and levels, stood in for by bars: enough rows to read as a column of readouts. */
+private const val SPLIT_PREVIEW_READOUT_ROWS = 3
 
 /**
  * §8's performance pill, previewed with the composable the service draws and the readings it draws from.

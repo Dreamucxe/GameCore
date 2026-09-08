@@ -130,6 +130,31 @@ internal object GameCoreMigrations {
         }
     }
 
+    /**
+     * Version 5 → 6: the per-game CPU core preset.
+     *
+     * One nullable TEXT column holding a `CpuAffinityPreset` name, and nullable for the plainest
+     * version of the reason `display_size` is: null is not a placeholder here, it is the feature's own
+     * default. There is no `LEAVE_TO_OS` member to fill existing rows with, because leaving the
+     * scheduler alone is the absence of an instruction rather than an instruction — so a `NOT NULL
+     * DEFAULT` here would have had to invent a value for a state the enum deliberately does not name.
+     *
+     * A name this build does not recognise reads back as null through `Mappers.toModel`, and the
+     * profile simply stops choosing cores. That is the safe direction: the failure mode of the wrong
+     * answer is a game pinned to cores nobody picked.
+     */
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `cpu_affinity` TEXT")
+        }
+    }
+
     /** Every migration, in order, for [androidx.room.RoomDatabase.Builder.addMigrations]. */
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+    val ALL: Array<Migration> = arrayOf(
+        MIGRATION_1_2,
+        MIGRATION_2_3,
+        MIGRATION_3_4,
+        MIGRATION_4_5,
+        MIGRATION_5_6,
+    )
 }

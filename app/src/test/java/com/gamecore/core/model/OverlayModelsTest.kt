@@ -62,6 +62,69 @@ class OverlayModelsTest {
         assertEquals(FloatingButtonConfig.MAX_PANEL_WIDTH_DP, dragged.panelWidthDp)
     }
 
+    /**
+     * The layout the panel opens in, which is the one field on this config that is a choice rather than a
+     * figure — and therefore the one the clamp has nothing to say about.
+     *
+     * Asserted anyway, and asserted first, because the default is a promise to existing users: a build that
+     * shipped [PanelLayoutStyle.SPLIT_EDGES] as the default would rearrange the panel of everyone who never
+     * asked for it. The enum's own declaration order carries the same promise, since a settings screen that
+     * lists the styles as declared would otherwise offer the new one first.
+     */
+    @Test
+    fun `the panel opens centered until the user says otherwise`() {
+        assertEquals(PanelLayoutStyle.CENTERED, FloatingButtonConfig().panelLayout)
+        assertEquals(PanelLayoutStyle.CENTERED, PanelLayoutStyle.entries.first())
+    }
+
+    /**
+     * Both directions of the switch, and the width surviving the round trip.
+     *
+     * The width is the point. Split edges derives its plates from the screen and ignores the stored figure,
+     * so the temptation is to clear it on the way in — which would mean a user who tried the other layout
+     * and came back found the default width instead of the one they set. `normalised()` runs on every read
+     * from the store and on every slider release, so it is where that loss would happen if it happened.
+     */
+    @Test
+    fun `switching layout carries the stored width untouched in both directions`() {
+        val chosen = FloatingButtonConfig(panelWidthDp = 300)
+        val split = chosen.copy(panelLayout = PanelLayoutStyle.SPLIT_EDGES).normalised()
+        assertEquals(PanelLayoutStyle.SPLIT_EDGES, split.panelLayout)
+        assertEquals(300, split.panelWidthDp)
+
+        val back = split.copy(panelLayout = PanelLayoutStyle.CENTERED).normalised()
+        assertEquals(PanelLayoutStyle.CENTERED, back.panelLayout)
+        assertEquals(300, back.panelWidthDp)
+    }
+
+    /** Every style is offered with copy to offer it by, since the settings screen renders both fields. */
+    @Test
+    fun `every layout style says what it is and what it does`() {
+        for (style in PanelLayoutStyle.entries) {
+            assertTrue("${style.name} has no label", style.label.isNotBlank())
+            assertTrue("${style.name} has no description", style.description.isNotBlank())
+        }
+    }
+
+    /**
+     * The panel's Layout tile, which is a tap rather than a choice and therefore rests on this.
+     *
+     * Two properties, and the second is the one that matters. That the switch is an involution — twice is
+     * where you started — is what makes a single tile honest: a player who taps it by accident gets back to
+     * the layout they had with the same tap, and the lit plate they see is the state the next tap undoes.
+     * A cycle over a list would satisfy the first assertion and fail this one the moment a third style
+     * existed, which is why `other()` is written as a `when` that would not compile then.
+     */
+    @Test
+    fun `each layout has the other one behind the panel's tile, and twice is where you started`() {
+        assertEquals(PanelLayoutStyle.SPLIT_EDGES, PanelLayoutStyle.CENTERED.other())
+        assertEquals(PanelLayoutStyle.CENTERED, PanelLayoutStyle.SPLIT_EDGES.other())
+        for (style in PanelLayoutStyle.entries) {
+            assertEquals("${style.name} does not come back", style, style.other().other())
+            assertTrue("${style.name} is its own other", style != style.other())
+        }
+    }
+
     /** The pill's own clamps, alongside, since the two configs are normalised by the same call sites. */
     @Test
     fun `the pill keeps its stats distinct and its interval usable`() {

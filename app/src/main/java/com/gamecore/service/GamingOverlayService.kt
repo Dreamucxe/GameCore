@@ -15,10 +15,13 @@ import com.gamecore.core.common.AccessLevel
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.common.NotificationChannels
 import com.gamecore.core.common.Observed
+import com.gamecore.core.common.shortUnavailabilityText
 import com.gamecore.core.common.unavailabilityText
 import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.AccentChoice
 import com.gamecore.core.model.AspectChoice
+import com.gamecore.core.model.CROSSHAIR_COLOURS
+import com.gamecore.core.model.CrosshairDesign
 import com.gamecore.core.model.CrosshairPreset
 import com.gamecore.core.model.DisplaySizeState
 import com.gamecore.core.model.FloatingButtonConfig
@@ -26,26 +29,32 @@ import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.OverlayConfig
 import com.gamecore.core.model.OverlayStatus
+import com.gamecore.core.model.PanelLayoutStyle
 import com.gamecore.core.overlay.CrosshairOverlay
 import com.gamecore.core.overlay.FloatingGameButton
+import com.gamecore.core.overlay.HeldRow
 import com.gamecore.core.overlay.HudOverlay
 import com.gamecore.core.overlay.OverlayAction
 import com.gamecore.core.overlay.OverlayControlPanel
+import com.gamecore.core.overlay.OverlayCrosshair
 import com.gamecore.core.overlay.OverlayFrame
 import com.gamecore.core.overlay.OverlayLevel
 import com.gamecore.core.overlay.OverlayLevelState
 import com.gamecore.core.overlay.OverlayPanelState
 import com.gamecore.core.overlay.OverlayPreset
 import com.gamecore.core.overlay.OverlaySlot
+import com.gamecore.core.overlay.OverlaySplitPanel
 import com.gamecore.core.overlay.OverlayViewHost
 import com.gamecore.core.overlay.OverlayWindowSpec
 import com.gamecore.core.overlay.OverlayWindows
 import com.gamecore.core.overlay.PerformancePill
+import com.gamecore.core.overlay.refreshRateFeedback
 import com.gamecore.core.permissions.PermissionChecker
 import com.gamecore.core.system.AudioControls
 import com.gamecore.core.system.ControlOutcome
 import com.gamecore.core.system.DisplayControls
 import com.gamecore.core.system.DisplayReader
+import com.gamecore.core.system.RefreshRateController
 import com.gamecore.core.system.ScreenCaptureController
 import com.gamecore.core.system.ScreenRotation
 import com.gamecore.core.system.TorchControls
@@ -126,6 +135,14 @@ class GamingOverlayService : GameCoreService() {
     @Inject lateinit var displayReader: DisplayReader
 
     @Inject lateinit var displaySize: DisplaySizeController
+
+    /**
+     * The same controller the profile applier and the performance screen use, injected rather than
+     * reimplemented: writing `peak_refresh_rate` from here would be a second path to the same two keys, with
+     * its own idea of whether the write took. The verification in [RefreshRateController] is most of what
+     * that class is, and it is exactly the part a panel over a running game must not skip.
+     */
+    @Inject lateinit var refreshRate: RefreshRateController
 
     @Inject lateinit var torch: TorchControls
 
@@ -215,6 +232,49 @@ class GamingOverlayService : GameCoreService() {
      * the finger.
      */
     private var resizingPanel = false
+
+    /**
+     * Which layout the open panel was built with, or null while it is closed.
+     *
+     * Kept because the layout is a preference and preferences change while the panel is up. It is not
+     * something a running window can be edited into either: the two layouts differ in the window's flags,
+     * its size and how it is positioned, so switching means taking one down and putting the other up —
+     * see [syncPanelLayout]. Reading [FloatingButtonConfig.panelLayout] instead would answer "what should
+     * be on screen", and the question here is "what *is*".
+     */
+    private var panelLayoutShown: PanelLayoutStyle? = null
+
+    /**
+     * The rate GameCore last wrote *and confirmed the display adopted*, or null in every other case.
+     *
+     * The one piece of panel state held here rather than read back on each probe, and the reason is worth
+     * being explicit about because the alternative looks better and is a lie. There are two things that
+     * could be read instead, and both fail:
+     *
+     * `Display.getRefreshRate()` reports what is being composited now. The platform is entitled to drop a
+     * panel pinned at 120 to 60 while the screen is static, so a low reading is not evidence the pin came
+     * off — and unlighting the chip on it would mean the row went dark every time the player stopped moving.
+     *
+     * The stored `peak_refresh_rate` bound reports what was *asked for*. On the chipsets
+     * [RefreshRateController.isKnownUnreliableChipset] names, that value is written, read back intact, and
+     * the panel stays at 60. Filling a chip from it is precisely the claim
+     * [com.gamecore.core.model.RefreshRateOutcome.NotHonoured] exists to refuse.
+     *
+     * So this holds the one thing that is evidence: a change GameCore made and verified this session. It
+     * costs something and the cost is disclosed in [OverlayPanelState.pinnedRefreshRate] — a rate pinned by
+     * a game profile rather than by this panel shows no chip filled. An unfilled row claims nothing, which
+     * is the failure worth having.
+     */
+    private var pinnedRate: Float? = null
+
+    /**
+     * What the last rate change reported, when it was not a confirmed success. Null once one is.
+     *
+     * Kept beside the note the chips already show rather than only toasted, because the toast is gone in
+     * three seconds and the row it explains is still on screen. Cleared by a confirmed change so the note
+     * under the chips is never a stale reason for a rate that has since taken.
+     */
+    private var rateNote: String? = null
 
     /**
      * The frame the stored button and pill coordinates were last placed in.
@@ -335,6 +395,13 @@ class GamingOverlayService : GameCoreService() {
             .collect { preset ->
                 crosshairPreset.value = preset
                 reconcile()
+                // Re-probed only while the panel is open, and probed *here* rather than in the chip handler
+                // that caused the change. The quick-pick row's filled chip is meant to describe the crosshair
+                // on the screen, and this is the line where that crosshair changes — a probe in the handler
+                // would run before Room had republished the table and would read the design the user just
+                // replaced. It costs one extra probe per crosshair edit with the panel open, which is the same
+                // cost every other chip in that panel already pays.
+                if (panelOpen.value) probePanel()
             }
     }
 
@@ -443,6 +510,7 @@ class GamingOverlayService : GameCoreService() {
         val pill = preferences.overlay.value.normalised()
         if (request.button) {
             showButton(button)
+            syncPanelLayout(button.panelLayout)
             applyPanelWidth(button.panelWidthDp)
         } else {
             closePanel()
@@ -682,10 +750,20 @@ class GamingOverlayService : GameCoreService() {
      * The width, by contrast, is the user's and is known before anything is drawn — which is what lets the
      * x above be exact. [panelWidthFor] is what keeps a figure chosen on a portrait settings screen from
      * opening a panel wider than the landscape game it opens over.
+     *
+     * None of the above applies to [PanelLayoutStyle.SPLIT_EDGES], which is why it leaves through
+     * [openSplitPanel] before any of it runs: that layout is not positioned from the button, takes the
+     * whole screen rather than the room beside it, and derives its own width. The branch is here rather
+     * than inside the composable because it is a difference in the *window*, not in what is drawn in it.
      */
     private fun openPanel() {
+        val config = preferences.floatingButton.value.normalised()
+        if (config.panelLayout == PanelLayoutStyle.SPLIT_EDGES) {
+            openSplitPanel()
+            return
+        }
         val manager = windows ?: return
-        val widthDp = panelWidthFor(preferences.floatingButton.value.normalised().panelWidthDp)
+        val widthDp = panelWidthFor(config.panelWidthDp)
         panelWidth.value = widthDp
         val width = px(widthDp)
         val margin = px(EDGE_MARGIN_DP)
@@ -735,6 +813,9 @@ class GamingOverlayService : GameCoreService() {
                 onLongAction = ::onLongAction,
                 onPreset = ::onPreset,
                 onAspect = ::onAspect,
+                onRate = ::onRate,
+                onCrosshairDesign = ::onCrosshairDesign,
+                onCrosshairColour = ::onCrosshairColour,
                 onDragLevel = ::onDragLevel,
                 onCommitLevel = ::onCommitLevel,
                 onResize = ::resizePanelTo,
@@ -743,7 +824,79 @@ class GamingOverlayService : GameCoreService() {
             )
         }
         if (!shown) return
+        startPanelWatch(PanelLayoutStyle.CENTERED)
+    }
+
+    /**
+     * Opens the split-edges panel: one full-screen window, both plates inside it.
+     *
+     * Almost none of [openPanel]'s arithmetic survives here, and that is the point of the two being
+     * separate. There is no x to compute because the window starts at the origin; no y and no
+     * `anchorBottom`, because it is as tall as the screen and its height is therefore known in advance
+     * rather than measured; no `maxHeightDp` for the same reason. The button's position is not consulted
+     * at all — a panel pinned to both edges cannot also be positioned from a button that is near one of
+     * them.
+     *
+     * `dismissOnOutsideTouch` is left false, and not as an oversight to tidy up later: it sets
+     * `FLAG_WATCH_OUTSIDE_TOUCH`, whose `ACTION_OUTSIDE` is delivered for touches beyond the window's
+     * bounds, and a window with `MATCH_PARENT` in both directions has none. Asking for it would install a
+     * dismissal path that can never fire. [OverlaySplitPanel] carries its own — the gap between the plates
+     * and the ✕ in its header.
+     *
+     * The width handed down is the screen's, in dp, because the plates are a share of it. Unmeasured is
+     * possible for one frame after a window is added but not here — nothing of GameCore's has to be up for
+     * this to be asked — so the fallback is the model's own minimum times two rather than a guess at a
+     * screen size, which keeps the two plates drawable even in the case that cannot happen.
+     */
+    private fun openSplitPanel() {
+        val manager = windows ?: return
+        val frame = manager.frameFor(0, 0)
+        val screenWidthDp = if (frame.isMeasured) {
+            dp(frame.screenWidth)
+        } else {
+            FloatingButtonConfig.MIN_PANEL_WIDTH_DP * 2
+        }
+        val shown = manager.show(
+            slot = OverlaySlot.PANEL,
+            spec = OverlayWindowSpec(touchable = true, fullScreen = true),
+            host = host,
+        ) {
+            val state by panel.collectAsState()
+            val readings by pillReadings.collectAsState()
+            val tint by accent.collectAsState()
+            OverlaySplitPanel(
+                state = state,
+                readings = readings,
+                accent = tint,
+                screenWidthDp = screenWidthDp,
+                onAction = ::onAction,
+                onLongAction = ::onLongAction,
+                onPreset = ::onPreset,
+                onAspect = ::onAspect,
+                onRate = ::onRate,
+                onCrosshairDesign = ::onCrosshairDesign,
+                onCrosshairColour = ::onCrosshairColour,
+                onDragLevel = ::onDragLevel,
+                onCommitLevel = ::onCommitLevel,
+                onDismiss = ::closePanel,
+            )
+        }
+        if (!shown) return
+        startPanelWatch(PanelLayoutStyle.SPLIT_EDGES)
+    }
+
+    /**
+     * What both layouts do once their window is up: mark it open, forget last time's refusals, start the
+     * tick.
+     *
+     * Shared rather than repeated because it is bookkeeping about *a panel being open*, which neither
+     * layout has its own version of — and a copy in each would be one copy to forget to update. [denied]
+     * and [deniedLevels] are cleared on open rather than on close so a capability the user has since
+     * granted is retried, not remembered as refused.
+     */
+    private fun startPanelWatch(layout: PanelLayoutStyle) {
         panelOpen.value = true
+        panelLayoutShown = layout
         denied.clear()
         deniedLevels.clear()
         panelJob?.cancel()
@@ -760,6 +913,7 @@ class GamingOverlayService : GameCoreService() {
         // for every screen.
         if (resizingPanel) finishPanelResize()
         if (panelOpen.value) panelOpen.value = false
+        panelLayoutShown = null
         windows?.hide(OverlaySlot.PANEL)
     }
 
@@ -787,10 +941,34 @@ class GamingOverlayService : GameCoreService() {
      * This is what makes the settings screen's slider a live preview rather than a number: the panel is up,
      * the slider writes, [observe]'s `floatingButton` collector reconciles, and the panel on screen follows
      * the finger on the slider. Ignored while the grip is being dragged — see [resizingPanel].
+     *
+     * Also ignored while the split layout is on screen, and that is not the same kind of guard. The grip
+     * case is a race worth waiting out; this one is a width that does not exist. A split panel's window is
+     * `MATCH_PARENT`, so [setPanelWidth] would hand [OverlayWindows.resize] a figure for a dimension the
+     * window does not have — narrowing the whole thing to a third of the screen and leaving the right-hand
+     * plate off the edge of it. The stored width stays stored and applies when the user switches back.
      */
     private fun applyPanelWidth(requestedDp: Int) {
         if (resizingPanel) return
+        if (panelLayoutShown == PanelLayoutStyle.SPLIT_EDGES) return
         setPanelWidth(requestedDp)
+    }
+
+    /**
+     * Rebuilds the open panel when the user changes which layout it should be in.
+     *
+     * A close and a re-open rather than an update, because the two layouts differ in everything
+     * [OverlayWindowSpec] carries — flags, size, position, whether outside touches are watched — and
+     * [OverlayWindows.resize] moves a window without re-specifying it. Re-opening also re-runs
+     * [startPanelWatch], so the tick and the refusal lists belong to the layout on screen.
+     *
+     * Only while the panel is open. Closed, there is nothing to rebuild and the next [openPanel] reads the
+     * preference itself.
+     */
+    private fun syncPanelLayout(style: PanelLayoutStyle) {
+        if (!panelOpen.value || panelLayoutShown == style) return
+        closePanel()
+        openPanel()
     }
 
     /**
@@ -929,6 +1107,34 @@ class GamingOverlayService : GameCoreService() {
         if (sizeState?.isOverridden == true) active += OverlayAction.ASPECT
         sizes.unavailabilityText()?.let { unavailable[OverlayAction.ASPECT] = it }
 
+        // The rates come from the platform's own mode list, and the tile is dimmed when there is nothing to
+        // choose from — a single-rate panel and an unreadable mode list being two different sentences, since
+        // one has no fix and the other might. Held to the same one-read rule the two tiles above are: this is
+        // `Display.getSupportedModes()`, which is a local call rather than a shell round trip, but it is
+        // still one call for the tile, the row and the chips together.
+        val rates = displayReader.supportedRates()
+        // Two or more, matching [DisplayReader.hasVariableRefreshRate]'s own test: a row with one chip in it
+        // looks like a control that failed to load, and the user has nothing to decide.
+        val offeredRates = rates.valueOrNull?.takeIf { it.size >= MIN_SELECTABLE_RATES }.orEmpty()
+        if (offeredRates.isEmpty()) {
+            unavailable[OverlayAction.REFRESH_RATE] = rates.shortUnavailabilityText()
+                ?: getString(R.string.overlay_refresh_single_rate)
+        }
+        // Lit from GameCore's own confirmed change and from nothing else — see [pinnedRate], which is where
+        // the argument for that lives.
+        if (pinnedRate != null) active += OverlayAction.REFRESH_RATE
+
+        // The stored preference rather than [panelLayoutShown], which is the layout of the window this probe
+        // is drawing into. The two agree everywhere except the one frame between the tap and the rebuild,
+        // and in that frame the preference is the answer the user just gave — reading the window would make
+        // the tile go dark on the tap that turned it on and light again a frame later.
+        //
+        // Never added to [unavailable]: there is no state of the device in which a preference of GameCore's
+        // own cannot be written. See [OverlayAction.PANEL_LAYOUT].
+        if (preferences.floatingButton.value.panelLayout == PanelLayoutStyle.SPLIT_EDGES) {
+            active += OverlayAction.PANEL_LAYOUT
+        }
+
         panel.value = OverlayPanelState(
             gameLabel = gaming.gameLabel.ifEmpty { request.gameLabel },
             sessionElapsed = sessionElapsedLabel(),
@@ -949,6 +1155,31 @@ class GamingOverlayService : GameCoreService() {
             aspectsExpanded = panel.value.aspectsExpanded,
             activeAspect = sizeState?.activePreset,
             aspectNote = sizeState?.let(::aspectNote),
+            refreshRates = offeredRates,
+            // Carried over for the same reason [presetsExpanded] is.
+            refreshRatesExpanded = panel.value.refreshRatesExpanded,
+            // The two fields in this state that are GameCore's own record rather than a reading. See
+            // [pinnedRate] for why that is the honest way round for this one control.
+            pinnedRefreshRate = pinnedRate,
+            refreshRateNote = rateNote,
+            // The crosshair that is actually being drawn, not the first row in the table — [resolveCrosshair]
+            // has already picked between the profile's choice and the fallback, so reading its result is what
+            // makes the chips describe the shape on the screen. Reduced to four fields by §24A.2.
+            crosshair = crosshairPreset.value?.let {
+                OverlayCrosshair(
+                    id = it.id,
+                    name = it.name,
+                    design = it.design,
+                    colorArgb = it.colorArgb,
+                )
+            },
+            // Carried over for the same reason [presetsExpanded] is.
+            crosshairExpanded = panel.value.crosshairExpanded,
+                // The built-in eight plus whatever the user mixed in the picker, in that order, which is
+                // the same row the crosshair screen draws. The panel offers no picker of its own — an HSV
+                // square is a two-handed control and this window is open over a game — so the colours it
+                // can reach are the built-ins and the ones already chosen somewhere with more room.
+                crosshairColours = CROSSHAIR_COLOURS + preferences.customCrosshairColours,
         )
     }
 
@@ -1143,16 +1374,27 @@ class GamingOverlayService : GameCoreService() {
     }
 
     /**
-     * A long press, which only the colour tile has: it drops the saved presets into the panel.
+     * A long press, which two tiles have: it drops a second row under the grid.
      *
-     * No coroutine and no re-probe. The presets are already in the state — [probePanel] reads them — so
-     * the row appears on the press rather than a database round trip later, and a gesture that has to be
-     * held already feels slow enough without waiting for storage. The empty case is the composable's, and
-     * it says so in words rather than opening a blank row.
+     * No coroutine and no re-probe. Everything either row draws is already in the state — [probePanel] reads
+     * the colour presets and the active crosshair together with everything else — so the row appears on the
+     * press rather than a database round trip later, and a gesture that has to be held already feels slow
+     * enough without waiting for storage. Both empty cases are the composables' own, and they say so in words
+     * rather than opening a blank row.
+     *
+     * A `when` over [OverlayAction.heldRow] rather than over the action, so the two tiles that offer the
+     * gesture and the two rows it opens are the same fact stated once. The `null` branch is the twelve tiles
+     * that pass no long-press handler at all — unreachable from the panel, and handled rather than asserted
+     * against because a service is not the place to throw over a gesture.
      */
     private fun onLongAction(action: OverlayAction) {
-        if (!action.hasPresets) return
-        panel.value = panel.value.copy(presetsExpanded = !panel.value.presetsExpanded)
+        when (action.heldRow) {
+            HeldRow.COLOUR_PRESETS ->
+                panel.value = panel.value.copy(presetsExpanded = !panel.value.presetsExpanded)
+            HeldRow.CROSSHAIR_QUICK_PICK ->
+                panel.value = panel.value.copy(crosshairExpanded = !panel.value.crosshairExpanded)
+            null -> Unit
+        }
     }
 
     /**
@@ -1204,6 +1446,81 @@ class GamingOverlayService : GameCoreService() {
             val outcome = displaySize.apply(choice.preset, coordinator.gaming.value.playing)
             if (!outcome.isSuccess) toast(outcome.message)
             if (panelOpen.value) probePanel()
+        }
+    }
+
+    /**
+     * A rate chip: hold the display at it, or stop holding it.
+     *
+     * Straight through [RefreshRateController], which is the same object the profile editor's rate field
+     * writes through and the same one a game launch applies a profile's `targetRefreshRate` with. That
+     * matters more here than it reads: pinning a rate is `Settings.System.min_refresh_rate` and
+     * `peak_refresh_rate` written together, verified by reading them back, with a per-chipset caveat about
+     * builds that accept both and honour neither. A second path that wrote one key, or skipped the
+     * verification, or reported "done", would be a control that disagreed with the one in Settings about
+     * what the display is doing. So the panel has no rate logic of its own — [refreshRateFeedback] is a
+     * pure mapping of the outcome onto two pieces of panel state, not a second implementation.
+     *
+     * Applied on the tap with no confirmation, like the shape chips, and safe for the same structural
+     * reason: the row's first chip is "leave alone", so the undo is one tap away and already on screen.
+     *
+     * The re-probe at the end is not what fills the chip — [pinnedRate] is set here, from the outcome,
+     * before it runs. It is there because a rate change is a real change to the display and the rest of
+     * the panel reads from the display.
+     */
+    private fun onRate(rateHz: Float?) {
+        lifecycleScope.launch {
+            val outcome = if (rateHz == null) refreshRate.release() else refreshRate.apply(rateHz)
+            val feedback = refreshRateFeedback(requestedHz = rateHz, outcome = outcome)
+            pinnedRate = feedback.pinnedRateHz
+            rateNote = feedback.message
+            // Toasted as well as noted under the row, because the row can be scrolled off a short plate
+            // and "nothing happened" needs to reach the user who is looking at the game.
+            feedback.message?.let(::toast)
+            if (panelOpen.value) probePanel()
+        }
+    }
+
+    /**
+     * A design chip: change the saved crosshair's shape.
+     *
+     * The same write the crosshair screen makes, and that is the requirement rather than an implementation
+     * detail. [CrosshairRepository.save] is a whole-row upsert, so the change is read-modify-write on the
+     * preset that is *resolved* — `copy`, `normalised()`, save — which is exactly what the editor's own
+     * `edit {}` does. There is deliberately no quick-pick copy of the crosshair anywhere: a design tapped
+     * here is the design the crosshair screen opens on, because there is only one row.
+     *
+     * Nothing is poked afterwards. [resolveCrosshair] is collecting the presets table, so the save re-emits,
+     * the resolved preset changes, and the crosshair window redraws where it stands — see its own KDoc, which
+     * is the same mechanism a slider in the editor uses to redraw over a game. The panel's filled chip follows
+     * from there rather than from what was just requested, which is why the probe is in that collector and not
+     * in this handler: a chip filled here would be filled from the write, and a chip filled there is filled
+     * from the crosshair that is actually on the screen.
+     */
+    private fun onCrosshairDesign(design: CrosshairDesign) {
+        editCrosshair { it.copy(design = design) }
+    }
+
+    /** A swatch: change the saved crosshair's colour. Everything in [onCrosshairDesign] applies. */
+    private fun onCrosshairColour(argb: Int) {
+        editCrosshair { it.copy(colorArgb = argb) }
+    }
+
+    /**
+     * The one write path both crosshair chips take.
+     *
+     * Reads [crosshairPreset] rather than the repository, so the row that is changed is the row that is being
+     * drawn — on a device with several saved crosshairs those are not the same thing, and editing the first
+     * one in the table while a profile draws the third is the bug this closes.
+     *
+     * Null means the presets table is empty, which the seeded defaults normally rule out and which the row
+     * itself already explains. Guarded anyway rather than asserted: a service that threw here would take the
+     * overlay down over a chip tap.
+     */
+    private fun editCrosshair(transform: (CrosshairPreset) -> CrosshairPreset) {
+        val current = crosshairPreset.value ?: return
+        lifecycleScope.launch {
+            crosshairs.save(transform(current).normalised())
         }
     }
 
@@ -1264,6 +1581,22 @@ class GamingOverlayService : GameCoreService() {
             // back to native is the first chip it reveals.
             OverlayAction.ASPECT ->
                 panel.value = panel.value.copy(aspectsExpanded = !panel.value.aspectsExpanded)
+            // Opens its chips on the tap for the same reason the tile above it does, and the row it opens
+            // has the same shape: every rate this panel reports, plus the way back off them. The chips
+            // themselves are [onRate]'s business; this only decides whether they are showing.
+            OverlayAction.REFRESH_RATE ->
+                panel.value = panel.value.copy(refreshRatesExpanded = !panel.value.refreshRatesExpanded)
+            // The one action that changes the window it was tapped in, and it does so without naming a
+            // window: the preference is written, [observe]'s `floatingButton` collector reconciles, and
+            // [syncPanelLayout] rebuilds the open panel in the other shape. Which means a switch from here
+            // and a switch from the settings screen take the same path, and this branch cannot leave a
+            // panel on screen in a layout the stored preference disagrees with.
+            //
+            // Written through the narrow [SecurePreferenceStore.updatePanelLayout] rather than
+            // `updateFloatingButton`, for the reason that writer gives — the panel is open, so the button's
+            // position in this process may be a frame ahead of the stored one.
+            OverlayAction.PANEL_LAYOUT ->
+                preferences.updatePanelLayout(preferences.floatingButton.value.panelLayout.other())
             OverlayAction.STOP_SESSION -> {
                 closePanel()
                 // Through the coordinator, which routes it through the detector: that is what suppresses
@@ -1452,5 +1785,15 @@ class GamingOverlayService : GameCoreService() {
 
         /** `Surface.ROTATION_*` counts quarter turns; [DisplayReader] reports degrees. */
         const val DEGREES_PER_STEP = 90
+
+        /**
+         * How many rates a display has to report before the panel offers a choice of them.
+         *
+         * Two, matching [DisplayReader.hasVariableRefreshRate]'s own test rather than restating it as one:
+         * a row holding a single chip reads as a control that failed to load, and there is nothing for the
+         * user to decide on a panel with one mode. Below this the tile is dimmed with a reason, which is a
+         * different thing from a row of one.
+         */
+        const val MIN_SELECTABLE_RATES = 2
     }
 }

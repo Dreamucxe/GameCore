@@ -110,6 +110,22 @@ data class GameProfileEntity(
     @ColumnInfo(name = "track_session")
     val trackSession: Boolean,
 
+    /**
+     * The CPU core group to restrict this game's process to, by
+     * [com.gamecore.core.model.CpuAffinityPreset] name, or null to leave the scheduler alone.
+     *
+     * Added in schema version 6, nullable with no default, and the nullability is the design rather
+     * than a migration convenience: "leave it to the OS" is the absence of an instruction, so there
+     * is no `LEAVE_TO_OS` member to store and no row that could hold one. A profile written before
+     * this feature existed reads back as null, which is precisely what it meant.
+     *
+     * Parsed back the way every enum in this table is — matched against
+     * `CpuAffinityPreset.entries` by name, never `valueOf` — so a name this build has dropped reads
+     * as null and the profile stops pinning cores instead of crashing on load.
+     */
+    @ColumnInfo(name = "cpu_affinity")
+    val cpuAffinity: String?,
+
     @ColumnInfo(name = "updated_at")
     val updatedAtMillis: Long,
 )

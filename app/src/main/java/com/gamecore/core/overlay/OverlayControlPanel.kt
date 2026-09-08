@@ -36,10 +36,12 @@ import androidx.compose.material.icons.rounded.FlashlightOn
 import androidx.compose.material.icons.rounded.GpsFixed
 import androidx.compose.material.icons.rounded.Opacity
 import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.ScreenLockRotation
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.StopCircle
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.VerticalSplit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -64,7 +66,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gamecore.core.common.Formatters
 import com.gamecore.core.model.AspectChoice
+import com.gamecore.core.model.CrosshairDesign
 import com.gamecore.domain.monitoring.StatReading
 import kotlin.math.roundToInt
 
@@ -94,6 +98,12 @@ import kotlin.math.roundToInt
  * resize so that the window and the plate inside it change size in the same frame. A grip that moved the
  * plate and left the window behind would show a panel clipped by its own window for as long as the drag
  * lasted.
+ *
+ * This is the centered layout, and one of two. [OverlaySplitPanel] is the other, and it reuses the
+ * content composables below rather than reimplementing them — which is why several of them are `internal`
+ * and not `private`. What it does not reuse is anything on this function: the plate, the height cap, the
+ * grip and the `ACTION_OUTSIDE` handling are all specific to a window that has an outside and a width.
+ * [com.gamecore.core.model.PanelLayoutStyle.CENTERED] is the default and stays the default.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -107,6 +117,9 @@ fun OverlayControlPanel(
     onLongAction: (OverlayAction) -> Unit,
     onPreset: (Long) -> Unit,
     onAspect: (AspectChoice) -> Unit,
+    onRate: (Float?) -> Unit,
+    onCrosshairDesign: (CrosshairDesign) -> Unit,
+    onCrosshairColour: (Int) -> Unit,
     onDragLevel: (OverlayLevel, Int) -> Unit,
     onCommitLevel: (OverlayLevel) -> Unit,
     onResize: (Int) -> Unit,
@@ -200,6 +213,18 @@ fun OverlayControlPanel(
             if (state.aspectsExpanded) {
                 AspectChips(state = state, accent = accent, widthDp = widthDp, onAspect = onAspect)
             }
+            if (state.refreshRatesExpanded) {
+                RateChips(state = state, accent = accent, widthDp = widthDp, onRate = onRate)
+            }
+            if (state.crosshairExpanded) {
+                CrosshairChips(
+                    state = state,
+                    accent = accent,
+                    widthDp = widthDp,
+                    onCrosshairDesign = onCrosshairDesign,
+                    onCrosshairColour = onCrosshairColour,
+                )
+            }
         }
         PanelResizeGrip(
             widthDp = widthDp,
@@ -223,7 +248,7 @@ fun OverlayControlPanel(
  * should be three tiles the size of the ones above them, not three stretched to fill the row.
  */
 @Composable
-private fun PanelActions(
+internal fun PanelActions(
     state: OverlayPanelState,
     accent: Color,
     widthDp: Int,
@@ -336,7 +361,7 @@ private fun PanelResizeGrip(
 }
 
 @Composable
-private fun PanelHeader(state: OverlayPanelState, accent: Color) {
+internal fun PanelHeader(state: OverlayPanelState, accent: Color) {
     Column(modifier = Modifier.fillMaxWidth()) {
         BasicText(
             text = state.gameLabel.ifEmpty { "GameCore" },
@@ -362,7 +387,7 @@ private fun PanelHeader(state: OverlayPanelState, accent: Color) {
 
 /** The same readings the pill shows, in a single dense row, so the panel does not need the pill open. */
 @Composable
-private fun PanelStats(readings: List<StatReading>) {
+internal fun PanelStats(readings: List<StatReading>) {
     Row(
         modifier = Modifier
             .background(OverlayPalette.Plate, RoundedCornerShape(10.dp))
@@ -411,7 +436,7 @@ private fun PanelStats(readings: List<StatReading>) {
  * a list repeated here.
  */
 @Composable
-private fun PanelLevels(
+internal fun PanelLevels(
     state: OverlayPanelState,
     accent: Color,
     editing: OverlayLevel?,
@@ -605,7 +630,7 @@ private fun IntRange.neutral(): Int = (first + last) / 2
  * changed itself.
  */
 @Composable
-private fun LevelKeypad(
+internal fun LevelKeypad(
     level: OverlayLevel,
     typed: String,
     accent: Color,
@@ -781,7 +806,7 @@ private fun String.toggleSign(): String =
  * panel that kept three fixed chips across would put the third one through the edge of its own plate.
  */
 @Composable
-private fun PresetChips(
+internal fun PresetChips(
     state: OverlayPanelState,
     accent: Color,
     widthDp: Int,
@@ -850,7 +875,7 @@ private fun PresetChips(
  * shapes are missing because the size is unknown, not because the display has none.
  */
 @Composable
-private fun AspectChips(
+internal fun AspectChips(
     state: OverlayPanelState,
     accent: Color,
     widthDp: Int,
@@ -952,6 +977,273 @@ private fun AspectChip(
 }
 
 /**
+ * The rates this panel advertises, revealed by a tap on the Refresh tile.
+ *
+ * Shaped like [AspectChips] because it is the same kind of control — a short closed list, applied on the tap,
+ * with the way back as the first chip — and it deliberately offers the same set the profile editor's refresh
+ * row does, in the same order and with the same words. A player who set 90 Hz in a profile and then reaches
+ * for this row should not have to work out whether they are looking at the same control.
+ *
+ * "Leave alone" is that first chip, and it is the profile editor's label rather than a livelier one for the
+ * same reason. What it does here is not quite what it does there: in a profile it means *do not touch the
+ * rate when this game starts*, and here it releases the bounds GameCore wrote. The row's own sentence says
+ * so, because the difference is real and a chip label is not the place to explain it.
+ *
+ * No chip is filled unless GameCore confirmed the rate — [OverlayPanelState.pinnedRefreshRate] holds that,
+ * and holds null for every other state including a change the platform accepted and ignored. An unfilled row
+ * over a display that is in fact running 120 Hz is the deliberate choice: this row reports what GameCore
+ * knows it did, not what it hopes happened.
+ */
+@Composable
+internal fun RateChips(
+    state: OverlayPanelState,
+    accent: Color,
+    widthDp: Int,
+    onRate: (Float?) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        if (state.refreshRates.isEmpty()) {
+            BasicText(
+                text = state.refreshRateNote ?: RATE_UNKNOWN,
+                maxLines = 3,
+                style = TextStyle(color = OverlayPalette.Absent, fontSize = 9.sp),
+            )
+            return@Column
+        }
+        BasicText(
+            text = RATE_RELEASE_NOTE,
+            maxLines = 3,
+            style = TextStyle(color = OverlayPalette.Absent, fontSize = 9.sp),
+        )
+        // Null first, as the release chip. The same `listOf<Float?>(null) + rates` the profile editor builds,
+        // so the two rows cannot drift into offering different things.
+        val choices: List<Float?> = listOf<Float?>(null) + state.refreshRates
+        val perRow = presetsPerRow(widthDp)
+        choices.chunked(perRow).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(PRESET_GAP_DP.dp),
+            ) {
+                row.forEach { rate ->
+                    RateChip(
+                        rateHz = rate,
+                        active = rate == state.pinnedRefreshRate,
+                        accent = accent,
+                        onClick = { onRate(rate) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                repeat(perRow - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+            }
+        }
+        state.refreshRateNote?.let { note ->
+            BasicText(
+                text = note,
+                maxLines = 3,
+                style = TextStyle(color = OverlayPalette.Absent, fontSize = 9.sp),
+            )
+        }
+    }
+}
+
+/**
+ * One rate, or the release chip when [rateHz] is null.
+ *
+ * A single line, unlike [AspectChip]'s two: a rate needs no second figure to be understood, and "120 Hz" is
+ * already the whole of what the chip means. [com.gamecore.core.common.Formatters.hertz] rather than a local
+ * format so 119.998 reads "120 Hz" here exactly as it does in the profile editor and the HUD.
+ */
+@Composable
+private fun RateChip(
+    rateHz: Float?,
+    active: Boolean,
+    accent: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    BasicText(
+        text = rateHz?.let(Formatters::hertz) ?: RATE_RELEASE_LABEL,
+        maxLines = 1,
+        style = TextStyle(
+            color = if (active) accent else OverlayPalette.Text,
+            fontSize = 9.5.sp,
+            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+            textAlign = TextAlign.Center,
+        ),
+        modifier = modifier
+            .background(
+                color = if (active) accent.copy(alpha = ACTIVE_PLATE_ALPHA) else OverlayPalette.Divider,
+                shape = RoundedCornerShape(9.dp),
+            )
+            .clickable { onClick() }
+            .padding(vertical = 6.dp, horizontal = 4.dp),
+    )
+}
+
+/**
+ * The active crosshair's design and colour, revealed by a long press on the Crosshair tile.
+ *
+ * The one row in this panel that *edits* a saved thing rather than selecting one. The colour presets load a
+ * preset, the shapes and rates set a device property; these two rows change two fields of the crosshair the
+ * user already has, and the change is stored — a design tapped here is the design the crosshair screen shows
+ * afterwards, because it is the same row in the same table. That is the whole point of the feature and it is
+ * also its cost, said plainly in [CROSSHAIR_EDITS_NOTE] rather than left for the user to discover: there is
+ * no session-only crosshair, so this is not a way to try a shape for one match.
+ *
+ * The name is drawn above the chips for that reason. A player with three saved crosshairs needs to know
+ * which one is about to change, and "Crosshair" versus "Sniper" is the only thing that tells them.
+ *
+ * [CrosshairDesign.CUSTOM_IMAGE] is not offered. It is the one design that needs a file chosen through a
+ * picker, and a chip that switched to it would leave the overlay drawing nothing at all on a preset with no
+ * image imported — so the drawn designs are the whole row, and the image case stays where the picker is.
+ *
+ * Designs come from the enum here rather than from the state, unlike the colours. The difference is real:
+ * the drawn designs are the same list on every device and every session, so carrying them through the window
+ * state would be shipping a constant across a process boundary, while the colours are a list the settings
+ * layer owns and can grow.
+ */
+@Composable
+internal fun CrosshairChips(
+    state: OverlayPanelState,
+    accent: Color,
+    widthDp: Int,
+    onCrosshairDesign: (CrosshairDesign) -> Unit,
+    onCrosshairColour: (Int) -> Unit,
+) {
+    val crosshair = state.crosshair
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        if (crosshair == null) {
+            BasicText(
+                text = CROSSHAIR_NONE_SAVED,
+                maxLines = 2,
+                style = TextStyle(color = OverlayPalette.Absent, fontSize = 9.sp),
+            )
+            return@Column
+        }
+        BasicText(
+            text = crosshair.name,
+            maxLines = 1,
+            style = TextStyle(
+                color = OverlayPalette.Muted,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+        )
+        val perRow = presetsPerRow(widthDp)
+        DRAWN_DESIGNS.chunked(perRow).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(PRESET_GAP_DP.dp),
+            ) {
+                row.forEach { design ->
+                    val active = design == crosshair.design
+                    BasicText(
+                        text = design.label,
+                        maxLines = 1,
+                        style = TextStyle(
+                            color = if (active) accent else OverlayPalette.Text,
+                            fontSize = 9.5.sp,
+                            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                            textAlign = TextAlign.Center,
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(
+                                color = if (active) {
+                                    accent.copy(alpha = ACTIVE_PLATE_ALPHA)
+                                } else {
+                                    OverlayPalette.Divider
+                                },
+                                shape = RoundedCornerShape(9.dp),
+                            )
+                            .clickable { onCrosshairDesign(design) }
+                            .padding(vertical = 6.dp, horizontal = 4.dp),
+                    )
+                }
+                repeat(perRow - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+            }
+        }
+        if (state.crosshairColours.isNotEmpty()) {
+            CrosshairSwatches(
+                colours = state.crosshairColours,
+                selectedArgb = crosshair.colorArgb,
+                onSelect = onCrosshairColour,
+            )
+        }
+        BasicText(
+            text = CROSSHAIR_EDITS_NOTE,
+            maxLines = 3,
+            style = TextStyle(color = OverlayPalette.Absent, fontSize = 9.sp),
+        )
+    }
+}
+
+/**
+ * The colours, as the colours themselves rather than as their names.
+ *
+ * A swatch is the one chip in this panel whose label would be worse than its subject: "Amber" over a game
+ * means nothing until it is on the screen, and the colour drawn at 22 dp is the answer to the only question
+ * being asked — will the eye find this against what is behind it.
+ *
+ * Which is also why the selected swatch is marked with a ring drawn *outside* the colour rather than with the
+ * filled accent plate the other chips use. A plate tinted with the accent behind a coloured square changes
+ * how the square reads, so the panel would be recolouring the very thing the user is trying to judge. The
+ * ring is [OverlayPalette.Text] on the outside and the plate colour on the inside, so it reads on a white
+ * swatch and on a red one.
+ *
+ * Wrapped by hand at a fixed swatch size instead of sharing the row with `weight`, because a colour stretched
+ * to fill a plate is a different amount of colour on a narrow panel than on a wide one, and a swatch's whole
+ * job is to be the same patch every time.
+ */
+@Composable
+private fun CrosshairSwatches(
+    colours: List<Int>,
+    selectedArgb: Int,
+    onSelect: (Int) -> Unit,
+) {
+    val perRow = SWATCHES_PER_ROW
+    Column(verticalArrangement = Arrangement.spacedBy(SWATCH_GAP_DP.dp)) {
+        colours.chunked(perRow).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(SWATCH_GAP_DP.dp)) {
+                row.forEach { argb ->
+                    val selected = argb == selectedArgb
+                    Box(
+                        modifier = Modifier
+                            .size(SWATCH_DP.dp)
+                            .background(
+                                color = if (selected) OverlayPalette.Text else Color.Transparent,
+                                shape = RoundedCornerShape(SWATCH_CORNER_DP.dp),
+                            )
+                            .clickable { onSelect(argb) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size((SWATCH_DP - if (selected) SWATCH_RING_DP * 2 else 0).dp)
+                                .background(
+                                    color = Color(argb),
+                                    shape = RoundedCornerShape(SWATCH_CORNER_DP.dp),
+                                ),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The drawn designs, in the order the enum declares them.
+ *
+ * The same expression [com.gamecore.ui.crosshair.CrosshairScreen]'s own design grid is built from, and
+ * deliberately not shared with it: one is a settings screen in the app process and one is an overlay in a
+ * service, and a constant they both read would put a `ui` package on the overlay's import list to save a
+ * `filter`. What matters is that both derive it from [CrosshairDesign.isDrawn] rather than listing designs by
+ * hand, so a design added to the enum appears in both without either being edited.
+ */
+private val DRAWN_DESIGNS: List<CrosshairDesign> = CrosshairDesign.entries.filter { it.isDrawn }
+
+/**
  * The glyph per level. Here rather than on the enum for the same reason [OverlayAction.icon] is.
  *
  * The auto-mirrored volume icon, not the plain one: the plain `Icons.Rounded.VolumeUp` is deprecated
@@ -973,10 +1265,11 @@ private fun OverlayLevel.icon(): ImageVector = when (this) {
  * unavailable one is dimmed with a struck-through icon. The reason is drawn under the label at a smaller
  * size — it is the answer to "why is this greyed out", and the panel is where the question gets asked.
  *
- * A long press is offered only where there is something behind it, which is [OverlayAction.hasPresets] —
- * the colour tile, whose saved presets are a list no grid cell can hold. Every other button passes
- * `null` and keeps the plain `clickable`, so nothing gains a hidden gesture: a long press that does
- * nothing on all but one of these buttons teaches the user that long pressing does nothing.
+ * A long press is offered only where there is something behind it, which is [OverlayAction.heldRow] — the
+ * colour tile, whose saved presets are a list no grid cell can hold, and the crosshair tile, whose design
+ * and colour are the same kind of set. Every other button passes `null` and keeps the plain `clickable`, so
+ * nothing gains a hidden gesture: a long press that does nothing on all but two of these buttons teaches
+ * the user that long pressing does nothing.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -1006,7 +1299,7 @@ private fun ActionButton(
             // depresses and does nothing reads as broken, while one that does not respond reads as off.
             .combinedClickable(
                 enabled = usable,
-                onLongClick = if (action.hasPresets) ({ onLongAction(action) }) else null,
+                onLongClick = if (action.heldRow != null) ({ onLongAction(action) }) else null,
                 onClick = { onAction(action) },
             )
             .padding(vertical = 7.dp, horizontal = 2.dp),
@@ -1070,6 +1363,10 @@ private fun OverlayAction.icon(): ImageVector = when (this) {
     OverlayAction.ROTATION_LOCK -> Icons.Rounded.ScreenLockRotation
     OverlayAction.COLOR -> Icons.Rounded.Tune
     OverlayAction.ASPECT -> Icons.Rounded.AspectRatio
+    OverlayAction.REFRESH_RATE -> Icons.Rounded.Refresh
+    // Two panes divided down the middle, which is the shape the tile switches to rather than a picture of
+    // switching: the split layout is two plates with the game visible between them.
+    OverlayAction.PANEL_LAYOUT -> Icons.Rounded.VerticalSplit
     OverlayAction.STOP_SESSION -> Icons.Rounded.StopCircle
     OverlayAction.OPEN_APP -> Icons.AutoMirrored.Rounded.OpenInNew
 }
@@ -1122,7 +1419,7 @@ internal const val ACTION_GAP_DP = 6
 internal const val MIN_ACTION_WIDTH_DP = 56
 
 /** Below two the grid stops being one. See [actionsPerRow]. */
-private const val MIN_ACTIONS_PER_ROW = 2
+internal const val MIN_ACTIONS_PER_ROW = 2
 
 /** The grip's touch target: the 48 dp minimum, less the padding the row it sits in already provides. */
 private const val GRIP_TOUCH_DP = 40
@@ -1138,14 +1435,15 @@ private const val GRIP_ICON_DP = 18
  * allowed to overhang: an overlay window is not clipped to the space under the button, only positioned
  * from it.
  */
-private const val MIN_PANEL_HEIGHT_DP = 220
+internal const val MIN_PANEL_HEIGHT_DP = 220
 
-/** Room for "100%" — and for "−180°" — in monospace at 10.sp. */private const val LEVEL_READOUT_WIDTH_DP = 34
+/** Room for "100%" — and for "−180°" — in monospace at 10.sp. */
+private const val LEVEL_READOUT_WIDTH_DP = 34
 
 /** How many of the pill's stats fit across the panel without shrinking the type. */
 private const val PANEL_STATS = 5
 
-private const val ACTIVE_PLATE_ALPHA = 0.18f
+internal const val ACTIVE_PLATE_ALPHA = 0.18f
 
 /** Names the colour sliders as a group, so their section is not mistaken for two more device levels. */
 private const val COLOUR_SECTION_TITLE = "Colour"
@@ -1178,19 +1476,19 @@ private val KEYPAD_ROWS: List<List<KeypadKey>> = listOf(
  * their labels are short, so a second cap tuned to them would buy nothing but a row that breaks at a
  * different width from the row above it.
  */
-private fun presetsPerRow(widthDp: Int): Int {
+internal fun presetsPerRow(widthDp: Int): Int {
     val available = widthDp - PANEL_PADDING_DP * 2
     val fit = (available + PRESET_GAP_DP) / (MIN_PRESET_CHIP_WIDTH_DP + PRESET_GAP_DP)
     return fit.coerceAtLeast(1)
 }
 
-private const val PRESET_GAP_DP = 5
+internal const val PRESET_GAP_DP = 5
 
 /**
  * The narrowest a preset chip may be drawn, which is three across at the panel's default width — where
  * it fits a 40-character name at 9.5.sp without truncating most of them.
  */
-private const val MIN_PRESET_CHIP_WIDTH_DP = 77
+internal const val MIN_PRESET_CHIP_WIDTH_DP = 77
 
 /**
  * What the shape chips do, said plainly, above them.
@@ -1213,3 +1511,80 @@ private const val ASPECT_STRETCH_NOTE =
  */
 private const val ASPECT_SIZE_UNKNOWN =
     "This display's size could not be read, so there are no shapes to offer."
+
+/** The release chip, labelled as the profile editor labels the same choice. See [RateChips]. */
+private const val RATE_RELEASE_LABEL = "Leave alone"
+
+/**
+ * What the rate row does, above it.
+ *
+ * Two facts, and both of them are ones a user would otherwise have to discover by watching their battery.
+ * Pinning a rate holds it — that is the point of pinning rather than raising a ceiling — and holding a high
+ * one costs power whether or not anything on screen is moving. The release chip is named so the sentence has
+ * something to point at, because "Leave alone" on its own reads as "do nothing", which is not what it does
+ * in a panel sitting over a running game.
+ */
+private const val RATE_RELEASE_NOTE =
+    "Holds the display at the rate you pick, which uses more power. Leave alone releases it."
+
+/**
+ * Why there are no rates to offer.
+ *
+ * Deliberately not the same sentence as [ASPECT_SIZE_UNKNOWN]'s, because the usual cause is different: a
+ * panel with one mode is the ordinary case here and needs no elevated shell to explain, where a display size
+ * that will not read almost always means no Shizuku. This is the fallback for the row being opened with an
+ * empty list and no note, which the probe should make impossible — the specific reasons come from
+ * [OverlayPanelState.refreshRateNote] and are the display's own.
+ */
+private const val RATE_UNKNOWN =
+    "This display's rates could not be read, so there are none to offer."
+
+/**
+ * The one thing about the crosshair row a chip cannot show, said under it.
+ *
+ * Every other row in this panel is a temporary act on the device: a shape comes off, a rate is released, a
+ * colour preset is one of several. This one writes to the crosshair the user authored, so a design tapped
+ * during a match is the design that is there tomorrow — and a player who expected to be trying something on
+ * for one round would find their own crosshair quietly replaced.
+ *
+ * Said rather than prevented. A session-only crosshair would mean a second piece of crosshair state living
+ * beside the saved one, and two crosshairs that disagree about which is real is a worse outcome than a
+ * sentence: the user can undo this from the same row, and the crosshair screen shows the same values.
+ */
+private const val CROSSHAIR_EDITS_NOTE =
+    "Changes the saved crosshair, not just this session."
+
+/**
+ * The row with no crosshair to change.
+ *
+ * Reachable only where the presets table is empty, which the defaults seeded at first launch normally rule
+ * out. It is still here rather than left as an empty row, because "nothing loaded" and "nothing exists" look
+ * identical on a panel over a game, and the second one has a fix the user can act on.
+ */
+private const val CROSSHAIR_NONE_SAVED =
+    "No crosshair saved yet. Make one from the crosshair screen."
+
+/**
+ * How many swatches share a row, fixed rather than derived from the panel's width.
+ *
+ * The one row here that does not reflow, and deliberately: a swatch is a fixed 22 dp, so a narrow panel
+ * cannot clip one the way it would clip a chip with a word in it — the row simply wraps sooner and the
+ * colours stay the same size. Four across leaves the fixed contrast set as two tidy rows on the narrowest
+ * plate the split layout allows.
+ */
+private const val SWATCHES_PER_ROW = 4
+
+private const val SWATCH_DP = 22
+
+private const val SWATCH_GAP_DP = 5
+
+private const val SWATCH_CORNER_DP = 6
+
+/**
+ * The width of the selection ring drawn around the active swatch.
+ *
+ * Inset from the outside rather than drawn over the colour, so the patch the user is judging is never
+ * partly covered by the mark that says it is chosen. See [CrosshairSwatches].
+ */
+private const val SWATCH_RING_DP = 3
+

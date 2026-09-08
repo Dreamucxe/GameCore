@@ -143,6 +143,86 @@ class DumpsysParsersTest {
         }
     }
 
+    // ---- the pid of one package's main process
+
+    @Test
+    fun `the main process of a package is found by its pid`() {
+        // The same rows the state parser reads, through the same regex. A second regex over the same
+        // output could disagree with the first about what is running, which is the class of bug that
+        // produces "GameCore closed an app it says was not running".
+        val dump = listOf(
+            row("system", "fixed", pid = 1234, uid = "1000"),
+            row(GAME, "top-activity", pid = 4021),
+            row(APP, "cch-empty", pid = 3891),
+        ).joinToString("\n")
+        assertEquals(4021, DumpsysParsers.parseMainProcessPid(dump, GAME).valueOrNull)
+        assertEquals(3891, DumpsysParsers.parseMainProcessPid(dump, APP).valueOrNull)
+        assertEquals(
+            DataSource.DUMPSYS_SHIZUKU,
+            (DumpsysParsers.parseMainProcessPid(dump, GAME) as Observed.Value).source,
+        )
+    }
+
+    @Test
+    fun `a process with a suffix is not the main process and is left alone`() {
+        // `com.game:audio` and `com.game:downloader` are matched by nothing here on purpose. The render
+        // thread of an Android game lives in the main process, and pinning an audio service to the
+        // performance cores would spend them on work that does not need them. It is also what keeps the
+        // change single-valued, so one recorded mask puts it back.
+        val dump = listOf(
+            row("$GAME:audio", "fg-service", pid = 4088),
+            row("$GAME:downloader", "service", pid = 4099),
+        ).joinToString("\n")
+        assertTrue(DumpsysParsers.parseMainProcessPid(dump, GAME) is Observed.Failed)
+
+        // And the main row among them is the only one that answers.
+        val withMain = "${row(GAME, "top-activity", pid = 4021)}\n$dump"
+        assertEquals(4021, DumpsysParsers.parseMainProcessPid(withMain, GAME).valueOrNull)
+    }
+
+    @Test
+    fun `a game that has not finished starting has no pid rather than a guessed one`() {
+        val dump = row(APP, "cch-empty", pid = 3891)
+        val observed = DumpsysParsers.parseMainProcessPid(dump, GAME)
+        assertTrue(observed is Observed.Failed)
+        assertNull(observed.valueOrNull)
+        // Not zero, and not the first pid in the dump. The caller retries or says the game is not
+        // running; a pid this parser invented would be another process entirely.
+        assertTrue((observed as Observed.Failed).detail.contains(GAME))
+    }
+
+    @Test
+    fun `the same game running under two users is refused rather than picked between`() {
+        // A work profile or a second user prints the same process name twice with different uids, and
+        // this row shape does not distinguish them. Picking either is a coin flip about whose process
+        // GameCore reaches into, and the wrong side of it is another user's game.
+        val dump = listOf(
+            row(GAME, "top-activity", pid = 4021, uid = "u0a234"),
+            row(GAME, "top-activity", pid = 8120, uid = "u10a234"),
+        ).joinToString("\n")
+        val observed = DumpsysParsers.parseMainProcessPid(dump, GAME)
+        assertTrue(observed is Observed.Failed)
+        assertTrue((observed as Observed.Failed).detail.contains("more than one user"))
+    }
+
+    @Test
+    fun `two rows for one process at one pid are one answer, not an ambiguity`() {
+        // A dump can list the same process twice — under `All known processes:` and again in a
+        // per-user section. Distinct pids are the ambiguity, not distinct lines.
+        val line = row(GAME, "top-activity", pid = 4021)
+        assertEquals(4021, DumpsysParsers.parseMainProcessPid("$line\n$line", GAME).valueOrNull)
+    }
+
+    @Test
+    fun `something that is not a package name is refused before the dump is read`() {
+        val dump = row(GAME, "top-activity", pid = 4021)
+        for (bad in listOf("", " ", "not a package", "../../etc/passwd", "com.game;id")) {
+            val observed = DumpsysParsers.parseMainProcessPid(dump, bad)
+            assertTrue(bad, observed is Observed.Failed)
+            assertNull(bad, observed.valueOrNull)
+        }
+    }
+
     // ---- fixtures
 
     /**
@@ -163,3 +243,6 @@ class DumpsysParsersTest {
 }
 
 private const val APP = "com.example.notes"
+
+/** A second package, for the pid lookup: the one thing here that asks about a *named* app. */
+private const val GAME = "com.example.game"

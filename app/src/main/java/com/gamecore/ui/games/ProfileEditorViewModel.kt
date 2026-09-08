@@ -14,6 +14,7 @@ import com.gamecore.data.repository.ColorPresetRepository
 import com.gamecore.data.repository.CrosshairRepository
 import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.data.repository.HudLayoutRepository
+import com.gamecore.domain.cpu.CpuAffinityController
 import com.gamecore.domain.display.DisplaySizeController
 import com.gamecore.domain.optimization.DeviceCapabilityChecker
 import com.gamecore.ui.Destination
@@ -47,6 +48,7 @@ class ProfileEditorViewModel @Inject constructor(
     private val colours: ColorPresetRepository,
     private val capabilityChecker: DeviceCapabilityChecker,
     private val displaySize: DisplaySizeController,
+    private val cpuAffinity: CpuAffinityController,
     preferences: SecurePreferenceStore,
 ) : ViewModel() {
 
@@ -73,6 +75,13 @@ class ProfileEditorViewModel @Inject constructor(
         // in when `wm size` answers, rather than holding the whole form back on the slowest read.
         viewModelScope.launch {
             editing.value = editing.value.copy(display = displaySize.state())
+        }
+        // Its own launch again, and not folded into the one above even though both are reads of what the
+        // device is: this one walks `/sys/devices/system/cpu` and the one above runs a shell command, so a
+        // device where the shell is absent would otherwise hold the core layout behind a call that is
+        // going to fail. They are unrelated questions and they fail for unrelated reasons.
+        viewModelScope.launch {
+            editing.value = editing.value.copy(cpuLayout = cpuAffinity.layout())
         }
         viewModelScope.launch {
             val layouts = hudLayouts.layouts.first().map {

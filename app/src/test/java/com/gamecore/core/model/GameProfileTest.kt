@@ -44,6 +44,10 @@ class GameProfileTest {
         assertNull(profile.crosshairPresetId)
         assertNull(profile.colorPresetId)
         assertNull(profile.displaySize)
+        // The core preset included, and this is the field the invariant was worth restating for:
+        // [CpuAffinityPreset] deliberately has no `LEAVE_TO_OS` member, so null here is the only
+        // spelling of "let Android decide" and nothing downstream has a second one to check for.
+        assertNull(profile.cpuAffinity)
     }
 
     @Test
@@ -65,6 +69,12 @@ class GameProfileTest {
         // A display size more so than anything else here: a `wm size` override survives a reboot, so a
         // profile holding one is never a profile that leaves the device as it found it.
         assertFalse(base.copy(displaySize = DisplaySize(1080, 1440)).changesNothing)
+        // And a core preset, which writes onto the game's own process rather than a device setting
+        // and records what that process was found on so it can be put back. Whether it helps is a
+        // different question from whether it changes anything, which is the one being asked here.
+        CpuAffinityPreset.entries.forEach { preset ->
+            assertFalse(preset.name, base.copy(cpuAffinity = preset).changesNothing)
+        }
     }
 
     @Test
@@ -121,6 +131,7 @@ class GameProfileTest {
             base.copy(brightnessPercent = 50),
             base.copy(hudLayoutId = 1L),
             base.copy(trackSession = false),
+            base.copy(cpuAffinity = CpuAffinityPreset.PERFORMANCE_ONLY),
         ).forEach { assertFalse(it.toString(), it == base) }
     }
 

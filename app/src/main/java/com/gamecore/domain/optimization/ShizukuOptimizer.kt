@@ -60,6 +60,11 @@ class ShizukuOptimizer @Inject constructor(
         // so it does not go through SettingsWriter and there is no key for the manager to capture.
         // DisplaySizeController owns the command, the read-back and its own restore row.
         OptimizationAction.SET_DISPLAY_SIZE,
+        // Nor the core assignment, and that one is not a device setting at all: it is written onto one
+        // running process, so it needs a pid, and the manager's capture-then-write shape has nothing to
+        // capture. CpuAffinityController finds the process, records the mask it was on, and reads every
+        // thread back.
+        OptimizationAction.SET_CPU_AFFINITY,
         -> CapabilityStatus.UNSUPPORTED
 
         // A 60 Hz-only panel is unsupported no matter who is asking; the shell cannot add a mode.
@@ -114,6 +119,14 @@ class ShizukuOptimizer @Inject constructor(
                     "the window-manager command, reads the size back, and keeps the record of what " +
                     "the display was before — an override that outlives a reboot needs an owner " +
                     "that does all three.",
+            )
+
+            OptimizationAction.SET_CPU_AFFINITY -> action.blocked(
+                status = CapabilityStatus.UNSUPPORTED,
+                detail = "Which cores a game runs on is set by GameCore's affinity controller, which " +
+                    "finds the game's process, records the assignment it already had, and reads every " +
+                    "thread back before saying it changed anything. This tier writes settings, and " +
+                    "that is not a setting.",
             )
 
             // Routed by the two helpers above. Enumerated rather than folded into an `else` so that

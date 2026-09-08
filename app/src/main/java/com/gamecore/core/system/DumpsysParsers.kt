@@ -240,9 +240,9 @@ internal object DumpsysParsers {
             val match = PROCESS_ROW.find(line) ?: continue
             // `com.player:playback` and `com.player` are one app to the user and one argument to a
             // close, so the process suffix goes before the name is validated as a package.
-            val processName = match.groupValues[1].substringBefore(':')
+            val processName = match.groupValues[2].substringBefore(':')
             val packageName = TextSanitizer.validatePackageName(processName) ?: continue
-            val state = stateFor(match.groupValues[2])
+            val state = stateFor(match.groupValues[3])
             val known = byPackage[packageName]
             byPackage[packageName] = if (known == null) state else moreProtective(known, state)
         }
@@ -250,6 +250,53 @@ internal object DumpsysParsers {
             Observed.Failed("The activity dump did not list any running processes")
         } else {
             Observed.of(byPackage, DataSource.DUMPSYS_SHIZUKU)
+        }
+    }
+
+    /**
+     * The pid of one package's main process, from the same dump [parseRunningProcesses] reads.
+     *
+     * The one thing in this app that turns a package name into a handle on a running process, and it
+     * exists because CPU affinity is the only feature that needs one. It shares [PROCESS_ROW] with the
+     * parser above deliberately: a second regex over the same output could disagree with the first
+     * about what is running, and "GameCore closed an app it says was not running" is the class of bug
+     * that would be.
+     *
+     * *Main* process, exactly. A row qualifies only when its process name equals the package with no
+     * `:suffix`, so `com.game:audio` and `com.game:downloader` are matched by nothing here and left
+     * where the scheduler put them. That is a deliberate narrowing rather than an omission: the render
+     * thread of an Android game lives in the main process, and pinning an audio or download service to
+     * the performance cores would be spending them on work that does not need them while claiming to
+     * have helped the frame rate. It is also what keeps the change single-valued, so one recorded mask
+     * puts it back.
+     *
+     * Two failures, and neither is a zero:
+     *
+     *  * no matching row, which is the ordinary case for a game that has not finished starting. The
+     *    caller retries or reports it; it does not guess a pid.
+     *  * more than one distinct pid for that exact process name, which happens across users — a work
+     *    profile or a second user running the same game prints `com.game/u0a234` and
+     *    `com.game/u10a234`, and this row shape does not distinguish them. Refusing is the only safe
+     *    answer available, because picking either one is a coin flip about whose process GameCore
+     *    reaches into, and the wrong side of it is another user's game.
+     */
+    fun parseMainProcessPid(text: String, packageName: String): Observed<Int> {
+        val valid = TextSanitizer.validatePackageName(packageName)
+            ?: return Observed.Failed("\"$packageName\" is not a package name")
+        val pids = LinkedHashSet<Int>()
+        for (line in text.lineSequence()) {
+            val match = PROCESS_ROW.find(line) ?: continue
+            if (match.groupValues[2] != valid) continue
+            val pid = match.groupValues[1].toIntOrNull() ?: continue
+            if (pid > 0) pids += pid
+        }
+        return when (pids.size) {
+            0 -> Observed.Failed("$valid has no running process in the activity dump")
+            1 -> Observed.of(pids.first(), DataSource.DUMPSYS_SHIZUKU)
+            else -> Observed.Failed(
+                "$valid is running under more than one user, so which process is the game the " +
+                    "user launched cannot be told from this dump",
+            )
         }
     }
 
@@ -385,9 +432,15 @@ internal object DumpsysParsers {
      *
      * The lazy middle allows for the releases that print a column or two between the two anchors
      * while still preferring the common case where the bracket follows immediately.
+     *
+     * The pid is captured, and was not until the affinity presets needed it. It was always matched —
+     * `pid:` is half of what anchors the row — so capturing it is the difference between discarding a
+     * number this parser already found and running a second dump to find it again. Both parsers over
+     * this regex therefore see the same rows and agree about what is running, which two regexes could
+     * not be relied on to do. Group 1 is the pid, 2 the process name, 3 the adjustment label.
      */
     private val PROCESS_ROW = Regex(
-        """\d+:([A-Za-z][A-Za-z0-9_.]*(?::[A-Za-z0-9_.]+)?)/\S+""" +
+        """(\d+):([A-Za-z][A-Za-z0-9_.]*(?::[A-Za-z0-9_.]+)?)/\S+""" +
             """(?:\s+[^\s()]+)*?\s+\(([a-z][a-z0-9-]{0,31})\)""",
     )
 

@@ -89,6 +89,12 @@ class StandardAndroidOptimizer @Inject constructor(
         // command and there is no permission that hands it to an ordinary app. DisplaySizeController
         // owns it, and reports REQUIRES_SHIZUKU itself when the shell is not there.
         OptimizationAction.SET_DISPLAY_SIZE -> CapabilityStatus.UNSUPPORTED
+
+        // Nor this one, and this tier could never be the one: changing another process's core
+        // assignment is `sched_setaffinity` on a pid that is not ours, which no permission an app can
+        // hold reaches. CpuAffinityController owns it, and needs a readable core layout on top of the
+        // shell before it will offer a preset at all.
+        OptimizationAction.SET_CPU_AFFINITY -> CapabilityStatus.UNSUPPORTED
     }
 
     override suspend fun apply(request: OptimizationRequest): OptimizationResult {
@@ -126,6 +132,13 @@ class StandardAndroidOptimizer @Inject constructor(
                 detail = "A display size is set by GameCore's display-size controller, not by the " +
                     "optimization tiers — it runs a window-manager command, reads the size back, " +
                     "and keeps its own record of what the display was before.",
+            )
+
+            OptimizationAction.SET_CPU_AFFINITY -> action.blocked(
+                status = CapabilityStatus.UNSUPPORTED,
+                detail = "Which cores a game runs on is set by GameCore's affinity controller, not " +
+                    "by the optimization tiers — it has to find the game's process first, and it " +
+                    "needs the elevated shell either way.",
             )
 
             // Handled by the two helpers above; unreachable, and left as a branch rather than an

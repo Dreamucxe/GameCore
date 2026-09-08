@@ -83,6 +83,36 @@ class ProcessControls @Inject constructor(
     }
 
     /**
+     * The pid of one package's main process.
+     *
+     * Deliberately here, beside [runningApps], and deliberately the *only* way anything in this app
+     * turns a package name into a pid. CPU affinity is the one feature that needs one, and the
+     * tempting alternative was a second read that answered just that question — which would have been
+     * a second thing to keep in step with the platform's process-dump format, and a second place for
+     * "which process is the game" to be answered differently. It is the same command, the same
+     * timeout and the same dump [runningApps] reads; only the parse differs.
+     *
+     * Main process only, and [DumpsysParsers.parseMainProcessPid] says why at length: a game's render
+     * thread is in the process named for the package, and `com.game:audio` is left where the scheduler
+     * put it.
+     */
+    suspend fun mainProcessPid(packageName: String): Observed<Int> = withContext(io) {
+        if (!shell.isAvailable()) {
+            return@withContext Observed.needsElevation(
+                "Finding a game's process needs Shizuku.",
+            )
+        }
+        val result = shell.execute(ShellCommand.RunningProcesses, ElevatedShell.LONG_TIMEOUT)
+        if (!result.isSuccess) {
+            return@withContext Observed.Failed(
+                "The list of running processes could not be read",
+                result.failureReason(),
+            )
+        }
+        DumpsysParsers.parseMainProcessPid(result.stdout, packageName)
+    }
+
+    /**
      * Packages the user had on screen inside the trailing window, most recent first.
      *
      * The standard tier's substitute for [runningApps], and weaker in a way worth being exact

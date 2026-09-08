@@ -7,6 +7,8 @@ import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.CapabilityStatus
 import com.gamecore.core.model.ChangeOrigin
 import com.gamecore.core.model.ColorPreset
+import com.gamecore.core.model.CpuAffinityOutcome
+import com.gamecore.core.model.CpuAffinityPreset
 import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.DisplaySizeOutcome
 import com.gamecore.core.model.GameProfile
@@ -21,6 +23,7 @@ import com.gamecore.core.system.SettingsWriteOutcome
 import com.gamecore.data.repository.ColorPresetRepository
 import com.gamecore.domain.color.ColorApplyResult
 import com.gamecore.domain.color.ColorCorrectionController
+import com.gamecore.domain.cpu.CpuAffinityController
 import com.gamecore.domain.display.DisplaySizeController
 import com.gamecore.domain.optimization.OptimizationManager
 import com.gamecore.domain.optimization.OptimizationRequest
@@ -53,10 +56,11 @@ import javax.inject.Singleton
  * happen: the rate settles, then the screen dims.
  *
  * Restore is not this class's decision — [OptimizationManager] records every previous value before it
- * writes, so [restore] is a delegation and not a second copy of the undo logic. Two steps do not travel
- * through [OptimizationManager] and both record their own restore rows in the same table: colour,
- * because the keys it writes depend on what the preset asks for, and display size, because it writes no
- * settings key at all. [restore] still puts the display back without knowing either exists.
+ * writes, so [restore] is a delegation and not a second copy of the undo logic. Three steps do not travel
+ * through [OptimizationManager] and all three record their own restore rows in the same table: colour,
+ * because the keys it writes depend on what the preset asks for; display size, because it writes no
+ * settings key at all; and core affinity, because what it writes is not device state but one running
+ * process. [restore] still puts all three back without knowing any of them exists.
  */
 @Singleton
 class ProfileApplier @Inject constructor(
@@ -66,6 +70,7 @@ class ProfileApplier @Inject constructor(
     private val colorPresets: ColorPresetRepository,
     private val color: ColorCorrectionController,
     private val displaySize: DisplaySizeController,
+    private val cpuAffinity: CpuAffinityController,
 ) {
 
     /**
@@ -92,6 +97,7 @@ class ProfileApplier @Inject constructor(
                 is Step.Attempt -> optimizations.apply(step.request, profile.packageName, origin)
                 is Step.Colour -> applyColour(step.presetId, profile, origin)
                 is Step.Stretch -> applyDisplaySize(step.size, profile)
+                is Step.Affinity -> applyAffinity(step.preset, profile)
                 is Step.Skip -> step.result
             }
         }
@@ -143,13 +149,25 @@ class ProfileApplier @Inject constructor(
          * read-back and its restore row — see `OptimizationAction.isEngineAction`.
          */
         data class Stretch(val size: DisplaySize) : Step
+
+        /**
+         * The core-affinity preset to pin the game's process to.
+         *
+         * The third variant that bypasses [OptimizationManager], and the only step in the plan whose
+         * subject is the game itself rather than the device: it needs a process to exist, which is why
+         * [plan] puts it last. Carries the preset and not a mask — the mask is computed from this
+         * device's own core layout inside
+         * [com.gamecore.domain.cpu.CpuAffinityController], which is also the only thing that knows
+         * whether the layout can express the preset at all.
+         */
+        data class Affinity(val preset: CpuAffinityPreset) : Step
     }
 
     /**
      * The ordered plan for [profile], with no device writes and no suspension.
      *
      * Pure so §31 can assert the translation directly: that `BALANCED` with every field null plans
-     * ten skips, that `PERFORMANCE` plans a peak pin even when the profile names no rate, that an
+     * eleven skips, that `PERFORMANCE` plans a peak pin even when the profile names no rate, that an
      * explicit rate outranks the mode's, and that a profile with the shell switched off skips the two
      * global-settings changes instead of failing them.
      *
@@ -171,6 +189,7 @@ class ProfileApplier @Inject constructor(
         doNotDisturbStep(profile),
         animationStep(profile, shellLive),
         batterySaverStep(profile, shellLive),
+        affinityStep(profile),
     )
 
     /**
@@ -360,6 +379,80 @@ class ProfileApplier @Inject constructor(
 
     private fun skip(action: OptimizationAction, reason: String): Step =
         Step.Skip(OptimizationResult.Skipped(action, reason))
+
+    // ------------------------------------------------------------------------- cpu affinity
+
+    /**
+     * The core-affinity line, and the last line in the plan.
+     *
+     * Last on purpose, and for a reason no other step has: every other change is made to the device and
+     * would work with no game running at all, while this one is made to the game's own process. A game
+     * that has just been brought to the foreground is still starting, so the later this runs the more
+     * likely the process exists to be found — and if it does not, the controller says so rather than
+     * writing anything.
+     *
+     * Not gated on [GameProfile.useShizukuOptimizations], for the same reason the display size is not: a
+     * preset here is a field the user filled in by name, not something a performance mode added on their
+     * behalf, so the honest answer when the shell is missing is [OptimizationResult.Blocked] with the way
+     * to fix it. Null is the default and means what it says everywhere else in this class — leave the
+     * scheduler alone.
+     */
+    private fun affinityStep(profile: GameProfile): Step =
+        profile.cpuAffinity
+            ?.let { Step.Affinity(it) }
+            ?: skip(
+                OptimizationAction.SET_CPU_AFFINITY,
+                "This profile leaves it to Android to decide which cores the game runs on.",
+            )
+
+    /**
+     * Hands the profile's preset to [CpuAffinityController] and reports what came back.
+     *
+     * The third step outside [OptimizationManager], and the one furthest from a settings write: there is
+     * no key, and there is no device state either. The controller finds the game's process, records the
+     * assignment it was already on in the same restore table [restore] drains, writes, and reads every
+     * thread back before it will call anything applied.
+     *
+     * Two mappings are worth their own note. [CpuAffinityOutcome.NothingToRestore] cannot arrive from an
+     * apply — it is what a restore of a game that has exited returns — and is enumerated rather than
+     * folded into an `else` so a change to the outcome type surfaces here. And
+     * [CpuAffinityOutcome.ProcessNotFound] is [OptimizationResult.Skipped] rather than a failure: the
+     * game was still loading, nothing was written, and there is nothing for the user to fix. Reporting
+     * it in red would make an ordinary race look like a broken feature.
+     */
+    private suspend fun applyAffinity(
+        preset: CpuAffinityPreset,
+        profile: GameProfile,
+    ): OptimizationResult {
+        val action = OptimizationAction.SET_CPU_AFFINITY
+        return when (val outcome = cpuAffinity.apply(preset, profile.packageName)) {
+            is CpuAffinityOutcome.Applied,
+            is CpuAffinityOutcome.Restored,
+            is CpuAffinityOutcome.NothingToRestore,
+            -> OptimizationResult.Applied(action, outcome.message)
+
+            // As with the display size: this outcome's own sentence already says the change could not be
+            // confirmed, and Unverified appends "(not confirmed)" to whatever it is handed.
+            is CpuAffinityOutcome.AppliedUnverified -> OptimizationResult.Unverified(
+                action = action,
+                detail = "Asked for ${outcome.preset?.label ?: preset.label} — ${outcome.reason}",
+            )
+
+            is CpuAffinityOutcome.NotHonoured -> OptimizationResult.NotHonoured(action, outcome.message)
+
+            is CpuAffinityOutcome.ProcessNotFound -> OptimizationResult.Skipped(action, outcome.message)
+
+            is CpuAffinityOutcome.PresetUnsupported -> OptimizationResult.Failed(action, outcome.message)
+
+            is CpuAffinityOutcome.RequiresAccess -> OptimizationResult.Blocked(
+                action = action,
+                status = CapabilityStatus.REQUIRES_SHIZUKU,
+                detail = outcome.message,
+            )
+
+            is CpuAffinityOutcome.Failed -> OptimizationResult.Failed(action, outcome.message)
+        }
+    }
 
     // ------------------------------------------------------------------------------ colour
 

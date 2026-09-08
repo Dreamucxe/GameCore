@@ -85,6 +85,10 @@ data class PerformanceUiState(
  * that make it one tap are computed from the panel and live in the panel's own tile, and the override
  * outlives a reboot — so a button here that guessed a size would leave the device stretched after a
  * restart on behalf of a tap the user could not have meant.
+ *
+ * The core-affinity presets are excluded for a different reason again: they need a *game*. There is no
+ * device-wide version of them — the thing they change is one running process — so a button on a screen
+ * that is not about any particular game would have nothing to point at.
  */
 private val PROFILE_ONLY_ACTIONS = setOf(
     OptimizationAction.SET_BRIGHTNESS,
@@ -94,6 +98,7 @@ private val PROFILE_ONLY_ACTIONS = setOf(
     OptimizationAction.ENABLE_DO_NOT_DISTURB,
     OptimizationAction.APPLY_COLOR_CORRECTION,
     OptimizationAction.SET_DISPLAY_SIZE,
+    OptimizationAction.SET_CPU_AFFINITY,
 )
 
 /**

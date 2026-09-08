@@ -4,6 +4,7 @@ import com.gamecore.core.model.AspectChoice
 import com.gamecore.core.model.AspectPreset
 import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.ColorField
+import com.gamecore.core.model.CrosshairDesign
 
 /**
  * What the control panel of §7 can do, as a closed set.
@@ -57,6 +58,55 @@ enum class OverlayAction(val label: String) {
      */
     ASPECT("Aspect"),
 
+    /**
+     * The display's refresh rate: the rates this panel advertises, and the way off a pinned one.
+     *
+     * A toggle for the same reason [ASPECT] is one, and the plate means the same *kind* of thing: this
+     * display is not doing what it would have done on its own. That is worth a lit plate because the cost is
+     * invisible otherwise — a panel held at 120 Hz through a menu screen is battery going somewhere the
+     * player cannot see.
+     *
+     * With one difference from every other toggle in this grid, and it is the honest part. The others read
+     * their state back from the device each probe. This one cannot: `Display.getRefreshRate()` reports what
+     * is being composited *now*, and the platform is entitled to drop a pinned panel to 60 on a static
+     * screen, so a low reading is not evidence the pin failed and a high one is not evidence it holds. So
+     * the plate is lit from GameCore's own confirmed change and nothing else — see
+     * [OverlayPanelState.pinnedRefreshRate]. A rate that was written and could not be read back leaves the
+     * plate dark and the row unfilled, because [com.gamecore.core.model.RefreshRateOutcome.AppliedUnverified]
+     * is not evidence the panel moved.
+     *
+     * Opens its chips on the tap rather than behind a long press, again like [ASPECT]: the whole control is
+     * the rates this display reports plus the way back off them, they fit in a row, and there is nothing
+     * left over to put on a screen.
+     */
+    REFRESH_RATE("Refresh"),
+
+    /**
+     * The shape of this panel: one plate near the button, or two on the screen's edges with the game
+     * between them. [com.gamecore.core.model.PanelLayoutStyle], reachable from inside the panel.
+     *
+     * A toggle rather than a row of chips, unlike the two tiles above, and the difference is the reason
+     * this tile exists at all. A shape and a rate are one of several values the *device* reports, so their
+     * control has to be a row; a layout is one of two, and the tile's own plate already says which of them
+     * is on. A chip row behind a tap would be two taps to change one bit — and the point of putting this in
+     * the grid is that changing it currently costs leaving the game, opening GameCore and finding the
+     * setting.
+     *
+     * The plate reads as it does everywhere else in this grid — *this is not what the panel does by
+     * default* — so lit means split. Nothing confirms the tap because the panel rearranges itself under
+     * the finger that made it: the confirmation is the thing the user asked for.
+     *
+     * The one action here that changes the window it was tapped in. That is handled where every layout
+     * change is handled — the stored preference is written, and the service's own observer rebuilds the
+     * open panel — rather than by this tile reaching for a window, so a switch from here and a switch from
+     * the settings screen end in the same place.
+     *
+     * Never [OverlayPanelState.unavailable], and unlike the colour tile that is not a judgement call: this
+     * writes a preference of GameCore's own and reads nothing from the device, so there is no elevation,
+     * permission or platform version that could refuse it.
+     */
+    PANEL_LAYOUT("Layout"),
+
     /** Ends the tracked session and restores whatever the profile changed. */
     STOP_SESSION("End session"),
 
@@ -68,21 +118,53 @@ enum class OverlayAction(val label: String) {
     val isToggle: Boolean
         get() = this == PILL || this == CROSSHAIR || this == HUD || this == RECORD ||
             this == FLASHLIGHT || this == DO_NOT_DISTURB || this == ROTATION_LOCK ||
-            this == COLOR || this == ASPECT
+            this == COLOR || this == ASPECT || this == REFRESH_RATE || this == PANEL_LAYOUT
 
     /**
-     * True for the actions that have something to offer a long press.
+     * Which second row a held press on this tile opens, or null for the tiles that have nothing behind one.
      *
-     * Only [COLOR] does: its presets are a list the user authored, and a second row of chips is the
-     * only way to reach them without leaving the game. Declared here rather than checked as
-     * `== COLOR` in the panel so the two places that need it — the button's gesture and the row's
-     * visibility — cannot disagree.
+     * Declared here, once, rather than checked as `== COLOR` in each place that cares, so the button's
+     * gesture and the service's handler cannot disagree about which tiles are holdable — the gate asks
+     * whether this is null and the handler asks which row it names, and both get their answer from this
+     * line. It was a boolean while [COLOR] was the only holdable tile; naming the row is what lets a second
+     * one exist without the gesture becoming a lie on the first.
      *
-     * [ASPECT] opens a second row too and is deliberately not here. Its chips are the whole of the
-     * control rather than a shortcut into one, so they belong on the tap; a shape hidden behind a held
-     * press would be a control the user has to be told about.
+     * Both tiles that qualify have the same shape of thing behind them: a set the user cannot fit in a grid
+     * cell and would otherwise have to leave the game to reach. What they do *not* have is a tap that would
+     * be wasted — [COLOR] toggles the correction and [CROSSHAIR] shows and hides the overlay, and those are
+     * the actions a player wants most often, so neither may be spent on opening a row.
+     *
+     * [ASPECT] and [REFRESH_RATE] open a second row too and are deliberately not here. Their chips are the
+     * whole of the control rather than a shortcut into one — there is no other thing their tap could mean —
+     * so they belong on the tap. A shape or a rate reachable only by holding would be a control the user has
+     * to be told about.
      */
-    val hasPresets: Boolean get() = this == COLOR
+    val heldRow: HeldRow?
+        get() = when (this) {
+            COLOR -> HeldRow.COLOUR_PRESETS
+            CROSSHAIR -> HeldRow.CROSSHAIR_QUICK_PICK
+            else -> null
+        }
+}
+
+/**
+ * The rows that open on a held press rather than on a tap.
+ *
+ * An enum rather than the boolean this replaced, because with two of them the gesture gate and the handler
+ * need different answers from the same fact: the gate needs to know *whether* to offer the gesture, and the
+ * handler needs to know *which* row to open. One nullable property answers both, so a tile can never be
+ * holdable and then have the press fall through to another row's toggle.
+ *
+ * Deliberately not extended to the rows [OverlayAction.ASPECT] and [OverlayAction.REFRESH_RATE] open. Those
+ * are tap rows, and folding all four into one enum would suggest the four are interchangeable when the
+ * difference between them — whether the tile's tap already means something — is the reason two are held.
+ */
+enum class HeldRow {
+    /** [OverlayAction.COLOR]: the colour presets the user saved. */
+    COLOUR_PRESETS,
+
+    /** [OverlayAction.CROSSHAIR]: the active crosshair's design and colour. */
+    CROSSHAIR_QUICK_PICK,
 }
 
 /**
@@ -187,6 +269,31 @@ data class OverlayLevelState(
 data class OverlayPreset(val id: Long, val name: String)
 
 /**
+ * The active crosshair, reduced to what a quick-pick row draws and what it needs to compare against.
+ *
+ * [OverlayPreset]'s rule applied to a preset the panel *edits* rather than selects, which is the one
+ * difference between them and the reason this carries two values instead of a name: the crosshair row's
+ * chips are not a list of saved things to load, they are the two fields of one saved thing to change. So it
+ * carries the two fields the chips have to fill from — which design is drawn, which colour it is drawn in —
+ * and the id the service needs to write the change back to the right row.
+ *
+ * What it deliberately does not carry is everything else a [com.gamecore.core.model.CrosshairPreset] holds.
+ * Size, thickness, gap, rotation, opacity, outline, position and image path are all reachable from the
+ * crosshair screen and none of them is a two-tap decision over a game, so putting them in the window state
+ * would be fourteen fields crossing a process boundary to draw two rows.
+ *
+ * [name] is the user's, and the row draws it: a player with three crosshairs saved needs to know which one
+ * these chips are about to change. It is already sanitised at the database boundary, and the row caps it on
+ * render for the reason §24A gives.
+ */
+data class OverlayCrosshair(
+    val id: Long,
+    val name: String,
+    val design: CrosshairDesign,
+    val colorArgb: Int,
+)
+
+/**
  * Everything the control panel draws, gathered by the service that owns it.
  *
  * [unavailable] carries a *reason* per action rather than a boolean, because a greyed-out button with no
@@ -237,6 +344,62 @@ data class OverlayPanelState(
     val activeAspect: AspectPreset? = null,
     /** What the display is doing when no chip matches it, or when the size could not be read at all. */
     val aspectNote: String? = null,
+    /**
+     * The rates this panel advertises, or empty when there is nothing to choose from.
+     *
+     * Empty covers two different situations and the row says which: a panel with one mode, where the user
+     * has nothing to decide, and a display whose modes could not be read, where GameCore will not offer a
+     * rate it cannot check. [refreshRateNote] carries the distinction; a row of chips assembled from an
+     * assumed 60/90/120 would offer rates this panel does not have.
+     */
+    val refreshRates: List<Float> = emptyList(),
+    /** Whether the rate chips are showing. Toggled by a tap on [OverlayAction.REFRESH_RATE]. */
+    val refreshRatesExpanded: Boolean = false,
+    /**
+     * The rate GameCore has *confirmed* the display adopted, or null for every other state there is.
+     *
+     * The one piece of panel state that is not read back from the device on each probe, and the reason is in
+     * [OverlayAction.REFRESH_RATE]'s own KDoc: the platform drops a pinned panel to 60 on a static screen,
+     * so what the display reports at probe time cannot distinguish a pin that failed from a screen that is
+     * not moving. Reading it would therefore mean unlighting a chip that is still in force, every time the
+     * user held still. So this holds the last change GameCore made and verified, and nothing else.
+     *
+     * Null is the honest answer for a great deal: no change made this session, a change the platform
+     * accepted and did not honour, a change that could not be confirmed, and a rate someone else pinned.
+     * All of them leave every chip unfilled, which is right — an unfilled row claims nothing.
+     */
+    val pinnedRefreshRate: Float? = null,
+    /** What to say under the rate chips: why there are none, or what a confirmed pin is not. */
+    val refreshRateNote: String? = null,
+    /**
+     * The active crosshair, as much of it as a row of chips needs, or null when there is none to change.
+     *
+     * §24A.2 again, the rule [OverlayPreset] follows: the row draws a design and a colour and reports back
+     * which was tapped, so the window state does not carry a preset's fourteen fields — a size, a rotation,
+     * two position fractions and an image path — into a process whose job is to draw two rows of chips. The
+     * service turns the tap back into the preset it belongs to.
+     *
+     * Null is not the same as "the crosshair is off". The overlay's visibility is [OverlayAction.CROSSHAIR]'s
+     * own toggle and lives in [active]; this is null when there is no *preset* to edit, which on a device
+     * where the defaults seeded is close to impossible and is still the state the row must handle rather than
+     * draw a design row for a crosshair that does not exist.
+     */
+    val crosshair: OverlayCrosshair? = null,
+    /** Whether the crosshair chips are showing. Toggled by a long press on [OverlayAction.CROSSHAIR]. */
+    val crosshairExpanded: Boolean = false,
+    /**
+     * The colours the crosshair swatches offer, as ARGB, in the order they are drawn.
+     *
+     * Carried through the state while the designs beside them are not, and the asymmetry is the point: the
+     * drawn designs are a property of the renderer and are the same list on every device, while this is a
+     * list the settings layer owns — the fixed contrast set, and in time whatever the user has mixed. A row
+     * built from a constant here would be a row that could not show the user their own colour.
+     *
+     * Empty draws no swatches at all rather than falling back to a default set, for the reason every other
+     * empty list in this state does: a row assembled from something other than what the settings layer holds
+     * would show a colour the crosshair screen does not offer.
+     */
+    val crosshairColours: List<Int> = emptyList(),
 ) {
     fun isActive(action: OverlayAction): Boolean = action in active
 

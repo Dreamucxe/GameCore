@@ -18,6 +18,14 @@ data class CrosshairUiState(
     val draft: CrosshairPreset? = null,
     /** The preset the overlay draws, remembered across launches. */
     val activeId: Long? = null,
+    /**
+     * The colours the user mixed in the picker, most recent first, or empty before they mixed any.
+     *
+     * Part of the state rather than read from the store where the swatch row is drawn, because it changes
+     * while the screen is open — mixing a colour adds one — and a composable reading a `var` on a
+     * preferences object would not recompose when it did.
+     */
+    val customColours: List<Int> = emptyList(),
     val hasOverlayPermission: Boolean = false,
     val isCrosshairVisible: Boolean = false,
     val isDrivenByProfile: Boolean = false,
@@ -50,25 +58,3 @@ data class CrosshairUiState(
      */
     val canToggleOverlay: Boolean get() = hasOverlayPermission && !isDrivenByProfile
 }
-
-/**
- * The colours a crosshair can be drawn in.
- *
- * A fixed list rather than a picker, chosen for contrast against a game rather than for prettiness: a
- * crosshair is only useful if the eye finds it instantly on whatever is behind it. White and cyan read on
- * the most scenes, red is here because it is what people expect, and the dark outline switch covers the
- * cases none of them survive on their own.
- *
- * Longer than the HUD's list because a crosshair is one shape on one background, where a HUD is text that
- * has to stay readable — the constraint is looser, so there is room for the colours people ask for.
- */
-internal val CROSSHAIR_COLOURS: List<Int> = listOf(
-    0xFFFFFFFF.toInt(),
-    0xFF00E5FF.toInt(),
-    0xFF4CE07A.toInt(),
-    0xFFC6FF00.toInt(),
-    0xFFFFB300.toInt(),
-    0xFFFF5A87.toInt(),
-    0xFFFF1744.toInt(),
-    0xFF9C6BFF.toInt(),
-)

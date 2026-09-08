@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
@@ -133,7 +134,12 @@ private fun DrawScope.drawCrosshairImage(
 }
 
 /**
- * The nine drawn designs.
+ * Every drawn design, as one exhaustive `when`.
+ *
+ * Counted in neither the summary nor the KDoc, deliberately. This said "the nine drawn designs" until a
+ * tenth was added, and a number in a comment beside an enum is a fact that goes stale silently — the
+ * compiler checks the `when`, and nothing checks the sentence. The set is [CrosshairDesign.isDrawn] and
+ * that is where to read it.
  *
  * [gap] is half the preset's centre gap — the distance from the centre at which a line starts — so a
  * gap of 8 dp leaves 8 dp of clear space across the middle rather than 16.
@@ -222,6 +228,18 @@ private fun DrawScope.drawDesign(
                 line(sx * radius, sy * radius, sx * radius, sy * (radius - arm))
             }
         }
+
+        // A square outline the size of the circle designs' bounding box rather than of their ring: `radius`
+        // inscribed would give a square noticeably smaller than the ring at the same preset size, and a user
+        // switching between them expects the crosshair to stay roughly as big as it was. Drawn as one
+        // stroked rect rather than four lines so the corners join instead of overlapping — four round-capped
+        // lines meeting at a corner leave a visible lump at each one.
+        CrosshairDesign.BOX -> drawRect(
+            color = colour,
+            topLeft = Offset(centre.x - radius, centre.y - radius),
+            size = Size(radius * 2f, radius * 2f),
+            style = stroke,
+        )
 
         CrosshairDesign.CUSTOM_IMAGE -> Unit
     }

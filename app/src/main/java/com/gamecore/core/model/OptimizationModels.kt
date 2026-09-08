@@ -130,6 +130,16 @@ enum class OptimizationAction(
             "before it wrote one and puts it back when the session ends.",
         requiredAccess = AccessLevel.SHIZUKU,
     ),
+
+    SET_CPU_AFFINITY(
+        label = "Choose which cores the game runs on",
+        explanation = "Restricts the game's process to one group of CPU cores while it runs — the " +
+            "same thing `taskset` does from a shell — and puts the previous assignment back " +
+            "afterwards. " + CpuAffinityPreset.HONESTY + " Experimental, and the only action here " +
+            "whose subject is a process rather than a device setting: the assignment dies with the " +
+            "game, so a session GameCore does not get to finish leaves nothing behind.",
+        requiredAccess = AccessLevel.SHIZUKU,
+    ),
     ;
 
     /** True for the actions a profile can request; the rest are undo steps. */
@@ -152,11 +162,18 @@ enum class OptimizationAction(
      * [SET_DISPLAY_SIZE] touches no `settings` key at all. `wm size` is a window-manager command,
      * so there is nothing for the manager to capture or write; `DisplaySizeController` records the
      * previous override under the repository's non-setting namespace and reads the new size back
-     * before reporting it. Both profile steps therefore go through their own controller and the
-     * tiers decline both actions.
+     * before reporting it.
+     *
+     * [SET_CPU_AFFINITY] touches no `settings` key either, and its subject is not the device: it
+     * writes a mask onto one running process, which the manager has no pid for and no business
+     * finding. `CpuAffinityController` records the mask that process was already on, keyed by the
+     * package it belongs to. All three profile steps therefore go through their own controller and
+     * the tiers decline all three actions.
      */
     val isEngineAction: Boolean
-        get() = this != APPLY_COLOR_CORRECTION && this != SET_DISPLAY_SIZE
+        get() = this != APPLY_COLOR_CORRECTION &&
+            this != SET_DISPLAY_SIZE &&
+            this != SET_CPU_AFFINITY
 }
 
 /**

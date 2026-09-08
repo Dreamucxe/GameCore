@@ -41,6 +41,13 @@ import androidx.room.RoomDatabase
  * because they are a summary by the time they arrive, and nullable because absence is the truth about
  * every session recorded before the log existed. [GameCoreMigrations.MIGRATION_4_5].
  *
+ * **Version 6** adds `game_profiles.cpu_affinity`, one nullable TEXT column holding a
+ * `CpuAffinityPreset` name, for the per-game core preset. Nullable and with no default because the
+ * feature's own "leave it to Android" state is the absence of a value rather than a member of the enum.
+ * No session columns: which cores a game was allowed on is not a measurement, and the one thing worth
+ * remembering about it — that GameCore still owes a process its previous mask — is a restore-ledger row
+ * that clears itself. [GameCoreMigrations.MIGRATION_5_6].
+ *
  * There are no `@TypeConverter`s registered anywhere in this class, deliberately. Enums are stored
  * as their names and parsed back defensively in [Mappers]; a converter would move that parsing
  * into generated code where the fallback for an unrecognised name is a thrown exception rather
@@ -57,7 +64,7 @@ import androidx.room.RoomDatabase
         SessionSampleEntity::class,
         RestorePointEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class GameCoreDatabase : RoomDatabase() {

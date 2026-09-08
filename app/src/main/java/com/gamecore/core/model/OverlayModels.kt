@@ -54,6 +54,53 @@ data class OverlayConfig(
 }
 
 /**
+ * How the control panel arranges itself when the floating button opens it.
+ *
+ * A global preference rather than a per-profile one, and that is a deliberate line: everything a game
+ * profile owns is a *device* setting with a restore point — a refresh rate, a brightness, a colour
+ * preset — and this is not one of those. It is where the user's hands are. Somebody who reaches for the
+ * left and right edges of a landscape phone reaches for them in every game, and a layout that moved
+ * when the profile changed would put the controls somewhere their thumbs are not, which is worse than
+ * either layout is on its own. It also has nothing to restore, so a per-profile version would be a
+ * per-profile setting the restore machinery could not see.
+ *
+ * [CENTERED] is first because it is the default and has to stay the default: it is what every existing
+ * install already has, and a redesign that reshapes a panel people have learned is not an improvement
+ * they asked for. [SPLIT_EDGES] is offered, not preferred.
+ */
+enum class PanelLayoutStyle(val label: String, val description: String) {
+
+    CENTERED(
+        label = "Centered",
+        description = "One panel above or below the button. Its width is yours to set.",
+    ),
+
+    SPLIT_EDGES(
+        label = "Split edges",
+        description = "Readouts on one screen edge, controls on the other, with the game visible " +
+            "between them. Uses the full height of the screen, so the width setting does not apply.",
+    ),
+    ;
+
+    /**
+     * The other layout, for the panel's own Layout tile.
+     *
+     * Here rather than in the overlay service because it is a fact about this set and not about a window,
+     * and because it is the part of that tile a test can hold: the service's half is a preference write
+     * and a window rebuild, neither of which runs on a JVM.
+     *
+     * A `when` with no `else`, which is the point of writing it out for two values. A third layout would
+     * fail to compile here, and that is the right place to be stopped — a two-state tap has no meaning
+     * over three layouts, so the tile would have to become a row of chips, and this line is what makes
+     * somebody decide that instead of inheriting a cycle that skips a layout the user cannot reach.
+     */
+    fun other(): PanelLayoutStyle = when (this) {
+        CENTERED -> SPLIT_EDGES
+        SPLIT_EDGES -> CENTERED
+    }
+}
+
+/**
  * The floating button's configuration and remembered position.
  *
  * [snapToEdge] is on by default because a button that sits under the user's thumb in the
@@ -90,6 +137,15 @@ data class FloatingButtonConfig(
      * would be a number the anchoring overrules.
      */
     val panelWidthDp: Int = DEFAULT_PANEL_WIDTH_DP,
+    /**
+     * Which shape the panel opens in. See [PanelLayoutStyle] for why this is not per-profile.
+     *
+     * Sits beside [panelWidthDp] because the two are read together and one bounds the other:
+     * [PanelLayoutStyle.SPLIT_EDGES] derives its plate width from the screen, so the stored width is
+     * carried untouched rather than cleared. Switching back to [PanelLayoutStyle.CENTERED] then finds
+     * the width the user set, which is the only behaviour that does not punish trying the other layout.
+     */
+    val panelLayout: PanelLayoutStyle = PanelLayoutStyle.CENTERED,
 ) {
     fun normalised(): FloatingButtonConfig = copy(
         sizeDp = sizeDp.coerceIn(SIZE_RANGE),

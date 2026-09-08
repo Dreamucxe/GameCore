@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.gamecore.core.common.TextSanitizer
 import com.gamecore.core.model.CrosshairDesign
 import com.gamecore.core.model.CrosshairPreset
+import com.gamecore.core.model.CustomCrosshairColours
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.CrosshairRepository
 import com.gamecore.domain.overlay.OverlayController
@@ -53,6 +54,7 @@ class CrosshairViewModel @Inject constructor(
         val isLoaded: Boolean = false,
         val draft: CrosshairPreset? = null,
         val activeId: Long? = null,
+        val customColours: List<Int> = emptyList(),
         val hasPermission: Boolean = false,
         val isImporting: Boolean = false,
         val message: String? = null,
@@ -71,6 +73,7 @@ class CrosshairViewModel @Inject constructor(
             presets = saved,
             draft = own.draft,
             activeId = own.activeId,
+            customColours = own.customColours,
             hasOverlayPermission = own.hasPermission,
             isCrosshairVisible = status.crosshairVisible,
             isDrivenByProfile = desired.fromProfile,
@@ -87,6 +90,7 @@ class CrosshairViewModel @Inject constructor(
     init {
         local.value = local.value.copy(
             activeId = preferences.activeCrosshairPresetId,
+            customColours = preferences.customCrosshairColours,
             hasPermission = overlay.hasPermission(),
         )
         viewModelScope.launch { openFirst() }
@@ -211,6 +215,22 @@ class CrosshairViewModel @Inject constructor(
     fun setRotation(degrees: Int) = edit(store = false) { it.copy(rotationDegrees = degrees) }
 
     fun setColour(argb: Int) = edit { it.copy(colorArgb = argb) }
+
+    /**
+     * A colour from the picker: put it on the crosshair, and keep it for the next one.
+     *
+     * Two writes rather than one, and separate from [setColour] because tapping a built-in swatch must not
+     * add that swatch to the custom list — it is already in the row above, and a colour appearing twice
+     * reads as a bug. [com.gamecore.core.model.CustomCrosshairColours.remember] drops it anyway, so this is
+     * belt and braces, but the distinction is real: the picker is the only thing that produces a colour
+     * worth remembering.
+     */
+    fun pickCustomColour(argb: Int) {
+        val kept = CustomCrosshairColours.remember(preferences.customCrosshairColours, argb)
+        preferences.customCrosshairColours = kept
+        local.value = local.value.copy(customColours = kept)
+        setColour(argb)
+    }
 
     fun setShowDot(show: Boolean) = edit { it.copy(showDot = show) }
 

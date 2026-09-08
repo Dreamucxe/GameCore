@@ -168,6 +168,28 @@ class RestorePointRepository @Inject constructor(
          * turns it into `wm size reset`.
          */
         const val KEY_DISPLAY_SIZE = "display_size"
+
+        /**
+         * The game process's CPU affinity mask in hex, or null when it had none to speak of.
+         *
+         * The one row in this table whose subject is a *process* rather than the device, and the row
+         * whose obligations are therefore the weakest — which is worth writing down here rather than
+         * leaving to be inferred. An affinity mask lives in the kernel's task struct and dies with the
+         * task, so a row left behind by a session GameCore did not get to finish is not a device left
+         * in a state the user has to escape from. The game exited; the mask went with it.
+         *
+         * It is still recorded and still restored, for the case that is not that: a profile applied to
+         * a game the user then leaves running, with GameCore restoring on its own account. And it is
+         * recorded under [packageName], which is what makes the restore possible at all — a pid cannot
+         * be stored, because pids are reused and a stored one would eventually name a process that has
+         * nothing to do with the game.
+         *
+         * What cannot be put back is the per-thread masks a game engine set for itself. `taskset -a`
+         * writes every thread in the process, so those were overwritten on the way in and there is no
+         * record of them anywhere. `CpuAffinityController.restore` says so rather than implying the
+         * process is exactly as it was found.
+         */
+        const val KEY_CPU_AFFINITY = "cpu_affinity"
     }
 }
 

@@ -3,14 +3,44 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v1.3%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v2.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · works
 fully offline
 
 ---
 
-## New in 1.3
+## New in 2.0
+
+Five additions, all of them about reaching a setting without putting the game down.
+
+- **A second shape for the control panel.** It can now split into two plates pinned to opposite
+  screen edges — readouts on one, controls on the other, the game still visible between them, full
+  screen height — instead of one plate below the button. Centred stays the default, because a panel
+  you have already learned should not rearrange itself on an update. A **Layout** tile inside the
+  panel switches between the two on one tap, so trying the other shape costs nothing and neither
+  does going back.
+- **Refresh rate from the panel.** Every rate this display reports, as chips under the tile grid,
+  plus the way back off a pinned one. The tile lights only from a change GameCore made and
+  confirmed: the platform is entitled to drop a pinned panel to 60 Hz on a static screen, so a low
+  reading is not evidence the pin failed and a high one is not evidence it holds. A rate that was
+  written but could not be read back says so rather than claiming it took.
+- **Crosshair quick-select.** Hold the crosshair tile for the active crosshair's design and colour
+  without opening a screen. It offers the built-in colours plus the ones you already mixed
+  somewhere with more room — no HSV square, because that is a two-handed control and this window is
+  open over a game.
+- **An eleventh crosshair design, and more colours.** A box: a square outline, for framing a target
+  rather than marking a point.
+- **CPU core affinity presets, marked experimental.** A per-profile choice of which cores a game's
+  main process may run on — performance cores only, or all cores minus one efficiency core. The
+  app says what this is worth in the same words every time: it may reduce stutter by controlling
+  which cores the game runs on, it does **not** make the device faster, and depending on the game
+  it can do more harm than good. Needs Shizuku. The mask the process was found on is recorded
+  before anything changes and written back when the game exits.
+
+---
+
+## Version 1.3
 
 Three additions, and four reported bugs fixed.
 
@@ -130,13 +160,14 @@ as an argument vector, so there is no shell in the chain to expand a glob or spl
 - A draggable gaming button that snaps to whichever edge its centre is nearer, stays on
   screen when the device rotates, and remembers where you left it.
 - Tapping it opens a control panel **directly below the button**, wherever the button
-  happens to be — brightness and media-volume sliders, saturation, contrast and hue,
+  happens to be — or, if you switch its layout, split across both screen edges with the game
+  visible between them. Brightness and media-volume sliders, saturation, contrast and hue,
   screenshot, screen recording, Do Not Disturb, orientation lock, flashlight, colour presets,
-  display shape, and a shortcut back into the game.
+  display shape, refresh rate, the panel's own layout, and a shortcut back into the game.
 - A configurable performance pill: pick which stats it shows and set its position, size,
   opacity, corner radius, text size and update interval.
-- A crosshair overlay with ten designs — cross, dot, ring, ring-and-dot, cross-in-ring, T,
-  X, chevron, corner brackets, or a PNG you import — and independent control of size,
+- A crosshair overlay with eleven designs — cross, dot, ring, ring-and-dot, cross-in-ring, T,
+  X, chevron, corner brackets, box, or a PNG you import — and independent control of size,
   thickness, centre gap, rotation, opacity, colour and screen position. The drawn designs
   use Compose primitives, so they stay crisp at any size and ship no bitmaps.
 - A visual HUD builder: drag widgets onto a live preview, choose from 16 stats, set each

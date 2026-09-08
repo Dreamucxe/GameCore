@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamecore.core.model.CROSSHAIR_COLOURS
 import com.gamecore.core.model.CrosshairDesign
 import com.gamecore.core.model.CrosshairPreset
 import com.gamecore.core.overlay.CrosshairOverlay
@@ -51,6 +52,7 @@ import com.gamecore.core.overlay.OverlayPalette
 import com.gamecore.ui.Destination
 import com.gamecore.ui.components.ActionRow
 import com.gamecore.ui.components.ChoiceRow
+import com.gamecore.ui.components.ColourPicker
 import com.gamecore.ui.components.ColourSwatches
 import com.gamecore.ui.components.ConfirmDialog
 import com.gamecore.ui.components.EmptyState
@@ -200,7 +202,9 @@ fun CrosshairScreen(
             AppearanceCard(
                 preset = draft,
                 isDrawn = state.isDrawnDesign,
+                customColours = state.customColours,
                 onColour = viewModel::setColour,
+                onCustomColour = viewModel::pickCustomColour,
                 onShowDot = viewModel::setShowDot,
                 onShowOutline = viewModel::setShowOutline,
                 onName = viewModel::setName,
@@ -545,25 +549,65 @@ private fun ShapeCard(
     }
 }
 
-/** Colour, the two detail switches, the name, and the way to delete the preset. */
+/**
+ * Colour, the two detail switches, the name, and the way to delete the preset.
+ *
+ * The colour control is a row of swatches with a picker folded up behind it, rather than one or the other.
+ * The swatches are what almost every choice actually is — eight colours chosen to read against a game, plus
+ * whatever the user has mixed before — and a picker as the only route would put an HSV square between a
+ * player and "make it green". The picker is there because eight is not every colour and a team's shade is
+ * not negotiable.
+ *
+ * Folded up rather than in a dialog, unlike everything else on this screen that reveals itself: a dialog
+ * would cover the live preview, and the preview is how the user knows whether the colour works. That is
+ * also why it is not a separate screen. [com.gamecore.ui.components.ConfirmDialog] stays the one dialog in
+ * the app.
+ */
 @Composable
 private fun AppearanceCard(
     preset: CrosshairPreset,
     isDrawn: Boolean,
+    customColours: List<Int>,
     onColour: (Int) -> Unit,
+    onCustomColour: (Int) -> Unit,
     onShowDot: (Boolean) -> Unit,
     onShowOutline: (Boolean) -> Unit,
     onName: (String) -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Transient, so it is held here rather than in the ViewModel: whether a picker is unfolded is not a
+    // fact about the crosshair, and a user who leaves the screen and comes back has not asked to be put
+    // back inside an HSV square.
+    var pickerOpen by remember { mutableStateOf(false) }
+
     SectionCard(title = "Colour and detail", modifier = modifier) {
+        // One row of both lists rather than two rows, because they are the same kind of thing — a colour
+        // one tap away — and a user who mixed a colour once wants it beside the built-in eight, not in a
+        // second row labelled "yours". The built-ins come first so their positions never move.
         ColourSwatches(
-            colours = CROSSHAIR_COLOURS.map { Color(it) },
+            colours = (CROSSHAIR_COLOURS + customColours).map { Color(it) },
             selected = Color(preset.colorArgb),
             onSelect = { onColour(it.toArgb()) },
             perRow = 4,
         )
+        SectionGap(4)
+        ActionRow {
+            TextButton(onClick = { pickerOpen = !pickerOpen }) {
+                Text(if (pickerOpen) "Fewer colours" else "More colours")
+            }
+        }
+        if (pickerOpen) {
+            ColourPicker(
+                initialArgb = preset.colorArgb,
+                // Folds itself away on the way out, so the preview the colour was chosen against is
+                // uncovered at the moment there is something to look at.
+                onPick = { argb ->
+                    onCustomColour(argb)
+                    pickerOpen = false
+                },
+            )
+        }
         if (!isDrawn) {
             SectionGap(8)
             NoteBanner(

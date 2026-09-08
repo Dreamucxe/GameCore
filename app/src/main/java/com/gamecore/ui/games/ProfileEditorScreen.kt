@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
@@ -49,8 +50,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.common.unavailabilityText
+import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.AspectPreset
 import com.gamecore.core.model.CapabilityStatus
+import com.gamecore.core.model.CpuAffinityPreset
 import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.PerformanceMode
@@ -192,6 +195,7 @@ fun ProfileEditorScreen(
         item { AudioSection(state, viewModel::edit, padded) }
         item { OverlaySection(state, viewModel::edit, onNavigate, padded) }
         item { PerformanceSection(state, viewModel::edit, onNavigate, padded) }
+        item { CpuSection(state, viewModel::edit, onNavigate, padded) }
         item { SessionSection(state, viewModel::edit, padded) }
 
         if (!state.isNew) {
@@ -826,6 +830,117 @@ private fun PerformanceSection(
     }
 }
 
+/**
+ * Which CPU cores this game's process is allowed on, marked experimental and staying that way.
+ *
+ * The only section in this editor whose subject is the game's own process rather than a device setting, and
+ * the only one that opens with its caveat instead of closing with it. [CpuAffinityPreset.HONESTY] is
+ * rendered verbatim and above the chips deliberately: it is the sentence that says this does not make the
+ * device faster and may make a given game worse, and a user who reads the chip labels and stops reading has
+ * then read the wrong half.
+ *
+ * The chips are computed from the device's own core layout, never from a list of presets this app believes
+ * in. A preset the layout cannot express — both of them on a CPU whose cores all report one ceiling, and
+ * "all cores, minus one" on a layout with a single slow core — is named with the device's reason rather than
+ * dropped, because a user comparing their phone to a friend's is owed the difference. And the whole control
+ * is a single note on a device whose `cpufreq` files are out of app reach, which is most of them: there is
+ * no chip to draw that would not be a guess about which cores are the fast ones, and no "Set up" button
+ * beside it, because Shizuku does not make those files readable either.
+ *
+ * Shizuku *is* needed to write the mask, so the note about it appears once a preset is chosen — the same
+ * rule the rest of this screen follows. A profile may hold a preset the device cannot act on today; that is
+ * an intention, and [CapabilityStatus.profileNote] says why this editor does not prevent one.
+ */
+@Composable
+private fun CpuSection(
+    state: ProfileEditorUiState,
+    onEdit: ((GameProfile) -> GameProfile) -> Unit,
+    onNavigate: (Destination) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val profile = state.profile ?: return
+    SectionCard(
+        title = "CPU cores",
+        icon = Icons.Filled.Memory,
+        modifier = modifier,
+        action = { StatusChip(text = "Experimental", tone = Tone.Warning) },
+    ) {
+        NoteBanner(text = CpuAffinityPreset.HONESTY, tone = Tone.Warning, icon = Icons.Filled.Info)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        val choices = state.cpuChoices
+        if (choices.isEmpty()) {
+            NoteBanner(
+                text = state.cpuLayout.unavailabilityText() ?: CPU_LAYOUT_UNREADABLE,
+                tone = Tone.Muted,
+                icon = Icons.Filled.Info,
+            )
+            return@SectionCard
+        }
+
+        // A saved preset this device cannot express is still shown as the selected chip. Hiding it would
+        // leave the row claiming "Leave to OS" while the profile holds something else — the editor
+        // disagreeing with what it will save. The reason it will be skipped is printed below instead.
+        val available = choices.filter { it.isAvailable }.map { it.preset }
+        val chosen = profile.cpuAffinity
+        val orphan = chosen?.takeIf { it !in available }
+        ChoiceRow(
+            options = listOf<CpuAffinityPreset?>(null) + available + listOfNotNull(orphan),
+            selected = chosen,
+            onSelect = { preset -> onEdit { it.copy(cpuAffinity = preset) } },
+            label = { it?.label ?: "Leave to OS" },
+            perRow = 2,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = chosen?.explanation ?: LEAVE_CORES_TO_OS,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        if (chosen != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            val cores = choices.first { it.preset == chosen }.coreIndices
+            NoteBanner(
+                text = if (cores.isEmpty()) {
+                    "This device cannot express that grouping, so nothing will be changed while the " +
+                        "game runs."
+                } else {
+                    "Restricts the game to ${Formatters.count(cores.size, "core")} of this device's " +
+                        "${state.cpuLayout.valueOrNull?.coreCount ?: cores.size}, and puts the " +
+                        "previous assignment back when it closes. The assignment belongs to the " +
+                        "process, so a game GameCore does not get to finish with leaves nothing behind."
+                },
+                tone = Tone.Muted,
+                icon = Icons.Filled.Info,
+            )
+        }
+
+        choices.filterNot { it.isAvailable }.forEach { choice ->
+            val isChosen = choice.preset == chosen
+            Spacer(modifier = Modifier.height(6.dp))
+            NoteBanner(
+                text = "\"${choice.preset.label}\" is not available on this device. " +
+                    choice.unavailableBecause.orEmpty() +
+                    if (isChosen) " This profile will skip it." else "",
+                tone = if (isChosen) Tone.Warning else Tone.Muted,
+                icon = Icons.Filled.Info,
+            )
+        }
+
+        if (chosen != null && !state.capabilities.hasElevatedAccess) {
+            Spacer(modifier = Modifier.height(6.dp))
+            NoteBanner(
+                text = "Android gives an app no way to change another process's cores, so this needs " +
+                    "Shizuku running. Without it the setting stays saved and is skipped.",
+                tone = Tone.Muted,
+                icon = Icons.Filled.Info,
+                action = { TextButton(onClick = { onNavigate(Destination.Shizuku) }) { Text("Set up") } },
+            )
+        }
+    }
+}
+
 /** Whether this game's play is recorded. */
 @Composable
 private fun SessionSection(
@@ -951,3 +1066,20 @@ private const val DISPLAY_SIZE_UNREADABLE =
 
 /** Four digits reaches 9999, which is past every panel that has shipped and every one that will fit. */
 private const val SIZE_FIELD_DIGITS = 4
+
+/**
+ * Said when the core layout could not be derived and the [com.gamecore.core.common.Observed] reason came
+ * back empty.
+ *
+ * Rarely reached — the reason is almost always present and is almost always that `cpufreq` is not readable
+ * — but the sentence still names the file rather than saying "unavailable", because a user who wants to
+ * know why has something to search for.
+ */
+private const val CPU_LAYOUT_UNREADABLE =
+    "This device's per-core maximum frequencies could not be read, so GameCore cannot tell its faster " +
+        "cores from its slower ones."
+
+/** Printed under the chips when no preset is chosen, where a preset's own explanation would be. */
+private const val LEAVE_CORES_TO_OS =
+    "Changes nothing. Android's scheduler moves the game between cores as it sees fit, which is what it " +
+        "is tuned to do and is right more often than not."

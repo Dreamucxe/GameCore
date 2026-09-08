@@ -9,10 +9,12 @@ import com.gamecore.core.model.AccentChoice
 import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.ColorVisionFilter
+import com.gamecore.core.model.CustomCrosshairColours
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.GammaMode
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.OverlayConfig
+import com.gamecore.core.model.PanelLayoutStyle
 import com.gamecore.core.model.RecordingQuality
 import com.gamecore.core.model.ThemeChoice
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -289,6 +291,21 @@ class SecurePreferenceStore @Inject constructor(
         prefs?.edit()?.putInt(KEY_BUTTON_PANEL_WIDTH, clamped)?.apply()
     }
 
+    /**
+     * Switches the panel between its two shapes, from the panel itself.
+     *
+     * Narrow for exactly the reason [updatePanelWidth] is, and the case is the same one: the tile that
+     * calls this is inside the open panel, so the button's x and y are whatever the service last dragged
+     * them to, and [updateFloatingButton] would write them back from a state it may be a frame behind on.
+     * The stored width is left alone on purpose — the split layout does not use it, and the user gets the
+     * panel they had sized when they switch back.
+     */
+    fun updatePanelLayout(style: PanelLayoutStyle) {
+        val updated = buttonState.value.copy(panelLayout = style)
+        buttonState.value = updated
+        prefs?.edit()?.putString(KEY_BUTTON_PANEL_LAYOUT, style.name)?.apply()
+    }
+
     private fun readButton(): FloatingButtonConfig {
         val p = prefs ?: return FloatingButtonConfig()
         val defaults = FloatingButtonConfig()
@@ -302,6 +319,11 @@ class SecurePreferenceStore @Inject constructor(
             idleOpacityPercent = p.getInt(KEY_BUTTON_IDLE_OPACITY, defaults.idleOpacityPercent),
             hapticFeedback = p.getBoolean(KEY_BUTTON_HAPTIC, defaults.hapticFeedback),
             panelWidthDp = p.getInt(KEY_BUTTON_PANEL_WIDTH, defaults.panelWidthDp),
+            panelLayout = enumOrDefault(
+                p.getString(KEY_BUTTON_PANEL_LAYOUT, null),
+                PanelLayoutStyle.entries,
+                defaults.panelLayout,
+            ),
         ).normalised()
     }
 
@@ -316,6 +338,7 @@ class SecurePreferenceStore @Inject constructor(
             putInt(KEY_BUTTON_IDLE_OPACITY, value.idleOpacityPercent)
             putBoolean(KEY_BUTTON_HAPTIC, value.hapticFeedback)
             putInt(KEY_BUTTON_PANEL_WIDTH, value.panelWidthDp)
+            putString(KEY_BUTTON_PANEL_LAYOUT, value.panelLayout.name)
         }?.apply()
     }
 
@@ -436,6 +459,27 @@ class SecurePreferenceStore @Inject constructor(
         }
 
     /**
+     * The colours the user mixed in the crosshair picker, most recent first.
+     *
+     * A plain `var` like the two above rather than a fifth `MutableStateFlow`, because nothing observes
+     * this: the crosshair screen reads it when it opens and after it adds one, and the overlay's
+     * quick-pick row reads it when the panel opens. A flow would exist to push a change to a screen that
+     * caused the change.
+     *
+     * Every rule about ordering, opacity and the cap lives in [CustomCrosshairColours], which both the
+     * getter and the setter go through — so a list that got into the file by some other route still reads
+     * back clean, and the same is true of one written by a caller that skipped [CustomCrosshairColours
+     * .remember].
+     */
+    var customCrosshairColours: List<Int>
+        get() = CustomCrosshairColours.decode(prefs?.getString(KEY_CUSTOM_CROSSHAIR_COLOURS, null))
+        set(value) {
+            prefs?.edit()
+                ?.putString(KEY_CUSTOM_CROSSHAIR_COLOURS, CustomCrosshairColours.encode(value))
+                ?.apply()
+        }
+
+    /**
      * Whether the user has already been asked to exempt GameCore from battery optimisation.
      *
      * Stored so §24B's prompt happens when overlay or session tracking is switched on and then not
@@ -528,11 +572,13 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_BUTTON_IDLE_OPACITY = "button_idle_opacity"
         const val KEY_BUTTON_HAPTIC = "button_haptic"
         const val KEY_BUTTON_PANEL_WIDTH = "button_panel_width"
+        const val KEY_BUTTON_PANEL_LAYOUT = "button_panel_layout"
 
         const val KEY_ACTIVE_CROSSHAIR = "active_crosshair"
         const val KEY_ACTIVE_HUD = "active_hud"
         const val KEY_SHOW_CROSSHAIR = "show_crosshair"
         const val KEY_SHOW_HUD = "show_hud"
+        const val KEY_CUSTOM_CROSSHAIR_COLOURS = "custom_crosshair_colours"
         const val KEY_ASKED_BATTERY = "asked_battery"
 
         const val KEY_ACTIVE_COLOR = "active_color"

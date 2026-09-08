@@ -5,6 +5,8 @@ import com.gamecore.core.common.Observed
 import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.AspectChoice
 import com.gamecore.core.model.CapabilityStatus
+import com.gamecore.core.model.CpuAffinityChoice
+import com.gamecore.core.model.CpuClusterLayout
 import com.gamecore.core.model.DeviceCapabilities
 import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.DisplaySizeState
@@ -43,6 +45,20 @@ data class ProfileEditorUiState(
      * display-size control absent — there is no assumed panel to fall back on.
      */
     val display: Observed<DisplaySizeState> = Observed.awaitingSample("Reading this display's size."),
+    /**
+     * This device's CPU cores grouped by speed, or why they could not be grouped.
+     *
+     * The same relationship to `profile.cpuAffinity` that [display] has to `profile.displaySize`: this is
+     * what the device has, that is what the user chose to do with it. And the same consequence — every
+     * preset the editor offers is computed from this layout, so without it there is nothing to draw that
+     * would not be a guess about which cores are the fast ones.
+     *
+     * Unavailable more often than [display] is, and not because of a permission: `cpufreq` is simply not
+     * readable by apps on a good number of devices, which is a [Observed.Restricted] with no fix to offer.
+     * The editor says so and offers no "Set up" button, because Shizuku would not change the answer.
+     */
+    val cpuLayout: Observed<CpuClusterLayout> =
+        Observed.awaitingSample("Reading this device's cores."),
     val hudLayouts: List<NamedOption> = emptyList(),
     val crosshairs: List<NamedOption> = emptyList(),
     val colourPresets: List<NamedOption> = emptyList(),
@@ -99,6 +115,18 @@ data class ProfileEditorUiState(
      */
     val displayNeedsShizuku: Boolean
         get() = (display as? Observed.Restricted)?.unlockedBy == AccessLevel.SHIZUKU
+
+    /**
+     * The core presets this device's layout can actually express, in enum order.
+     *
+     * Empty when the layout could not be read, which is what makes the whole control absent. Otherwise
+     * every preset appears — including one the layout cannot express, which arrives carrying the reason
+     * and is drawn as unavailable rather than hidden. Hiding it would leave a user on a big.LITTLE phone
+     * and a user on eight identical cores looking at the same screen with no explanation for the
+     * difference.
+     */
+    val cpuChoices: List<CpuAffinityChoice>
+        get() = cpuLayout.valueOrNull?.choices() ?: emptyList()
 }
 
 /** One app in the picker. Carries what the list row draws, and the reason a row may be unselectable. */

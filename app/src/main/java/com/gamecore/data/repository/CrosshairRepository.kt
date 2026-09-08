@@ -115,8 +115,9 @@ class CrosshairRepository @Inject constructor(
         /**
          * Three presets covering the shapes people actually ask for, sized for a phone screen.
          *
-         * Not ten: a first-run list long enough to scroll is a list the user has to read before
-         * they can do anything. The other seven designs are one dropdown away on any of these.
+         * Three rather than one per design: a first-run list long enough to scroll is a list the user
+         * has to read before they can do anything. Every other design is one dropdown away on any of
+         * these, so nothing is unreachable — only unlisted.
          */
         val DEFAULTS = listOf(
             CrosshairPreset(name = "Cross", design = CrosshairDesign.CROSS, sizeDp = 28),

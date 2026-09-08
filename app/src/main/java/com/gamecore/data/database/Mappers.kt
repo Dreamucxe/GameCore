@@ -5,6 +5,7 @@ import com.gamecore.core.model.ColorCodec
 import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.ColorPreset
 import com.gamecore.core.model.ColorVisionFilter
+import com.gamecore.core.model.CpuAffinityPreset
 import com.gamecore.core.model.CrosshairDesign
 import com.gamecore.core.model.CrosshairPreset
 import com.gamecore.core.model.DisplaySize
@@ -60,6 +61,7 @@ internal object Mappers {
         useShizukuOptimizations = profile.useShizukuOptimizations,
         trackSession = profile.trackSession,
         freeRamOnLaunch = profile.freeRamOnLaunch,
+        cpuAffinity = profile.cpuAffinity?.name,
         updatedAtMillis = nowMillis,
     )
 
@@ -92,6 +94,12 @@ internal object Mappers {
         useShizukuOptimizations = entity.useShizukuOptimizations,
         trackSession = entity.trackSession,
         freeRamOnLaunch = entity.freeRamOnLaunch,
+        // Same defensive parse, and here the fallback is the field's own default rather than a
+        // substitute: an unrecognised preset name means this profile stops choosing cores, which is
+        // what null means everywhere else and is the safe direction to fail in.
+        cpuAffinity = entity.cpuAffinity?.let { name ->
+            CpuAffinityPreset.entries.firstOrNull { it.name == name }
+        },
     )
 
     // ------------------------------------------------------------------------ hud

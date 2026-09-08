@@ -86,6 +86,23 @@ data class GameProfile(
      * editor says so before the switch is turned on.
      */
     val freeRamOnLaunch: Boolean = false,
+
+    /**
+     * Which group of CPU cores to restrict this game's process to, or null to leave it to Android.
+     *
+     * Nullable and null by default, and there is deliberately no `LEAVE_TO_OS` member on
+     * [CpuAffinityPreset] to store instead. The invariant at the top of this class is the whole
+     * reason: null already means *leave it alone* for every other field here, and a sentinel enum
+     * value would give the same idea a second spelling that the editor, the applier and the database
+     * would each have to remember to check for.
+     *
+     * The second field whose effect is on a process rather than a device setting, and the only one
+     * whose effect is on the *game's own* process. Marked experimental everywhere it is presented,
+     * with [CpuAffinityPreset.HONESTY] beside it: it may reduce stutter and it may make things worse,
+     * it does not make the device faster, and a preset the device's core layout cannot express is not
+     * offered at all — see [com.gamecore.domain.cpu.CpuAffinityController].
+     */
+    val cpuAffinity: CpuAffinityPreset? = null,
 ) {
     /** True when applying this would write nothing, so the UI can say so plainly. */
     val changesNothing: Boolean
@@ -108,7 +125,11 @@ data class GameProfile(
             // this list means. It is still emphatically not nothing: a profile whose only setting
             // is this one closes the user's background apps, and a UI that called that "changes
             // nothing" would be lying about the one thing here that touches another app.
-            !freeRamOnLaunch
+            !freeRamOnLaunch &&
+            // Counts, and the honest reading of it is the same as the one above: it writes something
+            // and records the previous value for restore. Whether it helps is a separate question
+            // from whether it changes anything, and this property answers the second one.
+            cpuAffinity == null
 
     companion object {
         /** A new profile for a game the user just picked: overlay on, nothing written. */
