@@ -3,7 +3,11 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.2%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[
+
+![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.2%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)
+
+](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore-3.2.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
 no backend, nothing you record leaves the device
