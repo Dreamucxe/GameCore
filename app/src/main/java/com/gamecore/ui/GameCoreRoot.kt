@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,7 +25,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,8 +42,27 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.gamecore.aimlab.ui.flick.FlickScreen
+import com.gamecore.aimlab.ui.gyro.GyroScreen
+import com.gamecore.aimlab.ui.history.HistoryScreen
+import com.gamecore.aimlab.ui.input.ApplyAimLabOrientation
+import com.gamecore.aimlab.ui.home.AimLabHomeScreen
+import com.gamecore.aimlab.ui.hud.ControlEditorScreen
+import com.gamecore.aimlab.ui.movement.MovementScreen
+import com.gamecore.aimlab.ui.practice.PracticeScreen
+import com.gamecore.aimlab.ui.reaction.ReactionScreen
+import com.gamecore.aimlab.ui.recoil.RecoilScreen
+import com.gamecore.aimlab.ui.records.RecordsScreen
+import com.gamecore.aimlab.ui.results.ResultsScreen
+import com.gamecore.aimlab.ui.results.ResultsState
+import com.gamecore.aimlab.ui.sensitivity.SensitivityLabScreen
+import com.gamecore.aimlab.ui.stats.StatisticsScreen
+import com.gamecore.aimlab.ui.tracking.TrackingScreen
+import com.gamecore.aimlab.ui.weapon.WeaponEditorScreen
+import com.gamecore.ui.capability.CapabilityScreen
 import com.gamecore.ui.color.ColorScreen
 import com.gamecore.ui.components.ScreenPadding
+import com.gamecore.ui.controller.ControllerScreen
 import com.gamecore.ui.crosshair.CrosshairScreen
 import com.gamecore.ui.developer.DeveloperScreen
 import com.gamecore.ui.games.GamesScreen
@@ -48,9 +70,12 @@ import com.gamecore.ui.games.ProfileEditorScreen
 import com.gamecore.ui.home.HomeScreen
 import com.gamecore.ui.hud.HudEditorScreen
 import com.gamecore.ui.hud.HudScreen
+import com.gamecore.ui.media.MediaAccessScreen
+import com.gamecore.ui.motion.MotionScreen
 import com.gamecore.ui.overlay.OverlayScreen
 import com.gamecore.ui.performance.PerformanceScreen
 import com.gamecore.ui.permissions.PermissionsScreen
+import com.gamecore.ui.quickapps.QuickAppsScreen
 import com.gamecore.ui.sessions.SessionReportScreen
 import com.gamecore.ui.sessions.SessionsScreen
 import com.gamecore.ui.settings.NeverCloseScreen
@@ -59,6 +84,8 @@ import com.gamecore.ui.shizuku.ShizukuScreen
 import com.gamecore.ui.storage.GameStorageScreen
 import com.gamecore.ui.theme.GameCoreTheme
 import com.gamecore.ui.tools.ToolsScreen
+import com.gamecore.ui.touch.TouchScreen
+import com.gamecore.ui.trigger.QuickTriggerScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -73,8 +100,9 @@ import kotlinx.coroutines.flow.StateFlow
  *    the screen doing the editing.
  *  - **The window insets are applied here.** `ScreenHeader` applies none deliberately — a screen that
  *    inset itself would inset twice inside a dialog or a preview — so the one place that knows it is
- *    directly under the status bar is this one. The bar takes its own, separately, because it is a
- *    sibling of the content rather than part of it.
+ *    directly under the status bar is this one. The bottom inset is applied once, to the column that holds
+ *    the bar and the banner, rather than by either of them: the element that has to clear the gesture area
+ *    is whichever of the two is lowest, and that changes with the screen.
  *  - **The bar floats over the content** (§27), which is why every screen ends its scroll with
  *    `ScreenBottomPadding` rather than the bar reserving space in the layout.
  *
@@ -105,8 +133,20 @@ fun GameCoreRoot(
     // navigated away from it.
     LaunchedEffect(requested) {
         val destination = requested ?: return@LaunchedEffect
-        navController.openFromIntent(destination)
+        navController.openUnguarded(destination)
         onOpened()
+    }
+
+    // Turning Aim Lab on or off changes which routes exist at all, and a NavHost whose graph changes drops
+    // its back stack and returns to the start destination. The switch that does it lives on the Settings
+    // screen, so without this the user's own tap would throw them out to the dashboard — a rebuild they did
+    // not ask for reading as a glitch. Nothing fires on the first composition, or on any other settings
+    // change: only a value that differs from the one the graph was last built with counts as a flip.
+    var aimLabInGraph by remember { mutableStateOf(settings.aimLabEnabled) }
+    LaunchedEffect(settings.aimLabEnabled) {
+        if (settings.aimLabEnabled == aimLabInGraph) return@LaunchedEffect
+        aimLabInGraph = settings.aimLabEnabled
+        navController.openUnguarded(Destination.Settings)
     }
 
     GameCoreTheme(settings) {
@@ -115,18 +155,29 @@ fun GameCoreRoot(
                 GameCoreNav(
                     navController = navController,
                     open = open,
+                    aimLabEnabled = settings.aimLabEnabled,
+                    aimLabOrientation = settings.aimLabOrientation,
                     modifier = Modifier
                         .fillMaxSize()
                         .systemBarsPadding()
                         .displayCutoutPadding(),
                 )
-                AnimatedVisibility(
-                    visible = onTab,
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                    enter = fadeIn(tween(BAR_IN_MILLIS)) + slideInVertically(tween(BAR_IN_MILLIS)) { it / 2 },
-                    exit = fadeOut(tween(BAR_OUT_MILLIS)) + slideOutVertically(tween(BAR_OUT_MILLIS)) { it / 2 },
+                // The bar is bottom-aligned and takes the navigation-bar inset, so it clears the gesture
+                // area while staying anchored at the bottom where the thumb expects it.
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding(),
                 ) {
-                    FloatingNavBar(currentRoute = route, onSelect = open)
+                    AnimatedVisibility(
+                        visible = onTab,
+                        enter = fadeIn(tween(BAR_IN_MILLIS)) +
+                            slideInVertically(tween(BAR_IN_MILLIS)) { it / 2 },
+                        exit = fadeOut(tween(BAR_OUT_MILLIS)) +
+                            slideOutVertically(tween(BAR_OUT_MILLIS)) { it / 2 },
+                    ) {
+                        FloatingNavBar(currentRoute = route, onSelect = open)
+                    }
                 }
             }
         }
@@ -142,9 +193,12 @@ fun GameCoreRoot(
  * in the app: `surface`, a hairline outline and no shadow, since a shadow is invisible against a
  * near-black scheme and only costs a layer.
  *
- * Its own window insets are zeroed and taken by the plate instead. That is the difference between a bar
- * that floats above the navigation bar and one that is padded from the inside, with its rounded corners
- * disappearing behind the gesture area.
+ * Its own window insets are zeroed — [NavigationBar] would otherwise pad itself from the inside and its
+ * rounded corners would disappear behind the gesture area. The navigation-bar inset it needs is applied by
+ * the caller instead, on the column this shares with the ad banner, because the element that has to clear
+ * the gesture area is whichever one is lowest — the bar on a tab, the banner on a screen where the bar is
+ * gone — and that changes with the screen. The gap that is still applied here is [BarMargin], which is the
+ * plate's own breathing room and belongs to it.
  *
  * [currentRoute] is compared here rather than a [Destination.Top] being handed in, so that while the bar
  * slides away toward a screen that is not a tab, nothing is highlighted — which is the truth.
@@ -158,7 +212,6 @@ private fun FloatingNavBar(
     val scheme = MaterialTheme.colorScheme
     Surface(
         modifier = modifier
-            .navigationBarsPadding()
             .padding(horizontal = ScreenPadding, vertical = BarMargin),
         shape = MaterialTheme.shapes.extraLarge,
         color = scheme.surface,
@@ -206,11 +259,16 @@ private fun FloatingNavBar(
  * The transition is a short cross-fade in both directions. It is also load-bearing: an entry is not
  * `RESUMED` until it settles, and [isSettled] uses exactly that to tell a second tap from a second
  * destination.
+ *
+ * [aimLabEnabled] is the one thing here that changes the *shape* of the graph rather than what a route
+ * resolves to. See the section at the bottom for why the switch is applied here and nowhere else.
  */
 @Composable
 private fun GameCoreNav(
     navController: NavHostController,
     open: (Destination) -> Unit,
+    aimLabEnabled: Boolean,
+    aimLabOrientation: com.gamecore.core.model.AimLabOrientation,
     modifier: Modifier = Modifier,
 ) {
     val back: () -> Unit = remember(navController) { { navController.back() } }
@@ -223,7 +281,7 @@ private fun GameCoreNav(
         exitTransition = { fadeOut(tween(SCREEN_OUT_MILLIS)) },
     ) {
         composable(Destination.Home.route) {
-            HomeScreen(onNavigate = open)
+            HomeScreen(onNavigate = open, aimLabEnabled = aimLabEnabled)
         }
 
         composable(Destination.Games.route) {
@@ -260,9 +318,14 @@ private fun GameCoreNav(
         }
 
         // Reached from the overlay panel's colour tile as well as from inside the app, which is why
-        // `openFromIntent` exists — see [Destination.Colour].
+        // `openUnguarded` exists — see [Destination.Colour].
         composable(Destination.Colour.route) {
             ColorScreen(onBack = back, onNavigate = open)
+        }
+
+        // The other one an intent can ask for, from the panel's media strip. See [Destination.MediaAccess].
+        composable(Destination.MediaAccess.route) {
+            MediaAccessScreen(onBack = back, onNavigate = open)
         }
 
         composable(Destination.Shizuku.route) {
@@ -283,6 +346,30 @@ private fun GameCoreNav(
 
         composable(Destination.Overlay.route) {
             OverlayScreen(onBack = back, onNavigate = open)
+        }
+
+        composable(Destination.Motion.route) {
+            MotionScreen(onBack = back)
+        }
+
+        composable(Destination.Touch.route) {
+            TouchScreen(onBack = back)
+        }
+
+        composable(Destination.Controller.route) {
+            ControllerScreen(onBack = back)
+        }
+
+        composable(Destination.Capability.route) {
+            CapabilityScreen(onBack = back)
+        }
+
+        composable(Destination.QuickTrigger.route) {
+            QuickTriggerScreen(onBack = back)
+        }
+
+        composable(Destination.QuickApps.route) {
+            QuickAppsScreen(onBack = back)
         }
 
         composable(Destination.NeverClose.route) {
@@ -312,6 +399,82 @@ private fun GameCoreNav(
             arguments = listOf(navArgument(Destination.ARG_ID) { type = NavType.LongType }),
         ) {
             SessionReportScreen(onBack = back)
+        }
+
+        // ------------------------------------------------------------------------------- Aim Lab
+        //
+        // §38's master switch, applied where it can actually disable something. With the setting off the
+        // section's fifteen routes are never added to the graph, so there is nothing to land on: a saved
+        // back-stack entry or a stale link naming one resolves to nothing and the user ends up on Home,
+        // exactly as an unknown route already does. Guarding inside each screen instead would leave every
+        // one of them reachable and allocated, which is hiding the UI rather than disabling the feature.
+        //
+        // The Aim Lab home screen is handed the route string itself rather than a `Destination`, because
+        // the section names its own routes (`AimLabRoutes`) and a grid of thirteen cards would otherwise
+        // need a second mapping from card to destination that could only ever disagree with the first.
+        if (aimLabEnabled) {
+            composable(Destination.AimLabHome.route) {
+                AimLabHomeScreen(
+                    onOpen = { route -> navController.push(route) },
+                    onBack = back,
+                )
+            }
+
+            // Every training screen forces the user's Aim Lab orientation while it is on top and restores
+            // the previous one on exit (§1); the HUD editor forces its own orientation while editing, so it
+            // is not wrapped here. The rest of GameCore keeps whatever orientation it had.
+            composable(Destination.AimLabFlick.route) {
+                ApplyAimLabOrientation(aimLabOrientation); FlickScreen(onBack = back)
+            }
+            composable(Destination.AimLabTracking.route) {
+                ApplyAimLabOrientation(aimLabOrientation); TrackingScreen(onBack = back)
+            }
+            composable(Destination.AimLabReaction.route) {
+                ApplyAimLabOrientation(aimLabOrientation); ReactionScreen(onBack = back)
+            }
+            composable(Destination.AimLabGyro.route) {
+                ApplyAimLabOrientation(aimLabOrientation); GyroScreen(onBack = back)
+            }
+            composable(Destination.AimLabRecoil.route) {
+                ApplyAimLabOrientation(aimLabOrientation); RecoilScreen(onBack = back)
+            }
+            composable(Destination.AimLabMovement.route) {
+                ApplyAimLabOrientation(aimLabOrientation); MovementScreen(onBack = back)
+            }
+            composable(Destination.AimLabPractice.route) {
+                ApplyAimLabOrientation(aimLabOrientation); PracticeScreen(onBack = back)
+            }
+
+            composable(Destination.AimLabSensitivity.route) { SensitivityLabScreen(onBack = back) }
+            composable(Destination.AimLabWeapon.route) { WeaponEditorScreen(onBack = back) }
+            composable(Destination.AimLabControls.route) { ControlEditorScreen(onBack = back) }
+
+            composable(Destination.AimLabStats.route) { StatisticsScreen(onBack = back) }
+
+            // `onTrain` is left at its default, which is `onBack`: records is reached from the Aim Lab
+            // home screen, so going back is going to the list of modes the user is being invited to run.
+            composable(Destination.AimLabRecords.route) { RecordsScreen(onBack = back) }
+
+            composable(Destination.AimLabHistory.route) {
+                HistoryScreen(
+                    onOpenSession = { id -> navController.push(Destination.AimLabResults.routeFor(id)) },
+                    onBack = back,
+                )
+            }
+
+            composable(
+                route = Destination.AimLabResults.route,
+                arguments = listOf(navArgument(Destination.ARG_ID) { type = NavType.LongType }),
+            ) { entry ->
+                // The ViewModel reads the same id out of its `SavedStateHandle`; this is the argument the
+                // screen's own parameter takes, and the fallback is the sentinel rather than zero so that a
+                // route somehow arriving without an id says "that session is not here" instead of opening
+                // a report on whatever row id zero would match.
+                ResultsScreen(
+                    sessionId = entry.arguments?.getLong(Destination.ARG_ID) ?: ResultsState.MISSING_ID,
+                    onBack = back,
+                )
+            }
         }
     }
 }
@@ -358,15 +521,16 @@ private fun NavHostController.push(route: String) {
 }
 
 /**
- * Opens a screen an intent asked for, without the settle guard the taps use.
+ * Goes to one screen without the settle guard the taps use.
  *
- * [isSettled] is there to tell a second tap from a second destination, and this is neither: on a cold
- * start the request arrives before Home has finished its cross-fade, so the guard would drop it and the
- * intent the user sent from the overlay would be silently forgotten — a tile that does nothing, which is
- * the §32 failure. `launchSingleTop` covers the only duplicate this can produce, which is the same screen
- * asked for twice while it is already on top.
+ * Both callers are the app moving itself rather than answering a tap, and [isSettled] is there to tell a
+ * second tap from a second destination. On a cold start an intent's request arrives before Home has
+ * finished its cross-fade, and a graph rebuilt under the Aim Lab switch has just reset the back stack — in
+ * either case the guard would drop the move and the screen the user is owed would be silently forgotten,
+ * which is the §32 failure. `launchSingleTop` covers the only duplicate either can produce, which is the
+ * same screen asked for twice while it is already on top.
  */
-private fun NavHostController.openFromIntent(destination: Destination) {
+private fun NavHostController.openUnguarded(destination: Destination) {
     navigate(destination.route) { launchSingleTop = true }
 }
 

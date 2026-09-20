@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Adjust
 import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.DataUsage
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Speed
@@ -31,6 +33,8 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.CircularProgressIndicator
@@ -78,11 +82,16 @@ import kotlinx.coroutines.delay
  * Every reading arrives as a [com.gamecore.ui.components.Readout] — a label and a string. §24A.2: this
  * function cannot format a temperature wrongly, or render a missing one as a zero, because it never sees
  * a number.
+ *
+ * @param aimLabEnabled whether the Aim Lab section exists. Handed down from the graph rather than read
+ *   from a ViewModel here, so the card and the routes behind it are driven by one value: a card offering
+ *   a tap that lands nowhere is worse than no card.
  */
 @Composable
 fun HomeScreen(
     onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
+    aimLabEnabled: Boolean = true,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -199,7 +208,103 @@ fun HomeScreen(
             )
         }
 
+        item { DiagnosticsCard(onNavigate = onNavigate, modifier = padded) }
+
+        // Gone entirely when the section is off, rather than shown disabled: §38's switch turns the feature
+        // off, and a row that explains why it cannot be tapped is an advertisement for a feature the user
+        // has already declined.
+        if (aimLabEnabled) {
+            item { AimLabCard(onNavigate = onNavigate, modifier = padded) }
+        }
+
         item { ShortcutCard(onNavigate = onNavigate, modifier = padded) }
+    }
+}
+
+/**
+ * The input and hardware diagnostics, grouped the way the update asks for: INPUT for the three that read
+ * what the player is doing, HARDWARE for the one that reads what the device can do. A card of its own so
+ * the diagnostics do not disappear into the general "Everything else" list below.
+ */
+@Composable
+private fun DiagnosticsCard(
+    onNavigate: (Destination) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(title = "Input", icon = Icons.Filled.Sensors, modifier = modifier) {
+        NavRow(
+            title = "Gyro & aim analytics",
+            description = "Gyroscope, accelerometer and rotation, live, with an optional motion summary",
+            icon = Icons.Filled.Sensors,
+            onClick = { onNavigate(Destination.Motion) },
+        )
+        NavRow(
+            title = "Touch heatmap",
+            description = "The touches this app can see, mapped onto the screen — and the ones it cannot",
+            icon = Icons.Filled.TouchApp,
+            onClick = { onNavigate(Destination.Touch) },
+        )
+        NavRow(
+            title = "Controller lab",
+            description = "Attached controllers, their axes, buttons and the input they are sending",
+            icon = Icons.Filled.SportsEsports,
+            onClick = { onNavigate(Destination.Controller) },
+        )
+        NavRow(
+            title = "Codec & GPU scanner",
+            description = "The renderer, Vulkan level and video codecs the device actually exposes",
+            icon = Icons.Filled.Memory,
+            onClick = { onNavigate(Destination.Capability) },
+        )
+    }
+}
+
+/**
+ * The way into the Aim Lab, and the only one on this screen.
+ *
+ * A card of its own rather than a row in "Everything else" below, because it is not one screen: it is a
+ * section with its own home, seven training modes, three editors and its own history. Its four rows are
+ * the four things a returning user opens the app to do — train, tune, check a record, read a session —
+ * and each is the real route, so none of them is a tap that only gets the user one step closer.
+ *
+ * Absent rather than disabled when §38's switch is off; the caller decides, because the same value decides
+ * whether these routes exist at all.
+ */
+@Composable
+private fun AimLabCard(
+    onNavigate: (Destination) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Aim Lab",
+        icon = Icons.Filled.TrackChanges,
+        modifier = modifier,
+        subtitle = "Offline aim training. Nothing leaves the device.",
+    ) {
+        NavRow(
+            title = "Training arena",
+            description = "Flick, tracking, reaction, gyro, recoil and movement drills, plus free practice",
+            icon = Icons.Filled.Adjust,
+            onClick = { onNavigate(Destination.AimLabHome) },
+        )
+        NavRow(
+            title = "Sensitivity & weapons",
+            description = "Tune sensitivity and curves, build weapons, place the on-screen controls",
+            icon = Icons.Filled.Tune,
+            onClick = { onNavigate(Destination.AimLabSensitivity) },
+        )
+        NavRow(
+            title = "Personal records",
+            description = "Your best result in each mode and difficulty, from sessions you actually ran",
+            icon = Icons.Filled.EmojiEvents,
+            onClick = { onNavigate(Destination.AimLabRecords) },
+        )
+        NavRow(
+            title = "Training history",
+            description = "Every stored session, and the full report behind each one",
+            icon = Icons.Filled.History,
+            onClick = { onNavigate(Destination.AimLabHistory) },
+        )
     }
 }
 

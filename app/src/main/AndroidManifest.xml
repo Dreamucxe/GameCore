@@ -85,15 +85,16 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!--
-      The latency probe, and nothing else.
+      The latency probe.
 
-      GameCore has no backend, no telemetry and no analytics. This permission exists
-      because a ping figure cannot be produced without opening a socket, and it is
-      used for exactly one thing: a TCP handshake to a host the user chooses,
-      carrying no payload, closed the moment it connects. Throughput is measured
-      passively from TrafficStats counters and needs no traffic of our own. The probe
-      only runs while something on screen is actually showing latency, and the whole
-      of the rest of the app works with the radio off.
+      GameCore has no backend of its own: no telemetry, no analytics, no ads, and
+      nothing it measures or records is uploaded anywhere. This permission covers
+      exactly one thing — the ping figure, which cannot be produced without opening
+      a socket: a TCP handshake to a host the user chooses, carrying no payload,
+      closed the moment it connects, running only while something on screen is
+      actually showing latency. Throughput is measured passively from TrafficStats
+      counters and needs no traffic of our own. Switch the probe off and the rest of
+      it works with the radio off.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -236,7 +237,8 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="performance_sampling: reads CPU, memory, battery,
                     thermal and display counters at the user's chosen interval to feed
-                    an on-screen overlay. No data leaves the device." />
+                    an on-screen overlay. The sampled data is stored only in GameCore's
+                    own on-device database." />
         </service>
 
         <!--
@@ -259,6 +261,108 @@
             android:name=".service.ScreenRecordingService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+
+        <!--
+          The notification listener GameCore binds so it can read the active media
+          session. Not a foreground service and not started by the app: the system
+          binds it, and only while the user has enabled it in Settings.
+
+          Exported and permission-guarded in the pair Android requires of this
+          component. The intent-filter makes it discoverable by the system's listener
+          picker, which is a different process, so exported="false" would leave it
+          un-bindable and getActiveSessions permanently refused. The android:permission
+          line is the guard: BIND_NOTIFICATION_LISTENER_SERVICE is held by the system
+          alone, so system_server is the only caller that can bind it. There is no
+          <uses-permission> to match — a BIND_* permission is declared here, by the
+          component being protected, and requested by nobody.
+
+          The class it names overrides none of the notification callbacks; see
+          MediaAccessService for why that emptiness is the feature.
+        -->
+        <service
+            android:name=".service.MediaAccessService"
+            android:exported="true"
+            android:label="@string/media_listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!--
+          The shake watcher for the Quick Trigger. specialUse again: "reads the
+          accelerometer so a gesture can open the app's own panel" is not a data
+          transfer, a media playback or a location fix, and Android 14 defines no type
+          for it.
+
+          Started and stopped by QuickTriggerCoordinator.syncService and by nothing
+          else, so it exists only while the user has armed the shake method
+          specifically. The other four trigger methods cost no process at all.
+        -->
+        <service
+            android:name=".service.QuickTriggerService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="shake_shortcut: watches the accelerometer for the
+                    two-shake gesture the user configured as a shortcut to GameCore's
+                    own control panel, so that it works from inside the game they are
+                    playing. Samples are compared against a threshold and discarded;
+                    nothing is recorded and nothing leaves the device. Runs only while
+                    the shake trigger is switched on." />
+        </service>
+
+        <!--
+          The Quick Settings tile: the one trigger that works from anywhere without a
+          service of ours running, because the system dispatches the click.
+
+          Exported and permission-guarded in the pair Android requires of a tile.
+          SystemUI is a different process and has to be able to bind it, so
+          exported="false" would leave the tile permanently unavailable;
+          BIND_QUICK_SETTINGS_TILE is held by the system alone, so system_server is the
+          only caller that can. There is no <uses-permission> to match — a BIND_*
+          permission is declared here, by the component being protected.
+        -->
+        <service
+            android:name=".service.QuickTriggerTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_gamecore"
+            android:label="@string/tile_trigger_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!--
+          The optional accessibility service that lets the volume-key shortcut work
+          from inside another app.
+
+          Android dispatches hardware keys to the focused window only; a service holding
+          FLAG_REQUEST_FILTER_KEY_EVENTS is the one supported mechanism that changes
+          that, and the user grants it by hand. Nothing in GameCore requires it — the
+          volume shortcuts work without it while GameCore is the app on screen, and the
+          settings screen says exactly that rather than nagging.
+
+          Exported and permission-guarded in the same pair as the two services above:
+          the system binds it, BIND_ACCESSIBILITY_SERVICE is held by the system alone.
+          quick_trigger_accessibility.xml subscribes to no accessibility events and
+          declares canRetrieveWindowContent="false", so the only thing this service can
+          see is the key events it asked for.
+        -->
+        <service
+            android:name=".service.QuickTriggerAccessibilityService"
+            android:exported="true"
+            android:label="@string/trigger_accessibility_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/quick_trigger_accessibility" />
+        </service>
 
         <!--
           Screenshots and recordings are handed to other apps as content URIs with a

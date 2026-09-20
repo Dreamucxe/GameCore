@@ -63,8 +63,14 @@ import androidx.room.RoomDatabase
         SessionEntity::class,
         SessionSampleEntity::class,
         RestorePointEntity::class,
+        AimLabSessionEntity::class,
+        AimLabWeaponEntity::class,
+        AimLabSensitivityEntity::class,
+        AimLabLayoutEntity::class,
+        AimLabControlEntity::class,
+        AimLabRecordEntity::class,
     ],
-    version = 6,
+    version = 10,
     exportSchema = true,
 )
 abstract class GameCoreDatabase : RoomDatabase() {
@@ -80,6 +86,14 @@ abstract class GameCoreDatabase : RoomDatabase() {
     abstract fun sessions(): SessionDao
 
     abstract fun restorePoints(): RestorePointDao
+
+    abstract fun aimLabSessions(): AimLabSessionDao
+
+    abstract fun aimLabWeapons(): AimLabWeaponDao
+
+    abstract fun aimLabSensitivities(): AimLabSensitivityDao
+
+    abstract fun aimLabLayouts(): AimLabLayoutDao
 
     companion object {
         /**

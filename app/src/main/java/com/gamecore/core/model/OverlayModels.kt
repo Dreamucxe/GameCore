@@ -1,5 +1,7 @@
 package com.gamecore.core.model
 
+import com.gamecore.core.common.TextSanitizer
+
 /**
  * The floating performance pill's configuration.
  *
@@ -146,12 +148,46 @@ data class FloatingButtonConfig(
      * the width the user set, which is the only behaviour that does not punish trying the other layout.
      */
     val panelLayout: PanelLayoutStyle = PanelLayoutStyle.CENTERED,
+    /**
+     * Whether the panel draws a row of the user's own apps under the action grid.
+     *
+     * Off, and independent of [panelLayout] rather than a third value of it. Independent because the
+     * two are answers to different questions — the layout is the panel's *shape*, this is one more
+     * thing in it — and a user who prefers the split layout has no reason to give up quick launching
+     * to keep it. [PanelLayoutStyle.other] says why a third shape would be the wrong thing to add.
+     *
+     * Off by default because the row costs a strip of the game's screen and names apps GameCore has no
+     * business guessing at. With no [quickAppPackages] chosen it draws nothing even when this is on,
+     * so the honest first state is an empty row that is also an invisible one.
+     */
+    val showQuickApps: Boolean = false,
+    /**
+     * The apps in that row, in the order the user put them in.
+     *
+     * A [List] and not a [Set] because the order is the setting — these are positions under a thumb,
+     * and a row that reshuffled itself between sessions would be a row you cannot learn. Empty until
+     * the user picks something: there is no default set of apps here, and inventing one would put
+     * three packages GameCore chose over somebody's game.
+     *
+     * Package names only. The label and the icon are resolved from `PackageManager` at draw time
+     * rather than stored, so an app that is renamed, updated or uninstalled cannot leave this list
+     * describing something that is no longer true — see
+     * [com.gamecore.domain.overlay.QuickAppLauncher].
+     */
+    val quickAppPackages: List<String> = emptyList(),
 ) {
     fun normalised(): FloatingButtonConfig = copy(
         sizeDp = sizeDp.coerceIn(SIZE_RANGE),
         opacityPercent = opacityPercent.coerceIn(OPACITY_RANGE),
         idleOpacityPercent = idleOpacityPercent.coerceIn(IDLE_OPACITY_RANGE),
         panelWidthDp = panelWidthDp.coerceIn(PANEL_WIDTH_RANGE),
+        // Held to the same rule as AppSettings.neverKillPackages, and for the same reason: a value
+        // read back out of the settings file is not trusted because it came out of storage. Every
+        // entry has to look like a package name before it reaches an Intent or the user's eyes.
+        quickAppPackages = quickAppPackages
+            .mapNotNull { TextSanitizer.validatePackageName(it) }
+            .distinct()
+            .take(MAX_QUICK_APPS),
     )
 
     companion object {
@@ -196,6 +232,18 @@ data class FloatingButtonConfig(
         const val MAX_PANEL_WIDTH_DP = 480
 
         val PANEL_WIDTH_RANGE = MIN_PANEL_WIDTH_DP..MAX_PANEL_WIDTH_DP
+
+        /**
+         * How many apps the quick-launch row will hold.
+         *
+         * Six, because the row is one row. The panel is between [MIN_PANEL_WIDTH_DP] and
+         * [MAX_PANEL_WIDTH_DP] wide and the icons share it, so six at the narrowest setting is about
+         * 20 dp of icon — small, but still a target, and the user chose that width. A seventh would
+         * either wrap to a second row, which is no longer "a row of apps under the tiles", or shrink
+         * every icon past recognising. It is also a limit worth having against a hand-edited file:
+         * the row is drawn over somebody's game, and a list of forty would cover it.
+         */
+        const val MAX_QUICK_APPS = 6
     }
 }
 

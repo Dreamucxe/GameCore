@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DoNotDisturbOn
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Tune
@@ -213,6 +214,10 @@ private fun iconFor(permission: GamePermission): ImageVector = when (permission)
     GamePermission.POST_NOTIFICATIONS -> Icons.Filled.Notifications
     GamePermission.BATTERY_OPTIMISATION_EXEMPTION -> Icons.Filled.BatterySaver
     GamePermission.PACKAGE_VISIBILITY -> Icons.Filled.Visibility
+    // A note rather than a bell, because the row is about what the access is for and not about
+    // the switch's name. A second bell next to POST_NOTIFICATIONS would read as two entries for
+    // one thing, which is exactly the confusion the catalogue wording is trying to avoid.
+    GamePermission.NOTIFICATION_LISTENER -> Icons.Filled.MusicNote
 }
 
 private const val INTRODUCTION =

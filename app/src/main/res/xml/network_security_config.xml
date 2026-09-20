@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  GameCore opens exactly one kind of connection: a payload-free TCP handshake to a
-  latency-probe host, to time the round trip. There is no API, no telemetry and no
-  analytics, so there is nothing for a cleartext exemption to be useful for.
+  GameCore's own code opens exactly one kind of connection: a payload-free TCP
+  handshake to a latency-probe host, to time the round trip. It has no API of its
+  own, no telemetry and no analytics, and nothing it measures or records leaves
+  the device.
 
   cleartextTrafficPermitted="false" makes that structural rather than a promise —
   the platform refuses an http:// connection from this process before any code of

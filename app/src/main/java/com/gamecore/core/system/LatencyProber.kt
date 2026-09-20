@@ -31,8 +31,9 @@ import javax.inject.Singleton
  *    [ConnectionStability.failedProbes] and described as probes that did not complete.
  *  * **No payload, ever.** The socket is closed the instant it connects. Nothing is
  *    written to it, nothing is read from it, and no name of a game, device or user is
- *    involved — which is what keeps an app with no backend from acquiring one by
- *    accident.
+ *    involved — which is what keeps an app with no backend of its own from acquiring
+ *    one by accident. The ads SDK linked into this app has its own connections to
+ *    Google; this probe is not one of them and shares nothing with them.
  *  * **Nothing runs unless something is on screen asking for it.** There is no
  *    background probe loop in this class; the caller drives it.
  */

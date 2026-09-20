@@ -380,8 +380,9 @@ private const val EMPTY_MESSAGE =
 
 private const val RETENTION =
     "Every session is stored in GameCore's own encrypted database on this device. Nothing is uploaded, " +
-        "there is no account, and the app makes no network requests for any of it. Deleting a session or " +
-        "clearing the history removes it for good."
+        "there is no account, and no session or sample is ever sent anywhere. The app does use the network " +
+        "for two things — the latency probe and the ads on its own screens — and neither is given any of " +
+        "this. Deleting a session or clearing the history removes it for good."
 
 private const val SAMPLES_NOTE =
     "Each session also keeps the individual samples behind its graphs. They go with the session when it is " +

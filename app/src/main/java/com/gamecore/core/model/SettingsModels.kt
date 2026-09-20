@@ -76,6 +76,41 @@ data class AppSettings(
      * would not, so a malformed entry costs the feature nothing and is dropped on read.
      */
     val neverKillPackages: List<String> = emptyList(),
+
+    /**
+     * The shortcut that opens GameCore's panel, and how it is fired.
+     *
+     * Off by default, and nested rather than flattened because the fields only make sense together:
+     * a sensitivity belongs to a shake, a press window belongs to a key combination, and neither
+     * means anything while [QuickTriggerSettings.enabled] is false.
+     */
+    val quickTrigger: QuickTriggerSettings = QuickTriggerSettings(),
+
+    /**
+     * Whether the Aim Lab feature is available.
+     *
+     * On by default. When off, Aim Lab is hidden from navigation and none of its components — sensors,
+     * training loops, timers — are ever initialised: a genuine feature disable, not a hidden UI. The rest
+     * of GameCore is unaffected either way.
+     */
+    val aimLabEnabled: Boolean = true,
+
+    /**
+     * The screen orientation Aim Lab training and HUD-editor screens request (§landscape).
+     *
+     * Applied via `requestedOrientation` only while such a screen is on top, and the previous orientation
+     * is restored on exit — the rest of GameCore is never affected. Landscape is the default because the
+     * 3D arena reads best wide. Stored as the [AimLabOrientation] name.
+     */
+    val aimLabOrientation: AimLabOrientation = AimLabOrientation.LANDSCAPE,
+
+    /**
+     * The horizontal field of view for the 3D training camera, in degrees (§camera).
+     *
+     * The vertical FOV is derived from the real aspect ratio at draw time, so aim feel matches in both
+     * orientations. Clamped to [AIMLAB_FOV_MIN]..[AIMLAB_FOV_MAX] in [normalised].
+     */
+    val aimLabHorizontalFovDegrees: Int = AIMLAB_FOV_DEFAULT,
 ) {
     /**
      * Clamps every numeric field into a range the rest of the app can rely on.
@@ -97,6 +132,8 @@ data class AppSettings(
             .mapNotNull { TextSanitizer.validatePackageName(it) }
             .distinct()
             .take(MAX_NEVER_KILL_ENTRIES),
+        quickTrigger = quickTrigger.normalised(),
+        aimLabHorizontalFovDegrees = aimLabHorizontalFovDegrees.coerceIn(AIMLAB_FOV_MIN, AIMLAB_FOV_MAX),
     )
 
     companion object {
@@ -134,6 +171,30 @@ data class AppSettings(
          * into a set the filter walks for every candidate. Far above any plausible real list.
          */
         const val MAX_NEVER_KILL_ENTRIES = 200
+
+        /** Aim Lab 3D camera horizontal FOV bounds and default (§camera). */
+        const val AIMLAB_FOV_MIN = 60
+        const val AIMLAB_FOV_MAX = 120
+        const val AIMLAB_FOV_DEFAULT = 90
+    }
+}
+
+/**
+ * The orientation an Aim Lab training or HUD-editor screen requests (§landscape).
+ *
+ * Applied only while such a screen is on top, via `requestedOrientation`, and undone on exit — the rest
+ * of GameCore keeps whatever orientation it had. Landscape is sensor-based so both landscape directions
+ * work; the others lock. Name is the stable stored key.
+ */
+enum class AimLabOrientation(val label: String) {
+    LANDSCAPE("Landscape"),
+    REVERSE_LANDSCAPE("Reverse landscape"),
+    PORTRAIT("Portrait"),
+    AUTO("Auto-rotate"),
+    ;
+
+    companion object {
+        fun fromName(name: String?): AimLabOrientation = entries.firstOrNull { it.name == name } ?: LANDSCAPE
     }
 }
 

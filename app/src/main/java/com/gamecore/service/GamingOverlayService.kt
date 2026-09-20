@@ -66,10 +66,16 @@ import com.gamecore.domain.color.ColorApplyResult
 import com.gamecore.domain.color.ColorCorrectionController
 import com.gamecore.domain.display.DisplaySizeController
 import com.gamecore.domain.gaming.GamingCoordinator
+import com.gamecore.domain.media.MediaCommand
+import com.gamecore.domain.media.MediaSessionReader
+import com.gamecore.domain.media.NowPlaying
 import com.gamecore.domain.monitoring.HudStatReader
 import com.gamecore.domain.monitoring.PerformanceMonitor
 import com.gamecore.domain.monitoring.StatReading
 import com.gamecore.domain.overlay.OverlayController
+import com.gamecore.domain.overlay.QuickApp
+import com.gamecore.domain.overlay.QuickAppLauncher
+import com.gamecore.domain.overlay.QuickLaunchOutcome
 import com.gamecore.ui.capture.CaptureConsentActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
@@ -152,6 +158,26 @@ class GamingOverlayService : GameCoreService() {
 
     @Inject lateinit var colorPresets: ColorPresetRepository
 
+    /**
+     * The media strip's only dependency, and the only class in the app that touches a media session.
+     *
+     * Injected here rather than reached through a controller in the domain layer, because unlike every
+     * other control on this panel there is nothing to coordinate: no setting is written, no state is
+     * restored at the end of a session, and no profile can configure it. The panel reads a session and
+     * forwards three commands to whichever app owns it.
+     */
+    @Inject lateinit var media: MediaSessionReader
+
+    /**
+     * The quick-launch row's only dependency: package names in, icons out, and one launch intent.
+     *
+     * Injected for the same reason [media] is — there is nothing to coordinate. No setting is written by
+     * a tap, no state is restored at the end of a session, and no profile configures it. It resolves
+     * what the user chose in settings and starts whatever they tapped, with a plain launch intent and
+     * no elevated shell of any kind.
+     */
+    @Inject lateinit var quickAppLauncher: QuickAppLauncher
+
     override val notificationId: Int = NotificationChannels.ID_OVERLAY
 
     override val serviceType: Int = TYPE_SPECIAL_USE
@@ -170,6 +196,35 @@ class GamingOverlayService : GameCoreService() {
     private val hudLayout = MutableStateFlow<HudLayout?>(null)
 
     private val panel = MutableStateFlow(OverlayPanelState.EMPTY)
+
+    /**
+     * What is playing, for the panel's media strip.
+     *
+     * Its own flow rather than a field of [OverlayPanelState], for two reasons that both matter. It
+     * carries a [android.graphics.Bitmap], and that class has no business inside a state object the
+     * rest of the panel is rebuilt from on every tick of [runPanel] — copying a state holding a bitmap
+     * five times a second is a copy nobody asked for. And it updates on the session's schedule, not on
+     * the panel's: a track change arrives when the app changes the track, and folding it into the tick
+     * would mean the title lagged the music by up to a full interval for no gain.
+     *
+     * Reset to [NowPlaying.Silent] on close rather than left holding the last track, so the strip cannot
+     * flash stale metadata in the moment between a panel opening and its first read landing.
+     */
+    private val nowPlaying = MutableStateFlow<NowPlaying>(NowPlaying.Silent)
+
+    /**
+     * The quick-launch row, for the same two reasons [nowPlaying] is its own flow.
+     *
+     * It carries bitmaps, which have no business in a state object [runPanel] rebuilds five times a
+     * second; and it changes on the settings' schedule rather than the panel's, so folding it into the
+     * tick would resolve six icons from `PackageManager` every interval to answer a question whose
+     * answer almost never changes.
+     *
+     * Empty when the feature is off, which is the single place that decision is made — see
+     * [startPanelWatch]. The row composable draws nothing for an empty list, so "off", "on with nothing
+     * chosen" and "the packages were all uninstalled" converge on the same honest outcome: no row.
+     */
+    private val quickApps = MutableStateFlow<List<QuickApp>>(emptyList())
 
     /**
      * Reasons learned from an action that was actually tried and refused.
@@ -212,6 +267,9 @@ class GamingOverlayService : GameCoreService() {
     private val accent = MutableStateFlow(Color(AccentChoice.CYAN.argb))
 
     private var panelJob: Job? = null
+
+    /** The pending "open the panel" from a Quick Trigger, waiting for the button window to exist. */
+    private var panelRequestJob: Job? = null
 
     /**
      * True between the first drag frame and the finger lifting.
@@ -315,6 +373,38 @@ class GamingOverlayService : GameCoreService() {
     }
 
     /**
+     * The Quick Trigger asking for the panel.
+     *
+     * The wait is the load-bearing part. A trigger fired while this service was not running starts it,
+     * and the start intent arrives on the same looper as the flow collection that puts the floating
+     * button up — so at this instant the button window very often does not exist yet, and a panel opened
+     * against a button that is not there is anchored to the top-left corner of the screen. Waiting for
+     * the anchor, briefly and with a ceiling, is the difference between the panel appearing where the
+     * user expects it and appearing in the corner.
+     */
+    override fun onStartAction(intent: Intent?) {
+        val action = intent?.action ?: return
+        if (action != OverlayController.ACTION_OPEN_PANEL &&
+            action != OverlayController.ACTION_TOGGLE_PANEL
+        ) {
+            return
+        }
+        panelRequestJob?.cancel()
+        panelRequestJob = lifecycleScope.launch {
+            var waited = 0L
+            while (windows?.frameFor(OverlaySlot.BUTTON) == null && waited < PANEL_ANCHOR_TIMEOUT_MS) {
+                delay(PANEL_ANCHOR_POLL_MS)
+                waited += PANEL_ANCHOR_POLL_MS
+            }
+            if (action == OverlayController.ACTION_TOGGLE_PANEL) {
+                togglePanel()
+            } else if (!panelOpen.value) {
+                openPanel()
+            }
+        }
+    }
+
+    /**
      * Re-places the windows after a rotation.
      *
      * The button and the pill hold pixel coordinates, so a device that was 1080 wide and is now 2400 has
@@ -332,6 +422,7 @@ class GamingOverlayService : GameCoreService() {
 
     override fun onDestroy() {
         panelJob?.cancel()
+        panelRequestJob?.cancel()
         windows?.hideAll()
         windows = null
         // After the windows, never before: `DESTROYED` disposes every composition, and a composition
@@ -801,11 +892,15 @@ class GamingOverlayService : GameCoreService() {
         ) {
             val state by panel.collectAsState()
             val readings by pillReadings.collectAsState()
+            val playing by nowPlaying.collectAsState()
+            val apps by quickApps.collectAsState()
             val tint by accent.collectAsState()
             val live by panelWidth.collectAsState()
             OverlayControlPanel(
                 state = state,
                 readings = readings,
+                nowPlaying = playing,
+                quickApps = apps,
                 accent = tint,
                 maxHeightDp = maxHeightDp,
                 widthDp = live,
@@ -818,6 +913,9 @@ class GamingOverlayService : GameCoreService() {
                 onCrosshairColour = ::onCrosshairColour,
                 onDragLevel = ::onDragLevel,
                 onCommitLevel = ::onCommitLevel,
+                onMedia = ::onMedia,
+                onEnableMedia = ::onEnableMedia,
+                onLaunchApp = ::onLaunchApp,
                 onResize = ::resizePanelTo,
                 onResizeFinished = ::finishPanelResize,
                 onDismiss = ::closePanel,
@@ -863,10 +961,14 @@ class GamingOverlayService : GameCoreService() {
         ) {
             val state by panel.collectAsState()
             val readings by pillReadings.collectAsState()
+            val playing by nowPlaying.collectAsState()
+            val apps by quickApps.collectAsState()
             val tint by accent.collectAsState()
             OverlaySplitPanel(
                 state = state,
                 readings = readings,
+                nowPlaying = playing,
+                quickApps = apps,
                 accent = tint,
                 screenWidthDp = screenWidthDp,
                 onAction = ::onAction,
@@ -878,6 +980,9 @@ class GamingOverlayService : GameCoreService() {
                 onCrosshairColour = ::onCrosshairColour,
                 onDragLevel = ::onDragLevel,
                 onCommitLevel = ::onCommitLevel,
+                onMedia = ::onMedia,
+                onEnableMedia = ::onEnableMedia,
+                onLaunchApp = ::onLaunchApp,
                 onDismiss = ::closePanel,
             )
         }
@@ -887,12 +992,18 @@ class GamingOverlayService : GameCoreService() {
 
     /**
      * What both layouts do once their window is up: mark it open, forget last time's refusals, start the
-     * tick.
+     * tick and start listening for what is playing.
      *
      * Shared rather than repeated because it is bookkeeping about *a panel being open*, which neither
      * layout has its own version of — and a copy in each would be one copy to forget to update. [denied]
      * and [deniedLevels] are cleared on open rather than on close so a capability the user has since
      * granted is retried, not remembered as refused.
+     *
+     * The media collection is a child of [panelJob] and not a job of its own, so that the one cancel in
+     * [closePanel] takes it down with the tick. `MediaSessionReader.watch` registers two platform
+     * listeners and unregisters them from `awaitClose`, which only runs when the collection is cancelled
+     * — a second job tracked in a second field is a second thing to forget, and forgetting it would leave
+     * a notification-listener callback alive against a panel that closed an hour ago.
      */
     private fun startPanelWatch(layout: PanelLayoutStyle) {
         panelOpen.value = true
@@ -900,12 +1011,50 @@ class GamingOverlayService : GameCoreService() {
         denied.clear()
         deniedLevels.clear()
         panelJob?.cancel()
-        panelJob = lifecycleScope.launch { runPanel() }
+        panelJob = lifecycleScope.launch {
+            launch { media.watch().collect { nowPlaying.value = it } }
+            launch { watchQuickApps() }
+            runPanel()
+        }
+    }
+
+    /**
+     * Keeps [quickApps] in step with the two settings that decide it, for as long as a panel is open.
+     *
+     * Mapped to the pair *before* `distinctUntilChanged`, and that ordering is the whole point of this
+     * being a function rather than a line. [preferences] `.floatingButton` also carries the button's x and
+     * y, which a drag rewrites on every frame the finger moves; collecting the config itself would hand
+     * this a new value dozens of times a second and re-resolve six packages against `PackageManager` for
+     * each one. Mapped first, a drag is not a change.
+     *
+     * The toggle is applied here rather than in the composable, so that "turned off", "turned on with
+     * nothing chosen yet" and "every chosen app has since been uninstalled" all arrive at the row as the
+     * same empty list. One decision, one place — and the row's own rule stays a single line: no apps, no
+     * row.
+     */
+    private suspend fun watchQuickApps() {
+        preferences.floatingButton
+            .map { it.showQuickApps to it.quickAppPackages }
+            .distinctUntilChanged()
+            .collectLatest { (show, packages) ->
+                quickApps.value = if (show && packages.isNotEmpty()) {
+                    quickAppLauncher.resolve(packages)
+                } else {
+                    emptyList()
+                }
+            }
     }
 
     private fun closePanel() {
         panelJob?.cancel()
         panelJob = null
+        // Cleared rather than left at the last track: see [nowPlaying]. The cancel above has already
+        // stopped the collection, so nothing is going to write over this.
+        nowPlaying.value = NowPlaying.Silent
+        // Dropped for a second reason as well as that one: the row holds six bitmaps, and a closed panel
+        // has no use for half a megabyte of icons. They are cheap to rebuild — the next open resolves them
+        // again, which is also what makes an app uninstalled in the meantime show as gone.
+        quickApps.value = emptyList()
         // A grip drag still in flight when the window goes is still the user's choice, and the disposal of
         // the composition is not guaranteed to deliver a cancel to the detector that would have persisted
         // it. Only when one was in flight, though: [panelWidth] also holds screen-clamped widths, and
@@ -1282,6 +1431,66 @@ class GamingOverlayService : GameCoreService() {
         lifecycleScope.launch {
             execute(action)
             if (panelOpen.value) probePanel()
+        }
+    }
+
+    /**
+     * A transport button in the media strip.
+     *
+     * Nothing is written to [nowPlaying] here, and nothing is guessed about what the tap will do. The
+     * owning app publishes a new [android.media.session.PlaybackState] when it acts on the command, the
+     * watch started in [startPanelWatch] delivers it, and the strip redraws from that — so the Pause
+     * button turning into a Play button is evidence the app actually paused rather than an optimistic
+     * repaint. On a device where the app ignores the command the button simply does not change, which is
+     * the truth.
+     *
+     * A refusal is a toast, on the same reasoning [report] gives for every other control: a button that
+     * was tapped and did nothing visible is the failure mode this overlay is built to avoid. Not recorded
+     * in [denied] — that map is keyed by [OverlayAction] and holds structural refusals, and a transport
+     * call failing means the session died a moment ago, which the next emission has already fixed.
+     */
+    private fun onMedia(command: MediaCommand) {
+        lifecycleScope.launch {
+            if (!media.send(command)) toast(getString(R.string.overlay_media_send_failed))
+        }
+    }
+
+    /**
+     * The strip's "Enable" prompt: close the panel, open the screen that explains the access.
+     *
+     * Straight to [com.gamecore.ui.media.MediaAccessScreen] rather than straight to the system's
+     * notification-access list. The system page names every app on the device and explains nothing about
+     * why this one is asking — a user who arrives there from a game overlay is being asked to grant the
+     * broadest-sounding permission Android has with no context at all, and the honest thing is to say
+     * what it is read for, and what it is never read for, before they get there.
+     *
+     * The panel closes first for the reason [OverlayAction.COLOR] closes it: the app is about to come to
+     * the front, and an overlay left up over it is a panel floating on top of the screen it opened.
+     */
+    private fun onEnableMedia() {
+        closePanel()
+        openApp(MainActivity.DESTINATION_MEDIA_ACCESS)
+    }
+
+    /**
+     * A tap on a quick-launch icon: start the app, say so if it did not start.
+     *
+     * The panel is deliberately left open, and detection is deliberately left running — the spec for this
+     * row says a quick launch is the same event as switching to any other app while GameCore is up, and it
+     * is. [onEnableMedia] closes the panel because it brings *GameCore* to the front and an overlay over
+     * its own settings screen is a bug; this brings a third-party app to the front, which is what the
+     * overlay is for. The launched app covers the panel window itself, and coming back from it finds the
+     * panel where it was left.
+     *
+     * Not filtered on [QuickApp.isAvailable] before calling, even though the row does not make unavailable
+     * icons clickable. The check is in [QuickAppLauncher.launch] because that is where it can still be true
+     * at the moment it matters: the row was resolved when the panel opened and an app can go away after
+     * that. Two guards for one fact, and the one that runs last is the one that counts.
+     */
+    private fun onLaunchApp(app: QuickApp) {
+        lifecycleScope.launch {
+            val outcome = quickAppLauncher.launch(app.packageName)
+            if (outcome is QuickLaunchOutcome.Failed) toast(outcome.reason)
         }
     }
 
@@ -1772,6 +1981,18 @@ class GamingOverlayService : GameCoreService() {
 
         /** The panel's session timer is the only thing in it that changes on a clock. */
         const val PANEL_TICK_MILLIS = 1_000L
+
+        /**
+         * How long a Quick Trigger waits for the floating button before opening the panel anyway.
+         *
+         * Long enough for a cold service start to get its first window up, short enough that a trigger
+         * never feels like it was ignored. On expiry the panel opens regardless, positioned against
+         * whatever the window manager reports, because a panel in the wrong place is still better than
+         * a shortcut that did nothing.
+         */
+        const val PANEL_ANCHOR_TIMEOUT_MS = 900L
+
+        const val PANEL_ANCHOR_POLL_MS = 30L
 
         /**
          * How long to wait after closing the panel before capturing.

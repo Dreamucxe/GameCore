@@ -17,5 +17,9 @@ keystore.properties
 *.iml
 .DS_Store
 
-# Internal working notes, not part of the published project.
+# Internal working notes and assets, not part of the published project.
 /HANDOFF.md
+/ads-handoff.md
+/redesign.md
+/ad/
+/tutorial/

@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.gamecore.aimlab.ui.home.AimLabRoutes
 
 /**
  * Every place the app can be, as a sealed set of routes.
@@ -83,6 +84,31 @@ sealed interface Destination {
         override val route = "overlay"
     }
 
+    /** Live gyroscope / accelerometer readings and the optional aim-motion summary. Category: INPUT. */
+    data object Motion : Destination {
+        override val route = "motion"
+    }
+
+    /** The touch heatmap: only the touches this app can legitimately observe. Category: INPUT. */
+    data object Touch : Destination {
+        override val route = "touch"
+    }
+
+    /** Attached controllers, their axes, and the input they are sending. Category: INPUT. */
+    data object Controller : Destination {
+        override val route = "controller"
+    }
+
+    /** GPU and video-codec capabilities as Android actually exposes them. Category: HARDWARE. */
+    data object Capability : Destination {
+        override val route = "capability"
+    }
+
+    /** The shortcut that opens GameCore, and what each way of firing it costs. Category: GAMECORE. */
+    data object QuickTrigger : Destination {
+        override val route = "quick-trigger"
+    }
+
     /**
      * The apps a profile's "free RAM on launch" pass will never close.
      *
@@ -107,6 +133,18 @@ sealed interface Destination {
 
 
     /**
+     * The apps the control panel's quick-launch row offers, and the order they sit in.
+     *
+     * Reached from the Overlay screen's control-panel card and from nowhere else — it configures one part
+     * of one window, unlike [NeverClose] and [GameStorage], which are device-wide lists that happen to be
+     * reached from Settings. Not in [external] either: nothing outside the app has a reason to ask for a
+     * screen that only edits a row of icons.
+     */
+    data object QuickApps : Destination {
+        override val route = "quick-apps"
+    }
+
+    /**
      * Who wrote this and where to find them. The last row of Settings.
      *
      * Not in [external], and it would be harmless there — the screen holds three of its own addresses and
@@ -129,6 +167,20 @@ sealed interface Destination {
         const val EXTERNAL = "colour"
     }
 
+    /**
+     * What the media strip in the overlay panel reads, and the access it needs to read it.
+     *
+     * The second destination reachable from outside the app, and for the same reason [Colour] is the
+     * first: the overlay panel is over a running game and has room for a sentence, while the decision the
+     * user is being asked to make — grant notification listener access — deserves the full explanation
+     * that only a screen can hold. The strip's "Enable" opens this, and this opens the system page.
+     */
+    data object MediaAccess : Destination {
+        override val route = "media-access"
+
+        const val EXTERNAL = "media-access"
+    }
+
     /** The profile editor. A new profile is `profile/0`, since Room ids start at 1. */
     data object ProfileEditor : Destination {
         override val route = "profile/{$ARG_PACKAGE}"
@@ -145,6 +197,90 @@ sealed interface Destination {
     data object SessionReport : Destination {
         override val route = "session/{$ARG_ID}"
         fun routeFor(sessionId: Long): String = "session/$sessionId"
+    }
+
+    // --------------------------------------------------------------------------------- Aim Lab
+
+    /*
+     * The Aim Lab section. Flat, like everything above it — thirteen argument-less screens plus one that
+     * carries a session id — and the route strings come from `AimLabRoutes` rather than being spelled here,
+     * because the section's own UI names those constants when it asks to be navigated.
+     *
+     * These are the only destinations in this file that are registered conditionally: `GameCoreNav` adds
+     * them to the graph only while `AppSettings.aimLabEnabled` is true. Declaring them unconditionally is
+     * correct — a `Destination` is a name for a screen, not a promise that the screen is currently in the
+     * graph — and a route that is not registered behaves exactly like an unknown one: it lands on Home.
+     *
+     * None of them is in [external]. The section reads sensors and draws a full-screen arena; nothing
+     * outside the app has a reason to be able to open one, and the closed map is what keeps that true.
+     */
+
+    data object AimLabHome : Destination {
+        override val route = AimLabRoutes.HOME
+    }
+
+    data object AimLabFlick : Destination {
+        override val route = AimLabRoutes.FLICK
+    }
+
+    data object AimLabTracking : Destination {
+        override val route = AimLabRoutes.TRACKING
+    }
+
+    data object AimLabReaction : Destination {
+        override val route = AimLabRoutes.REACTION
+    }
+
+    data object AimLabGyro : Destination {
+        override val route = AimLabRoutes.GYRO
+    }
+
+    data object AimLabRecoil : Destination {
+        override val route = AimLabRoutes.RECOIL
+    }
+
+    data object AimLabMovement : Destination {
+        override val route = AimLabRoutes.MOVEMENT
+    }
+
+    data object AimLabPractice : Destination {
+        override val route = AimLabRoutes.PRACTICE
+    }
+
+    data object AimLabSensitivity : Destination {
+        override val route = AimLabRoutes.SENSITIVITY
+    }
+
+    data object AimLabWeapon : Destination {
+        override val route = AimLabRoutes.WEAPON
+    }
+
+    data object AimLabControls : Destination {
+        override val route = AimLabRoutes.CONTROLS
+    }
+
+    data object AimLabStats : Destination {
+        override val route = AimLabRoutes.STATS
+    }
+
+    data object AimLabRecords : Destination {
+        override val route = AimLabRoutes.RECORDS
+    }
+
+    data object AimLabHistory : Destination {
+        override val route = AimLabRoutes.HISTORY
+    }
+
+    /**
+     * One Aim Lab session's report, reached from the session list with that session's row id.
+     *
+     * Encoded the same way [SessionReport] is, and read back out the same way: [GameCoreNav] declares the
+     * argument as a `Long`, and the ViewModel accepts a string as well, so a route that arrives from
+     * anywhere else still resolves rather than opening a report on session zero.
+     */
+    data object AimLabResults : Destination {
+        override val route = "${AimLabRoutes.RESULTS}/{$ARG_ID}"
+        fun routeFor(sessionId: Long): String = "${AimLabRoutes.RESULTS}/$sessionId"
     }
 
     companion object {
@@ -171,7 +307,10 @@ sealed interface Destination {
          * A token rather than the route itself, so that a route can be renamed — or given an argument —
          * without changing what outside callers are allowed to ask for.
          */
-        private val external: Map<String, Destination> = mapOf(Colour.EXTERNAL to Colour)
+        private val external: Map<String, Destination> = mapOf(
+            Colour.EXTERNAL to Colour,
+            MediaAccess.EXTERNAL to MediaAccess,
+        )
 
         /** The destination an intent asked for, or null for anything unrecognised. */
         fun fromExternal(token: String?): Destination? = external[token?.trim()]

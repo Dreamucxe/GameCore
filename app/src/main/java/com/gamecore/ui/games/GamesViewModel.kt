@@ -81,7 +81,12 @@ class GamesViewModel @Inject constructor(
      */
     fun refreshDetection() {
         viewModelScope.launch {
-            local.value = local.value.copy(detection = detector.availability())
+            // Read after the call, never as an argument inside the `copy(...)`: the receiver is evaluated
+            // before the argument, so the inline form would capture the state from before the suspend and
+            // write it back over anything an action landed in the meantime — a toast from `play`, or the
+            // busy marker on a row.
+            val detection = detector.availability()
+            local.value = local.value.copy(detection = detection)
         }
     }
 

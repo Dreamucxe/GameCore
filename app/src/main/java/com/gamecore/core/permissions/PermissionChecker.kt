@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -113,6 +114,31 @@ class PermissionChecker @Inject constructor(
     }
 
     /**
+     * Whether GameCore is enabled as a notification listener — the gate on reading media sessions.
+     *
+     * Asked of [NotificationManagerCompat.getEnabledListenerPackages] rather than of
+     * `MediaSessionManager` itself, because the `MediaSessionManager` answer is a thrown
+     * SecurityException and a permissions screen cannot render one. The two agree: that list is
+     * read from the same `enabled_notification_listeners` secure setting the session manager
+     * checks the caller against.
+     *
+     * By package rather than by component, which is exact here and not an approximation: GameCore
+     * declares exactly one listener service, so "this package has an enabled listener" and "that
+     * service is enabled" cannot come apart. The component-level API arrived in API 27 and minSdk
+     * is 26, so the package-level call is also the only one available across the whole range.
+     *
+     * Not cached, like [hasOverlayPermission] and for the same reason — the switch lives in
+     * Settings and can be turned off while the panel is open, and the first sign of that would
+     * otherwise be a failed read.
+     */
+    fun hasNotificationListenerAccess(): Boolean = try {
+        NotificationManagerCompat.getEnabledListenerPackages(context)
+            .contains(context.packageName)
+    } catch (error: Throwable) {
+        false
+    }
+
+    /**
      * Whether GameCore is exempt from Doze and App Standby.
      *
      * Relevant because a two-hour session recorded by a throttled sampler has gaps in
@@ -165,6 +191,7 @@ class PermissionChecker @Inject constructor(
         GamePermission.POST_NOTIFICATIONS -> hasNotificationPermission()
         GamePermission.BATTERY_OPTIMISATION_EXEMPTION -> isIgnoringBatteryOptimisations()
         GamePermission.PACKAGE_VISIBILITY -> hasFullPackageVisibility()
+        GamePermission.NOTIFICATION_LISTENER -> hasNotificationListenerAccess()
     }
 
     // ------------------------------------------------------------------- intents
@@ -222,6 +249,16 @@ class PermissionChecker @Inject constructor(
 
         GamePermission.BATTERY_OPTIMISATION_EXEMPTION -> resolveOrFallback(
             Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+        )
+
+        // The global list of listeners, because there is no per-app page for this one on AOSP.
+        // ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS would open GameCore's own row directly, but
+        // it arrived in API 30 and takes a flattened ComponentName in an extra — a per-app deep
+        // link this class would have to name a service from `service` to build. The user lands on
+        // the list and finds a row labelled "GameCore media controls"; see `media_listener_label`
+        // for why it is labelled that way.
+        GamePermission.NOTIFICATION_LISTENER -> resolveOrFallback(
+            Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
         )
 
         // Granted at install; there is no page to send the user to.

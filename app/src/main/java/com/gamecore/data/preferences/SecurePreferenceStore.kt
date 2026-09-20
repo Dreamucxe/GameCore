@@ -6,6 +6,7 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.model.AccentChoice
+import com.gamecore.core.model.AimLabOrientation
 import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.ColorVisionFilter
@@ -15,6 +16,9 @@ import com.gamecore.core.model.GammaMode
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.OverlayConfig
 import com.gamecore.core.model.PanelLayoutStyle
+import com.gamecore.core.model.QuickTriggerAction
+import com.gamecore.core.model.QuickTriggerMethod
+import com.gamecore.core.model.QuickTriggerSettings
 import com.gamecore.core.model.RecordingQuality
 import com.gamecore.core.model.ThemeChoice
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -154,6 +158,41 @@ class SecurePreferenceStore @Inject constructor(
             ),
             hasSeenIntroduction = p.getBoolean(KEY_SEEN_INTRO, defaults.hasSeenIntroduction),
             neverKillPackages = readNeverKill(p),
+            quickTrigger = readQuickTrigger(p),
+            aimLabEnabled = p.getBoolean(KEY_AIMLAB_ENABLED, defaults.aimLabEnabled),
+            aimLabOrientation = enumOrDefault(
+                p.getString(KEY_AIMLAB_ORIENTATION, null),
+                AimLabOrientation.entries,
+                defaults.aimLabOrientation,
+            ),
+            aimLabHorizontalFovDegrees = p.getInt(KEY_AIMLAB_FOV, defaults.aimLabHorizontalFovDegrees),
+        ).normalised()
+    }
+
+    /**
+     * The quick-trigger block. Same enum-by-name rule as everything above it.
+     *
+     * A method this build does not recognise falls back to the default rather than disabling the
+     * trigger, because the user's answer to "is the shortcut on" and their answer to "which key"
+     * are separate decisions and only one of them can go stale.
+     */
+    private fun readQuickTrigger(p: SharedPreferences): QuickTriggerSettings {
+        val defaults = QuickTriggerSettings()
+        return QuickTriggerSettings(
+            enabled = p.getBoolean(KEY_TRIGGER_ENABLED, defaults.enabled),
+            method = enumOrDefault(
+                p.getString(KEY_TRIGGER_METHOD, null),
+                QuickTriggerMethod.entries,
+                defaults.method,
+            ),
+            action = enumOrDefault(
+                p.getString(KEY_TRIGGER_ACTION, null),
+                QuickTriggerAction.entries,
+                defaults.action,
+            ),
+            windowMillis = p.getLong(KEY_TRIGGER_WINDOW, defaults.windowMillis),
+            shakeSensitivity = p.getInt(KEY_TRIGGER_SHAKE, defaults.shakeSensitivity),
+            passThroughKeys = p.getBoolean(KEY_TRIGGER_PASS_THROUGH, defaults.passThroughKeys),
         ).normalised()
     }
 
@@ -177,6 +216,15 @@ class SecurePreferenceStore @Inject constructor(
             putString(KEY_RECORDING_QUALITY, value.recordingQuality.name)
             putBoolean(KEY_SEEN_INTRO, value.hasSeenIntroduction)
             putString(KEY_NEVER_KILL, value.neverKillPackages.joinToString(SEPARATOR))
+            putBoolean(KEY_TRIGGER_ENABLED, value.quickTrigger.enabled)
+            putString(KEY_TRIGGER_METHOD, value.quickTrigger.method.name)
+            putString(KEY_TRIGGER_ACTION, value.quickTrigger.action.name)
+            putLong(KEY_TRIGGER_WINDOW, value.quickTrigger.windowMillis)
+            putInt(KEY_TRIGGER_SHAKE, value.quickTrigger.shakeSensitivity)
+            putBoolean(KEY_TRIGGER_PASS_THROUGH, value.quickTrigger.passThroughKeys)
+            putBoolean(KEY_AIMLAB_ENABLED, value.aimLabEnabled)
+            putString(KEY_AIMLAB_ORIENTATION, value.aimLabOrientation.name)
+            putInt(KEY_AIMLAB_FOV, value.aimLabHorizontalFovDegrees)
         }?.apply()
     }
 
@@ -306,6 +354,26 @@ class SecurePreferenceStore @Inject constructor(
         prefs?.edit()?.putString(KEY_BUTTON_PANEL_LAYOUT, style.name)?.apply()
     }
 
+    /**
+     * Sets the quick-launch row's apps, in the order given.
+     *
+     * Narrow for the third time and the same reason [updatePanelWidth] and [updatePanelLayout] are: the
+     * picker can be open while a game is running, which means the overlay service may be dragging the
+     * button at the same moment, and a whole-config write from this screen would carry a stale x and y
+     * back to disk over the position the finger just left.
+     *
+     * Normalised through the model rather than trusted from the caller, so the cap and the package-name
+     * check apply to the write as well as to the read — the picker enforces both already, and a rule
+     * enforced only in the UI is a rule the next caller does not get.
+     */
+    fun updateQuickApps(packages: List<String>) {
+        val updated = buttonState.value.copy(quickAppPackages = packages).normalised()
+        buttonState.value = updated
+        prefs?.edit()
+            ?.putString(KEY_BUTTON_QUICK_APPS, updated.quickAppPackages.joinToString(SEPARATOR))
+            ?.apply()
+    }
+
     private fun readButton(): FloatingButtonConfig {
         val p = prefs ?: return FloatingButtonConfig()
         val defaults = FloatingButtonConfig()
@@ -324,8 +392,25 @@ class SecurePreferenceStore @Inject constructor(
                 PanelLayoutStyle.entries,
                 defaults.panelLayout,
             ),
+            showQuickApps = p.getBoolean(KEY_BUTTON_QUICK_APPS_SHOW, defaults.showQuickApps),
+            quickAppPackages = readQuickApps(p),
         ).normalised()
     }
+
+    /**
+     * The quick-launch row's packages, in the order the user arranged them.
+     *
+     * A separated string and not a `StringSet`, for the reason [readNeverKill] gives and one more that
+     * is specific to this list: a set has no order, and here the order *is* the setting — the row is a
+     * set of positions under a thumb. `FloatingButtonConfig.normalised()` validates every entry and
+     * caps the count, so a hand-edited file cannot put arbitrary text under an icon or forty icons over
+     * a game. Absent reads back empty, never a default: which apps matter is not GameCore's guess.
+     */
+    private fun readQuickApps(p: SharedPreferences): List<String> =
+        p.getString(KEY_BUTTON_QUICK_APPS, null)
+            ?.split(SEPARATOR)
+            ?.filter { it.isNotBlank() }
+            .orEmpty()
 
     private fun writeButton(value: FloatingButtonConfig) {
         prefs?.edit()?.apply {
@@ -339,6 +424,8 @@ class SecurePreferenceStore @Inject constructor(
             putBoolean(KEY_BUTTON_HAPTIC, value.hapticFeedback)
             putInt(KEY_BUTTON_PANEL_WIDTH, value.panelWidthDp)
             putString(KEY_BUTTON_PANEL_LAYOUT, value.panelLayout.name)
+            putBoolean(KEY_BUTTON_QUICK_APPS_SHOW, value.showQuickApps)
+            putString(KEY_BUTTON_QUICK_APPS, value.quickAppPackages.joinToString(SEPARATOR))
         }?.apply()
     }
 
@@ -551,6 +638,15 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_RECORDING_QUALITY = "recording_quality"
         const val KEY_SEEN_INTRO = "seen_intro"
         const val KEY_NEVER_KILL = "never_kill"
+        const val KEY_TRIGGER_ENABLED = "trigger_enabled"
+        const val KEY_TRIGGER_METHOD = "trigger_method"
+        const val KEY_TRIGGER_ACTION = "trigger_action"
+        const val KEY_TRIGGER_WINDOW = "trigger_window"
+        const val KEY_TRIGGER_SHAKE = "trigger_shake"
+        const val KEY_TRIGGER_PASS_THROUGH = "trigger_pass_through"
+        const val KEY_AIMLAB_ENABLED = "aimlab_enabled"
+        const val KEY_AIMLAB_ORIENTATION = "aimlab_orientation"
+        const val KEY_AIMLAB_FOV = "aimlab_horizontal_fov"
 
         const val KEY_SHOW_PILL = "pill_show"
         const val KEY_PILL_X = "pill_x"
@@ -573,6 +669,8 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_BUTTON_HAPTIC = "button_haptic"
         const val KEY_BUTTON_PANEL_WIDTH = "button_panel_width"
         const val KEY_BUTTON_PANEL_LAYOUT = "button_panel_layout"
+        const val KEY_BUTTON_QUICK_APPS_SHOW = "button_quick_apps_show"
+        const val KEY_BUTTON_QUICK_APPS = "button_quick_apps"
 
         const val KEY_ACTIVE_CROSSHAIR = "active_crosshair"
         const val KEY_ACTIVE_HUD = "active_hud"

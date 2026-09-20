@@ -16,8 +16,8 @@ android {
         applicationId = "com.gamecore"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "2.0"
+        versionCode = 15
+        versionName = "3.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Room exports its schema so a future migration can be tested against the
@@ -158,6 +158,9 @@ dependencies {
     // so no framework double is needed and the suite runs on any JDK.
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
+    // Test classpath only: the Aim Lab config codec parses with org.json, and the
+    // version inside android.jar is a stub. See the catalog entry.
+    testImplementation(libs.org.json)
 
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.espresso.core)

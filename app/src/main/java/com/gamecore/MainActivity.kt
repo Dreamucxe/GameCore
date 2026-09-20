@@ -2,14 +2,18 @@ package com.gamecore
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.KeyEvent
+import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
+import com.gamecore.core.input.ControllerInputBus
 import com.gamecore.domain.BackgroundServiceGate
 import com.gamecore.domain.StartupCoordinator
 import com.gamecore.domain.overlay.OverlayController
+import com.gamecore.domain.trigger.QuickTriggerCoordinator
 import com.gamecore.ui.Destination
 import com.gamecore.ui.GameCoreRoot
 import dagger.hilt.android.AndroidEntryPoint
@@ -35,6 +39,10 @@ import javax.inject.Inject
  *  - **The once-per-process startup pass**, on a coroutine, after the window exists.
  *  - **The intent handover.** An `Intent` is a window-level thing and a composable has no access to one,
  *    so the extra naming a screen is read here, validated here, and handed down as a value.
+ *  - **Raw input dispatch.** Hardware keys and joystick axes arrive at the focused *window* and are not
+ *    available to a composable at all. The Controller Lab and the Quick Trigger both need them, so
+ *    [dispatchKeyEvent] and [dispatchGenericMotionEvent] forward here and nothing else in the app has to
+ *    know that an Activity was involved.
  *
  * `configChanges` in the manifest covers rotation, size, locale, ui mode and font scale, so a rotation
  * does not restart this activity and Compose reads the new configuration directly. Nothing here holds
@@ -49,6 +57,10 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var services: BackgroundServiceGate
 
     @Inject lateinit var overlays: OverlayController
+
+    @Inject lateinit var triggers: QuickTriggerCoordinator
+
+    @Inject lateinit var controllers: ControllerInputBus
 
     /**
      * The screen an intent asked to be opened at, once, or null.
@@ -98,6 +110,53 @@ class MainActivity : ComponentActivity() {
         Destination.fromExternal(intent?.getStringExtra(EXTRA_DESTINATION))
 
     /**
+     * Every key event the window receives, before the view tree sees it.
+     *
+     * Two consumers, in a fixed order, and both are allowed to decline:
+     *
+     *  - [ControllerInputBus] first, because it only ever claims gamepad and joystick keys and only while
+     *    the Controller Lab is on screen asking for them. A controller's A button pressed there should
+     *    light up the tester rather than activating whatever Compose thinks is focused.
+     *  - [QuickTriggerCoordinator] second. It returns true only when the trigger fired *and* the user has
+     *    turned the key pass-through off, which is not the default: a volume key that stops changing the
+     *    volume is a bug from the user's side of the screen even when they configured it deliberately.
+     *
+     * This is also the honest limit of the whole trigger feature. Android delivers hardware keys to the
+     * focused window, so this override is reached while GameCore is the app on screen and not otherwise —
+     * the accessibility service in [com.gamecore.service.QuickTriggerAccessibilityService] is the only
+     * supported way past that, and it is the user's to enable.
+     *
+     * Anything neither consumer claims goes to `super`, so Back, the volume keys and hardware keyboards
+     * behave exactly as they did before this existed.
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (controllers.onKeyEvent(event)) return true
+        val fired = triggers.onKeyEvent(
+            keyCode = event.keyCode,
+            action = event.action,
+            repeatCount = event.repeatCount,
+            eventTimeMillis = event.eventTime,
+        )
+        if (fired) return true
+        return super.dispatchKeyEvent(event)
+    }
+
+    /**
+     * Joystick axis movement, which arrives as a motion event rather than as a key.
+     *
+     * `dispatchGenericMotionEvent` rather than `onGenericMotionEvent`, for the same reason the key
+     * override is a dispatch: a `ComposeView` with focus consumes generic motion events, and the
+     * un-dispatched callback would never run while the Controller Lab's own scroll container has focus.
+     *
+     * [ControllerInputBus] claims nothing unless it is capturing and the event came from a joystick, so a
+     * mouse wheel or a trackpad gesture still reaches the scrolling it belongs to.
+     */
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (controllers.onMotionEvent(event)) return true
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    /**
      * The work a launch has to do once, in the order it has to happen.
      *
      * [StartupCoordinator.run] is idempotent and caches its findings, so the screens that want the
@@ -117,11 +176,19 @@ class MainActivity : ComponentActivity() {
      * left switched on come back here, with the preset and layout they were left on. Nothing else reads
      * those stored choices, so without this call a fresh process knows the user wants a crosshair but
      * not which one.
+     *
+     * [QuickTriggerCoordinator.syncService] afterwards, because a shake trigger has the same problem in
+     * the same shape: the user's answer to "open the panel when I shake" is in the settings, the watcher
+     * is a process that a reboot or a force-stop has taken away, and this launch is the only place it can
+     * come back. It is also the only place `startForegroundService` is guaranteed to be legal — the call
+     * throws from the background on API 31+ — which is why the settings screen calls it again rather than
+     * relying on this one pass.
      */
     private suspend fun prepare() {
         startup.run()
         services.syncDetection()
         overlays.restoreManualState()
+        triggers.syncService()
     }
 
     companion object {
@@ -135,5 +202,8 @@ class MainActivity : ComponentActivity() {
 
         /** The colour editor, for the overlay panel's colour tile. One literal, shared with the route. */
         const val DESTINATION_COLOUR = Destination.Colour.EXTERNAL
+
+        /** The media access explanation, for the overlay panel's media strip. Same arrangement. */
+        const val DESTINATION_MEDIA_ACCESS = Destination.MediaAccess.EXTERNAL
     }
 }

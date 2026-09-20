@@ -1,7 +1,9 @@
 package com.gamecore.core.overlay
 
+import android.graphics.Bitmap
 import android.view.MotionEvent
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -34,10 +37,16 @@ import androidx.compose.material.icons.rounded.DoNotDisturbOn
 import androidx.compose.material.icons.rounded.FiberManualRecord
 import androidx.compose.material.icons.rounded.FlashlightOn
 import androidx.compose.material.icons.rounded.GpsFixed
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.MusicOff
 import androidx.compose.material.icons.rounded.Opacity
+import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.ScreenLockRotation
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.StopCircle
 import androidx.compose.material.icons.rounded.Tune
@@ -55,10 +64,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -69,7 +81,11 @@ import androidx.compose.ui.unit.sp
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.model.AspectChoice
 import com.gamecore.core.model.CrosshairDesign
+import com.gamecore.core.model.FloatingButtonConfig
+import com.gamecore.domain.media.MediaCommand
+import com.gamecore.domain.media.NowPlaying
 import com.gamecore.domain.monitoring.StatReading
+import com.gamecore.domain.overlay.QuickApp
 import kotlin.math.roundToInt
 
 /**
@@ -110,6 +126,8 @@ import kotlin.math.roundToInt
 fun OverlayControlPanel(
     state: OverlayPanelState,
     readings: List<StatReading>,
+    nowPlaying: NowPlaying,
+    quickApps: List<QuickApp>,
     accent: Color,
     maxHeightDp: Int,
     widthDp: Int,
@@ -122,6 +140,9 @@ fun OverlayControlPanel(
     onCrosshairColour: (Int) -> Unit,
     onDragLevel: (OverlayLevel, Int) -> Unit,
     onCommitLevel: (OverlayLevel) -> Unit,
+    onMedia: (MediaCommand) -> Unit,
+    onEnableMedia: () -> Unit,
+    onLaunchApp: (QuickApp) -> Unit,
     onResize: (Int) -> Unit,
     onResizeFinished: () -> Unit,
     onDismiss: () -> Unit,
@@ -225,6 +246,20 @@ fun OverlayControlPanel(
                     onCrosshairColour = onCrosshairColour,
                 )
             }
+            // Under the grid and under anything a long press revealed, for the reason the media strip
+            // below is under both: a chip row belongs directly beneath the tile that opened it, and a
+            // row of app icons wedged between them would push it a plate's height away.
+            QuickApps(apps = quickApps, accent = accent, onLaunch = onLaunchApp)
+            // Last, and below the revealed rows rather than above them, so a long press on a tile opens
+            // its chips directly under the tile it came from. Putting the strip between the two would
+            // push every revealed row a plate's height away from the thing that revealed it.
+            MediaControls(
+                nowPlaying = nowPlaying,
+                accent = accent,
+                widthDp = widthDp,
+                onCommand = onMedia,
+                onEnableMedia = onEnableMedia,
+            )
         }
         PanelResizeGrip(
             widthDp = widthDp,
@@ -275,6 +310,478 @@ internal fun PanelActions(
                 repeat(perRow - row.size) { Spacer(modifier = Modifier.weight(1f)) }
             }
         }
+    }
+}
+
+/**
+ * The quick-launch row: the user's own apps, under the action grid.
+ *
+ * Draws nothing at all when [apps] is empty, and that is the whole of its opt-in behaviour as far as this
+ * composable is concerned. The setting that switches the feature on lives in
+ * [com.gamecore.core.model.FloatingButtonConfig.showQuickApps] and is applied before the list gets here —
+ * the service hands down an empty list when the toggle is off — so there is one rule in one place: no
+ * apps, no row, no divider, no gap in the panel where a row might have been.
+ *
+ * Deliberately *not* part of [PanelActions]. The grid is [OverlayAction.entries], a closed enum whose
+ * `when` in the service fails to compile when something is added and forgotten; these are packages off a
+ * user's device, resolved at runtime, that can be uninstalled between one open and the next. Putting them
+ * in the same grid would mean one row type with two sources of truth, and the first thing to break would
+ * be the guarantee that every action tile is reachable at every panel width.
+ *
+ * A single row that never wraps, up to [com.gamecore.core.model.FloatingButtonConfig.MAX_QUICK_APPS] of
+ * them sharing the width through `weight` exactly as the action tiles do. Six is chosen against the
+ * panel's narrowest setting — see that constant — so this row cannot be the thing that makes a panel
+ * scroll sideways.
+ */
+@Composable
+internal fun QuickApps(
+    apps: List<QuickApp>,
+    accent: Color,
+    onLaunch: (QuickApp) -> Unit,
+) {
+    if (apps.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 2.dp)
+                .height(1.dp)
+                .background(OverlayPalette.Divider),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(ACTION_GAP_DP.dp),
+        ) {
+            apps.forEach { app ->
+                QuickAppButton(
+                    app = app,
+                    accent = accent,
+                    onLaunch = onLaunch,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            // Short rows are padded rather than stretched, for the reason PanelActions pads its own:
+            // two chosen apps should be two icons the size of the action tiles above them, not two
+            // icons stretched across half a panel each.
+            repeat(FloatingButtonConfig.MAX_QUICK_APPS - apps.size) {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/**
+ * One app in the row.
+ *
+ * An uninstalled app is drawn and not hidden — §24's rule that a thing the user configured must say what
+ * became of it, rather than disappearing and leaving them to wonder whether they imagined adding it. It
+ * gets the same [Icons.Rounded.Block] overlay an unusable action tile gets, in the same
+ * [OverlayPalette.Absent], so "this cannot be tapped" looks the same everywhere in the panel. It is not
+ * clickable rather than clickable-and-ignored, which is [ActionButton]'s reasoning verbatim.
+ *
+ * The fallback for an app whose icon will not decode is the first character of its label on the accent
+ * colour. A blank square is indistinguishable from a rendering bug; a letter is a target with a name.
+ */
+@Composable
+private fun QuickAppButton(
+    app: QuickApp,
+    accent: Color,
+    onLaunch: (QuickApp) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tint = if (app.isAvailable) OverlayPalette.Text else OverlayPalette.Absent
+    Column(
+        modifier = modifier
+            .clickable(enabled = app.isAvailable) { onLaunch(app) }
+            .padding(vertical = 6.dp, horizontal = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            val icon = app.icon
+            if (icon != null) {
+                // Keyed on the bitmap so a reinstalled app's new icon replaces the old one, and so the
+                // conversion does not run again on every frame of a panel drawn over a moving game.
+                val image = remember(icon) { icon.asImageBitmap() }
+                Image(
+                    bitmap = image,
+                    contentDescription = app.label,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .size(QUICK_APP_ICON_DP.dp)
+                        .clip(RoundedCornerShape(7.dp)),
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(QUICK_APP_ICON_DP.dp)
+                        .background(
+                            color = if (app.isAvailable) {
+                                accent.copy(alpha = ACTIVE_PLATE_ALPHA)
+                            } else {
+                                Color.Transparent
+                            },
+                            shape = RoundedCornerShape(7.dp),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    BasicText(
+                        text = app.label.take(1).uppercase(),
+                        style = TextStyle(color = tint, fontSize = 13.sp),
+                    )
+                }
+            }
+            if (!app.isAvailable) {
+                Icon(
+                    imageVector = Icons.Rounded.Block,
+                    contentDescription = null,
+                    tint = OverlayPalette.Absent,
+                    modifier = Modifier.size(QUICK_APP_ICON_DP.dp),
+                )
+            }
+        }
+        BasicText(
+            text = app.label,
+            maxLines = 1,
+            style = TextStyle(
+                color = tint,
+                fontSize = 9.5.sp,
+                textAlign = TextAlign.Center,
+            ),
+        )
+        if (!app.isAvailable) {
+            BasicText(
+                text = QUICK_APP_GONE,
+                maxLines = 2,
+                style = TextStyle(
+                    color = OverlayPalette.Absent,
+                    fontSize = 8.sp,
+                    textAlign = TextAlign.Center,
+                ),
+            )
+        }
+    }
+}
+
+/**
+ * What is playing, and the three buttons that talk to whichever app is playing it.
+ *
+ * Drawn directly under the action grid, full width, in both panel layouts. §Media asks for it "in the
+ * empty space to the right of the action tile grid", and this is that space made reliable: the gap in the
+ * grid's last row is whatever `OverlayAction.entries.size % perRow` happens to be, which is two tiles at
+ * four across, one at three or five, and *nothing at all* at two or seven — so media controls living in
+ * that gap would disappear at some panel widths and be about 120 dp wide at the default, which is not
+ * enough for artwork, two lines of text and three transport buttons. A full-width strip immediately below
+ * the grid occupies the same blank region at every width the panel can be dragged to, and it keeps a
+ * long-pressed tile next to the chip row it reveals rather than pushing it a plate further down.
+ *
+ * All four states are drawn as the same plate at the same place, so the strip never changes height class
+ * under the user's finger. Three of them are one row of text; only [NowPlaying.Track] earns the controls.
+ *
+ * Nothing here knows which app it is talking to. The buttons emit a [MediaCommand] and
+ * [com.gamecore.domain.media.MediaSessionReader] resolves it against whatever session is live at the
+ * moment of the tap — so Spotify, YouTube, a podcast app and a browser tab are all handled by this one
+ * composable with no branch on a package name anywhere in it.
+ */
+@Composable
+internal fun MediaControls(
+    nowPlaying: NowPlaying,
+    accent: Color,
+    widthDp: Int,
+    onCommand: (MediaCommand) -> Unit,
+    onEnableMedia: () -> Unit,
+) {
+    when (nowPlaying) {
+        NowPlaying.NeedsAccess -> MediaPrompt(accent = accent, onEnableMedia = onEnableMedia)
+        NowPlaying.Silent -> MediaNote(icon = Icons.Rounded.MusicOff, text = MEDIA_SILENT)
+        is NowPlaying.Unavailable -> MediaNote(icon = Icons.Rounded.Block, text = nowPlaying.reason)
+        is NowPlaying.Track -> MediaTrack(
+            track = nowPlaying,
+            accent = accent,
+            widthDp = widthDp,
+            onCommand = onCommand,
+        )
+    }
+}
+
+/**
+ * The track, its artwork and its transport.
+ *
+ * Two arrangements of the same three pieces. Side by side once the panel is wide enough for the title to
+ * still be readable next to them, stacked below it when it is not — because a title squeezed into the
+ * 90 dp left over at the default width would be ellipsised to about two words, and a user glancing at an
+ * overlay mid-game gets nothing from "Bohemian Rh…". Stacking costs one row of height in a strip that was
+ * put here precisely because there was height going spare.
+ */
+@Composable
+private fun MediaTrack(
+    track: NowPlaying.Track,
+    accent: Color,
+    widthDp: Int,
+    onCommand: (MediaCommand) -> Unit,
+) {
+    val inline = mediaIsInline(widthDp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(OverlayPalette.Plate, RoundedCornerShape(10.dp))
+            .padding(horizontal = 8.dp, vertical = 7.dp),
+        verticalArrangement = Arrangement.spacedBy(MEDIA_GAP_DP.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (mediaShowsArt(widthDp)) {
+                MediaArt(art = track.art)
+            }
+            MediaLabels(track = track, modifier = Modifier.weight(1f))
+            if (inline) {
+                MediaTransport(track = track, accent = accent, onCommand = onCommand)
+            }
+        }
+        if (!inline) {
+            MediaTransport(
+                track = track,
+                accent = accent,
+                onCommand = onCommand,
+                modifier = Modifier.fillMaxWidth(),
+                arrangement = Arrangement.Center,
+            )
+        }
+    }
+}
+
+/**
+ * The thumbnail, or the space where one would be.
+ *
+ * The placeholder is drawn rather than skipped so the title starts at the same x whether or not the app
+ * published artwork — a strip whose text jumps left on a track with no cover looks like it reloaded.
+ *
+ * `remember(art)` because wrapping a bitmap allocates, and this composable recomposes on every playback
+ * update the session sends, which for some players is once a second.
+ */
+@Composable
+private fun MediaArt(art: Bitmap?) {
+    val shape = RoundedCornerShape(MEDIA_ART_CORNER_DP.dp)
+    if (art == null) {
+        Box(
+            modifier = Modifier
+                .size(MEDIA_ART_DP.dp)
+                .background(OverlayPalette.Divider, shape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.MusicNote,
+                contentDescription = null,
+                tint = OverlayPalette.Absent,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        return
+    }
+    val image = remember(art) { art.asImageBitmap() }
+    Image(
+        bitmap = image,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .size(MEDIA_ART_DP.dp)
+            .clip(shape),
+    )
+}
+
+/**
+ * Title on top, and under it whatever else is known.
+ *
+ * The second line is built from what the session actually published rather than from placeholders: an
+ * app with no artist contributes nothing to it, and a track whose title already *is* the app's name
+ * carries no [NowPlaying.Track.appLabel] at all. When neither is present the line is left out, which is
+ * the one case where this strip changes height — and it changes it between tracks, not under a tap.
+ */
+@Composable
+private fun MediaLabels(track: NowPlaying.Track, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        BasicText(
+            text = track.title,
+            maxLines = 1,
+            style = TextStyle(
+                color = OverlayPalette.Text,
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+        )
+        val subtitle = listOfNotNull(track.artist, track.appLabel).joinToString(MEDIA_SUBTITLE_SEPARATOR)
+        if (subtitle.isNotEmpty()) {
+            BasicText(
+                text = subtitle,
+                maxLines = 1,
+                style = TextStyle(color = OverlayPalette.Muted, fontSize = 8.5.sp),
+            )
+        }
+    }
+}
+
+/** Previous, play/pause, next — in the order every transport the user has ever used puts them. */
+@Composable
+private fun MediaTransport(
+    track: NowPlaying.Track,
+    accent: Color,
+    onCommand: (MediaCommand) -> Unit,
+    modifier: Modifier = Modifier,
+    arrangement: Arrangement.Horizontal = Arrangement.spacedBy(MEDIA_BUTTON_GAP_DP.dp),
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = arrangement,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        MediaButton(
+            icon = Icons.Rounded.SkipPrevious,
+            label = "Previous track",
+            enabled = track.canSkipPrevious,
+            tint = OverlayPalette.Text,
+            onClick = { onCommand(MediaCommand.PREVIOUS) },
+        )
+        MediaButton(
+            // The glyph is what the button will *do*, not what the track is doing. A playing track shows
+            // Pause. The inverse is the single most common way a transport control gets this wrong.
+            icon = if (track.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+            label = if (track.isPlaying) "Pause" else "Play",
+            enabled = track.canPlayPause,
+            tint = if (track.isPlaying) accent else OverlayPalette.Text,
+            size = MEDIA_PLAY_ICON_DP,
+            onClick = { onCommand(MediaCommand.PLAY_PAUSE) },
+        )
+        MediaButton(
+            icon = Icons.Rounded.SkipNext,
+            label = "Next track",
+            enabled = track.canSkipNext,
+            tint = OverlayPalette.Text,
+            onClick = { onCommand(MediaCommand.NEXT) },
+        )
+    }
+}
+
+/**
+ * One transport button.
+ *
+ * Dimmed and unclickable when the session says it does not support the action, on the same reasoning
+ * [ActionButton] gives: a control that depresses and does nothing reads as broken, one that does not
+ * respond reads as off. The touch target stays [MEDIA_BUTTON_DP] whatever the glyph inside it measures,
+ * so the three are the same size to a thumb even though play/pause is drawn larger.
+ */
+@Composable
+private fun MediaButton(
+    icon: ImageVector,
+    label: String,
+    enabled: Boolean,
+    tint: Color,
+    onClick: () -> Unit,
+    size: Int = MEDIA_ICON_DP,
+) {
+    Box(
+        modifier = Modifier
+            .size(MEDIA_BUTTON_DP.dp)
+            .clip(RoundedCornerShape(MEDIA_BUTTON_DP.dp / 2))
+            .clickable(enabled = enabled) { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (enabled) tint else OverlayPalette.Absent,
+            modifier = Modifier.size(size.dp),
+        )
+    }
+}
+
+/**
+ * The one-tap way in, for a device where the listener has never been enabled.
+ *
+ * The whole plate is the target and not just the chip, because a 40 dp chip in an overlay over a game is
+ * a small thing to hit — but the chip is drawn anyway, since a plate that is tappable and does not look
+ * it is a plate nobody taps.
+ *
+ * It says what the access is for in the strip itself. Sending the user to a system page titled "Device &
+ * app notifications" with no idea why GameCore wants it is how an app gets the permission refused; the
+ * full explanation is a screen away, and this is the sentence that earns the trip.
+ */
+@Composable
+private fun MediaPrompt(accent: Color, onEnableMedia: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(OverlayPalette.Plate, RoundedCornerShape(10.dp))
+            .clickable { onEnableMedia() }
+            .padding(horizontal = 8.dp, vertical = 7.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.MusicNote,
+            contentDescription = null,
+            tint = OverlayPalette.Muted,
+            modifier = Modifier.size(18.dp),
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+        ) {
+            BasicText(
+                text = MEDIA_PROMPT_TITLE,
+                maxLines = 1,
+                style = TextStyle(
+                    color = OverlayPalette.Text,
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+            )
+            BasicText(
+                text = MEDIA_PROMPT_DETAIL,
+                maxLines = 2,
+                style = TextStyle(color = OverlayPalette.Muted, fontSize = 8.5.sp),
+            )
+        }
+        BasicText(
+            text = MEDIA_PROMPT_ACTION,
+            maxLines = 1,
+            style = TextStyle(
+                color = accent,
+                fontSize = 9.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+            ),
+            modifier = Modifier
+                .background(accent.copy(alpha = ACTIVE_PLATE_ALPHA), RoundedCornerShape(9.dp))
+                .padding(vertical = 6.dp, horizontal = 10.dp),
+        )
+    }
+}
+
+/** The plate with nothing to control: silence, or a device that cannot answer the question. */
+@Composable
+private fun MediaNote(icon: ImageVector, text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(OverlayPalette.Plate, RoundedCornerShape(10.dp))
+            .padding(horizontal = 8.dp, vertical = 9.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = OverlayPalette.Absent,
+            modifier = Modifier.size(16.dp),
+        )
+        BasicText(
+            text = text,
+            maxLines = 2,
+            style = TextStyle(color = OverlayPalette.Absent, fontSize = 9.5.sp),
+        )
     }
 }
 
@@ -1420,6 +1927,109 @@ internal const val MIN_ACTION_WIDTH_DP = 56
 
 /** Below two the grid stops being one. See [actionsPerRow]. */
 internal const val MIN_ACTIONS_PER_ROW = 2
+
+/**
+ * How big a quick-launch icon is drawn.
+ *
+ * Larger than the 20 dp action glyphs because it is a picture rather than a symbol — an app icon at 20 dp
+ * is a coloured smudge, and the point of the row is recognising an app at a glance mid-game. Sized against
+ * the narrowest tile the panel allows: six icons plus their gaps at
+ * [com.gamecore.core.model.FloatingButtonConfig.MIN_PANEL_WIDTH_DP] leaves about 17 dp of width each, so
+ * 26 dp is deliberately *wider* than its share there and the row is allowed to squeeze — `weight` gives
+ * each column an equal slice and `ContentScale.Fit` shrinks the picture inside it rather than overhanging
+ * the plate.
+ */
+private const val QUICK_APP_ICON_DP = 26
+
+/**
+ * Said under the icon of an app that is no longer installed.
+ *
+ * Two words because it sits under a 9.5.sp label in a column about 40 dp wide. The full sentence — what
+ * happened and what to do about it — is [com.gamecore.domain.overlay.QuickAppLauncher]'s, shown as a toast
+ * if the icon is somehow tapped anyway; here there is only room to say that this one is not going to work.
+ */
+private const val QUICK_APP_GONE = "Not installed"
+
+/**
+ * Whether the media strip's transport sits beside the title or under it.
+ *
+ * The threshold is arithmetic rather than taste. Inline, the title gets what is left after the plate's
+ * own 16 dp of padding, the artwork and its gap (42 dp), and three [MEDIA_BUTTON_DP] buttons with two
+ * gaps between them (86 dp) — so at the panel's default 268 dp the title would have about 100 dp, which
+ * is four or five words of 10.5.sp and an ellipsis through the middle of most song names. Wait until
+ * there is half the strip left for the text, and the side-by-side arrangement is an improvement rather
+ * than a squeeze; below it, stack.
+ *
+ * This means the default panel stacks. That is the intended answer — the strip was put in vertical space
+ * that was going spare, and buying a readable title with one row of it is the trade this whole feature
+ * is made of.
+ */
+internal fun mediaIsInline(widthDp: Int): Boolean = widthDp >= MEDIA_INLINE_WIDTH_DP
+
+/**
+ * Whether there is room for the thumbnail.
+ *
+ * Dropped first, before anything else gives way, because it is the only piece carrying no information a
+ * user needs — the title says what is playing, the artwork only says it more pleasantly. At the panel's
+ * narrowest allowed width the 42 dp it costs is nearly a third of the strip.
+ */
+internal fun mediaShowsArt(widthDp: Int): Boolean = widthDp >= MEDIA_ART_WIDTH_DP
+
+/** See [mediaIsInline]. */
+private const val MEDIA_INLINE_WIDTH_DP = 300
+
+/** See [mediaShowsArt]. */
+private const val MEDIA_ART_WIDTH_DP = 176
+
+/** The thumbnail's edge, and the corner rounding that makes a square cover look deliberate. */
+private const val MEDIA_ART_DP = 34
+
+private const val MEDIA_ART_CORNER_DP = 6
+
+/**
+ * The transport's touch target.
+ *
+ * Under the 48 dp guideline and knowingly so: this is an overlay strip a few rows tall drawn over a
+ * running game, and the same compromise is already made by every tile in the action grid, which is
+ * 56 dp wide and about 40 tall. Matching the grid matters more here than matching the guideline, because
+ * the two are side by side and a transport row built to full size would tower over the buttons above it.
+ */
+private const val MEDIA_BUTTON_DP = 34
+
+private const val MEDIA_BUTTON_GAP_DP = 2
+
+private const val MEDIA_ICON_DP = 20
+
+/** Play/pause is drawn larger than its neighbours: it is the button that gets hit at a glance. */
+private const val MEDIA_PLAY_ICON_DP = 26
+
+/** Between the label row and a stacked transport row. */
+private const val MEDIA_GAP_DP = 6
+
+/** Joins artist and app when both are known — " · " reads as "by, in" without claiming to. */
+private const val MEDIA_SUBTITLE_SEPARATOR = " · "
+
+/**
+ * Said of a device where nothing holds a media session.
+ *
+ * Present tense and about the device, not about GameCore. "Nothing playing" is a fact the user can check
+ * in a second and act on; "no media session found" describes the mechanism and would leave them
+ * wondering whether the feature is broken.
+ */
+private const val MEDIA_SILENT = "Nothing playing"
+
+private const val MEDIA_PROMPT_TITLE = "Media controls"
+
+/**
+ * Why the strip is empty, in the width of an overlay.
+ *
+ * Names the access and what it is read for in one line, so the tap that follows is an informed one. The
+ * full version — including what GameCore will never do with it — is on the screen this prompt opens, and
+ * this sentence is deliberately the same claim in fewer words rather than a lighter one.
+ */
+private const val MEDIA_PROMPT_DETAIL = "Needs notification access to read what is playing"
+
+private const val MEDIA_PROMPT_ACTION = "Enable"
 
 /** The grip's touch target: the 48 dp minimum, less the padding the row it sits in already provides. */
 private const val GRIP_TOUCH_DP = 40

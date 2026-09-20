@@ -48,6 +48,15 @@ object NotificationChannels {
     /** Thermal and battery warnings. The one channel that should interrupt. */
     const val ALERTS = "gamecore.alerts"
 
+    /**
+     * The quick-trigger shake watcher.
+     *
+     * Its own channel because it is the one service the user arms deliberately and may want to silence
+     * independently of everything else: it is not a side effect of a game starting or an overlay being
+     * up, it is a shortcut they switched on.
+     */
+    const val TRIGGER = "gamecore.trigger"
+
     // Notification ids. Distinct per service, because two services posting the same id
     // replace each other's notification and Android then kills the one whose
     // notification vanished.
@@ -56,6 +65,7 @@ object NotificationChannels {
     const val ID_DETECTION = 1003
     const val ID_RECORDING = 1004
     const val ID_MONITOR = 1005
+    const val ID_TRIGGER = 1006
     const val ID_ALERT_THERMAL = 1101
     const val ID_ALERT_BATTERY = 1102
 
@@ -94,6 +104,12 @@ object NotificationChannels {
             channel(
                 context, MONITOR, R.string.channel_monitor_name,
                 R.string.channel_monitor_description, NotificationManager.IMPORTANCE_MIN,
+            ),
+        )
+        manager.createNotificationChannel(
+            channel(
+                context, TRIGGER, R.string.channel_trigger_name,
+                R.string.channel_trigger_description, NotificationManager.IMPORTANCE_MIN,
             ),
         )
         // The alerts channel is the exception. A device approaching its thermal limit

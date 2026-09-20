@@ -34,7 +34,10 @@ import androidx.compose.ui.unit.sp
 import com.gamecore.core.model.AspectChoice
 import com.gamecore.core.model.CrosshairDesign
 import com.gamecore.core.model.FloatingButtonConfig
+import com.gamecore.domain.media.MediaCommand
+import com.gamecore.domain.media.NowPlaying
 import com.gamecore.domain.monitoring.StatReading
+import com.gamecore.domain.overlay.QuickApp
 import kotlin.math.roundToInt
 
 /**
@@ -72,6 +75,8 @@ import kotlin.math.roundToInt
 fun OverlaySplitPanel(
     state: OverlayPanelState,
     readings: List<StatReading>,
+    nowPlaying: NowPlaying,
+    quickApps: List<QuickApp>,
     accent: Color,
     screenWidthDp: Int,
     onAction: (OverlayAction) -> Unit,
@@ -83,6 +88,9 @@ fun OverlaySplitPanel(
     onCrosshairColour: (Int) -> Unit,
     onDragLevel: (OverlayLevel, Int) -> Unit,
     onCommitLevel: (OverlayLevel) -> Unit,
+    onMedia: (MediaCommand) -> Unit,
+    onEnableMedia: () -> Unit,
+    onLaunchApp: (QuickApp) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -178,6 +186,25 @@ fun OverlaySplitPanel(
                     onCrosshairColour = onCrosshairColour,
                 )
             }
+            // On the controls plate and in the same place in the order as in the centered layout: below
+            // the grid and whatever a long press revealed, above the media strip. The apps are controls
+            // — things to tap — so they belong on the plate the user reaches for controls on.
+            QuickApps(apps = quickApps, accent = accent, onLaunch = onLaunchApp)
+            // Last on the controls plate, exactly as it is last in the centered panel's column. On this
+            // layout it is also where it has the most room: the plate is full height, so the strip lands
+            // in space the grid and its chip rows were never going to reach.
+            //
+            // Handed `plateWidth` rather than the screen width, since it is the plate the strip has to
+            // fit inside — which is [splitPlateWidth]'s answer, and on a portrait phone that is the
+            // model's minimum, so the strip stacks and drops its artwork here where it would not on a
+            // tablet. That is the responsiveness working, not the layout disagreeing with itself.
+            MediaControls(
+                nowPlaying = nowPlaying,
+                accent = accent,
+                widthDp = plateWidth,
+                onCommand = onMedia,
+                onEnableMedia = onEnableMedia,
+            )
         }
     }
 }

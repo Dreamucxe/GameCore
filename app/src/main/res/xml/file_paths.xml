@@ -20,6 +20,12 @@
         name="exports"
         path="exports/" />
     <files-path
+        name="diagnostics"
+        path="exports/diagnostics/" />
+    <files-path
+        name="aimlab"
+        path="exports/aimlab/" />
+    <files-path
         name="cards"
         path="cards/" />
 </paths>

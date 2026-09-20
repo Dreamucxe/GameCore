@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
@@ -329,6 +330,12 @@ private fun OverlaysCard(
  * with no effect of its own — it only narrows what the per-game "free RAM on launch" switch is allowed to
  * do. It lives here, next to the profiles it constrains, rather than under Access: nothing about it is a
  * permission, and its count reads as "none" rather than "0 apps" so an empty list does not look broken.
+ *
+ * The Aim Lab switch sits last, on its own, because it is the only control here that turns a whole section
+ * of GameCore off rather than changing how one works. Its description says what off actually does — the
+ * section's screens stop being registered as destinations rather than being hidden behind a greyed-out
+ * entry — and says that nothing recorded in Aim Lab is deleted, because a master switch that quietly threw
+ * a user's scores away would be the worst possible reading of it.
  */
 @Composable
 private fun GamesCard(
@@ -388,6 +395,23 @@ private fun GamesCard(
             description = "What each game is holding in cache, and clearing the part of it that is safe " +
                 "to delete. Saves are never touched.",
             icon = Icons.Filled.CleaningServices,
+        )
+        RowDivider()
+        NavRow(
+            title = "Quick trigger",
+            onClick = { onNavigate(Destination.QuickTrigger) },
+            description = "A shortcut that opens the GameCore panel — a volume double-tap, a shake, or a " +
+                "Quick Settings tile, each with what it actually needs.",
+            icon = Icons.Filled.Bolt,
+        )
+        RowDivider()
+        SwitchRow(
+            title = "Aim Lab",
+            checked = state.settings.aimLabEnabled,
+            onCheckedChange = { enabled -> onEdit { it.copy(aimLabEnabled = enabled) } },
+            description = "Off turns the whole feature off: its screens leave the app's navigation rather " +
+                "than being hidden, so nothing in the section is reachable. Aim Lab data you have already " +
+                "saved is kept either way.",
         )
     }
 }
@@ -550,7 +574,9 @@ private fun RecordingCard(
     }
 }
 
-/** Three screens rather than three settings: none of these is a value, they are all a state of the device. */
+/**
+ * Three screens rather than three settings: none of these is a value, they are all a state of the device.
+ */
 @Composable
 private fun AccessCard(
     onNavigate: (Destination) -> Unit,
@@ -599,7 +625,7 @@ private fun DataCard(
     SectionCard(
         title = "Data",
         icon = Icons.Filled.Storage,
-        subtitle = "All of it on this device, none of it anywhere else",
+        subtitle = "Recorded here, kept here, sent nowhere",
         modifier = modifier,
     ) {
         KeyValueRow(label = "Recorded sessions", value = Formatters.count(state.sessionCount, "session"))
@@ -690,7 +716,8 @@ private const val NOT_PERSISTING =
         "here still works, but every change is lost when GameCore stops running."
 
 private const val ABOUT_TEXT =
-    "GameCore works entirely offline. There is no account, nothing is uploaded, and the only packets it " +
-        "sends are the latency measurement you can switch off above. It does not root the device, modify a " +
-        "game, or report a change it could not actually make — where Android does not allow something, the " +
+    "Everything GameCore records stays on this device. There is no account and no server of its own, no " +
+        "ads, and nothing you measure, record or save is uploaded anywhere. One thing uses the network: " +
+        "the latency measurement you can switch off above. It does not root the device, modify a game, " +
+        "or report a change it could not actually make — where Android does not allow something, the " +
         "screen for it says so instead."

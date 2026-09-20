@@ -25,6 +25,8 @@
     <string name="channel_recording_description">Shown while the screen is being recorded. Android requires this notification and it cannot be hidden.</string>
     <string name="channel_monitor_name">Background monitoring</string>
     <string name="channel_monitor_description">Shown while GameCore keeps sampling CPU, memory, battery and temperature with the app closed. Only appears if you switch background monitoring on.</string>
+    <string name="channel_trigger_name">Quick trigger</string>
+    <string name="channel_trigger_description">Shown while GameCore watches the accelerometer for the shake shortcut. Android requires a service that runs outside the app to post a notification, so this appears whenever the shake trigger is armed.</string>
     <string name="channel_alerts_name">Thermal and battery alerts</string>
     <string name="channel_alerts_description">Warnings about device temperature or unusually fast battery drain during a session.</string>
 
@@ -37,6 +39,8 @@
     <string name="notification_session_title">Recording session</string>
     <string name="notification_recording_title">Recording screen</string>
     <string name="notification_recording_text">Everything on screen is being captured</string>
+    <string name="notification_trigger_title">Shake trigger armed</string>
+    <string name="notification_trigger_text">Shake twice to open the GameCore panel</string>
     <string name="notification_action_stop">Stop</string>
     <string name="notification_action_open">Open</string>
 
@@ -60,6 +64,38 @@
     <string name="alert_battery_text">GameCore has measured %1$s over the last %2$s. That is the rate it observed, not a prediction of how long the battery will last.</string>
 
     <!--
+      The notification listener's own label, for the system list the user grants it in.
+
+      Names the app as well as the purpose because that list is keyed by application label on AOSP and by
+      service label on some OEM builds, and a row reading only "Media controls" would leave the user
+      granting notification access to something they cannot identify. Says what the access is for, not
+      what it is: "Notification listener" is the mechanism and would tell a reader nothing about why
+      GameCore of all apps is asking.
+    -->
+    <string name="media_listener_label">GameCore media controls</string>
+
+    <!--
+      The Quick Settings tile. Its label is what the user searches for in the Quick Settings edit screen,
+      so it names the app rather than the gesture: a tile reading only "Game panel" would be unfindable in
+      a list of forty tiles from other apps. The subtitle says what the tap will actually do, because the
+      destination is configurable and the two outcomes look nothing alike.
+    -->
+    <string name="tile_trigger_label">GameCore panel</string>
+    <string name="tile_trigger_subtitle_panel">Opens the floating panel</string>
+    <string name="tile_trigger_subtitle_app">Opens GameCore</string>
+
+    <!--
+      The accessibility service's label and description, for the system screen that grants it.
+
+      Android shows the description verbatim under a warning about what an accessibility service is able
+      to do, and the user is right to be suspicious there, so this says exactly what GameCore looks at and
+      exactly what it does not. It is also the one place the description cannot be hedged: a service that
+      "helps with gaming" would tell a reader nothing about why it wants their key events.
+    -->
+    <string name="trigger_accessibility_label">GameCore quick trigger</string>
+    <string name="trigger_accessibility_description">Lets the volume-key shortcut work while you are in a game instead of only while GameCore is on screen. GameCore reads nothing but the volume keys through this service: no screen contents, no text you type, no other app\'s windows, and nothing leaves your device. Optional — the shortcut works without it whenever GameCore is the app in front.</string>
+
+    <!--
       Why a control-panel button cannot be used. Shown under the greyed button itself, so each one has
       to say which of the three kinds of "no" it is: nothing to act on, hardware that is absent, or an
       access the user can go and grant.
@@ -74,6 +110,14 @@
     <string name="overlay_open_failed">GameCore could not be brought to the front</string>
     <string name="overlay_brightness_needs_access">Needs system-settings access or Shizuku</string>
     <string name="overlay_preset_missing">That colour preset has been deleted</string>
+    <!--
+      A transport button whose command the session would not take.
+
+      Says the app refused rather than that GameCore failed, because that is what happened: the command
+      is forwarded to whichever app owns the session and GameCore has no say in what it does with it. The
+      usual cause is the session ending between the panel drawing and the tap landing.
+    -->
+    <string name="overlay_media_send_failed">The app playing this did not take that control</string>
     <!--
       Drawn under the shape chips when the display is running a size none of them describes, which is the
       ordinary state for a size typed into a profile by hand. It exists so that a row with nothing filled in

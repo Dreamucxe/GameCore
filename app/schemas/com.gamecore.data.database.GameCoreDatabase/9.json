@@ -1,0 +1,1390 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 9,
+    "identityHash": "f1922dae191c37ace7dd07d1bff00636",
+    "entities": [
+      {
+        "tableName": "game_profiles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`package_name` TEXT NOT NULL, `label` TEXT NOT NULL, `is_enabled` INTEGER NOT NULL, `target_refresh_rate` REAL, `brightness_percent` INTEGER, `rotation_lock` TEXT, `screen_timeout_millis` INTEGER, `media_volume_percent` INTEGER, `enable_dnd` INTEGER NOT NULL, `show_floating_button` INTEGER NOT NULL, `show_performance_pill` INTEGER NOT NULL, `show_crosshair` INTEGER NOT NULL, `hud_layout_id` INTEGER, `crosshair_preset_id` INTEGER, `color_preset_id` INTEGER, `display_size` TEXT, `performance_mode` TEXT NOT NULL, `use_shizuku` INTEGER NOT NULL, `free_ram_on_launch` INTEGER NOT NULL, `track_session` INTEGER NOT NULL, `cpu_affinity` TEXT, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`package_name`))",
+        "fields": [
+          {
+            "fieldPath": "packageName",
+            "columnName": "package_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "label",
+            "columnName": "label",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isEnabled",
+            "columnName": "is_enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetRefreshRate",
+            "columnName": "target_refresh_rate",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "brightnessPercent",
+            "columnName": "brightness_percent",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "rotationLock",
+            "columnName": "rotation_lock",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "screenTimeoutMillis",
+            "columnName": "screen_timeout_millis",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaVolumePercent",
+            "columnName": "media_volume_percent",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "enableDoNotDisturb",
+            "columnName": "enable_dnd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "showFloatingButton",
+            "columnName": "show_floating_button",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "showPerformancePill",
+            "columnName": "show_performance_pill",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "showCrosshair",
+            "columnName": "show_crosshair",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hudLayoutId",
+            "columnName": "hud_layout_id",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "crosshairPresetId",
+            "columnName": "crosshair_preset_id",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "colorPresetId",
+            "columnName": "color_preset_id",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "displaySize",
+            "columnName": "display_size",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "performanceMode",
+            "columnName": "performance_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "useShizukuOptimizations",
+            "columnName": "use_shizuku",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "freeRamOnLaunch",
+            "columnName": "free_ram_on_launch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackSession",
+            "columnName": "track_session",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cpuAffinity",
+            "columnName": "cpu_affinity",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "package_name"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "hud_layouts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "hud_widgets",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`widget_id` TEXT NOT NULL, `layout_id` INTEGER NOT NULL, `stat` TEXT NOT NULL, `x_fraction` REAL NOT NULL, `y_fraction` REAL NOT NULL, `text_size_sp` INTEGER NOT NULL, `opacity_percent` INTEGER NOT NULL, `show_label` INTEGER NOT NULL, `show_background` INTEGER NOT NULL, `color_argb` INTEGER NOT NULL, PRIMARY KEY(`widget_id`))",
+        "fields": [
+          {
+            "fieldPath": "widgetId",
+            "columnName": "widget_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "layoutId",
+            "columnName": "layout_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stat",
+            "columnName": "stat",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "xFraction",
+            "columnName": "x_fraction",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "yFraction",
+            "columnName": "y_fraction",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "textSizeSp",
+            "columnName": "text_size_sp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "opacityPercent",
+            "columnName": "opacity_percent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "showLabel",
+            "columnName": "show_label",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "showBackground",
+            "columnName": "show_background",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "colorArgb",
+            "columnName": "color_argb",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "widget_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_hud_widgets_layout_id",
+            "unique": false,
+            "columnNames": [
+              "layout_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_hud_widgets_layout_id` ON `${TABLE_NAME}` (`layout_id`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "crosshair_presets",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `design` TEXT NOT NULL, `size_dp` INTEGER NOT NULL, `thickness_dp` INTEGER NOT NULL, `centre_gap_dp` INTEGER NOT NULL, `opacity_percent` INTEGER NOT NULL, `rotation_degrees` INTEGER NOT NULL, `color_argb` INTEGER NOT NULL, `show_dot` INTEGER NOT NULL, `show_outline` INTEGER NOT NULL, `x_fraction` REAL NOT NULL, `y_fraction` REAL NOT NULL, `image_path` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "design",
+            "columnName": "design",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sizeDp",
+            "columnName": "size_dp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "thicknessDp",
+            "columnName": "thickness_dp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "centreGapDp",
+            "columnName": "centre_gap_dp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "opacityPercent",
+            "columnName": "opacity_percent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rotationDegrees",
+            "columnName": "rotation_degrees",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "colorArgb",
+            "columnName": "color_argb",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "showDot",
+            "columnName": "show_dot",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "showOutline",
+            "columnName": "show_outline",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "xFraction",
+            "columnName": "x_fraction",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "yFraction",
+            "columnName": "y_fraction",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "imagePath",
+            "columnName": "image_path",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "color_presets",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `red_gain` INTEGER NOT NULL, `green_gain` INTEGER NOT NULL, `blue_gain` INTEGER NOT NULL, `gamma_mode` TEXT NOT NULL, `gamma` INTEGER NOT NULL, `red_gamma` INTEGER NOT NULL, `green_gamma` INTEGER NOT NULL, `blue_gamma` INTEGER NOT NULL, `saturation` INTEGER NOT NULL, `contrast` INTEGER NOT NULL, `hue_degrees` INTEGER NOT NULL, `brightness_offset` INTEGER NOT NULL, `vision_filter` TEXT NOT NULL, `invert_colors` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "redGain",
+            "columnName": "red_gain",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "greenGain",
+            "columnName": "green_gain",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "blueGain",
+            "columnName": "blue_gain",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gammaMode",
+            "columnName": "gamma_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gamma",
+            "columnName": "gamma",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "redGamma",
+            "columnName": "red_gamma",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "greenGamma",
+            "columnName": "green_gamma",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "blueGamma",
+            "columnName": "blue_gamma",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "saturation",
+            "columnName": "saturation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contrast",
+            "columnName": "contrast",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hueDegrees",
+            "columnName": "hue_degrees",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "brightnessOffset",
+            "columnName": "brightness_offset",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "visionFilter",
+            "columnName": "vision_filter",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "invertColors",
+            "columnName": "invert_colors",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `package_name` TEXT NOT NULL, `game_label` TEXT NOT NULL, `started_at` INTEGER NOT NULL, `ended_at` INTEGER, `battery_start` INTEGER NOT NULL, `battery_end` INTEGER, `was_charging` INTEGER NOT NULL, `avg_cpu` REAL, `peak_cpu` REAL, `avg_memory` REAL, `peak_memory` REAL, `avg_temperature` INTEGER, `peak_temperature` INTEGER, `avg_refresh_rate` REAL, `avg_frame_rate` REAL, `avg_latency` INTEGER, `profile_applied` INTEGER NOT NULL, `sample_count` INTEGER NOT NULL, `stop_reason` TEXT, `color_preset` TEXT, `color_values` TEXT, `latency_probes` INTEGER, `latency_failed` INTEGER, `latency_spikes` INTEGER, `latency_worst` INTEGER, `latency_jitter` INTEGER, `latency_failed_run` INTEGER)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "package_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gameLabel",
+            "columnName": "game_label",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtMillis",
+            "columnName": "started_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endedAtMillis",
+            "columnName": "ended_at",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "batteryStartPercent",
+            "columnName": "battery_start",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "batteryEndPercent",
+            "columnName": "battery_end",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "wasCharging",
+            "columnName": "was_charging",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "averageCpuPercent",
+            "columnName": "avg_cpu",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "peakCpuPercent",
+            "columnName": "peak_cpu",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "averageMemoryPercent",
+            "columnName": "avg_memory",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "peakMemoryPercent",
+            "columnName": "peak_memory",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "averageTemperatureDeciCelsius",
+            "columnName": "avg_temperature",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "peakTemperatureDeciCelsius",
+            "columnName": "peak_temperature",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "averageRefreshRate",
+            "columnName": "avg_refresh_rate",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "averageFrameRate",
+            "columnName": "avg_frame_rate",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "averageLatencyMillis",
+            "columnName": "avg_latency",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileApplied",
+            "columnName": "profile_applied",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sampleCount",
+            "columnName": "sample_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stopReason",
+            "columnName": "stop_reason",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "colorPreset",
+            "columnName": "color_preset",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "colorValues",
+            "columnName": "color_values",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "latencyProbes",
+            "columnName": "latency_probes",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "latencyFailed",
+            "columnName": "latency_failed",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "latencySpikes",
+            "columnName": "latency_spikes",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "latencyWorst",
+            "columnName": "latency_worst",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "latencyJitter",
+            "columnName": "latency_jitter",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "latencyFailedRun",
+            "columnName": "latency_failed_run",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sessions_package_name",
+            "unique": false,
+            "columnNames": [
+              "package_name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sessions_package_name` ON `${TABLE_NAME}` (`package_name`)"
+          },
+          {
+            "name": "index_sessions_started_at",
+            "unique": false,
+            "columnNames": [
+              "started_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sessions_started_at` ON `${TABLE_NAME}` (`started_at`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "session_samples",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `session_id` INTEGER NOT NULL, `elapsed_millis` INTEGER NOT NULL, `cpu_percent` REAL, `memory_percent` REAL, `battery_percent` INTEGER, `temperature` INTEGER, `refresh_rate` REAL, `frame_rate` REAL, `latency_millis` INTEGER)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "session_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elapsedMillis",
+            "columnName": "elapsed_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cpuPercent",
+            "columnName": "cpu_percent",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "memoryPercent",
+            "columnName": "memory_percent",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "batteryPercent",
+            "columnName": "battery_percent",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "temperatureDeciCelsius",
+            "columnName": "temperature",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "refreshRate",
+            "columnName": "refresh_rate",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "frameRate",
+            "columnName": "frame_rate",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "latencyMillis",
+            "columnName": "latency_millis",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_session_samples_session_id",
+            "unique": false,
+            "columnNames": [
+              "session_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_session_samples_session_id` ON `${TABLE_NAME}` (`session_id`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "restore_points",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`namespace` TEXT NOT NULL, `key` TEXT NOT NULL, `previous_value` TEXT, `package_name` TEXT, `recorded_at` INTEGER NOT NULL, PRIMARY KEY(`namespace`, `key`))",
+        "fields": [
+          {
+            "fieldPath": "namespace",
+            "columnName": "namespace",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "previousValue",
+            "columnName": "previous_value",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "package_name",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "recordedAtMillis",
+            "columnName": "recorded_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "namespace",
+            "key"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "aimlab_sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mode` TEXT NOT NULL, `difficulty` TEXT NOT NULL, `started_at` INTEGER NOT NULL, `ended_at` INTEGER NOT NULL, `weapon_name` TEXT, `sensitivity_name` TEXT, `score` INTEGER NOT NULL, `hits` INTEGER NOT NULL, `shots` INTEGER NOT NULL, `targets_missed` INTEGER NOT NULL, `reaction_attempts` INTEGER NOT NULL, `reaction_fastest` INTEGER NOT NULL, `reaction_slowest` INTEGER NOT NULL, `reaction_avg` REAL NOT NULL, `reaction_median` REAL NOT NULL, `avg_acquire` REAL NOT NULL, `tracking_error_avg` REAL NOT NULL, `time_on_target` REAL NOT NULL, `recoil_compensation` REAL NOT NULL, `gyro_stability` REAL NOT NULL, `scoring_version` INTEGER NOT NULL DEFAULT 1)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mode",
+            "columnName": "mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "difficulty",
+            "columnName": "difficulty",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtMillis",
+            "columnName": "started_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endedAtMillis",
+            "columnName": "ended_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weaponName",
+            "columnName": "weapon_name",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sensitivityName",
+            "columnName": "sensitivity_name",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "score",
+            "columnName": "score",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hits",
+            "columnName": "hits",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "shots",
+            "columnName": "shots",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetsMissed",
+            "columnName": "targets_missed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reactionAttempts",
+            "columnName": "reaction_attempts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reactionFastest",
+            "columnName": "reaction_fastest",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reactionSlowest",
+            "columnName": "reaction_slowest",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reactionAverage",
+            "columnName": "reaction_avg",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reactionMedian",
+            "columnName": "reaction_median",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "averageAcquireMillis",
+            "columnName": "avg_acquire",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackingErrorAverage",
+            "columnName": "tracking_error_avg",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeOnTargetFraction",
+            "columnName": "time_on_target",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recoilCompensation",
+            "columnName": "recoil_compensation",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gyroStability",
+            "columnName": "gyro_stability",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scoringVersion",
+            "columnName": "scoring_version",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_aimlab_sessions_mode",
+            "unique": false,
+            "columnNames": [
+              "mode"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_aimlab_sessions_mode` ON `${TABLE_NAME}` (`mode`)"
+          },
+          {
+            "name": "index_aimlab_sessions_started_at",
+            "unique": false,
+            "columnNames": [
+              "started_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_aimlab_sessions_started_at` ON `${TABLE_NAME}` (`started_at`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "aimlab_weapons",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `category` TEXT NOT NULL, `fire_rate_rpm` INTEGER NOT NULL, `magazine_size` INTEGER NOT NULL, `reload_millis` INTEGER NOT NULL, `ads_time_millis` INTEGER NOT NULL, `movement_penalty` REAL NOT NULL, `spread` REAL NOT NULL, `vertical_per_shot` REAL NOT NULL, `horizontal_per_shot` REAL NOT NULL, `randomness` REAL NOT NULL, `recovery_per_second` REAL NOT NULL, `is_built_in` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fireRateRpm",
+            "columnName": "fire_rate_rpm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "magazineSize",
+            "columnName": "magazine_size",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reloadMillis",
+            "columnName": "reload_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "adsTimeMillis",
+            "columnName": "ads_time_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "movementPenalty",
+            "columnName": "movement_penalty",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spread",
+            "columnName": "spread",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "verticalPerShot",
+            "columnName": "vertical_per_shot",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "horizontalPerShot",
+            "columnName": "horizontal_per_shot",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "randomness",
+            "columnName": "randomness",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recoveryPerSecond",
+            "columnName": "recovery_per_second",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isBuiltIn",
+            "columnName": "is_built_in",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "aimlab_sensitivities",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `preset` TEXT NOT NULL, `camera_sensitivity` REAL NOT NULL, `ads_multiplier` REAL NOT NULL, `gyro_sensitivity` REAL NOT NULL, `gyro_ads_multiplier` REAL NOT NULL, `horizontal_scale` REAL NOT NULL, `vertical_scale` REAL NOT NULL, `deadzone_percent` INTEGER NOT NULL, `smoothing_percent` INTEGER NOT NULL, `response_exponent` REAL NOT NULL, `invert_x` INTEGER NOT NULL, `invert_y` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "preset",
+            "columnName": "preset",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cameraSensitivity",
+            "columnName": "camera_sensitivity",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "adsMultiplier",
+            "columnName": "ads_multiplier",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gyroSensitivity",
+            "columnName": "gyro_sensitivity",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gyroAdsMultiplier",
+            "columnName": "gyro_ads_multiplier",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "horizontalScale",
+            "columnName": "horizontal_scale",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "verticalScale",
+            "columnName": "vertical_scale",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deadzonePercent",
+            "columnName": "deadzone_percent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "smoothingPercent",
+            "columnName": "smoothing_percent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "responseExponent",
+            "columnName": "response_exponent",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "invertX",
+            "columnName": "invert_x",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "invertY",
+            "columnName": "invert_y",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "aimlab_layouts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "aimlab_controls",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`layout_id` INTEGER NOT NULL, `role` TEXT NOT NULL, `x_fraction` REAL NOT NULL, `y_fraction` REAL NOT NULL, `width_fraction` REAL NOT NULL, `height_fraction` REAL NOT NULL, `opacity_percent` INTEGER NOT NULL, `shape` TEXT NOT NULL, `enabled` INTEGER NOT NULL, `orientation` TEXT NOT NULL DEFAULT 'PORTRAIT', PRIMARY KEY(`layout_id`, `role`, `orientation`))",
+        "fields": [
+          {
+            "fieldPath": "layoutId",
+            "columnName": "layout_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "role",
+            "columnName": "role",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "xFraction",
+            "columnName": "x_fraction",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "yFraction",
+            "columnName": "y_fraction",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "widthFraction",
+            "columnName": "width_fraction",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "heightFraction",
+            "columnName": "height_fraction",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "opacityPercent",
+            "columnName": "opacity_percent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "shape",
+            "columnName": "shape",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enabled",
+            "columnName": "enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "orientation",
+            "columnName": "orientation",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'PORTRAIT'"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "layout_id",
+            "role",
+            "orientation"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_aimlab_controls_layout_id",
+            "unique": false,
+            "columnNames": [
+              "layout_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_aimlab_controls_layout_id` ON `${TABLE_NAME}` (`layout_id`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "aimlab_records",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mode` TEXT NOT NULL, `difficulty` TEXT NOT NULL, `weapon_name` TEXT, `metric` TEXT NOT NULL, `value` REAL NOT NULL, `previous_value` REAL, `achieved_at` INTEGER NOT NULL, `scoring_version` INTEGER NOT NULL DEFAULT 1)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mode",
+            "columnName": "mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "difficulty",
+            "columnName": "difficulty",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weaponName",
+            "columnName": "weapon_name",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "metric",
+            "columnName": "metric",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "previousValue",
+            "columnName": "previous_value",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "achievedAtMillis",
+            "columnName": "achieved_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scoringVersion",
+            "columnName": "scoring_version",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_aimlab_records_mode_difficulty_weapon_name_metric_scoring_version",
+            "unique": true,
+            "columnNames": [
+              "mode",
+              "difficulty",
+              "weapon_name",
+              "metric",
+              "scoring_version"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_aimlab_records_mode_difficulty_weapon_name_metric_scoring_version` ON `${TABLE_NAME}` (`mode`, `difficulty`, `weapon_name`, `metric`, `scoring_version`)"
+          }
+        ],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f1922dae191c37ace7dd07d1bff00636')"
+    ]
+  }
+}

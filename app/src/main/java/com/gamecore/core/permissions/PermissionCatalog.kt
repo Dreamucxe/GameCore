@@ -91,6 +91,27 @@ enum class GamePermission(
         whatBreaks = "The game list may be incomplete. It is granted at install and is " +
             "listed here for completeness.",
     ),
+
+    /**
+     * Notification listener access, for the control panel's media strip and nothing else.
+     *
+     * The one entry whose [why] has to argue against its own name. Android has a single
+     * switch here, labelled for reading notifications, and the only way to ask which app is
+     * playing something is to stand behind it: `getActiveSessions` refuses every caller that
+     * does not own an enabled listener. So the wording says what GameCore's listener actually
+     * does — which is nothing, it overrides no callback and never calls `getActiveNotifications`
+     * — rather than restating the switch's label back at the user.
+     */
+    NOTIFICATION_LISTENER(
+        title = "Notification access",
+        kind = AccessKind.SPECIAL_ACCESS,
+        why = "Asking Android which app is playing audio is gated behind this switch, and " +
+            "there is no narrower one: the media session list is only handed to an app that " +
+            "has it. GameCore's listener reads nothing from it — it exists so the panel can " +
+            "ask what is playing and send play, pause and skip to whichever app owns it.",
+        whatBreaks = "The panel's media strip shows an Enable prompt instead of the track. " +
+            "Everything else in the panel is unaffected.",
+    ),
     ;
 
     /** True for the ones that can be requested with a system dialog. */

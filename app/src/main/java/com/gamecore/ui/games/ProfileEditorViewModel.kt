@@ -66,22 +66,33 @@ class ProfileEditorViewModel @Inject constructor(
     val state: StateFlow<ProfileEditorUiState> = editing.asStateFlow()
 
     init {
+        // Every block below reads `editing.value` *after* its suspending call and never inside the
+        // `copy(...)` that consumes it. Kotlin evaluates a call's receiver before its arguments, so
+        // `editing.value.copy(field = read())` captures the state as it was when the coroutine started,
+        // suspends for the read, and then writes that stale snapshot back — and with seven of these running
+        // at once, the slowest one reverts every field the faster ones had already filled in. The core
+        // layout is the case that made it visible: it is a shell-free `/sys` read, so it always landed
+        // first and was always overwritten by `wm size` answering later, and since nothing re-reads it the
+        // section sat on "Measuring…" for the life of the screen.
         viewModelScope.launch { load() }
         viewModelScope.launch {
-            editing.value = editing.value.copy(capabilities = capabilityChecker.current())
+            val capabilities = capabilityChecker.current()
+            editing.value = editing.value.copy(capabilities = capabilities)
         }
         // Its own launch and not part of the capability read, because it is a shell round trip on a screen
         // whose other fields are local: the editor draws with the display-size control absent and fills it
         // in when `wm size` answers, rather than holding the whole form back on the slowest read.
         viewModelScope.launch {
-            editing.value = editing.value.copy(display = displaySize.state())
+            val display = displaySize.state()
+            editing.value = editing.value.copy(display = display)
         }
         // Its own launch again, and not folded into the one above even though both are reads of what the
         // device is: this one walks `/sys/devices/system/cpu` and the one above runs a shell command, so a
         // device where the shell is absent would otherwise hold the core layout behind a call that is
         // going to fail. They are unrelated questions and they fail for unrelated reasons.
         viewModelScope.launch {
-            editing.value = editing.value.copy(cpuLayout = cpuAffinity.layout())
+            val layout = cpuAffinity.layout()
+            editing.value = editing.value.copy(cpuLayout = layout)
         }
         viewModelScope.launch {
             val layouts = hudLayouts.layouts.first().map {
@@ -119,11 +130,12 @@ class ProfileEditorViewModel @Inject constructor(
             return
         }
         val existing = profiles.profileFor(argument)
+        val installed = installedApps.isInstalled(argument)
         editing.value = editing.value.copy(
             isLoaded = true,
             isNew = existing == null,
             profile = existing,
-            isGameInstalled = installedApps.isInstalled(argument),
+            isGameInstalled = installed,
             message = if (existing == null) "That profile is no longer saved." else null,
         )
     }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.automirrored.rounded.CompareArrows
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.AlertDialog
@@ -48,6 +50,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamecore.core.common.Formatters
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.OverlayConfig
@@ -61,6 +64,7 @@ import com.gamecore.ui.Destination
 import com.gamecore.ui.components.ActionRow
 import com.gamecore.ui.components.ChoiceRow
 import com.gamecore.ui.components.KeyValueRow
+import com.gamecore.ui.components.NavRow
 import com.gamecore.ui.components.NoteBanner
 import com.gamecore.ui.components.OnResume
 import com.gamecore.ui.components.RowDivider
@@ -162,8 +166,11 @@ fun OverlayScreen(
                 state = state,
                 onEdit = viewModel::editButton,
                 onCommit = viewModel::commitButton,
+                onUpdate = viewModel::updateButton,
                 onEditWidth = { editingWidth = true },
                 onResetWidth = viewModel::resetPanelWidth,
+                onMediaAccess = { onNavigate(Destination.MediaAccess) },
+                onQuickApps = { onNavigate(Destination.QuickApps) },
                 modifier = padded,
             )
         }
@@ -455,14 +462,24 @@ private fun PreviewButton(button: FloatingButtonConfig, percent: Int, caption: S
  * will look for the other: the panel is measured against the gap between the button and the nearest screen
  * edge and scrolls inside whatever that leaves, so a stored height would be a number the anchoring
  * overrules on every device that had less room than it asked for.
+ *
+ * Two rows at the bottom are not about the panel's dimensions at all — the quick-launch switch and the two
+ * screens the card links to. They are here because this is the card a user opens when they want to change
+ * what the panel *is*, and a control panel setting filed anywhere else is a control panel setting nobody
+ * finds. The quick-launch switch in particular is deliberately not a third [PanelLayoutStyle]: the row is
+ * drawn in whichever shape is selected, so making it a shape would force a choice between two things that
+ * were never alternatives.
  */
 @Composable
 private fun PanelCard(
     state: OverlayUiState,
     onEdit: ((FloatingButtonConfig) -> FloatingButtonConfig) -> Unit,
     onCommit: () -> Unit,
+    onUpdate: ((FloatingButtonConfig) -> FloatingButtonConfig) -> Unit,
     onEditWidth: () -> Unit,
     onResetWidth: () -> Unit,
+    onMediaAccess: () -> Unit,
+    onQuickApps: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val button = state.button
@@ -547,6 +564,43 @@ private fun PanelCard(
             )
             TextButton(onClick = onResetWidth, enabled = !split) { Text("Reset to default size") }
         }
+        // Both rows below configure parts of the panel that this card cannot preview, and both are here
+        // rather than only where they matter for the same reason: the Shizuku screen is reachable from
+        // Settings and not only from a failure.
+        //
+        // The quick-launch row is the one setting on this card that is not about the panel's shape, which
+        // is why it is a switch and a row of its own rather than a third option beside Centered and Split
+        // edges. It appears in whichever layout is selected; the two are independent.
+        RowDivider()
+        SwitchRow(
+            title = "Show quick-launch apps",
+            checked = button.showQuickApps,
+            onCheckedChange = { show -> onUpdate { it.copy(showQuickApps = show) } },
+            description = "Adds a row of app icons under the action tiles, in either layout. Off until " +
+                "you pick the apps.",
+        )
+        NavRow(
+            title = "Quick-launch apps",
+            onClick = onQuickApps,
+            description = "Which apps the row offers, and the order they sit in",
+            icon = Icons.Filled.Apps,
+            trailing = when {
+                button.quickAppPackages.isEmpty() -> "None chosen"
+                else -> Formatters.count(button.quickAppPackages.size, "app")
+            },
+        )
+        // The one part of the panel that is not configured on this screen, because there is nothing to
+        // configure: the media strip either has the access it needs or shows a prompt. The row is here
+        // rather than only behind that prompt so the explanation is readable before a game is running,
+        // which is the same reason the Shizuku screen is reachable from Settings and not only from a
+        // failure.
+        RowDivider()
+        NavRow(
+            title = "Media controls",
+            onClick = onMediaAccess,
+            description = "What the strip under the tiles reads, and the access Android asks for",
+            icon = Icons.Filled.MusicNote,
+        )
     }
 }
 

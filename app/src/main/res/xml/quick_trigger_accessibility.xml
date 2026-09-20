@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    GameCore's optional quick-trigger accessibility service.
+
+    Deliberately the narrowest configuration that can do the job:
+
+      - No android:accessibilityEventTypes. The attribute is optional and its absence means the platform
+        dispatches no accessibility events to this service at all. A key-filtering service does not need
+        them, and subscribing to typeWindowStateChanged "because every example does" would hand GameCore a
+        running commentary on which app the user has open — information it neither needs nor wants.
+      - android:canRetrieveWindowContent="false". Stated rather than left to the default, because this is
+        the capability the system warns the user about most loudly when they grant the service, and the
+        answer should be visible in the file rather than inferred from its absence.
+      - flagRequestFilterKeyEvents with canRequestFilterKeyEvents="true". Both are required: the flag asks
+        for key events and the attribute is what makes the request legal. This pair is the entire reason
+        the service exists.
+      - notificationTimeout is omitted along with the event types it would throttle.
+
+    feedbackType is feedbackGeneric because the platform requires a value and none of the real ones apply:
+    this service provides no spoken, haptic, audible or visual feedback.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagRequestFilterKeyEvents"
+    android:canRequestFilterKeyEvents="true"
+    android:canRetrieveWindowContent="false"
+    android:description="@string/trigger_accessibility_description" />

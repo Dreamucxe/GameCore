@@ -3,14 +3,66 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v2.3%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.2%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
-Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · works
-fully offline
+Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
+no backend, nothing you record leaves the device
 
 ---
 
-## New in 2.0
+## New in 3.2
+
+Two additions to the Aim Lab, both about the weapon and the way you hold the phone.
+
+- **Fire modes.** A weapon now discharges in one of three ways — **single**, a fixed **burst**, or
+  full **auto** — and the training loop honours it: a burst walks up the recoil pattern at the real
+  fire-rate cadence rather than landing all at once, and the magazine and reload gate every mode the
+  same. The weapon editor picks the mode and, for burst, the round count; a built-in Burst Carbine
+  ships so the mode is there to try without building one. Older saved weapons read back as auto —
+  exactly what they already did — so nothing changes under you.
+- **On-screen controls on every mode.** The saved control layouts (HUDs) you build in the editor can
+  now be drawn over the arena during a run from any mode's setup screen, not just some — pick one, or
+  leave it on "None" for a clean view. The choice is per run and never forced.
+
+Also from 3.1: the Aim Lab runs in **landscape** with a real horizontal field-of-view setting, the
+gyro axes remap correctly per screen rotation, and control layouts are stored per orientation.
+
+---
+
+## Version 3.0
+
+An offline **Aim Lab** — a first-person 3D training arena, built inside GameCore and held to the
+same rule as everything else: nothing it reports is invented.
+
+- **A real first-person 3D room, not a flat target board.** You stand inside an enclosed arena —
+  checkered floor, grey walls and ceiling, light depth fog — with a low-poly weapon held at the
+  bottom-right and glossy spheres floating at varied distances and angles. The crosshair is fixed
+  dead centre; you look by dragging, and a shot is the ray straight out of the crosshair, hit-tested
+  against the spheres in 3D. Rendered with OpenGL ES 2.0 and nothing else: no game engine, no
+  third-party 3D library, no model or texture files — the room, the spheres and every weapon are
+  built procedurally in code, and the shaders are plain source strings.
+- **Seven modes, all in the 3D view.** Flick, Tracking, Reaction, Gyro, Recoil, Movement and a Free
+  Practice sandbox. Aim error is measured in **degrees**, not pixels, so a result means the same on
+  any screen. Recoil kicks the camera along the weapon's pattern and scores how well you pull it
+  back; Movement walks you through the room and scatters shots taken on the move; Gyro turns the
+  view from the real gyroscope, with no simulated motion if the sensor is absent.
+- **Your gear drives it.** The weapon editor, sensitivity lab, control/HUD editor, statistics,
+  personal records, session history and JSON/CSV export/import all carry over — and a weapon's fire
+  rate, magazine, reload, spread and movement penalty are now actually felt in a run.
+- **Old training data is kept, and kept separate.** Sessions recorded by the previous flat trainer
+  stay in your history, labelled as legacy, and are never ranked against the new 3D scores, because
+  the two are measured differently. The database upgrade is additive — no history is dropped.
+- **It stays out of the way when you leave.** The 3D view renders only while a run is on screen; the
+  moment you leave or background the app, rendering stops, the gyroscope is released and the run is
+  cancelled. If a device cannot run OpenGL ES 2.0 the arena shows a plain "3D view unavailable"
+  panel instead of crashing.
+
+The Aim Lab is off by default behind a master switch, and turning it off is a real disable, not a
+hidden screen.
+
+---
+
+## Version 2.0
 
 Five additions, all of them about reaching a setting without putting the game down.
 
@@ -137,8 +189,8 @@ game itself, anything holding a foreground service, or anything on your never-cl
 No thermal limit override. No modification of protected system files. No "clean everything"
 button — the storage screen deletes one named directory belonging to one game you tapped,
 and never a save, a login or a downloaded asset. No packet-loss percentage, because a
-refused TCP handshake is not a dropped packet. And nothing is uploaded: the shareable
-session card is drawn on the device and handed to your own share sheet.
+refused TCP handshake is not a dropped packet. And nothing you record is uploaded: the
+shareable session card is drawn on the device and handed to your own share sheet.
 
 The full set of shell commands the app can construct lives in one file
 (`core/shizuku/ShellCommand.kt`) and a unit test enumerates every one of them and asserts
@@ -485,14 +537,27 @@ the formatters, the sanitizer, the command builder, the aggregators, the state r
 per-session latency fold, and every word the shareable card is allowed to print. 26 suites,
 293 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
 
-## Offline by design
+## Your data, and the network
 
 There is no backend, no account system, no cloud sync, no analytics and no crash reporting.
-Nothing about your device or your play sessions leaves it on its own. The single network call
-in the whole app is the latency probe, which exists because you asked for a ping figure and
-can be turned off. The session card is the one artefact meant to leave, and it leaves the way
-a screenshot does: drawn on the device, then handed to whichever app you choose from your own
-share sheet. GameCore has nowhere of its own to send it.
+Everything GameCore records — profiles, HUD layouts, sessions, samples — lives in its own
+encrypted database on the device, and none of it leaves on its own. The session card is the one
+artefact meant to leave, and it leaves the way a screenshot does: drawn on the device, then
+handed to whichever app you choose from your own share sheet. GameCore has nowhere of its own to
+send it.
+
+Two things do touch the network, and both are honest about it on the screens they belong to:
+
+- **The latency probe.** The single network call GameCore's own code ever makes — a payload-free
+  TCP handshake to a host you choose, timed and closed the instant it connects. It exists because
+  you asked for a ping figure, and it can be switched off. No payload, ever, in either direction.
+- **One banner ad** at the bottom of GameCore's own screens, served by Google's Mobile Ads SDK.
+  That SDK makes its own connections to Google — which is why the app declares the `AD_ID`
+  permission — and carries none of the data the sections above describe. Ads never appear over a
+  game: the overlay, crosshair and HUD are drawn by a service that cannot host one, and the
+  editing screens, which are where you fine-tune those, show a live preview rather than a banner.
+  Where the law requires it, Google's consent form appears before any ad can load, and Settings
+  keeps a row that reopens it on devices where a form applies.
 
 ## License
 

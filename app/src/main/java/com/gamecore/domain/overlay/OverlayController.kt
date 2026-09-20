@@ -109,6 +109,38 @@ class OverlayController @Inject constructor(
     }
 
     /**
+     * Opens the floating control panel — the Game Mode the app already has.
+     *
+     * The Quick Trigger's destination. It does not build a second panel and does not take a different
+     * route to this one: it puts the same request on screen the floating button puts there, so whatever
+     * the user has configured in the panel is what the trigger opens.
+     *
+     * Returns false when the overlay permission is missing or the system refused the service start, which
+     * is the caller's cue to open the app instead of leaving the user with a shortcut that did nothing.
+     */
+    fun openPanel(): Boolean = requestPanel(ACTION_OPEN_PANEL)
+
+    /** The same, but a second trigger closes the panel again. */
+    fun togglePanel(): Boolean = requestPanel(ACTION_TOGGLE_PANEL)
+
+    private fun requestPanel(action: String): Boolean {
+        if (!permissions.hasOverlayPermission()) return false
+        // The panel is positioned against the floating button and has nothing to anchor to without one,
+        // so asking for the panel is also asking for the button. Through `update` rather than a direct
+        // publish, so that a panel opened during a game does not erase what the profile asked for.
+        if (!requested.value.button) update { it.copy(button = true) }
+        return try {
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, GamingOverlayService::class.java).setAction(action),
+            )
+            true
+        } catch (refused: Exception) {
+            false
+        }
+    }
+
+    /**
      * Puts the overlays a game's profile asks for on screen.
      *
      * The label comes from the caller rather than from `profile.label` because the coordinator resolves
@@ -203,5 +235,18 @@ class OverlayController @Inject constructor(
         } catch (refused: SecurityException) {
             // A service the system has already torn down. Nothing to stop and nothing to report.
         }
+    }
+
+    companion object {
+        /**
+         * The two actions this class sends the overlay service, beside a plain start.
+         *
+         * Declared here rather than in the service because this is the only class in the app that starts
+         * it, so the protocol has exactly one writer and one reader. The service is not exported, so
+         * these are a defence against our own stale `PendingIntent`s rather than against another app.
+         */
+        const val ACTION_OPEN_PANEL = "com.gamecore.action.OPEN_PANEL"
+
+        const val ACTION_TOGGLE_PANEL = "com.gamecore.action.TOGGLE_PANEL"
     }
 }

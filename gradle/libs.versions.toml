@@ -21,6 +21,12 @@ securityCrypto = "1.1.0-alpha06"
 sqlcipher = "4.6.1"
 sqlite = "2.4.0"
 junit = "4.13.2"
+# Unit-test-only. The org.json in android.jar is a stub that returns default
+# values under `isReturnDefaultValues`, which would make an import-validation
+# test pass without parsing anything. A real implementation on the test
+# classpath (AGP puts the mockable android.jar last) makes those tests mean
+# something. Never reaches the APK — the device has the real thing.
+orgJson = "20231013"
 androidxJunit = "1.2.1"
 espresso = "3.6.1"
 truth = "1.4.4"
@@ -79,6 +85,7 @@ coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutin
 coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 truth = { group = "com.google.truth", name = "truth", version.ref = "truth" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }

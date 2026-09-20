@@ -20,9 +20,11 @@ import com.gamecore.core.common.Observed
  *
  * There is no packet-loss field. Measuring loss requires sending a sequence of
  * probes and counting what does not come back, which needs ICMP — a raw socket, and
- * so root — or a cooperating server GameCore does not have and will not add, since
- * the app is fully offline by specification. A "0% packet loss" readout produced
- * from a TCP connect probe would be an invention.
+ * so root — or a cooperating server on the other end, which GameCore does not have
+ * and will not add: the app has no backend of its own and is not going to grow one
+ * to produce a single readout. (The ads SDK talks to Google's servers, not to ours,
+ * and there is nothing there that could echo a probe.) A "0% packet loss" readout
+ * produced from a TCP connect probe would be an invention.
  */
 data class NetworkReading(
     val transport: NetworkTransport,
