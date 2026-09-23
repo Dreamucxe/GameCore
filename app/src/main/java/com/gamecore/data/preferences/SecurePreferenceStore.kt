@@ -7,6 +7,7 @@ import androidx.security.crypto.MasterKey
 import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.model.AccentChoice
 import com.gamecore.core.model.AimLabOrientation
+import com.gamecore.core.model.AnimationsMode
 import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.ColorVisionFilter
@@ -16,6 +17,7 @@ import com.gamecore.core.model.GammaMode
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.OverlayConfig
 import com.gamecore.core.model.PanelLayoutStyle
+import com.gamecore.core.model.PillDisplayMode
 import com.gamecore.core.model.QuickTriggerAction
 import com.gamecore.core.model.QuickTriggerMethod
 import com.gamecore.core.model.QuickTriggerSettings
@@ -125,6 +127,56 @@ class SecurePreferenceStore @Inject constructor(
         writeSettings(updated)
     }
 
+    // --------------------------------------------------------------- setup wizard (§A)
+
+    /*
+     * The wizard's *in-progress* state, kept apart from [AppSettings] on purpose.
+     *
+     * Where it has got to and what has been ticked are scratch, not preferences: they exist only while a
+     * run of the wizard is unfinished, are cleared the moment it completes or is dismissed, and nothing
+     * outside the wizard reads them. Putting them in [AppSettings] would push them through every
+     * `settings` collector in the app — every screen observing settings would recompose on each Next tap.
+     * Plain read/write properties for the same reason: there is no one to observe them but the wizard's
+     * own ViewModel, which reads once on entry and writes on each step.
+     *
+     * Both are primitives, and the wizard's own types are mapped onto them one layer up in
+     * `com.gamecore.domain.setup.SetupPreferences`. `WizardStep` and `WizardFeatureChoices` live in
+     * `domain`, and nothing in `data` imports `domain` — the dependency runs the other way throughout this
+     * app, and a store that named a domain type would be the one place it did not.
+     *
+     * What the wizard *decided* does belong in settings, and is there: `setupCompletedVersion` and
+     * `setupDismissed`.
+     */
+
+    /**
+     * The name of the step a half-finished wizard was last on, or null when there is nothing to resume.
+     *
+     * Kept as the raw string: a name written by a newer build and read by an older one is the same
+     * ordinary case [readSettings] documents, and resolving it to a known step — or to null — is the
+     * caller's business, not the file's.
+     */
+    var setupStepName: String?
+        get() = prefs?.getString(KEY_SETUP_STEP, null)
+        set(value) {
+            val editor = prefs?.edit() ?: return
+            if (value == null) editor.remove(KEY_SETUP_STEP) else editor.putString(KEY_SETUP_STEP, value)
+            editor.apply()
+        }
+
+    /**
+     * What the user has ticked on the Features step so far, as a bitmask.
+     *
+     * A bitmask rather than eight keys: it is written on every change to that step, and one `putInt` is
+     * one write where eight `putBoolean`s are eight. A bit a newer build added is simply not read by an
+     * older one, and an absent key reads as 0 — every choice false, which is the right answer for a user
+     * who has ticked nothing. The bit positions are defined with the type they encode.
+     */
+    var setupChoiceBits: Int
+        get() = prefs?.getInt(KEY_SETUP_CHOICES, 0) ?: 0
+        set(value) {
+            prefs?.edit()?.putInt(KEY_SETUP_CHOICES, value)?.apply()
+        }
+
     /**
      * Reads the settings block.
      *
@@ -140,6 +192,17 @@ class SecurePreferenceStore @Inject constructor(
             accent = enumOrDefault(p.getString(KEY_ACCENT, null), AccentChoice.entries, defaults.accent),
             uiScalePercent = p.getInt(KEY_UI_SCALE, defaults.uiScalePercent),
             useDynamicColour = p.getBoolean(KEY_DYNAMIC_COLOUR, defaults.useDynamicColour),
+            useCustomAccent = p.getBoolean(KEY_USE_CUSTOM_ACCENT, defaults.useCustomAccent),
+            // 0 is the "no custom colour picked" sentinel: normalised() forces every stored custom accent
+            // opaque, so a real one always has a 0xFF alpha byte and can never be 0.
+            customAccentArgb = p.getInt(KEY_CUSTOM_ACCENT, 0).takeIf { it != 0 },
+            compactDensity = p.getBoolean(KEY_COMPACT_DENSITY, defaults.compactDensity),
+            animations = enumOrDefault(
+                p.getString(KEY_ANIMATIONS, null),
+                AnimationsMode.entries,
+                defaults.animations,
+            ),
+            hapticsEnabled = p.getBoolean(KEY_HAPTICS, defaults.hapticsEnabled),
             allowElevatedReads = p.getBoolean(KEY_ALLOW_ELEVATED, defaults.allowElevatedReads),
             autoApplyProfiles = p.getBoolean(KEY_AUTO_APPLY, defaults.autoApplyProfiles),
             trackSessions = p.getBoolean(KEY_TRACK_SESSIONS, defaults.trackSessions),
@@ -157,6 +220,8 @@ class SecurePreferenceStore @Inject constructor(
                 defaults.recordingQuality,
             ),
             hasSeenIntroduction = p.getBoolean(KEY_SEEN_INTRO, defaults.hasSeenIntroduction),
+            setupCompletedVersion = p.getInt(KEY_SETUP_VERSION, defaults.setupCompletedVersion),
+            setupDismissed = p.getBoolean(KEY_SETUP_DISMISSED, defaults.setupDismissed),
             neverKillPackages = readNeverKill(p),
             quickTrigger = readQuickTrigger(p),
             aimLabEnabled = p.getBoolean(KEY_AIMLAB_ENABLED, defaults.aimLabEnabled),
@@ -202,6 +267,11 @@ class SecurePreferenceStore @Inject constructor(
             putString(KEY_ACCENT, value.accent.name)
             putInt(KEY_UI_SCALE, value.uiScalePercent)
             putBoolean(KEY_DYNAMIC_COLOUR, value.useDynamicColour)
+            putBoolean(KEY_USE_CUSTOM_ACCENT, value.useCustomAccent)
+            putInt(KEY_CUSTOM_ACCENT, value.customAccentArgb ?: 0)
+            putBoolean(KEY_COMPACT_DENSITY, value.compactDensity)
+            putString(KEY_ANIMATIONS, value.animations.name)
+            putBoolean(KEY_HAPTICS, value.hapticsEnabled)
             putBoolean(KEY_ALLOW_ELEVATED, value.allowElevatedReads)
             putBoolean(KEY_AUTO_APPLY, value.autoApplyProfiles)
             putBoolean(KEY_TRACK_SESSIONS, value.trackSessions)
@@ -215,6 +285,8 @@ class SecurePreferenceStore @Inject constructor(
             putBoolean(KEY_CONFIRM_DISCARD, value.confirmBeforeDiscard)
             putString(KEY_RECORDING_QUALITY, value.recordingQuality.name)
             putBoolean(KEY_SEEN_INTRO, value.hasSeenIntroduction)
+            putInt(KEY_SETUP_VERSION, value.setupCompletedVersion)
+            putBoolean(KEY_SETUP_DISMISSED, value.setupDismissed)
             putString(KEY_NEVER_KILL, value.neverKillPackages.joinToString(SEPARATOR))
             putBoolean(KEY_TRIGGER_ENABLED, value.quickTrigger.enabled)
             putString(KEY_TRIGGER_METHOD, value.quickTrigger.method.name)
@@ -277,6 +349,9 @@ class SecurePreferenceStore @Inject constructor(
             cornerRadiusDp = p.getInt(KEY_PILL_CORNER, defaults.cornerRadiusDp),
             isVertical = p.getBoolean(KEY_PILL_VERTICAL, defaults.isVertical),
             showLabels = p.getBoolean(KEY_PILL_LABELS, defaults.showLabels),
+            displayMode = PillDisplayMode.of(p.getString(KEY_PILL_DISPLAY_MODE, null)),
+            quickPins = readQuickPins(p),
+            quickAutoClose = p.getBoolean(KEY_QUICK_AUTO_CLOSE, defaults.quickAutoClose),
         ).normalised()
     }
 
@@ -292,8 +367,25 @@ class SecurePreferenceStore @Inject constructor(
             putInt(KEY_PILL_CORNER, value.cornerRadiusDp)
             putBoolean(KEY_PILL_VERTICAL, value.isVertical)
             putBoolean(KEY_PILL_LABELS, value.showLabels)
+            putString(KEY_PILL_DISPLAY_MODE, value.displayMode.name)
+            putString(KEY_QUICK_PINS, value.quickPins.joinToString(SEPARATOR))
+            putBoolean(KEY_QUICK_AUTO_CLOSE, value.quickAutoClose)
         }?.apply()
     }
+
+    /**
+     * The quick sheet's pinned toggles, as an ordered list of [com.gamecore.core.overlay.QuickToggle]
+     * names. Same shape and reasoning as [readStats] and [readQuickApps]: a `StringSet` would lose the
+     * left-to-right pin order, so it is a separator-joined string. Blank fragments are dropped; an absent
+     * key reads as empty, which [OverlayConfig.quickPins] treats as "never set" so the service falls back to
+     * the default pin set. Unknown names are *not* dropped here — this store cannot see `QuickToggle` — they
+     * survive to the service, which parses them through `QuickToggle.of` and drops the strangers there.
+     */
+    private fun readQuickPins(p: SharedPreferences): List<String> =
+        p.getString(KEY_QUICK_PINS, null)
+            ?.split(SEPARATOR)
+            ?.filter { it.isNotBlank() }
+            .orEmpty()
 
     /**
      * The stat list, as names joined by a separator.
@@ -318,11 +410,51 @@ class SecurePreferenceStore @Inject constructor(
         writeButton(updated)
     }
 
-    /** Drag-release from the overlay service, for the same reason as [updatePillPosition]. */
+    /**
+     * Sends the button back to a pixel default and forgets every remembered fraction — the "reset
+     * position" action.
+     *
+     * The clear is the point: leaving the four fraction keys behind would let the next resolve re-place
+     * the button from a fraction the user just asked to discard, and the pixel default would never show.
+     * Narrow like the other position writers so a reset from the settings screen cannot carry a stale
+     * position from a button being dragged in a game at the same moment.
+     */
     fun updateButtonPosition(x: Int, y: Int) {
-        val updated = buttonState.value.copy(x = x, y = y)
+        val updated = buttonState.value.copy(x = x, y = y).clearedPositionFractions()
         buttonState.value = updated
-        prefs?.edit()?.putInt(KEY_BUTTON_X, x)?.putInt(KEY_BUTTON_Y, y)?.apply()
+        prefs?.edit()
+            ?.putInt(KEY_BUTTON_X, x)
+            ?.putInt(KEY_BUTTON_Y, y)
+            ?.remove(KEY_BUTTON_PORTRAIT_X)
+            ?.remove(KEY_BUTTON_PORTRAIT_Y)
+            ?.remove(KEY_BUTTON_LANDSCAPE_X)
+            ?.remove(KEY_BUTTON_LANDSCAPE_Y)
+            ?.apply()
+    }
+
+    /**
+     * Drag-release and rotation-rescale from the overlay service: the pixel position for this screen plus
+     * the fraction it works out to in the orientation it happened in.
+     *
+     * The pixels stay the immediate truth [buttonOffset] reads back on the next drag; the fraction is what
+     * survives a rotation, re-resolved against the new display so a spot chosen in portrait lands sensibly
+     * in landscape. Only the given orientation's pair is touched — the other keeps whatever the user set
+     * there. Narrow for the reason [updatePillPosition] is: a write per gesture, not a whole-config round
+     * trip, and no chance of carrying a stale field from the settings screen.
+     */
+    fun updateButtonPlacement(x: Int, y: Int, portrait: Boolean, xFraction: Float, yFraction: Float) {
+        val updated = buttonState.value
+            .copy(x = x, y = y)
+            .withPositionFraction(portrait, xFraction, yFraction)
+        buttonState.value = updated
+        val keyX = if (portrait) KEY_BUTTON_PORTRAIT_X else KEY_BUTTON_LANDSCAPE_X
+        val keyY = if (portrait) KEY_BUTTON_PORTRAIT_Y else KEY_BUTTON_LANDSCAPE_Y
+        prefs?.edit()
+            ?.putInt(KEY_BUTTON_X, x)
+            ?.putInt(KEY_BUTTON_Y, y)
+            ?.putFloat(keyX, xFraction)
+            ?.putFloat(keyY, yFraction)
+            ?.apply()
     }
 
     /**
@@ -386,6 +518,7 @@ class SecurePreferenceStore @Inject constructor(
             snapToEdge = p.getBoolean(KEY_BUTTON_SNAP, defaults.snapToEdge),
             idleOpacityPercent = p.getInt(KEY_BUTTON_IDLE_OPACITY, defaults.idleOpacityPercent),
             hapticFeedback = p.getBoolean(KEY_BUTTON_HAPTIC, defaults.hapticFeedback),
+            doubleTapForPanel = p.getBoolean(KEY_BUTTON_DOUBLE_TAP_PANEL, defaults.doubleTapForPanel),
             panelWidthDp = p.getInt(KEY_BUTTON_PANEL_WIDTH, defaults.panelWidthDp),
             panelLayout = enumOrDefault(
                 p.getString(KEY_BUTTON_PANEL_LAYOUT, null),
@@ -394,8 +527,23 @@ class SecurePreferenceStore @Inject constructor(
             ),
             showQuickApps = p.getBoolean(KEY_BUTTON_QUICK_APPS_SHOW, defaults.showQuickApps),
             quickAppPackages = readQuickApps(p),
+            portraitXFraction = p.getFloatOrNull(KEY_BUTTON_PORTRAIT_X),
+            portraitYFraction = p.getFloatOrNull(KEY_BUTTON_PORTRAIT_Y),
+            landscapeXFraction = p.getFloatOrNull(KEY_BUTTON_LANDSCAPE_X),
+            landscapeYFraction = p.getFloatOrNull(KEY_BUTTON_LANDSCAPE_Y),
         ).normalised()
     }
+
+    /**
+     * A stored fraction, or null if the button has never been placed in that orientation.
+     *
+     * `SharedPreferences` has no nullable float, so absence is the key not being there — which is exactly
+     * what an older file (written before this app knew about fractions) looks like. Those files read back
+     * null on all four and the service falls back to the pixel [KEY_BUTTON_X]/[KEY_BUTTON_Y] pair, so no
+     * migration is needed and a downgrade loses only the per-orientation memory, never the button.
+     */
+    private fun SharedPreferences.getFloatOrNull(key: String): Float? =
+        if (contains(key)) getFloat(key, 0f) else null
 
     /**
      * The quick-launch row's packages, in the order the user arranged them.
@@ -422,11 +570,21 @@ class SecurePreferenceStore @Inject constructor(
             putBoolean(KEY_BUTTON_SNAP, value.snapToEdge)
             putInt(KEY_BUTTON_IDLE_OPACITY, value.idleOpacityPercent)
             putBoolean(KEY_BUTTON_HAPTIC, value.hapticFeedback)
+            putBoolean(KEY_BUTTON_DOUBLE_TAP_PANEL, value.doubleTapForPanel)
             putInt(KEY_BUTTON_PANEL_WIDTH, value.panelWidthDp)
             putString(KEY_BUTTON_PANEL_LAYOUT, value.panelLayout.name)
             putBoolean(KEY_BUTTON_QUICK_APPS_SHOW, value.showQuickApps)
             putString(KEY_BUTTON_QUICK_APPS, value.quickAppPackages.joinToString(SEPARATOR))
+            putFloatOrRemove(KEY_BUTTON_PORTRAIT_X, value.portraitXFraction)
+            putFloatOrRemove(KEY_BUTTON_PORTRAIT_Y, value.portraitYFraction)
+            putFloatOrRemove(KEY_BUTTON_LANDSCAPE_X, value.landscapeXFraction)
+            putFloatOrRemove(KEY_BUTTON_LANDSCAPE_Y, value.landscapeYFraction)
         }?.apply()
+    }
+
+    /** Write a fraction, or clear the key when it is null so a reset genuinely forgets, not stores zero. */
+    private fun SharedPreferences.Editor.putFloatOrRemove(key: String, value: Float?) {
+        if (value != null) putFloat(key, value) else remove(key)
     }
 
     // ----------------------------------------------------------------- colour
@@ -624,6 +782,11 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_ACCENT = "accent"
         const val KEY_UI_SCALE = "ui_scale"
         const val KEY_DYNAMIC_COLOUR = "dynamic_colour"
+        const val KEY_USE_CUSTOM_ACCENT = "use_custom_accent"
+        const val KEY_CUSTOM_ACCENT = "custom_accent_argb"
+        const val KEY_COMPACT_DENSITY = "compact_density"
+        const val KEY_ANIMATIONS = "animations_mode"
+        const val KEY_HAPTICS = "haptics_enabled"
         const val KEY_ALLOW_ELEVATED = "allow_elevated"
         const val KEY_AUTO_APPLY = "auto_apply"
         const val KEY_TRACK_SESSIONS = "track_sessions"
@@ -637,6 +800,10 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_CONFIRM_DISCARD = "confirm_discard"
         const val KEY_RECORDING_QUALITY = "recording_quality"
         const val KEY_SEEN_INTRO = "seen_intro"
+        const val KEY_SETUP_VERSION = "setup_version"
+        const val KEY_SETUP_DISMISSED = "setup_dismissed"
+        const val KEY_SETUP_STEP = "setup_step"
+        const val KEY_SETUP_CHOICES = "setup_choices"
         const val KEY_NEVER_KILL = "never_kill"
         const val KEY_TRIGGER_ENABLED = "trigger_enabled"
         const val KEY_TRIGGER_METHOD = "trigger_method"
@@ -658,6 +825,9 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_PILL_CORNER = "pill_corner"
         const val KEY_PILL_VERTICAL = "pill_vertical"
         const val KEY_PILL_LABELS = "pill_labels"
+        const val KEY_PILL_DISPLAY_MODE = "pill_display_mode"
+        const val KEY_QUICK_PINS = "quick_pins"
+        const val KEY_QUICK_AUTO_CLOSE = "quick_auto_close"
 
         const val KEY_BUTTON_SHOW = "button_show"
         const val KEY_BUTTON_X = "button_x"
@@ -667,10 +837,15 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_BUTTON_SNAP = "button_snap"
         const val KEY_BUTTON_IDLE_OPACITY = "button_idle_opacity"
         const val KEY_BUTTON_HAPTIC = "button_haptic"
+        const val KEY_BUTTON_DOUBLE_TAP_PANEL = "button_double_tap_panel"
         const val KEY_BUTTON_PANEL_WIDTH = "button_panel_width"
         const val KEY_BUTTON_PANEL_LAYOUT = "button_panel_layout"
         const val KEY_BUTTON_QUICK_APPS_SHOW = "button_quick_apps_show"
         const val KEY_BUTTON_QUICK_APPS = "button_quick_apps"
+        const val KEY_BUTTON_PORTRAIT_X = "button_portrait_x_fraction"
+        const val KEY_BUTTON_PORTRAIT_Y = "button_portrait_y_fraction"
+        const val KEY_BUTTON_LANDSCAPE_X = "button_landscape_x_fraction"
+        const val KEY_BUTTON_LANDSCAPE_Y = "button_landscape_y_fraction"
 
         const val KEY_ACTIVE_CROSSHAIR = "active_crosshair"
         const val KEY_ACTIVE_HUD = "active_hud"

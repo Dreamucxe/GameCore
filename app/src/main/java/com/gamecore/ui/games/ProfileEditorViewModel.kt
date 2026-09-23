@@ -16,8 +16,10 @@ import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.data.repository.HudLayoutRepository
 import com.gamecore.domain.cpu.CpuAffinityController
 import com.gamecore.domain.display.DisplaySizeController
+import com.gamecore.domain.network.PreLaunchNetworkCheck
 import com.gamecore.domain.optimization.DeviceCapabilityChecker
 import com.gamecore.ui.Destination
+import com.gamecore.ui.components.PendingLaunch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,6 +51,7 @@ class ProfileEditorViewModel @Inject constructor(
     private val capabilityChecker: DeviceCapabilityChecker,
     private val displaySize: DisplaySizeController,
     private val cpuAffinity: CpuAffinityController,
+    private val preLaunchCheck: PreLaunchNetworkCheck,
     preferences: SecurePreferenceStore,
 ) : ViewModel() {
 
@@ -231,15 +234,71 @@ class ProfileEditorViewModel @Inject constructor(
      * game, so a user who tapped this to see what a setting looks like comes back to their work rather
      * than to a profile that was written on their behalf. Only a refusal is reported, for the reason
      * [GamesViewModel.play] gives.
+     *
+     * The §C4 network check measures the **draft**, not the saved profile: the switches the user is
+     * looking at are what they mean by "this game", even before they save them.
      */
     fun play() {
         val profile = editing.value.profile ?: return
         viewModelScope.launch {
-            val outcome = launcher.launch(profile.packageName)
-            if (!outcome.isApplied) {
-                editing.value = editing.value.copy(message = outcome.message)
+            val warning = preLaunchCheck.evaluate(profile)
+            if (warning != null) {
+                editing.value = editing.value.copy(
+                    pendingLaunch = PendingLaunch(profile.packageName, warning.reason),
+                )
+                return@launch
             }
+            start(profile.packageName)
         }
+    }
+
+    /** Starts the game, reporting only a refusal. Shared by [play] and the §C4 dialog's two launches. */
+    private suspend fun start(packageName: String) {
+        val outcome = launcher.launch(packageName)
+        if (!outcome.isApplied) {
+            editing.value = editing.value.copy(message = outcome.message)
+        }
+    }
+
+    /** Launches the game the §C4 warning is holding, leaving every setting alone. */
+    fun confirmPendingLaunch() {
+        val pending = editing.value.pendingLaunch ?: return
+        editing.value = editing.value.copy(pendingLaunch = null)
+        viewModelScope.launch { start(pending.packageName) }
+    }
+
+    /**
+     * Launches the game and stops this profile asking again.
+     *
+     * The one write this screen does outside [save], and it is kept to a single field on purpose: the
+     * *saved* profile is re-read and only `networkPreLaunchWarn` is flipped on it, so the user's unsaved
+     * draft is not written to the database behind their back. The draft is then brought into line without
+     * being marked dirty — the flag really is saved, so claiming unsaved work would be false. A profile
+     * that has never been saved has nothing to write to, so there the choice rides along in the draft and
+     * is stored with it.
+     */
+    fun dontWarnPendingLaunch() {
+        val pending = editing.value.pendingLaunch ?: return
+        editing.value = editing.value.copy(pendingLaunch = null)
+        viewModelScope.launch {
+            val saved = profiles.profileFor(pending.packageName)
+            if (saved != null) {
+                profiles.save(saved.copy(networkPreLaunchWarn = false))
+                editing.value.profile?.let { draft ->
+                    editing.value = editing.value.copy(
+                        profile = draft.copy(networkPreLaunchWarn = false),
+                    )
+                }
+            } else {
+                edit { it.copy(networkPreLaunchWarn = false) }
+            }
+            start(pending.packageName)
+        }
+    }
+
+    /** Drops the held launch. Nothing starts and nothing is saved. */
+    fun dismissPendingLaunch() {
+        editing.value = editing.value.copy(pendingLaunch = null)
     }
 
     fun delete() {

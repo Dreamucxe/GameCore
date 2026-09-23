@@ -1,11 +1,11 @@
 package com.gamecore.ui
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.gamecore.aimlab.ui.home.AimLabRoutes
 
@@ -23,7 +23,13 @@ sealed interface Destination {
 
     val route: String
 
-    /** The five that live on the bottom bar. §27 asks for exactly these, in this order. */
+    /**
+     * The five that live on the bottom bar: Home, Games, Aim Lab, Sessions, Settings, in that order (§9).
+     *
+     * Being a [Top] is also how [GameCoreNav] decides *how* to navigate — tabs replace each other and keep
+     * their scroll position, everything else is pushed onto a back stack — so this is a statement about
+     * behaviour, not only about where an icon is drawn.
+     */
     sealed interface Top : Destination {
         val label: String
         val icon: ImageVector
@@ -41,12 +47,6 @@ sealed interface Destination {
         override val icon = Icons.Filled.SportsEsports
     }
 
-    data object Hud : Top {
-        override val route = "hud"
-        override val label = "HUD"
-        override val icon = Icons.Filled.GridView
-    }
-
     data object Sessions : Top {
         override val route = "sessions"
         override val label = "Sessions"
@@ -60,6 +60,19 @@ sealed interface Destination {
     }
 
     /** The rest, reached from the five above. */
+
+    /*
+     * The HUD builder used to hold the third tab. §9 gives that slot to Aim Lab, which is a whole section
+     * a user returns to, where the HUD list is somewhere you go once to build a layout and then leave. The
+     * route string is untouched, so nothing that names it breaks; what changes is that it is now pushed
+     * rather than swapped in, which is why [com.gamecore.ui.hud.HudScreen] grew a back arrow. It keeps all
+     * three of its entry points: Home's "Everything else" card, the profile editor's empty state and the
+     * Overlays card in Settings.
+     */
+    data object Hud : Destination {
+        override val route = "hud"
+    }
+
     data object Performance : Destination {
         override val route = "performance"
     }
@@ -74,6 +87,29 @@ sealed interface Destination {
 
     data object Permissions : Destination {
         override val route = "permissions"
+    }
+
+    /**
+     * The first-run setup wizard (spec §A2).
+     *
+     * Pushed like any other screen rather than given its own navigation graph or a pre-Activity: it is
+     * reachable from three places — a fresh install, the Home card, and Settings — and a user who reaches
+     * it the third way is in the middle of a session they should be able to back out of. Making it a
+     * destination is what keeps the back stack honest about that.
+     */
+    data object SetupWizard : Destination {
+        override val route = "setup-wizard"
+    }
+
+    /**
+     * The setup health screen (spec §A3): what is set up, what is not, and what each gap costs.
+     *
+     * Separate from the wizard because it answers a different question. The wizard walks a user through
+     * choices once; this says where things stand now, and stays useful long after setup is finished —
+     * which is why it lives in Settings and not behind the first-run flag.
+     */
+    data object SetupHealth : Destination {
+        override val route = "setup-health"
     }
 
     data object Tools : Destination {
@@ -210,13 +246,24 @@ sealed interface Destination {
      * them to the graph only while `AppSettings.aimLabEnabled` is true. Declaring them unconditionally is
      * correct — a `Destination` is a name for a screen, not a promise that the screen is currently in the
      * graph — and a route that is not registered behaves exactly like an unknown one: it lands on Home.
+     * That fallback is the safety net rather than the plan: [topFor] is what actually keeps the disabled
+     * section off the bar, so the fallback is never the thing a user meets.
      *
      * None of them is in [external]. The section reads sensors and draws a full-screen arena; nothing
      * outside the app has a reason to be able to open one, and the closed map is what keeps that true.
      */
 
-    data object AimLabHome : Destination {
+    /**
+     * The section's front door, and the third tab (§9).
+     *
+     * It is a [Top] even though the section can be switched off, because what a destination *is* does not
+     * change with a setting. What changes is whether the bar offers it: [topFor] drops it while Aim Lab is
+     * disabled, so the bar never shows a tab whose route is not in the graph.
+     */
+    data object AimLabHome : Top {
         override val route = AimLabRoutes.HOME
+        override val label = "Aim Lab"
+        override val icon = Icons.Filled.TrackChanges
     }
 
     data object AimLabFlick : Destination {
@@ -287,7 +334,27 @@ sealed interface Destination {
         const val ARG_ID = "id"
         const val ARG_PACKAGE = "package"
 
-        val top: List<Top> = listOf(Home, Games, Hud, Sessions, Settings)
+        /**
+         * The bottom bar, in order: Home, Games, Aim Lab, Sessions, Settings (§9).
+         *
+         * Prefer [topFor] at any call site that can see the settings — this list is the full set, and the
+         * full set is only correct while Aim Lab is enabled.
+         */
+        val top: List<Top> = listOf(Home, Games, AimLabHome, Sessions, Settings)
+
+        /**
+         * The bar as it should actually be drawn.
+         *
+         * Aim Lab is the one section a user can switch off, and `GameCoreNav` registers its routes only
+         * while it is on. A tab for an unregistered route is not a small cosmetic wrong: tapping it would
+         * land the user on Home with no explanation of why the thing they asked for did not open. So when
+         * the section is off the bar is four tabs, not five with a dead one — and the slot comes back the
+         * moment the switch does, because the bar is derived from the setting rather than stored.
+         *
+         * Nothing else is conditional. The other four are always present, always in this order.
+         */
+        fun topFor(aimLabEnabled: Boolean): List<Top> =
+            if (aimLabEnabled) top else top.filterNot { it == AimLabHome }
 
         /** A new profile: the editor opens with nothing selected and asks for an app. */
         const val NEW_PROFILE = "new"

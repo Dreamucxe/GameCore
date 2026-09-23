@@ -168,6 +168,15 @@ interface AimLabLayoutDao {
     @Query("DELETE FROM aimlab_controls WHERE layout_id = :layoutId")
     suspend fun deleteControls(layoutId: Long)
 
+    /**
+     * Deletes control rows whose layout no longer exists — the orphans an older build's non-transactional
+     * delete could leave behind (§bug-fix). The predicate touches ONLY rows with no matching layout id, so
+     * every valid layout keeps every one of its controls; running it twice deletes nothing the first pass
+     * missed. Returns the number of rows removed.
+     */
+    @Query("DELETE FROM aimlab_controls WHERE layout_id NOT IN (SELECT id FROM aimlab_layouts)")
+    suspend fun deleteOrphanControls(): Int
+
     @Query("DELETE FROM aimlab_layouts WHERE id = :id")
     suspend fun deleteLayout(id: Long)
 

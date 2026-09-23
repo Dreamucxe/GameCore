@@ -68,6 +68,31 @@ data class GameSession(
      * with it by a millisecond and put two figures for one thing on the same screen.
      */
     val latencyLog: LatencyLog? = null,
+
+    // ---- 3.5 summary fields (§B6/§C7/§D8). All nullable, and null is the honest reading for a session
+    // recorded before the feature ran or one where the feature was off — never a zero that would read as
+    // a real measurement, the same rule the latency and colour fields above follow.
+
+    /** How many thermal downshifts happened, or null when auto-cooling was off. */
+    val downshiftCount: Int? = null,
+    /** The lowest rate auto-cooling dropped to (Hz), or null. */
+    val lowestRateHz: Float? = null,
+    /**
+     * The [NetworkTransport] that carried the session, or null when the network check was off or the
+     * session never had a connection.
+     *
+     * There is deliberately no second average, no jitter and no loss figure beside it. The session's
+     * latency already lives in [averageLatencyMillis] and its variability in [latencyLog] — a parallel
+     * `avgLatencyMs`/`avgJitterMs` would be the "two figures for one thing" [averageLatencyMillis]'s own
+     * note above warns against, and a stored loss percent would be the packet-loss number [LatencyLog]
+     * documents this app cannot honestly measure from a TCP handshake. Transport is the one network fact
+     * the session did not already record, so it is the only one added here.
+     */
+    val transport: NetworkTransport? = null,
+    /** Whether full-performance turned battery saver off this session, or null when off. */
+    val fullPerformanceOverridden: Boolean? = null,
+    /** Whether the system re-enabled battery saver mid-session, or null. */
+    val systemReenabledSaver: Boolean? = null,
 ) {
     val isRunning: Boolean get() = endedAtMillis == null
 

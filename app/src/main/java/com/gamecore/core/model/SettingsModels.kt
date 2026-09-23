@@ -20,6 +20,52 @@ data class AppSettings(
     val uiScalePercent: Int = 100,
     val useDynamicColour: Boolean = false,
 
+    /**
+     * Use [customAccentArgb] instead of one of the eight [AccentChoice] swatches.
+     *
+     * A flag rather than a magic enum entry: the palette stays a clean, ordered eight, and "custom" is a
+     * mode on top of it. When true and [customAccentArgb] is a usable colour, the theme builds from that;
+     * when true but no custom colour has been picked yet, the theme falls back to [accent] — never to a
+     * broken or invisible accent. [useDynamicColour] still wins over both where the platform supplies it.
+     */
+    val useCustomAccent: Boolean = false,
+
+    /**
+     * The user's chosen custom accent as an ARGB int, or null when none has been picked.
+     *
+     * Stored as a value the theme layer can read without a `Context`, exactly like [AccentChoice.argb].
+     * The alpha byte is forced opaque in [normalised] so a half-transparent pick cannot make text on the
+     * accent unreadable, and a null here with [useCustomAccent] on simply falls back to the palette accent.
+     */
+    val customAccentArgb: Int? = null,
+
+    /**
+     * Tighten between-element spacing across the app (§3 "Compact density option").
+     *
+     * Off by default. When on, the section and card gaps shrink by [Density.COMPACT_FACTOR] while inner
+     * padding and the 48.dp touch-target floor are untouched — a denser layout, not a cramped one.
+     */
+    val compactDensity: Boolean = false,
+
+    /**
+     * Whether the app animates, and whether it defers to the system's animator scale (§2 motion).
+     *
+     * [AnimationsMode.SYSTEM] (the default) multiplies our 150–250 ms tokens by the device's
+     * `ANIMATOR_DURATION_SCALE`, so "reduce motion" in accessibility or Developer options genuinely reduces
+     * ours — including to zero. [AnimationsMode.OFF] forces scale 0 regardless of the system; [ON] forces a
+     * 1× scale even if the system is at 0, for a user who wants GameCore's motion without changing a global.
+     */
+    val animations: AnimationsMode = AnimationsMode.SYSTEM,
+
+    /**
+     * Global haptics switch (§3). Off means no view performs a haptic, whatever it would otherwise do.
+     *
+     * A preference, not a capability: it cannot conjure a vibrator the device lacks, and a caller still
+     * checks for one. It exists because a constant tick on every toggle is exactly the kind of thing a user
+     * turns off once and expects to stay off everywhere, overlay included.
+     */
+    val hapticsEnabled: Boolean = true,
+
     /** Whether GameCore may use the elevated shell for reads and writes when it is available. */
     val allowElevatedReads: Boolean = true,
 
@@ -61,6 +107,27 @@ data class AppSettings(
 
     /** Has the user been shown the one-time explanation of what this app can and cannot do? */
     val hasSeenIntroduction: Boolean = false,
+
+    /**
+     * The app version at which the §A setup wizard was last completed, or 0 if it never has been.
+     *
+     * A version and not a boolean, because a later release can add a feature the wizard should offer an
+     * existing user — `decideEntry` compares this against the running version and can ask again for the
+     * new part only. 0 rather than null so the value round-trips through `SharedPreferences.getInt`
+     * without a separate "is set" key; it is mapped back to null at the
+     * [com.gamecore.domain.setup.SetupSignals] boundary, where "never" is the meaningful state.
+     */
+    val setupCompletedVersion: Int = 0,
+
+    /**
+     * Whether the user dismissed the setup wizard and its Home card for good.
+     *
+     * Separate from [setupCompletedVersion] because skipping is not finishing: a user who dismisses has
+     * told GameCore to stop asking, and that answer has to survive the version bump that would otherwise
+     * bring the card back. Setup stays reachable from Settings either way — this silences the prompt, it
+     * does not remove the feature.
+     */
+    val setupDismissed: Boolean = false,
 
     /**
      * Packages the launch-time memory reclaim must never close, whatever state they are in.
@@ -134,6 +201,10 @@ data class AppSettings(
             .take(MAX_NEVER_KILL_ENTRIES),
         quickTrigger = quickTrigger.normalised(),
         aimLabHorizontalFovDegrees = aimLabHorizontalFovDegrees.coerceIn(AIMLAB_FOV_MIN, AIMLAB_FOV_MAX),
+        // Force the custom accent opaque. A pick that arrived with a transparent (or partly transparent)
+        // alpha byte — from a hand-edited file, or a picker that let alpha through — would make text drawn
+        // on the accent unreadable; the accent is always a solid fill, so the alpha is not the user's to set.
+        customAccentArgb = customAccentArgb?.let { it or ALPHA_OPAQUE },
     )
 
     companion object {
@@ -176,6 +247,34 @@ data class AppSettings(
         const val AIMLAB_FOV_MIN = 60
         const val AIMLAB_FOV_MAX = 120
         const val AIMLAB_FOV_DEFAULT = 90
+
+        /** OR-mask that forces an ARGB int fully opaque, used to keep the custom accent readable. */
+        const val ALPHA_OPAQUE = 0xFF000000.toInt()
+    }
+}
+
+/**
+ * Whether GameCore animates, and how it treats the system's animator duration scale (§2 motion).
+ *
+ * Stored by name so a build that never heard of a value falls back to [SYSTEM] on read. The name is the
+ * stable key; the [label] is display text only.
+ */
+enum class AnimationsMode(val label: String) {
+    /**
+     * Multiply our 150–250 ms tokens by the device's `ANIMATOR_DURATION_SCALE`. The default: a user who has
+     * dialled motion down (accessibility, Developer options) gets less of ours too, down to none at 0×.
+     */
+    SYSTEM("Follow system"),
+
+    /** Always animate at 1×, even if the system scale is 0. For motion GameCore-side without a global change. */
+    ON("On"),
+
+    /** Never animate. Forces scale 0 regardless of the system setting. */
+    OFF("Off"),
+    ;
+
+    companion object {
+        fun fromName(name: String?): AnimationsMode = entries.firstOrNull { it.name == name } ?: SYSTEM
     }
 }
 
@@ -198,11 +297,18 @@ enum class AimLabOrientation(val label: String) {
     }
 }
 
-/** Dark-first, as §27 asks, but the user's system setting wins by default. */
+/**
+ * Dark-first, as §27 asks, but the user's system setting wins by default.
+ *
+ * [AMOLED] is a true-black variant of dark (§3): a pure `#000000` background so an OLED panel switches
+ * those pixels off entirely, with near-black surfaces separated by outlines rather than by a lighter
+ * fill. Stored by name; an older build that never heard of it falls back to the default on read.
+ */
 enum class ThemeChoice(val label: String) {
     SYSTEM("Follow system"),
     DARK("Dark"),
     LIGHT("Light"),
+    AMOLED("AMOLED black"),
 }
 
 /**
@@ -218,4 +324,16 @@ enum class AccentChoice(val label: String, val argb: Int) {
     VIOLET("Violet", 0xFF9C6BFF.toInt()),
     ROSE("Rose", 0xFFFF5A87.toInt()),
     BLUE("Blue", 0xFF4C8DFF.toInt()),
+    TEAL("Teal", 0xFF2BD4C0.toInt()),
+    ORANGE("Orange", 0xFFFF8A4C.toInt()),
+    ;
+
+    companion object {
+        /**
+         * The fixed palette the swatch row offers (§3: "a fixed palette of 8"). Exactly the eight entries
+         * above; the custom colour is not one of these — it lives in [AppSettings.customAccentArgb] and is
+         * chosen with [useCustomAccent], so the palette stays a stable, ordered eight.
+         */
+        val PALETTE: List<AccentChoice> = entries
+    }
 }

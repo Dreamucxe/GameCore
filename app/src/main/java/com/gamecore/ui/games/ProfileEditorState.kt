@@ -12,6 +12,7 @@ import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.DisplaySizeState
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.RefreshRateMechanism
+import com.gamecore.ui.components.PendingLaunch
 
 /**
  * The profile editor's state.
@@ -70,6 +71,14 @@ data class ProfileEditorUiState(
     /** From settings: whether backing out of unsaved edits should ask first. */
     val confirmOnDiscard: Boolean = true,
     val isSaving: Boolean = false,
+    /**
+     * A launch the §C4 network check flagged, waiting on the user's answer.
+     *
+     * Non-null only while the warning sheet is up. The check never prevents a launch — this is a held
+     * decision with three ways out, not a refusal — see
+     * [com.gamecore.ui.components.PreLaunchWarningDialog].
+     */
+    val pendingLaunch: PendingLaunch? = null,
     /** Set once the save has landed, so the screen knows to navigate back. */
     val isFinished: Boolean = false,
     val message: String? = null,
@@ -169,6 +178,12 @@ internal val DeviceCapabilities.wantsShizukuForRefresh: Boolean
             refreshRateMechanism == RefreshRateMechanism.SHIZUKU_SETTINGS ||
             isKnownUnreliableRefreshChipset
         )
+
+/** The default thermal trigger, in tenths °C — 60 °C, the shared classifier's CPU "hot" threshold. */
+internal const val DEFAULT_THERMAL_LIMIT_DECI = 600
+
+/** The temperature-limit slider's range in whole °C (§B2's sane band). */
+internal val THERMAL_LIMIT_CELSIUS_RANGE = 40..90
 
 /** The screen-timeout values a profile can pick, as milliseconds. */
 internal val TIMEOUT_CHOICES = listOf(

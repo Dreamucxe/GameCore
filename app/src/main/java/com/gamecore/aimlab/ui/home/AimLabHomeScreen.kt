@@ -14,12 +14,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.aimlab.engine.SessionSummary
 import com.gamecore.core.common.Formatters
-import com.gamecore.ui.components.ABSENT
 import com.gamecore.ui.components.EmptyState
 import com.gamecore.ui.components.NavRow
 import com.gamecore.ui.components.ScreenBottomPadding
@@ -29,6 +27,8 @@ import com.gamecore.ui.components.SectionCard
 import com.gamecore.ui.components.StatEntry
 import com.gamecore.ui.components.StatStrip
 import com.gamecore.ui.components.Tone
+import com.gamecore.ui.theme.Density
+import com.gamecore.ui.theme.Spacing
 
 /**
  * The front door to Aim Lab: what the thirteen things you can do are, and how you have done so far.
@@ -46,22 +46,28 @@ import com.gamecore.ui.components.Tone
  *
  * @param onOpen navigate to one of [AimLabRoutes]' constants. The screen calls this and nothing else to
  *   move; the graph decides what each route resolves to.
- * @param onBack pop back to wherever Aim Lab was opened from (the main Home screen).
+ * @param onBack pop back to wherever Aim Lab was opened from, or null when there is nowhere to go back
+ *   *to*. Null is the normal case since §9: Aim Lab is one of the bottom-bar tabs, and a tab is not a
+ *   screen you arrived at from somewhere, so it carries no back arrow — the bar below it is how you leave.
  */
 @Composable
 fun AimLabHomeScreen(
     onOpen: (String) -> Unit,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     viewModel: AimLabHomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val padded = Modifier.padding(horizontal = ScreenPadding)
+    // The same gap the rest of the app uses, tightened by the same factor when the user has asked for
+    // compact density (§8). Aim Lab reading a different spacing from Games and Sessions is exactly the
+    // seam this step exists to remove.
+    val cardGap = if (state.isCompact) Spacing.md * Density.COMPACT_FACTOR else Spacing.md
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 4.dp, bottom = ScreenBottomPadding),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(top = Spacing.xs, bottom = ScreenBottomPadding),
+        verticalArrangement = Arrangement.spacedBy(cardGap),
     ) {
         item {
             ScreenHeader(
@@ -128,28 +134,28 @@ private fun SummaryCard(
             ),
         )
 
-        // Second row: personal bests. A best never set reads as the em-dash absence marker, not a zero.
+        // Second row: personal bests. A best never set reads as a word, not an em-dash and never a zero.
         StatStrip(
-            modifier = Modifier.padding(top = 12.dp),
+            modifier = Modifier.padding(top = Spacing.md),
             entries = listOf(
                 StatEntry(
                     label = "Best reaction",
-                    value = summary.bestReactionMillis?.let { "$it ms" } ?: ABSENT,
+                    value = summary.bestReactionMillis?.let { "$it ms" } ?: NOT_SET,
                     tone = if (summary.bestReactionMillis != null) Tone.Good else Tone.Muted,
                 ),
                 StatEntry(
                     label = "Best accuracy",
-                    value = summary.bestAccuracyPercent?.let { "$it%" } ?: ABSENT,
+                    value = summary.bestAccuracyPercent?.let { "$it%" } ?: NOT_SET,
                     tone = if (summary.bestAccuracyPercent != null) Tone.Good else Tone.Muted,
                 ),
                 StatEntry(
                     label = "Best flick",
-                    value = summary.bestFlickScore?.let { Formatters.count(it, "pt") } ?: ABSENT,
+                    value = summary.bestFlickScore?.let { Formatters.count(it, "pt") } ?: NOT_SET,
                     tone = if (summary.bestFlickScore != null) Tone.Good else Tone.Muted,
                 ),
                 StatEntry(
                     label = "Best tracking",
-                    value = summary.bestTrackingScore?.let { Formatters.count(it, "pt") } ?: ABSENT,
+                    value = summary.bestTrackingScore?.let { Formatters.count(it, "pt") } ?: NOT_SET,
                     tone = if (summary.bestTrackingScore != null) Tone.Good else Tone.Muted,
                 ),
             ),
@@ -194,12 +200,24 @@ private fun groupIcon(group: AimLabGroup): ImageVector = when (group) {
 }
 
 /**
- * "Flick training · Today", or "—" if somehow there is no last session while history exists.
+ * A personal best that has never been set.
+ *
+ * A word rather than the em-dash [com.gamecore.ui.components.ABSENT] marker, for the §10 reason the rest of
+ * this redesign replaced its symbols: "—" is read aloud by a screen reader as punctuation or skipped
+ * entirely, so the one cell whose whole job is to say *you have not done this yet* is the one cell that says
+ * nothing at all. "Not set" is also the truer word here — the figure is not unavailable, Android is not
+ * withholding it, and nothing failed. It simply has not been earned yet, which is an invitation rather than
+ * a fault, and a zero would have been an outright lie.
+ */
+private const val NOT_SET = "Not set"
+
+/**
+ * "Flick training · Today", or "Not set" if somehow there is no last session while history exists.
  *
  * Combines the mode's label with the relative day the session started, so "last session" answers both what
  * and when in the width of one stat cell. [Formatters.relativeDay] gives Today/Yesterday/date.
  */
 private fun lastSessionLabel(session: SessionSummary?): String {
-    if (session == null) return ABSENT
+    if (session == null) return NOT_SET
     return "${session.mode.label} · ${Formatters.relativeDay(session.startedAtMillis)}"
 }

@@ -53,14 +53,13 @@ import com.gamecore.aimlab.engine.TrainingMode
  * ```
  *
  * And to `com.gamecore.ui.GameCoreRoot` (or `GameCoreNav`), one `composable(...)` per route. The home entry
- * is the section's front door — it takes the two lambdas below and nothing else:
+ * is the section's front door, and since §9 it is also the third bottom-bar tab — so it takes the one
+ * lambda below and no `onBack`: a tab is not a screen you arrived at from somewhere, and the bar under it
+ * is how you leave.
  *
  * ```
  * composable(AimLabRoutes.HOME) {
- *     AimLabHomeScreen(
- *         onOpen = { route -> navController.navigate(route) },
- *         onBack = { navController.popBackStack() },
- *     )
+ *     AimLabHomeScreen(onOpen = { route -> navController.navigate(route) })
  * }
  * ```
  *

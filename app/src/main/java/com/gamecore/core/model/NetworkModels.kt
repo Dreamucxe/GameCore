@@ -22,8 +22,9 @@ import com.gamecore.core.common.Observed
  * probes and counting what does not come back, which needs ICMP — a raw socket, and
  * so root — or a cooperating server on the other end, which GameCore does not have
  * and will not add: the app has no backend of its own and is not going to grow one
- * to produce a single readout. (The ads SDK talks to Google's servers, not to ours,
- * and there is nothing there that could echo a probe.) A "0% packet loss" readout
+ * to produce a single readout. (Since 3.4 there is no outbound traffic of any other
+ * kind either — the optional latency probe is the only connection the app makes, and
+ * a TCP handshake cannot echo anything back to count.) A "0% packet loss" readout
  * produced from a TCP connect probe would be an invention.
  */
 data class NetworkReading(
@@ -42,6 +43,14 @@ data class NetworkReading(
     val txRateBytesPerSecond: Observed<Double>,
     /** Signal strength where the transport exposes one. Wi-Fi RSSI in dBm. */
     val signalStrengthDbm: Observed<Int>,
+    /**
+     * The Wi-Fi centre frequency in MHz, from which §C derives the band (2.4 / 5 / 6 GHz). Absent on any
+     * non-Wi-Fi transport and on a device that does not report it. Added in 3.5; a plain nullable so
+     * every existing construction that omits it reads as "not reported".
+     */
+    val wifiFrequencyMhz: Observed<Int> = Observed.notPresent("No Wi-Fi frequency reported"),
+    /** The Wi-Fi negotiated link speed in Mbps — an estimate, not throughput. Absent off Wi-Fi. */
+    val wifiLinkSpeedMbps: Observed<Int> = Observed.notPresent("No Wi-Fi link speed reported"),
 ) {
     companion object {
         val DISCONNECTED = NetworkReading(
@@ -56,6 +65,8 @@ data class NetworkReading(
             rxRateBytesPerSecond = Observed.notPresent("Not connected"),
             txRateBytesPerSecond = Observed.notPresent("Not connected"),
             signalStrengthDbm = Observed.notPresent("Not connected"),
+            wifiFrequencyMhz = Observed.notPresent("Not connected"),
+            wifiLinkSpeedMbps = Observed.notPresent("Not connected"),
         )
     }
 }

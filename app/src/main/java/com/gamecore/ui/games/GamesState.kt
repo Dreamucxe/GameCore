@@ -1,10 +1,13 @@
 package com.gamecore.ui.games
 
-import com.gamecore.core.common.Formatters
 import com.gamecore.core.model.DetectionRemedy
-import com.gamecore.core.model.GameProfile
-import com.gamecore.core.model.PerformanceMode
-import com.gamecore.core.model.ScreenOrientationLock
+import com.gamecore.core.model.GameCardState
+import com.gamecore.core.model.ProfileChip
+import com.gamecore.core.model.ProfileClaim
+import com.gamecore.core.model.gameCardState
+import com.gamecore.core.model.gamesSubtitle
+import com.gamecore.core.model.profileClaim
+import com.gamecore.ui.components.PendingLaunch
 
 /**
  * The Games screen: the user's profiles, and whether the app can tell when one of them starts.
@@ -22,12 +25,31 @@ data class GamesUiState(
     val detectionNote: String? = null,
     val detectionRemedy: DetectionRemedy? = null,
     val autoApply: Boolean = true,
+    /**
+     * The user's §3 compact-density choice, so the gaps between cards tighten with the rest of the app.
+     *
+     * Carried in the state rather than read from a composition local because it comes from the same
+     * settings flow the auto-apply switch does, and a screen that read one setting from the ViewModel and
+     * another from a local would have two different ideas of when to recompose.
+     */
+    val isCompact: Boolean = false,
     val busyPackage: String? = null,
+    /**
+     * A launch the §C4 network check flagged, waiting on the user's answer.
+     *
+     * Non-null only while the warning sheet is up. The check never prevents a launch — this is a held
+     * decision with three ways out, not a refusal — see
+     * [com.gamecore.ui.components.PreLaunchWarningDialog].
+     */
+    val pendingLaunch: PendingLaunch? = null,
     val message: String? = null,
 ) {
     val isEmpty: Boolean get() = isLoaded && profiles.isEmpty()
 
     val enabledCount: Int get() = profiles.count { it.isEnabled }
+
+    /** The line under the title. The rule itself is pure and tested — see [gamesSubtitle]. */
+    val subtitle: String get() = gamesSubtitle(isLoaded, profiles.size, enabledCount)
 
     /**
      * True when profiles exist, auto-apply is on, and nothing is watching for the games.
@@ -40,44 +62,33 @@ data class GamesUiState(
 }
 
 /**
- * One row of the list: what it says, and nothing the row does not draw.
+ * One card in the list: what it says, and nothing the card does not draw.
  *
- * [isInstalled] is false for a profile whose game has been uninstalled. The row stays — the user's
+ * [isInstalled] is false for a profile whose game has been uninstalled. The card stays — the user's
  * configuration is theirs, and deleting it on their behalf because a game was removed for an update is
  * the kind of helpfulness nobody asks for twice — but it is drawn as dormant and says why.
+ *
+ * [chips] and [changesNothing] are carried **separately and on purpose**. They are two different
+ * measurements of the same profile and they disagree on a fresh one: [com.gamecore.core.model.profileChips]
+ * answers "what will the user see happen?" (an overlay counts) while
+ * [com.gamecore.core.model.GameProfile.changesNothing] answers "would applying this write anything?" (an
+ * overlay does not). The card needs both to be honest, so the row carries both rather than letting the
+ * composable infer the second from the length of the first — see [ProfileClaim].
  */
 data class GameRow(
     val packageName: String,
     val label: String,
     val isEnabled: Boolean,
     val isInstalled: Boolean,
-    /** The profile's effect in one line: "120 Hz · Brightness 60% · Do not disturb". */
-    val summary: String,
+    /** The profile's effects, from the same generator the Home hero uses. */
+    val chips: List<ProfileChip>,
+    /** Read straight off the profile. Never derived from [chips] being empty. */
+    val changesNothing: Boolean,
     val isPlaying: Boolean,
-)
+) {
+    /** The word the card prints beside the dimming, so state is never conveyed by alpha alone. */
+    val state: GameCardState get() = gameCardState(isEnabled, isInstalled, isPlaying)
 
-/**
- * What a profile will actually do, as a line of text.
- *
- * Pure, so the list's honesty is testable without a device: a profile that writes nothing produces the
- * "changes nothing" sentence, and there is no arrangement of the UI that turns it into a promise. Only
- * settings that are really written appear — a null field is absent from the line rather than shown as a
- * default, because "Brightness: default" reads as something the profile does.
- */
-internal fun profileSummary(profile: GameProfile): String {
-    val parts = buildList {
-        profile.targetRefreshRate?.let { add(Formatters.hertz(it)) }
-        profile.brightnessPercent?.let { add("Brightness $it%") }
-        profile.mediaVolumePercent?.let { add("Volume $it%") }
-        profile.rotationLock?.let { if (it != ScreenOrientationLock.CURRENT) add(it.label) }
-        profile.screenTimeoutMillis?.let { add("Screen off after ${Formatters.durationCoarse(it)}") }
-        if (profile.enableDoNotDisturb) add("Do not disturb")
-        if (profile.performanceMode != PerformanceMode.BALANCED) add(profile.performanceMode.label)
-        if (profile.useShizukuOptimizations) add("Shizuku")
-        if (profile.showPerformancePill) add("Stats pill")
-        if (profile.showFloatingButton) add("Floating button")
-        if (profile.showCrosshair) add("Crosshair")
-        if (profile.trackSession) add("Records a session")
-    }
-    return if (parts.isEmpty()) "Changes nothing yet" else parts.joinToString(" · ")
+    /** How much this profile may honestly claim to do. */
+    val claim: ProfileClaim get() = profileClaim(chips.size, changesNothing)
 }

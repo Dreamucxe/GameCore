@@ -1,12 +1,26 @@
 package com.gamecore.service
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.Configuration
+import android.os.PowerManager
+import android.os.SystemClock
 import android.widget.Toast
+import android.view.MotionEvent
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.gamecore.MainActivity
@@ -30,6 +44,7 @@ import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.OverlayConfig
 import com.gamecore.core.model.OverlayStatus
 import com.gamecore.core.model.PanelLayoutStyle
+import com.gamecore.core.model.ThermalClassifier
 import com.gamecore.core.overlay.CrosshairOverlay
 import com.gamecore.core.overlay.FloatingGameButton
 import com.gamecore.core.overlay.HeldRow
@@ -41,14 +56,36 @@ import com.gamecore.core.overlay.OverlayFrame
 import com.gamecore.core.overlay.OverlayLevel
 import com.gamecore.core.overlay.OverlayLevelState
 import com.gamecore.core.overlay.OverlayPanelState
+import com.gamecore.core.overlay.OverlayPlacement
+import com.gamecore.core.overlay.AspectChips
+import com.gamecore.core.overlay.CrosshairChips
+import com.gamecore.core.overlay.FullPanel
+import com.gamecore.core.overlay.HoldToConfirm
 import com.gamecore.core.overlay.OverlayPreset
+import com.gamecore.core.overlay.OverlaySamplingGate
+import com.gamecore.core.overlay.OverlaySlider
 import com.gamecore.core.overlay.OverlaySlot
+import com.gamecore.core.overlay.OverlayToggle
+import com.gamecore.core.overlay.PanelControl
+import com.gamecore.core.overlay.PanelTab
+import com.gamecore.core.overlay.PresetChips
+import com.gamecore.core.overlay.RateChips
 import com.gamecore.core.overlay.OverlaySplitPanel
 import com.gamecore.core.overlay.OverlayViewHost
 import com.gamecore.core.overlay.OverlayWindowSpec
 import com.gamecore.core.overlay.OverlayWindows
 import com.gamecore.core.overlay.PerformancePill
+import com.gamecore.core.overlay.PositionFraction
+import com.gamecore.core.overlay.QuickSheet
+import com.gamecore.core.overlay.QuickSheetAutoClose
+import com.gamecore.core.overlay.QuickSheetPins
+import com.gamecore.core.overlay.QuickSheetSide
+import com.gamecore.core.overlay.QuickToggle
+import com.gamecore.core.overlay.QuickToggleState
+import com.gamecore.core.overlay.ThermalDot
+import com.gamecore.core.overlay.toOverlayAction
 import com.gamecore.core.overlay.refreshRateFeedback
+import com.gamecore.core.overlay.thermalDot
 import com.gamecore.core.permissions.PermissionChecker
 import com.gamecore.core.system.AudioControls
 import com.gamecore.core.system.ControlOutcome
@@ -89,6 +126,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import javax.inject.Inject
 
 /**
@@ -191,6 +229,17 @@ class GamingOverlayService : GameCoreService() {
 
     private val hudReadings = MutableStateFlow<Map<HudStat, StatReading>>(emptyMap())
 
+    /**
+     * The thermal dot the floating button shows (spec §2), classified through the shared [ThermalClassifier]
+     * so the button, the pill's thermal stat and the dashboard can never disagree about how hot is hot.
+     *
+     * It reflects heat only while the sampler is running — the same subscription that feeds the pill and HUD
+     * ([streamReadings]) — and returns to [ThermalDot.NONE] the moment sampling stops. A button on screen by
+     * itself does not spin the sampler up, so a bare button stays exactly as quiet as it is today; whether it
+     * *should* keep the sampler alive is a performance-profile call left to a later step.
+     */
+    private val buttonThermalDot = MutableStateFlow(ThermalDot.NONE)
+
     private val crosshairPreset = MutableStateFlow<CrosshairPreset?>(null)
 
     private val hudLayout = MutableStateFlow<HudLayout?>(null)
@@ -251,6 +300,62 @@ class GamingOverlayService : GameCoreService() {
     private val panelOpen = MutableStateFlow(false)
 
     /**
+     * Whether the display is on — the third term of the sampling gate in [streamReadings].
+     *
+     * Seeded optimistically to `true` and corrected from [PowerManager] the moment there is a context to
+     * ask (see [watchScreenState]); a field initialiser runs before the service is attached, so the real
+     * answer cannot be read here. Optimistic is right for the frame it lasts, because the overlay is put
+     * up by a user action and the screen is therefore on — a `false` seed would blank the pill for one
+     * tick on every single start.
+     */
+    private val screenInteractive = MutableStateFlow(true)
+
+    /**
+     * The listener that keeps [screenInteractive] honest, held so it can be released in [onDestroy].
+     *
+     * Null when registration was refused, which is why every use is null-checked rather than asserted.
+     */
+    private var screenReceiver: BroadcastReceiver? = null
+
+    /**
+     * Whether the quick sheet (§4) is on screen. Its own flag, not a mode of [panelOpen], because the two
+     * are separate windows in separate slots: a tap opens the sheet, a double tap (or the sheet's "More")
+     * opens the full panel, and the probe that fills [panel] has to run whenever *either* is up.
+     */
+    private val quickSheetOpen = MutableStateFlow(false)
+
+    /**
+     * The sheet's watch, the sibling of [panelJob].
+     *
+     * The sheet draws the same [panel] state the full panel does — its toggles, its two sliders and its
+     * clock all read from it — so it needs its own probe-and-tick running while it is open, for the reason
+     * [openQuickSheet] gives: [panel] is empty unless something is filling it, and a sheet opened on its
+     * own (the common single-tap path, with the full panel never touched) would otherwise show every
+     * toggle off and both sliders dead. Cancelled in [closeQuickSheet], the one place the sheet comes down.
+     */
+    private var quickSheetJob: Job? = null
+
+    /**
+     * When the sheet was last touched, on [android.os.SystemClock.elapsedRealtime]'s monotonic clock, for
+     * the auto-close of §4. Fed to [QuickSheetAutoClose]; every toggle tap and slider move pushes it
+     * forward, and the watch loop closes the sheet once it is [QuickSheetAutoClose.idleAfterMillis] stale.
+     *
+     * `elapsedRealtime` and not `currentTimeMillis` for the reason the whole idle machine is arithmetic
+     * rather than a `postDelayed`: it cannot run backwards when the wall clock is corrected mid-session,
+     * so a clock change can never leave the sheet stuck open or snap it shut a beat early.
+     */
+    private var lastQuickInteraction: Long = 0L
+
+    /**
+     * The pending "commit this slider" per level, so a drag on the sheet writes the device once it settles
+     * rather than every frame. Keyed by level because brightness and volume can be dragged in one sitting;
+     * [onQuickLevel] cancels the level's own pending commit before posting a fresh one, and
+     * [closeQuickSheet] cancels them all. See [onQuickLevel] for why the sheet needs this and the panel
+     * does not.
+     */
+    private val quickLevelCommits = mutableMapOf<OverlayLevel, Job>()
+
+    /**
      * The width the open panel is drawn at, in dp, while it is open.
      *
      * Held here rather than remembered inside the composable because a resize has to change two things at
@@ -265,6 +370,26 @@ class GamingOverlayService : GameCoreService() {
     private val panelWidth = MutableStateFlow(FloatingButtonConfig.DEFAULT_PANEL_WIDTH_DP)
 
     private val accent = MutableStateFlow(Color(AccentChoice.CYAN.argb))
+
+    /** The full panel's selected tab (§5). Reset to [PanelTab.DEFAULT] on close so a reopen starts on Display. */
+    private val panelTab = MutableStateFlow(PanelTab.DEFAULT)
+
+    /**
+     * The end-session hold (§5), as [HoldToConfirm] arithmetic against a monotonic clock — never a timer.
+     *
+     * [endPressStart] is the finger-down timestamp on [android.os.SystemClock.elapsedRealtime] (monotonic,
+     * for the same reason [lastQuickInteraction] is: a hold *duration* must not jump if the wall clock is
+     * corrected mid-press, unlike the session *clock* which is deliberately wall-time). Null when the finger
+     * is up, which is the whole of the cancel — every [HoldToConfirm] query reads null as "not pressing".
+     * [endWasConfirmed] is the once-only latch, and [endProgress] is what the ring paints.
+     */
+    private val endHold = HoldToConfirm()
+    private var endPressStart: Long? = null
+    private var endWasConfirmed = false
+    private val endProgress = MutableStateFlow(0f)
+
+    /** The end-session ring's own fast loop, a child of [panelJob], live only while the finger is down. */
+    private var endHoldJob: Job? = null
 
     private var panelJob: Job? = null
 
@@ -416,6 +541,9 @@ class GamingOverlayService : GameCoreService() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         closePanel()
+        // Anchored to the button, which is about to be rescaled to a new position — the same reason the
+        // panel closes on a rotation rather than being carried across.
+        closeQuickSheet()
         rescaleWindows()
         reconcile()
     }
@@ -423,6 +551,12 @@ class GamingOverlayService : GameCoreService() {
     override fun onDestroy() {
         panelJob?.cancel()
         panelRequestJob?.cancel()
+        quickSheetJob?.cancel()
+        quickLevelCommits.values.forEach { it.cancel() }
+        // Released before the windows go, and guarded: unregistering a receiver that never registered
+        // throws, and a receiver left behind by a dying service is a logged leak.
+        screenReceiver?.let { receiver -> runCatching { unregisterReceiver(receiver) } }
+        screenReceiver = null
         windows?.hideAll()
         windows = null
         // After the windows, never before: `DESTROYED` disposes every composition, and a composition
@@ -435,6 +569,7 @@ class GamingOverlayService : GameCoreService() {
     // ------------------------------------------------------------------------------- observation
 
     private fun observe() {
+        watchScreenState()
         lifecycleScope.launch { overlays.desired.collect { reconcile() } }
         lifecycleScope.launch { preferences.floatingButton.collect { reconcile() } }
         lifecycleScope.launch { preferences.overlay.collect { reconcile() } }
@@ -452,6 +587,43 @@ class GamingOverlayService : GameCoreService() {
             // window changing, so the panel state is refreshed rather than the windows reconciled.
             coordinator.gaming.collect { if (panelOpen.value) probePanel() }
         }
+    }
+
+    /**
+     * Starts watching the display, which is what lets [streamReadings] stop sampling in a pocket.
+     *
+     * A broadcast is the only way to learn this: there is no flow for screen state and polling
+     * [PowerManager] would be the very wake-up this exists to avoid, so this is the app's one registered
+     * receiver. Both actions are protected system broadcasts — no other app can send them — so this needs
+     * no permission, and the filter is declared not-exported because nothing outside the system should be
+     * able to reach it.
+     *
+     * The seed carries as much weight as the broadcasts. A receiver only ever reports the *next* change,
+     * so the current state is read from [PowerManager] once, here. Without that read, an overlay put up
+     * while the screen was already off — a profile applied by a trigger, say — would sample continuously
+     * until the user next happened to wake the phone, which is precisely the leak being closed.
+     *
+     * Failure is survivable and deliberately not fatal: if registration is refused, [screenInteractive]
+     * stays at its seeded value and the overlay behaves exactly as it did before §9, sampling whenever a
+     * surface is up. Worse battery, never a blank pill.
+     */
+    private fun watchScreenState() {
+        screenInteractive.value = getSystemService(PowerManager::class.java)?.isInteractive ?: true
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    Intent.ACTION_SCREEN_ON -> screenInteractive.value = true
+                    Intent.ACTION_SCREEN_OFF -> screenInteractive.value = false
+                }
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+        runCatching {
+            ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        }.onSuccess { screenReceiver = receiver }
     }
 
     /**
@@ -527,21 +699,36 @@ class GamingOverlayService : GameCoreService() {
     }
 
     /**
-     * Keeps the pill, HUD and panel readings current while any of them is on screen.
+     * Keeps the pill, HUD and panel readings current while any of them is on screen *and the user can see
+     * it* — the rule itself lives in [OverlaySamplingGate], which is where the reasoning is written down.
      *
      * The empty `collect` is deliberate and load-bearing. [PerformanceMonitor.snapshots] is a
      * `WhileSubscribed` stream, so holding a subscription is what keeps the one shared sampling loop
      * alive — and the loop underneath reads its latest value at the pill's own configured interval
      * instead of on every sample, which is what §8's update-interval setting is for. Sampling cadence
      * and display cadence are separate knobs, and this is the seam between them.
+     *
+     * That same seam is why the screen term costs nothing to add: dropping the subscription is all it
+     * takes to stop the sampler, and `collectLatest` already tears the whole block down on every change,
+     * so a screen going off cancels the `delay` mid-wait rather than finishing one more round of work.
+     * The readings are cleared on the way out so the pill has nothing stale to draw if the display comes
+     * back before the first new sample lands.
      */
     private suspend fun streamReadings() {
-        combine(overlays.desired, panelOpen) { request, open -> request.pill || request.hud || open }
+        combine(overlays.desired, panelOpen, screenInteractive) { request, open, awake ->
+            OverlaySamplingGate.shouldSample(
+                pillVisible = request.pill,
+                hudVisible = request.hud,
+                panelOpen = open,
+                screenInteractive = awake,
+            )
+        }
             .distinctUntilChanged()
             .collectLatest { needed ->
                 if (!needed) {
                     pillReadings.value = emptyList()
                     hudReadings.value = emptyMap()
+                    buttonThermalDot.value = ThermalDot.NONE
                     return@collectLatest
                 }
                 coroutineScope {
@@ -564,6 +751,10 @@ class GamingOverlayService : GameCoreService() {
         )
         val wanted = hudLayout.value?.widgets?.map { it.stat }?.distinct() ?: emptyList()
         hudReadings.value = wanted.associateWith { HudStatReader.read(it, snapshot, elapsed) }
+        // The button's dot rides the same sample. NONE until the first snapshot lands, and NONE for OK,
+        // WARM and an unavailable temperature — only HOT and CRITICAL draw, so the button is silent unless
+        // there is something worth glancing at.
+        buttonThermalDot.value = snapshot?.let { thermalDot(ThermalClassifier.classify(it).level) } ?: ThermalDot.NONE
     }
 
     private fun sessionElapsedMillis(): Long? {
@@ -593,6 +784,7 @@ class GamingOverlayService : GameCoreService() {
         // reports the final status, and it reads the permission, so the dashboard says which it was.
         if (!request.anythingVisible || !manager.canDraw()) {
             closePanel()
+            closeQuickSheet()
             manager.hideAll()
             stopSelf()
             return
@@ -605,6 +797,8 @@ class GamingOverlayService : GameCoreService() {
             applyPanelWidth(button.panelWidthDp)
         } else {
             closePanel()
+            // The sheet hangs off the button; with the button gone there is nothing for it to anchor to.
+            closeQuickSheet()
             manager.hide(OverlaySlot.BUTTON)
         }
         if (request.pill) showPill(pill) else manager.hide(OverlaySlot.PILL)
@@ -630,10 +824,18 @@ class GamingOverlayService : GameCoreService() {
         val currentButton = buttonFrame()
         if (previousButton != null && currentButton != null && manager.isVisible(OverlaySlot.BUTTON)) {
             val config = preferences.floatingButton.value.normalised()
-            val placed = currentButton.rescaleFrom(previousButton, config.x, config.y, config.snapToEdge)
+            // A fraction already remembered for the orientation we just turned into wins — that is the
+            // whole point of storing per orientation. Only when this orientation has never been placed do
+            // we carry the old screen's pixels across proportionally, then remember where that landed.
+            val stored = config.positionFraction(portrait = currentButton.isPortrait)
+            val placed = if (stored != null) {
+                currentButton.fromFraction(PositionFraction(stored.first, stored.second), config.snapToEdge)
+            } else {
+                currentButton.rescaleFrom(previousButton, config.x, config.y, config.snapToEdge)
+            }
             manager.move(OverlaySlot.BUTTON, placed.x, placed.y)
             lastButtonFrame = currentButton
-            preferences.updateButtonPosition(placed.x, placed.y)
+            persistButtonPlacement(currentButton, placed)
         }
         val previousPill = lastPillFrame
         val currentPill = manager.frameFor(OverlaySlot.PILL)
@@ -662,7 +864,7 @@ class GamingOverlayService : GameCoreService() {
         val manager = windows ?: return
         val frame = buttonFrame() ?: return
         lastButtonFrame = frame
-        val placement = frame.place(config.x, config.y, config.snapToEdge)
+        val placement = resolveButtonPlacement(frame, config)
         if (manager.isVisible(OverlaySlot.BUTTON)) {
             // Not while a finger is on it: a preference write landing mid-drag would otherwise pull the
             // button back to its stored coordinate from under the user.
@@ -676,15 +878,27 @@ class GamingOverlayService : GameCoreService() {
         ) {
             val live by preferences.floatingButton.collectAsState()
             val tint by accent.collectAsState()
-            val expanded by panelOpen.collectAsState()
+            val panelUp by panelOpen.collectAsState()
+            val sheetUp by quickSheetOpen.collectAsState()
+            val dot by buttonThermalDot.collectAsState()
+            val normalised = live.normalised()
             FloatingGameButton(
-                config = live.normalised(),
+                config = normalised,
                 accent = tint,
                 positionProvider = ::buttonOffset,
                 onDragTo = ::dragButtonTo,
                 onDragFinished = ::finishButtonDrag,
-                onTap = ::togglePanel,
-                isExpanded = expanded,
+                // §4: a tap opens the quick sheet, the tap-and-back surface. The full panel is one gesture
+                // further in — the sheet's "More", or the double tap when the user has turned it on.
+                onTap = ::toggleQuickSheet,
+                // Null unless the setting is on, so a single tap has no double-tap latency (see
+                // [FloatingGameButton]); wired live from the collected config, so turning the setting on or
+                // off takes effect on the next recomposition without the window being re-added.
+                onDoubleTap = if (normalised.doubleTapForPanel) ::openPanel else null,
+                // Lit while either surface is up — both are "the button is open" as far as the idle fade
+                // and the expanded look are concerned.
+                isExpanded = panelUp || sheetUp,
+                thermalDot = dot,
             )
         }
     }
@@ -699,6 +913,24 @@ class GamingOverlayService : GameCoreService() {
         manager.frameFor(OverlaySlot.BUTTON, margin)?.let { return it }
         val size = px(preferences.floatingButton.value.normalised().sizeDp)
         return manager.frameFor(size, size, margin)
+    }
+
+    /**
+     * Where the button belongs on [frame]: the fraction remembered for this orientation if there is one,
+     * otherwise the stored pixels (spec §2).
+     *
+     * The fraction is the position that survives a rotation, so it wins whenever the user has placed the
+     * button in this orientation. A config that has never been placed here — an older saved file, or the
+     * first time the phone is turned this way — has no fraction, and the legacy pixel pair is exactly the
+     * behaviour that shipped before, re-clamped to today's safe area.
+     */
+    private fun resolveButtonPlacement(frame: OverlayFrame, config: FloatingButtonConfig): OverlayPlacement {
+        val fraction = config.positionFraction(portrait = frame.isPortrait)
+        return if (fraction != null) {
+            frame.fromFraction(PositionFraction(fraction.first, fraction.second), config.snapToEdge)
+        } else {
+            frame.place(config.x, config.y, config.snapToEdge)
+        }
     }
 
     /** Where the button is right now, for a drag that must start from the window's real position. */
@@ -718,8 +950,10 @@ class GamingOverlayService : GameCoreService() {
     private fun dragButtonTo(x: Int, y: Int) {
         val manager = windows ?: return
         draggingButton = true
-        // The panel is anchored to where the button was. Closing beats dragging a stale anchor around.
+        // The panel and the sheet are both anchored to where the button was. Closing beats dragging a
+        // stale anchor around.
         closePanel()
+        closeQuickSheet()
         val clamped = buttonFrame()?.clamp(x, y) ?: return
         manager.move(OverlaySlot.BUTTON, clamped.x, clamped.y)
     }
@@ -733,7 +967,25 @@ class GamingOverlayService : GameCoreService() {
         lastButtonFrame = frame
         val placed = frame.place(x, y, config.snapToEdge)
         manager.move(OverlaySlot.BUTTON, placed.x, placed.y)
-        preferences.updateButtonPosition(placed.x, placed.y)
+        persistButtonPlacement(frame, placed)
+    }
+
+    /**
+     * Stores where the button ended up as both the pixels for this screen and the fraction for this
+     * orientation, from the placement that was actually applied so the two never disagree (spec §2).
+     *
+     * The fraction is taken of the placed position — after any snap — so what re-resolves on the next
+     * rotation is the corner the button is sitting in, not the raw spot the finger left.
+     */
+    private fun persistButtonPlacement(frame: OverlayFrame, placed: OverlayPlacement) {
+        val fraction = frame.fractionOf(placed.x, placed.y)
+        preferences.updateButtonPlacement(
+            x = placed.x,
+            y = placed.y,
+            portrait = frame.isPortrait,
+            xFraction = fraction.xFraction,
+            yFraction = fraction.yFraction,
+        )
     }
 
     /**
@@ -760,7 +1012,8 @@ class GamingOverlayService : GameCoreService() {
         ) {
             val readings by pillReadings.collectAsState()
             val live by preferences.overlay.collectAsState()
-            PerformancePill(readings = readings, config = live.normalised())
+            val dot by buttonThermalDot.collectAsState()
+            PerformancePill(readings = readings, config = live.normalised(), thermalDot = dot)
         }
     }
 
@@ -848,6 +1101,10 @@ class GamingOverlayService : GameCoreService() {
      * than inside the composable because it is a difference in the *window*, not in what is drawn in it.
      */
     private fun openPanel() {
+        // The panel supersedes the sheet — a double tap, or the sheet's "More", brings the full surface up
+        // and the narrow one has to go, or both would be touchable at once. Covers the split layout too,
+        // which is only ever reached through here.
+        if (quickSheetOpen.value) closeQuickSheet()
         val config = preferences.floatingButton.value.normalised()
         if (config.panelLayout == PanelLayoutStyle.SPLIT_EDGES) {
             openSplitPanel()
@@ -890,39 +1147,243 @@ class GamingOverlayService : GameCoreService() {
             ),
             host = host,
         ) {
-            val state by panel.collectAsState()
-            val readings by pillReadings.collectAsState()
-            val playing by nowPlaying.collectAsState()
-            val apps by quickApps.collectAsState()
-            val tint by accent.collectAsState()
-            val live by panelWidth.collectAsState()
-            OverlayControlPanel(
-                state = state,
-                readings = readings,
-                nowPlaying = playing,
-                quickApps = apps,
-                accent = tint,
-                maxHeightDp = maxHeightDp,
-                widthDp = live,
-                onAction = ::onAction,
-                onLongAction = ::onLongAction,
-                onPreset = ::onPreset,
-                onAspect = ::onAspect,
-                onRate = ::onRate,
-                onCrosshairDesign = ::onCrosshairDesign,
-                onCrosshairColour = ::onCrosshairColour,
-                onDragLevel = ::onDragLevel,
-                onCommitLevel = ::onCommitLevel,
-                onMedia = ::onMedia,
-                onEnableMedia = ::onEnableMedia,
-                onLaunchApp = ::onLaunchApp,
-                onResize = ::resizePanelTo,
-                onResizeFinished = ::finishPanelResize,
-                onDismiss = ::closePanel,
-            )
+            PanelContent(maxHeightDp = maxHeightDp)
         }
         if (!shown) return
         startPanelWatch(PanelLayoutStyle.CENTERED)
+    }
+
+    /**
+     * The full panel's UI, wired to the same handlers the split panel and the sheet use (§5).
+     *
+     * Split out of [openPanel] so the `@OptIn` for the chip composables sits on a composable, and so the
+     * whole controls map — which reads both [panel] and [nowPlaying] — is built where those two are
+     * collected. The map is a **projection**: every `enabled`/`reason`/on-state is a read of the
+     * [OverlayPanelState] `probePanel` already filled, and every slot points at an existing handler
+     * ([onAction], [onSliderLevel], [onPreset], …) unchanged, so nothing here decides what a control does.
+     */
+    @Composable
+    private fun PanelContent(maxHeightDp: Int) {
+        val state by panel.collectAsState()
+        val readings by pillReadings.collectAsState()
+        val playing by nowPlaying.collectAsState()
+        val apps by quickApps.collectAsState()
+        val tint by accent.collectAsState()
+        val tab by panelTab.collectAsState()
+        val progress by endProgress.collectAsState()
+        val live by panelWidth.collectAsState()
+
+        val track = playing as? NowPlaying.Track
+        FullPanel(
+            tab = tab,
+            onTabSelected = { panelTab.value = it },
+            gameLabel = state.gameLabel,
+            clock = state.sessionElapsed.orEmpty(),
+            controls = panelControls(state, tint, live),
+            readings = readings,
+            quickApps = apps,
+            onLaunchApp = ::onLaunchApp,
+            mediaPlaying = track != null,
+            mediaPreviousEnabled = track?.canSkipPrevious == true,
+            mediaPlayPauseEnabled = track?.canPlayPause == true,
+            mediaNextEnabled = track?.canSkipNext == true,
+            mediaIsPlaying = track?.isPlaying == true,
+            onMediaPrevious = { onMedia(MediaCommand.PREVIOUS) },
+            onMediaPlayPause = { onMedia(MediaCommand.PLAY_PAUSE) },
+            onMediaNext = { onMedia(MediaCommand.NEXT) },
+            endHoldProgress = progress,
+            endEnabled = OverlayAction.STOP_SESSION !in state.unavailable,
+            endReason = state.unavailable[OverlayAction.STOP_SESSION],
+            onEndPressStart = ::onEndPressStart,
+            onEndPressRelease = ::onEndPressRelease,
+            onClose = ::closePanel,
+            maxHeightDp = maxHeightDp,
+            accent = tint,
+        )
+    }
+
+    /**
+     * The full panel's controls, keyed by tab (§5) — a projection of [OverlayPanelState], nothing more.
+     *
+     * Every control's `enabled` is `action !in state.unavailable`, its `reason` is `state.unavailable[..]`
+     * (drawn once, by the panel's `ControlSlot`, so the [OverlayToggle]/[OverlaySlider] inside is passed
+     * `enabled` but `reason = null`), and a toggle's on-state is `action in state.active`. Every slot fires
+     * an **existing** handler — [onAction], [onSliderLevel], [onPreset]/[onAspect]/[onRate]/[onCrosshair*]
+     * — so nothing here changes what a control does (§0). Two SESSION ids (`end_session`, `media_row`) are
+     * not in this map: [FullPanel] draws them with its own footer and media row.
+     *
+     * The expandable rows (colour presets, aspect, refresh, crosshair chips) are drawn **inline** under
+     * their toggle rather than behind the old long-press, because a tabbed panel has the room and a hidden
+     * gesture in a redesigned surface is a control the user has to be told about. The old `*Expanded`
+     * flags and the long-press stay live for the SPLIT_EDGES [OverlayControlPanel], untouched.
+     */
+    private fun panelControls(
+        state: OverlayPanelState,
+        accent: Color,
+        widthDp: Int,
+    ): Map<PanelTab, List<PanelControl>> {
+        fun toggle(id: String, action: OverlayAction): PanelControl = PanelControl(
+            id = id,
+            label = action.label,
+            enabled = state.isUsable(action),
+            reason = state.unavailable[action],
+        ) {
+            OverlayToggle(
+                label = action.label,
+                checked = action in state.active,
+                onCheckedChange = { onAction(action) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = state.isUsable(action),
+                accent = accent,
+            )
+        }
+
+        fun slider(id: String, level: OverlayLevel): PanelControl {
+            val levelState = state.levelFor(level)
+            return PanelControl(
+                id = id,
+                label = level.label,
+                enabled = levelState.isUsable,
+                reason = levelState.detail,
+            ) {
+                OverlaySlider(
+                    label = level.label,
+                    value = (levelState.value ?: level.range.first).toFloat(),
+                    min = level.range.first.toFloat(),
+                    max = level.range.last.toFloat(),
+                    step = 1f,
+                    unit = "",
+                    onValueChange = { onSliderLevel(level, it, markInteraction = false) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = levelState.isUsable,
+                    // The app-wide formatter, so a hue reads "+90°" / "0°" and an unread level reads "--"
+                    // exactly as the colour editor and the old panel show it — one formatter, not two.
+                    valueText = levelState.value?.let { level.format(it) } ?: "--",
+                    accent = accent,
+                )
+            }
+        }
+
+        return mapOf(
+            PanelTab.DISPLAY to listOf(
+                slider("brightness", OverlayLevel.BRIGHTNESS),
+                PanelControl(
+                    id = "colour",
+                    label = OverlayAction.COLOR.label,
+                    enabled = state.isUsable(OverlayAction.COLOR),
+                    reason = state.unavailable[OverlayAction.COLOR],
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OverlayToggle(
+                            label = OverlayAction.COLOR.label,
+                            checked = OverlayAction.COLOR in state.active,
+                            onCheckedChange = { onAction(OverlayAction.COLOR) },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = state.isUsable(OverlayAction.COLOR),
+                            accent = accent,
+                        )
+                        // The three quick colour sliders and the saved presets, inline (the tile above
+                        // opens the full editor). Sliders are signed — a saturation reads "−40%", a hue "+90°".
+                        OverlayLevel.entries.filter { it.isColour }.forEach { level ->
+                            val levelState = state.levelFor(level)
+                            OverlaySlider(
+                                label = level.label,
+                                // Neutral (the range's midpoint) for an unread colour level, so an unknown
+                                // hue parks mid-track rather than reading as fully anticlockwise; the "--"
+                                // readout carries that it is unknown.
+                                value = (levelState.value ?: (level.range.first + level.range.last) / 2).toFloat(),
+                                min = level.range.first.toFloat(),
+                                max = level.range.last.toFloat(),
+                                step = 1f,
+                                unit = if (level == OverlayLevel.HUE) "°" else "%",
+                                onValueChange = { onSliderLevel(level, it, markInteraction = false) },
+                                modifier = Modifier.fillMaxWidth(),
+                                signed = true,
+                                enabled = levelState.isUsable,
+                                valueText = levelState.value?.let { level.format(it) } ?: "--",
+                                accent = accent,
+                            )
+                        }
+                        PresetChips(state = state, accent = accent, widthDp = widthDp, onPreset = ::onPreset)
+                    }
+                },
+                PanelControl(
+                    id = "aspect_ratio",
+                    label = OverlayAction.ASPECT.label,
+                    enabled = state.isUsable(OverlayAction.ASPECT),
+                    reason = state.unavailable[OverlayAction.ASPECT],
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OverlayToggle(
+                            label = OverlayAction.ASPECT.label,
+                            checked = OverlayAction.ASPECT in state.active,
+                            onCheckedChange = { onAction(OverlayAction.ASPECT) },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = state.isUsable(OverlayAction.ASPECT),
+                            accent = accent,
+                        )
+                        AspectChips(state = state, accent = accent, widthDp = widthDp, onAspect = ::onAspect)
+                    }
+                },
+                PanelControl(
+                    id = "refresh_rate",
+                    label = OverlayAction.REFRESH_RATE.label,
+                    enabled = state.isUsable(OverlayAction.REFRESH_RATE),
+                    reason = state.unavailable[OverlayAction.REFRESH_RATE],
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OverlayToggle(
+                            label = OverlayAction.REFRESH_RATE.label,
+                            checked = OverlayAction.REFRESH_RATE in state.active,
+                            onCheckedChange = { onAction(OverlayAction.REFRESH_RATE) },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = state.isUsable(OverlayAction.REFRESH_RATE),
+                            accent = accent,
+                        )
+                        RateChips(state = state, accent = accent, widthDp = widthDp, onRate = ::onRate)
+                    }
+                },
+                toggle("rotation", OverlayAction.ROTATION_LOCK),
+            ),
+            PanelTab.OVERLAYS to listOf(
+                toggle("stats_pill", OverlayAction.PILL),
+                PanelControl(
+                    id = "crosshair",
+                    label = OverlayAction.CROSSHAIR.label,
+                    enabled = state.isUsable(OverlayAction.CROSSHAIR),
+                    reason = state.unavailable[OverlayAction.CROSSHAIR],
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OverlayToggle(
+                            label = OverlayAction.CROSSHAIR.label,
+                            checked = OverlayAction.CROSSHAIR in state.active,
+                            onCheckedChange = { onAction(OverlayAction.CROSSHAIR) },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = state.isUsable(OverlayAction.CROSSHAIR),
+                            accent = accent,
+                        )
+                        CrosshairChips(
+                            state = state,
+                            accent = accent,
+                            widthDp = widthDp,
+                            onCrosshairDesign = ::onCrosshairDesign,
+                            onCrosshairColour = ::onCrosshairColour,
+                        )
+                    }
+                },
+                toggle("hud", OverlayAction.HUD),
+                toggle("overlay_layout", OverlayAction.PANEL_LAYOUT),
+            ),
+            PanelTab.CAPTURE to listOf(
+                toggle("screenshot", OverlayAction.SCREENSHOT),
+                toggle("record", OverlayAction.RECORD),
+                toggle("torch", OverlayAction.FLASHLIGHT),
+            ),
+            PanelTab.SESSION to listOf(
+                toggle("silence_dnd", OverlayAction.DO_NOT_DISTURB),
+                toggle("open_gamecore", OverlayAction.OPEN_APP),
+            ),
+        )
     }
 
     /**
@@ -1061,9 +1522,297 @@ class GamingOverlayService : GameCoreService() {
         // writing one of those back would turn a panel narrowed to fit this screen into the width stored
         // for every screen.
         if (resizingPanel) finishPanelResize()
+        // The end-session hold is a child of panelJob, so the cancel above already stopped its loop; the
+        // fields are reset here so a reopened panel starts with an empty ring rather than mid-hold.
+        endHoldJob = null
+        endPressStart = null
+        endWasConfirmed = false
+        endProgress.value = 0f
+        panelTab.value = PanelTab.DEFAULT
         if (panelOpen.value) panelOpen.value = false
         panelLayoutShown = null
         windows?.hide(OverlaySlot.PANEL)
+    }
+
+    /**
+     * The finger landing on "End session": start the ring, unless there is no session to end.
+     *
+     * Guarded on the same `unavailable[STOP_SESSION]` the footer dims from — a press on a disabled footer
+     * does nothing rather than starting a hold that could never fire. The ring runs on its own fast loop
+     * (a child of [panelJob], so [closePanel]'s one cancel takes it down): [HoldToConfirm.firesAt] is the
+     * rising edge that ends the session exactly once, [endWasConfirmed] is the latch that stops a second
+     * fire while the finger stays down, and [endProgress] is what the footer paints. `elapsedRealtime` for
+     * the duration, monotonic, so a wall-clock correction mid-hold cannot skew the ring.
+     */
+    private fun onEndPressStart() {
+        if (OverlayAction.STOP_SESSION in panel.value.unavailable) return
+        endPressStart = SystemClock.elapsedRealtime()
+        endWasConfirmed = false
+        endHoldJob?.cancel()
+        endHoldJob = lifecycleScope.launch {
+            while (isActive) {
+                val now = SystemClock.elapsedRealtime()
+                if (endHold.firesAt(endWasConfirmed, endPressStart, now)) onAction(OverlayAction.STOP_SESSION)
+                endWasConfirmed = endHold.isConfirmedAt(endPressStart, now)
+                endProgress.value = endHold.progressAt(endPressStart, now)
+                // Nothing left to schedule once the ring is full — stop waking rather than spin at the top.
+                if (endHold.nextChangeAfterMillis(endPressStart, now) == null) break
+                delay(END_HOLD_FRAME_MILLIS)
+            }
+        }
+    }
+
+    /**
+     * The finger lifting (or the gesture cancelling): empty the ring and drop the latch.
+     *
+     * Setting [endPressStart] to null is the whole of the cancel — every [HoldToConfirm] query reads null as
+     * "not pressing" and returns zero progress — so an early release unwinds nothing. The fire, if it
+     * happened, already ran and closed the panel; this only matters for a release *before* the threshold.
+     */
+    private fun onEndPressRelease() {
+        endHoldJob?.cancel()
+        endHoldJob = null
+        endPressStart = null
+        endWasConfirmed = false
+        endProgress.value = 0f
+    }
+
+    // ------------------------------------------------------------------------------- quick sheet
+
+    private fun toggleQuickSheet() {
+        if (quickSheetOpen.value) closeQuickSheet() else openQuickSheet()
+    }
+
+    /**
+     * Opens the quick sheet (§4): a narrow strip hugging the screen edge nearest the button.
+     *
+     * The side is the button's own — a sheet on the far edge from the icon the user just tapped makes them
+     * look across the screen for what they opened — so it hugs the edge the button's centre is closer to,
+     * and its content is told which side that is so the header and close X sit against the same edge (see
+     * [QuickSheetSide]). The width is the sheet's own clamp read back as a fixed figure: the composable
+     * pins itself to at most [QUICK_SHEET_WIDTH_DP], so laying the window out at that width lets the right
+     * edge be placed exactly rather than after a measure, the same trick [openPanel] uses for its width.
+     *
+     * The vertical anchor mirrors the panel's: grow down from the button's top when it sits high enough,
+     * anchor the bottom and grow up when it does not, so a button near either edge does not push the sheet
+     * off screen. Neither y needs the sheet's height — [OverlayWindowSpec.anchorBottom] lets the window
+     * system do that subtraction with the real measurement.
+     *
+     * The full panel is closed first: the two are one gesture apart (a double tap, or the sheet's "More"),
+     * and both up at once would be two touchable windows fighting for the same outside tap.
+     */
+    private fun openQuickSheet() {
+        val manager = windows ?: return
+        if (panelOpen.value) closePanel()
+        val width = px(QUICK_SHEET_WIDTH_DP)
+        val margin = px(EDGE_MARGIN_DP)
+        val gap = px(PANEL_GAP_DP)
+        val frame = manager.frameFor(width, 0, margin)
+        val placement = manager.positionOf(OverlaySlot.BUTTON)
+        val button = manager.frameFor(OverlaySlot.BUTTON)
+        val buttonTop = placement?.y ?: 0
+        val buttonHeight = button?.windowHeight ?: 0
+        val buttonCentreX = (placement?.x ?: 0) + (button?.windowWidth ?: 0) / 2
+
+        // The edge the button's centre is nearer to. Ties go right, matching the panel's own left/right
+        // default; a measured screen is needed to know where the middle is, so an unmeasured frame keeps
+        // the sheet on the right rather than guessing a side from a zero width.
+        val onLeft = frame.isMeasured && buttonCentreX < frame.screenWidth / 2
+        val side = if (onLeft) QuickSheetSide.LEFT else QuickSheetSide.RIGHT
+        val x = if (onLeft) margin else maxOf(margin, frame.maxX)
+
+        val roomBelow = frame.screenHeight - (buttonTop + gap) - margin
+        val roomAbove = buttonTop - gap - margin
+        val below = !frame.isMeasured || roomBelow >= roomAbove
+        val y = if (below) {
+            (buttonTop + gap).coerceAtLeast(margin)
+        } else {
+            (frame.screenHeight - (buttonTop - gap)).coerceAtLeast(0)
+        }
+
+        val shown = manager.show(
+            slot = OverlaySlot.QUICK_SHEET,
+            spec = OverlayWindowSpec(
+                x = x,
+                y = y,
+                width = width,
+                touchable = true,
+                dismissOnOutsideTouch = true,
+                anchorBottom = !below,
+            ),
+            host = host,
+        ) {
+            val state by panel.collectAsState()
+            val tint by accent.collectAsState()
+            QuickSheetContent(state = state, accent = tint, side = side)
+        }
+        if (!shown) return
+        startQuickSheetWatch()
+    }
+
+    /**
+     * The sheet's UI, wired to the same handlers the panel uses.
+     *
+     * Split out of [openQuickSheet] so the `@OptIn` for the outside-touch filter sits on a composable
+     * rather than the whole opener. The filter is the §4 close-on-outside-tap: [OverlayWindowSpec]'s
+     * `dismissOnOutsideTouch` sets `FLAG_WATCH_OUTSIDE_TOUCH`, whose `ACTION_OUTSIDE` arrives here for a
+     * touch beyond the sheet, and returning `true` for it (and `false` for everything else, so the grid's
+     * own taps still reach the toggles) is what closes the sheet while the tap still falls through to the
+     * game — the same mechanism [OverlayControlPanel] uses.
+     *
+     * Pins, on-states and slider values are all read from [panel]: the watch fills it exactly as it does
+     * for the full panel, so the sheet's toggles agree with the panel's tiles by construction. Every touch
+     * — a toggle, a slider — pushes [lastQuickInteraction] forward, which is the whole of the auto-close
+     * reset (§4): the watch closes the sheet once that timestamp is [QuickSheetAutoClose.idleAfterMillis]
+     * stale.
+     */
+    @OptIn(ExperimentalComposeUiApi::class)
+    @Composable
+    private fun QuickSheetContent(state: OverlayPanelState, accent: Color, side: QuickSheetSide) {
+        val available: (QuickToggle) -> Boolean = { toggle ->
+            toggle.isAlwaysAvailable || state.isUsable(toggle.toOverlayAction())
+        }
+        val pins = QuickSheetPins
+            .resolve(preferences.overlay.value.quickPins, available)
+            .map { toggle ->
+                val action = toggle.toOverlayAction()
+                QuickToggleState(
+                    toggle = toggle,
+                    isOn = action in state.active,
+                    onToggle = {
+                        markQuickInteraction()
+                        onAction(action)
+                    },
+                )
+            }
+        val brightness = state.levelFor(OverlayLevel.BRIGHTNESS)
+        val volume = state.levelFor(OverlayLevel.VOLUME)
+        QuickSheet(
+            gameLabel = state.gameLabel,
+            clock = state.sessionElapsed.orEmpty(),
+            pins = pins,
+            brightness = (brightness.value ?: 0).toFloat(),
+            onBrightnessChange = { percent -> onQuickLevel(OverlayLevel.BRIGHTNESS, percent) },
+            volume = (volume.value ?: 0).toFloat(),
+            onVolumeChange = { percent -> onQuickLevel(OverlayLevel.VOLUME, percent) },
+            onMore = {
+                markQuickInteraction()
+                openPanel()
+            },
+            onClose = ::closeQuickSheet,
+            accent = accent,
+            side = side,
+            modifier = Modifier.pointerInteropFilter { event ->
+                if (event.actionMasked == MotionEvent.ACTION_OUTSIDE) {
+                    closeQuickSheet()
+                    true
+                } else {
+                    false
+                }
+            },
+        )
+    }
+
+    /**
+     * A quick-sheet slider moved. Displays now, commits when the finger settles.
+     *
+     * The [OverlaySlider] has one per-frame callback, not a drag-then-commit pair — it fires on every frame
+     * of a drag. Writing the device on each would be the per-frame settings write §9 rules out (brightness
+     * goes through the elevated shell), so this splits the one callback back into the two the service wants:
+     * [onDragLevel] moves the thumb every frame by writing the requested value into [panel], and a single
+     * commit is posted [QUICK_LEVEL_COMMIT_MILLIS] later, cancelling any still pending for this level, so
+     * the write lands once the finger has stopped rather than sixty times while it moves.
+     *
+     * [markInteraction] is the one thing that differs between the two callers. The sheet marks every drag so
+     * an adjustment keeps the sheet open (§4 auto-close); the panel has no such idle timer, so it passes
+     * `false`. The debounce, the per-level cancel and the commit are identical for both — one implementation
+     * of the "commit once the finger settles" rule, shared by every slider in the overlay.
+     *
+     * The value arrives as a **percent** (0..100), the value-space the [OverlaySlider] is configured with,
+     * so there is no ×100 conversion here — it is clamped and rounded straight to the `Int` the level layer
+     * stores.
+     */
+    private fun onSliderLevel(level: OverlayLevel, percent: Float, markInteraction: Boolean) {
+        if (markInteraction) markQuickInteraction()
+        onDragLevel(level, percent.roundToInt().coerceIn(0, 100))
+        quickLevelCommits[level]?.cancel()
+        quickLevelCommits[level] = lifecycleScope.launch {
+            delay(QUICK_LEVEL_COMMIT_MILLIS)
+            onCommitLevel(level)
+        }
+    }
+
+    /** The quick sheet's slider: [onSliderLevel] with the auto-close reset the sheet needs and the panel does not. */
+    private fun onQuickLevel(level: OverlayLevel, percent: Float) =
+        onSliderLevel(level, percent, markInteraction = true)
+
+    /** Push the auto-close deadline forward: any touch on the sheet resets its idle timer (§4). */
+    private fun markQuickInteraction() {
+        lastQuickInteraction = SystemClock.elapsedRealtime()
+    }
+
+    /**
+     * The sheet's watch, the sibling of [startPanelWatch].
+     *
+     * Probes once so the toggles and sliders are live the instant the sheet appears — the bug this exists
+     * to prevent is a sheet opened on its own (single tap, panel never touched) showing every toggle off,
+     * because [panel] is only ever filled by a running watch. Then it ticks: the session clock is
+     * arithmetic, so it is refreshed on the tick like the panel's, and the same loop checks the §4
+     * auto-close, closing the sheet once [lastQuickInteraction] is stale. Capabilities are cleared on open,
+     * not close, so an access granted since last time is retried — the rule [startPanelWatch] states.
+     *
+     * The auto-close gate is the user's setting ([OverlayConfig.quickAutoClose], default on). Turned off,
+     * the loop still runs — it is also what ticks the session clock in the sheet's header — it simply has
+     * no deadline to reach, and the sheet stays until something takes it down. The loop sleeps until the
+     * *sooner* of the next tick and the close deadline, so it is one scheduled wake rather than a busy
+     * poll (§9).
+     */
+    private fun startQuickSheetWatch() {
+        quickSheetOpen.value = true
+        denied.clear()
+        deniedLevels.clear()
+        markQuickInteraction()
+        quickSheetJob?.cancel()
+        quickSheetJob = lifecycleScope.launch {
+            probePanel()
+            // Read once, at open: a setting changed while the sheet is up would otherwise arm or disarm a
+            // deadline the user is in the middle of, and the sheet is short-lived enough that the next
+            // open picks the change up anyway.
+            val autoClose = QuickSheetAutoClose().takeIf { preferences.overlay.value.quickAutoClose }
+            while (isActive) {
+                val now = SystemClock.elapsedRealtime()
+                if (autoClose?.shouldCloseAt(lastQuickInteraction, now) == true) break
+                panel.value = panel.value.copy(sessionElapsed = sessionElapsedLabel())
+                // Two different nulls, which is why the setting is folded into `autoClose` rather than
+                // checked here: no machine at all means no deadline and a plain tick, while a machine
+                // returning null means the deadline has already passed and the sheet is going now.
+                val untilClose = when (autoClose) {
+                    null -> PANEL_TICK_MILLIS
+                    else -> autoClose.nextChangeAfterMillis(lastQuickInteraction, now) ?: break
+                }
+                delay(minOf(PANEL_TICK_MILLIS, untilClose))
+            }
+            // Reached only by the auto-close breaks above; an external close cancels this job at the
+            // `delay` and never arrives here, so there is no double close.
+            if (isActive) closeQuickSheet()
+        }
+    }
+
+    /**
+     * Takes the sheet down and stops everything it started.
+     *
+     * The one place the sheet closes, so it is where the watch is cancelled and the pending slider commits
+     * are dropped — a commit still posted when the sheet goes would write a level the user was mid-drag on
+     * and has since abandoned. The window is hidden last; the flag is dropped so [showButton] stops drawing
+     * the button as expanded.
+     */
+    private fun closeQuickSheet() {
+        quickSheetJob?.cancel()
+        quickSheetJob = null
+        quickLevelCommits.values.forEach { it.cancel() }
+        quickLevelCommits.clear()
+        if (quickSheetOpen.value) quickSheetOpen.value = false
+        windows?.hide(OverlaySlot.QUICK_SHEET)
     }
 
     /**
@@ -1430,7 +2179,9 @@ class GamingOverlayService : GameCoreService() {
     private fun onAction(action: OverlayAction) {
         lifecycleScope.launch {
             execute(action)
-            if (panelOpen.value) probePanel()
+            // Re-probe when either surface is up: the quick sheet draws the same [panel] the panel does,
+            // so a toggle fired from the sheet has to refresh its own on-states too, not just the panel's.
+            if (panelOpen.value || quickSheetOpen.value) probePanel()
         }
     }
 
@@ -1531,7 +2282,10 @@ class GamingOverlayService : GameCoreService() {
                 -> commitColour(level, requested)
             }
             reportLevel(level, outcome)
-            if (panelOpen.value) refreshLevels()
+            // Either surface: the sheet's brightness and volume sliders read back the same [panel] levels,
+            // so a commit from a sheet drag has to re-read them too — otherwise the thumb would sit at the
+            // requested percent rather than the one the device settled on.
+            if (panelOpen.value || quickSheetOpen.value) refreshLevels()
         }
     }
 
@@ -1847,6 +2601,9 @@ class GamingOverlayService : GameCoreService() {
      */
     private suspend fun takeScreenshot() {
         closePanel()
+        // A Screenshot pin can fire this from the sheet; the sheet has to leave the frame too, or the
+        // screenshot has GameCore's own strip in the corner of it.
+        closeQuickSheet()
         delay(CAPTURE_SETTLE_MILLIS)
         startCapture(CapturePurpose.SCREENSHOT)
     }
@@ -1857,6 +2614,7 @@ class GamingOverlayService : GameCoreService() {
             return
         }
         closePanel()
+        closeQuickSheet()
         delay(CAPTURE_SETTLE_MILLIS)
         startCapture(CapturePurpose.START_RECORDING)
     }
@@ -1971,6 +2729,24 @@ class GamingOverlayService : GameCoreService() {
         const val PANEL_GAP_DP = 8
 
         /**
+         * The width the quick sheet's window is laid out at, matching the top of the composable's own
+         * `widthIn(max = 300.dp)` clamp so the window is exactly as wide as the sheet draws itself. Laying
+         * it out at a known width is what lets [openQuickSheet] place the right edge without waiting for a
+         * measure — the same reason [openPanel] uses a fixed width for its own placement.
+         */
+        const val QUICK_SHEET_WIDTH_DP = 300
+
+        /**
+         * How long after a quick-sheet slider stops moving before its value is written.
+         *
+         * The sheet's slider fires on every drag frame (§4 gives it one callback, not the panel's
+         * drag-then-commit pair), and brightness writes go through the elevated shell. Coalescing to one
+         * write this long after the finger settles keeps a drag from being sixty shell round trips (§9),
+         * while being short enough that the level lands as soon as the user lets go. See [onQuickLevel].
+         */
+        const val QUICK_LEVEL_COMMIT_MILLIS = 120L
+
+        /**
          * The room below the button that is worth opening into.
          *
          * Above the button is only preferred when below is thinner than this *and* thinner than above:
@@ -1981,6 +2757,15 @@ class GamingOverlayService : GameCoreService() {
 
         /** The panel's session timer is the only thing in it that changes on a clock. */
         const val PANEL_TICK_MILLIS = 1_000L
+
+        /**
+         * How often the end-session ring repaints while the finger is held.
+         *
+         * Its own fast loop, not the 1 s [PANEL_TICK_MILLIS] — a ~2 s ring ticked once a second would jump
+         * in two steps. ~30 ms is roughly a frame; the loop stops the instant the hold completes, so it is
+         * live only for the couple of seconds a finger is actually down.
+         */
+        const val END_HOLD_FRAME_MILLIS = 30L
 
         /**
          * How long a Quick Trigger waits for the floating button before opening the panel anyway.

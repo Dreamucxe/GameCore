@@ -1,5 +1,6 @@
 package com.gamecore.domain.gaming
 
+import android.os.SystemClock
 import com.gamecore.core.model.ChangeOrigin
 import com.gamecore.core.model.ColorPreset
 import com.gamecore.core.model.GameProfile
@@ -22,6 +23,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -100,6 +102,8 @@ class GamingCoordinator @Inject constructor(
     private val reclaimer: BackgroundAppReclaimer,
     private val colorPresets: ColorPresetRepository,
     private val preferences: SecurePreferenceStore,
+    private val smartFeatures: SmartFeatureRunner,
+    private val networkAlertMonitor: NetworkAlertMonitor,
 ) {
 
     private val state = MutableStateFlow(GamingState.IDLE)
@@ -110,8 +114,24 @@ class GamingCoordinator @Inject constructor(
     /** The session being written, for a live duration and drain figure. */
     val session get() = recorder.active
 
+    /** The smart-feature chip status (§B/§D), for the pill and panel. [SmartFeatureStatus.NONE] when idle. */
+    val smartStatus get() = smartFeatures.status
+
+    /**
+     * Poor-connection alerts (§C5), for the detection service to post. Silent unless the running profile
+     * opted into both the check and the in-session alert; the service subscribes for its whole lifetime, so
+     * an alert raised the instant a session starts is not missed.
+     */
+    val networkAlerts: SharedFlow<NetworkAlert> get() = networkAlertMonitor.alerts
+
     /** The sampling and recording job for the current game. Null when nothing is being recorded. */
     private var sampling: Job? = null
+
+    /** True while a profile with a smart feature (§B/§D) is driving the current session. */
+    private var smartActive: Boolean = false
+
+    /** True while a profile with the network check (§C) is driving the current session. */
+    private var networkActive: Boolean = false
 
     /**
      * Handles detected games until the caller's scope is cancelled.
@@ -242,6 +262,22 @@ class GamingCoordinator @Inject constructor(
             )
         }
 
+        // The smart features (§B thermal, §D full performance) start after the profile is applied — the
+        // thermal machine seeds from the rate the profile just pinned, and the saver override reads the
+        // opening battery state. Both are dormant unless the profile opted in; the runner returns NONE and
+        // writes nothing otherwise. It ticks inside the same sampling collector, so there is no new loop.
+        smartActive = profile.thermalDownshiftEnabled || profile.fullPerformanceEnabled
+        if (smartActive) {
+            smartFeatures.onSessionStart(profile, monitor.snapshots.value)
+        }
+
+        // The network check (§C) starts alongside the smart features and ticks inside the same sampling
+        // collector for the same reason: it reads what the monitor already samples — the transport from each
+        // snapshot and the shared probe stream — so it opens no socket of its own and has nothing to
+        // unregister on stop. Dormant unless the profile opted in; the monitor writes and emits nothing then.
+        networkActive = profile.networkCheckEnabled
+        if (networkActive) networkAlertMonitor.onSessionStart(profile)
+
         if (profile.freeRamOnLaunch) freeMemoryFor(event)
     }
 
@@ -351,13 +387,28 @@ class GamingCoordinator @Inject constructor(
                 colorCorrection = colour?.correction,
             )
 
-            launch { monitor.latencyProbes.collect { recorder.offerProbe(it) } }
+            launch {
+                monitor.latencyProbes.collect { probe ->
+                    recorder.offerProbe(probe)
+                    // The same probe the latency log is folded from, handed to the §C5 alert check. The
+                    // clock is elapsedRealtime, not wall time, so the one-a-minute rate limit holds even if
+                    // the system clock is changed mid-session. Does nothing unless the profile armed alerts.
+                    if (networkActive) networkAlertMonitor.onProbe(probe, SystemClock.elapsedRealtime())
+                }
+            }
 
             var recordedUpTo = opening.capturedAtMillis
             monitor.snapshots.filterNotNull().collect { snapshot ->
                 if (snapshot.capturedAtMillis <= recordedUpTo) return@collect
                 recordedUpTo = snapshot.capturedAtMillis
                 recorder.offer(snapshot, snapshot.capturedAtMillis)
+                // The smart features evaluate on the same tick as the sample is recorded — no separate
+                // timer or listener (§B5/§D4). The runner publishes its own status flow for the pill/panel
+                // chip; the writes it performs are recorded in the shared restore journal.
+                if (smartActive) smartFeatures.onTick(snapshot)
+                // The network check latches the transport carrying the session from this same snapshot
+                // (§C7); its alert half runs off the probe stream above rather than here.
+                if (networkActive) networkAlertMonitor.onTick(snapshot)
             }
         }
     }
@@ -384,6 +435,24 @@ class GamingCoordinator @Inject constructor(
         // before its first sample.
         sampling?.cancelAndJoin()
         sampling = null
+
+        // Smart features close before the record does, so their summary (downshift count, lowest rate,
+        // whether the saver was overridden) is on the session row, and the battery saver is restored to
+        // the value it was captured at. The refresh rate is put back by the shared journal in
+        // applier.restore() below, alongside everything else the profile changed.
+        if (smartActive) {
+            val summary = smartFeatures.onSessionEnd()
+            recorder.recordSmartSummary(summary)
+            smartActive = false
+        }
+
+        // The network summary (the transport the session ran on, §C7) is stamped the same way and for the
+        // same reason: before the row is closed, so `aggregate` copies it through unchanged. Unlike the
+        // smart features there is nothing to put back — the check only ever read what the monitor sampled.
+        if (networkActive) {
+            recorder.recordNetworkSummary(networkAlertMonitor.onSessionEnd())
+            networkActive = false
+        }
 
         // The game's overlays go before its settings do. A crosshair left on the launcher for the length
         // of a restore — which can be several seconds of failed shell calls — is the most visible way to

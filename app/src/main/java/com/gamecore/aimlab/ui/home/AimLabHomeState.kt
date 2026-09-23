@@ -16,10 +16,16 @@ import com.gamecore.aimlab.engine.TrainingMode
  * [loading] is the first frame before the flows have emitted, kept distinct from "loaded and empty": the
  * empty banner is a real, considered state and must not flash up for the split second before the database
  * answers.
+ *
+ * [isCompact] is the user's own density setting, carried here rather than read from a theme local so the
+ * screen stays testable and so Aim Lab spaces its cards exactly as the rest of the app does (§8: the tab
+ * keeps all of its content and takes the design tokens). It is a display preference and nothing else — it
+ * changes no Aim Lab behaviour, no orientation handling and no dormancy rule.
  */
 data class AimLabHomeState(
     val loading: Boolean = true,
     val summary: AimLabSummary = AimLabSummary.NONE,
+    val isCompact: Boolean = false,
 ) {
     /** True once at least one valid session has been recorded — the gate between the strip and the banner. */
     val hasHistory: Boolean get() = summary.totalSessions > 0
@@ -33,7 +39,8 @@ data class AimLabHomeState(
  *  - [lastSession] is the most recently started one, for "last session" and its "when".
  *  - the four bests are pulled from [PersonalRecord]s, so they honour the same record separation and
  *    higher/lower-is-better direction the record book uses. A best that has never been set is null, and the
- *    screen renders null as the em-dash absence marker rather than a zero.
+ *    screen renders null as the words "Not set" — never a zero, and never a bare em-dash, which a screen
+ *    reader does not announce.
  *
  * Reaction is the one where *lower* wins, so [bestReactionMillis] is the smallest fastest-reaction value on
  * record; the others are the largest.

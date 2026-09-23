@@ -126,6 +126,54 @@ data class GameProfileEntity(
     @ColumnInfo(name = "cpu_affinity")
     val cpuAffinity: String?,
 
+    // ---- 3.5 additions (schema v11). All default OFF/absent so every existing profile reads exactly as
+    // it did before the feature existed — the same discipline free_ram_on_launch and cpu_affinity follow.
+
+    /** Thermal auto-downshift opt-in (§B). Off for every pre-3.5 profile. */
+    @ColumnInfo(name = "thermal_downshift_enabled")
+    val thermalDownshiftEnabled: Boolean = false,
+
+    /** Trigger by temperature limit (tenths °C), or null to trigger on platform status alone. */
+    @ColumnInfo(name = "thermal_limit_deci")
+    val thermalLimitDeciCelsius: Int? = null,
+
+    /** Trigger at or above this [com.gamecore.core.model.ThermalClass] name, or null for temperature only. */
+    @ColumnInfo(name = "thermal_status_floor")
+    val thermalStatusFloor: String? = null,
+
+    /** The rate the ladder will not step below (Hz), or null to use the profile's target as the floor. */
+    @ColumnInfo(name = "thermal_floor_rate")
+    val thermalFloorRateHz: Float? = null,
+
+    /** Hysteresis in tenths °C; null falls back to the machine's 5 °C default. */
+    @ColumnInfo(name = "thermal_hysteresis_deci")
+    val thermalHysteresisDeciCelsius: Int? = null,
+
+    @ColumnInfo(name = "thermal_sustain_hot_millis")
+    val thermalSustainHotMillis: Long? = null,
+
+    @ColumnInfo(name = "thermal_sustain_cool_millis")
+    val thermalSustainCoolMillis: Long? = null,
+
+    @ColumnInfo(name = "thermal_min_interval_millis")
+    val thermalMinIntervalMillis: Long? = null,
+
+    /** Network check opt-in (§C). Off for every pre-3.5 profile. */
+    @ColumnInfo(name = "network_check_enabled")
+    val networkCheckEnabled: Boolean = false,
+
+    /** Whether the pre-launch check warns on a poor result (§C4). */
+    @ColumnInfo(name = "network_prelaunch_warn")
+    val networkPreLaunchWarn: Boolean = true,
+
+    /** In-session poor-network alerts (§C5). */
+    @ColumnInfo(name = "network_alerts_enabled")
+    val networkAlertsEnabled: Boolean = false,
+
+    /** "Keep full performance" opt-in (§D). Off for every pre-3.5 profile. */
+    @ColumnInfo(name = "full_performance_enabled")
+    val fullPerformanceEnabled: Boolean = false,
+
     @ColumnInfo(name = "updated_at")
     val updatedAtMillis: Long,
 )

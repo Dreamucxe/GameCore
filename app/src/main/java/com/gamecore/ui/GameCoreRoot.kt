@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +60,7 @@ import com.gamecore.aimlab.ui.sensitivity.SensitivityLabScreen
 import com.gamecore.aimlab.ui.stats.StatisticsScreen
 import com.gamecore.aimlab.ui.tracking.TrackingScreen
 import com.gamecore.aimlab.ui.weapon.WeaponEditorScreen
+import com.gamecore.domain.setup.WizardEntry
 import com.gamecore.ui.capability.CapabilityScreen
 import com.gamecore.ui.color.ColorScreen
 import com.gamecore.ui.components.ScreenPadding
@@ -80,6 +82,8 @@ import com.gamecore.ui.sessions.SessionReportScreen
 import com.gamecore.ui.sessions.SessionsScreen
 import com.gamecore.ui.settings.NeverCloseScreen
 import com.gamecore.ui.settings.SettingsScreen
+import com.gamecore.ui.setup.SetupHealthScreen
+import com.gamecore.ui.setup.SetupWizardScreen
 import com.gamecore.ui.shizuku.ShizukuScreen
 import com.gamecore.ui.storage.GameStorageScreen
 import com.gamecore.ui.theme.GameCoreTheme
@@ -106,9 +110,9 @@ import kotlinx.coroutines.flow.StateFlow
  *  - **The bar floats over the content** (§27), which is why every screen ends its scroll with
  *    `ScreenBottomPadding` rather than the bar reserving space in the layout.
  *
- * The bar shows on the five [Destination.Top] routes and slides away everywhere else. That is not
- * decoration: a screen reached with a back arrow has a place to go back to, and offering five tabs on top
- * of it would leave the user unsure which of the two gestures keeps their unsaved profile edit.
+ * The bar shows on the [Destination.Top] routes and slides away everywhere else. That is not decoration: a
+ * screen reached with a back arrow has a place to go back to, and offering the tabs on top of it would
+ * leave the user unsure which of the two gestures keeps their unsaved profile edit.
  */
 @Composable
 fun GameCoreRoot(
@@ -121,7 +125,13 @@ fun GameCoreRoot(
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     val requested by openAt.collectAsStateWithLifecycle()
-    val onTab = Destination.top.any { it.route == route }
+    // §A1. How the setup wizard should present this launch, or null until the facts have loaded. The root
+    // acts on exactly one value — a fresh install — and the Home card owns the rest.
+    val launchEntry by viewModel.launchEntry.collectAsStateWithLifecycle()
+    // The bar Aim Lab's own switch decides the shape of: five tabs while the section is on, four while it
+    // is off, so the bar never offers a tab whose route is not in the graph (§9).
+    val tabs = Destination.topFor(settings.aimLabEnabled)
+    val onTab = tabs.any { it.route == route }
 
     // One navigator for both the bar and the screens, so a tab tap and a card tap cannot end up with
     // different back-stack rules for the same destination.
@@ -135,6 +145,22 @@ fun GameCoreRoot(
         val destination = requested ?: return@LaunchedEffect
         navController.openUnguarded(destination)
         onOpened()
+    }
+
+    // §A1. A fresh install is taken straight into the wizard, once. `openUnguarded` for the same reason the
+    // intent request above uses it — this is the app moving itself on a cold start, before Home has settled,
+    // so the tap guard would drop it — and `launchSingleTop` there stops a second push if this recomposes
+    // while the wizard is already on top. The `rememberSaveable` latch is what makes it *once*: it survives
+    // rotation and process death, so a user who rotates the phone on the welcome step is not thrown back to
+    // it. Completing or dismissing the wizard flips [launchEntry] away from FullWizard, so returning to Home
+    // never reopens it; null — the not-yet-loaded state — is deliberately not FullWizard, so the wizard does
+    // not flash open over an upgrader's Home before their profiles have been read.
+    var routedToWizard by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(launchEntry) {
+        if (!routedToWizard && launchEntry == WizardEntry.FullWizard) {
+            routedToWizard = true
+            navController.openUnguarded(Destination.SetupWizard)
+        }
     }
 
     // Turning Aim Lab on or off changes which routes exist at all, and a NavHost whose graph changes drops
@@ -176,7 +202,7 @@ fun GameCoreRoot(
                         exit = fadeOut(tween(BAR_OUT_MILLIS)) +
                             slideOutVertically(tween(BAR_OUT_MILLIS)) { it / 2 },
                     ) {
-                        FloatingNavBar(currentRoute = route, onSelect = open)
+                        FloatingNavBar(currentRoute = route, tabs = tabs, onSelect = open)
                     }
                 }
             }
@@ -185,7 +211,7 @@ fun GameCoreRoot(
 }
 
 /**
- * §27's floating bottom navigation: the five top destinations on a plate that clears the system bar.
+ * §27's floating bottom navigation: the top destinations on a plate that clears the system bar.
  *
  * Material's own [NavigationBar] does the work, and it is used rather than a hand-rolled row of buttons
  * for the part that is not visible — the tab role and selected state a screen reader announces, which a
@@ -202,10 +228,15 @@ fun GameCoreRoot(
  *
  * [currentRoute] is compared here rather than a [Destination.Top] being handed in, so that while the bar
  * slides away toward a screen that is not a tab, nothing is highlighted — which is the truth.
+ *
+ * [tabs] is passed in rather than read from [Destination.top] here, because the set is not constant: Aim
+ * Lab can be switched off, and the bar has to be four items on the frame that happens rather than five
+ * with one that goes nowhere. The caller owns the settings, so the caller decides.
  */
 @Composable
 private fun FloatingNavBar(
     currentRoute: String?,
+    tabs: List<Destination.Top>,
     onSelect: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -222,7 +253,7 @@ private fun FloatingNavBar(
             tonalElevation = 0.dp,
             windowInsets = WindowInsets(0, 0, 0, 0),
         ) {
-            Destination.top.forEach { destination ->
+            tabs.forEach { destination ->
                 NavigationBarItem(
                     selected = destination.route == currentRoute,
                     onClick = { onSelect(destination) },
@@ -281,7 +312,11 @@ private fun GameCoreNav(
         exitTransition = { fadeOut(tween(SCREEN_OUT_MILLIS)) },
     ) {
         composable(Destination.Home.route) {
-            HomeScreen(onNavigate = open, aimLabEnabled = aimLabEnabled)
+            HomeScreen(
+                onNavigate = open,
+                aimLabEnabled = aimLabEnabled,
+                onOpenProfile = { name -> navController.push(Destination.ProfileEditor.routeFor(name)) },
+            )
         }
 
         composable(Destination.Games.route) {
@@ -295,12 +330,17 @@ private fun GameCoreNav(
             HudScreen(
                 onOpenEditor = { id -> navController.push(Destination.HudEditor.routeFor(id)) },
                 onNavigate = open,
+                onBack = back,
             )
         }
 
         composable(Destination.Sessions.route) {
             SessionsScreen(
                 onOpenReport = { id -> navController.push(Destination.SessionReport.routeFor(id)) },
+                // The history merges both repositories, so a row can be an Aim Lab run, and a run's report
+                // is Aim Lab's own results screen. That route is only registered while Aim Lab is enabled;
+                // the screen already knows that and stops offering the tap when it is off.
+                onOpenAimLabRun = { id -> navController.push(Destination.AimLabResults.routeFor(id)) },
                 onNavigate = open,
             )
         }
@@ -334,6 +374,25 @@ private fun GameCoreNav(
 
         composable(Destination.Permissions.route) {
             PermissionsScreen(onBack = back)
+        }
+
+        // §A2. The wizard pops itself rather than taking a back callback: every way out of it — Finish,
+        // Skip setup, or backing out of the confirm — means the same thing to the stack, and a screen
+        // with three exits that all do one thing should express that once.
+        composable(Destination.SetupWizard.route) {
+            SetupWizardScreen(onFinished = back)
+        }
+
+        // §A3. `onAddGame` is the one thing this screen cannot do with `onNavigate`: the "no games yet"
+        // row has to land on a *new* profile, which is a parameterised route rather than a Destination.
+        composable(Destination.SetupHealth.route) {
+            SetupHealthScreen(
+                onBack = back,
+                onNavigate = open,
+                onAddGame = {
+                    navController.push(Destination.ProfileEditor.routeFor(Destination.NEW_PROFILE))
+                },
+            )
         }
 
         composable(Destination.Tools.route) {
@@ -414,10 +473,10 @@ private fun GameCoreNav(
         // need a second mapping from card to destination that could only ever disagree with the first.
         if (aimLabEnabled) {
             composable(Destination.AimLabHome.route) {
-                AimLabHomeScreen(
-                    onOpen = { route -> navController.push(route) },
-                    onBack = back,
-                )
+                // No back arrow: this is a tab now (§9), and the bar is underneath it. A header arrow on a
+                // tab would offer a second, different way out of a screen the user did not arrive at from
+                // anywhere in particular.
+                AimLabHomeScreen(onOpen = { route -> navController.push(route) })
             }
 
             // Every training screen forces the user's Aim Lab orientation while it is on top and restores

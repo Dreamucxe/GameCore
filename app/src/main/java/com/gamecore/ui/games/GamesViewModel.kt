@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.model.DetectionAvailability
 import com.gamecore.core.model.GameProfile
+import com.gamecore.core.model.profileChips
 import com.gamecore.core.system.AppLauncher
 import com.gamecore.core.system.InstalledAppLister
 import com.gamecore.data.preferences.SecurePreferenceStore
@@ -12,6 +13,8 @@ import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.domain.gaming.GameDetector
 import com.gamecore.domain.gaming.GamingCoordinator
 import com.gamecore.domain.gaming.ProfileApplier
+import com.gamecore.domain.network.PreLaunchNetworkCheck
+import com.gamecore.ui.components.PendingLaunch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -38,6 +41,7 @@ class GamesViewModel @Inject constructor(
     private val launcher: AppLauncher,
     private val detector: GameDetector,
     private val applier: ProfileApplier,
+    private val preLaunchCheck: PreLaunchNetworkCheck,
     private val preferences: SecurePreferenceStore,
     coordinator: GamingCoordinator,
 ) : ViewModel() {
@@ -59,7 +63,9 @@ class GamesViewModel @Inject constructor(
             detectionNote = (own.detection as? DetectionAvailability.Unavailable)?.reason,
             detectionRemedy = (own.detection as? DetectionAvailability.Unavailable)?.remedy,
             autoApply = settings.autoApplyProfiles,
+            isCompact = settings.compactDensity,
             busyPackage = own.busyPackage,
+            pendingLaunch = own.pendingLaunch,
             message = own.message,
         )
     }.stateIn(
@@ -95,7 +101,11 @@ class GamesViewModel @Inject constructor(
         label = profile.label,
         isEnabled = profile.isEnabled,
         isInstalled = installedApps.isInstalled(profile.packageName),
-        summary = profileSummary(profile),
+        // The same generator the Home hero uses, so one profile cannot describe itself two ways on two
+        // screens. `changesNothing` is read off the profile beside it rather than inferred from the chip
+        // list: the two deliberately disagree on a fresh profile, and the card needs both to be honest.
+        chips = profileChips(profile),
+        changesNothing = profile.changesNothing,
         isPlaying = false,
     )
 
@@ -125,15 +135,65 @@ class GamesViewModel @Inject constructor(
      *
      * Only a failure is reported. A launch that worked is already obvious — the game is on screen — and a
      * message posted behind it would be read on the way back out, minutes later, as news.
+     *
+     * The §C4 network check runs in front of this when the profile asked for it. A warning holds the
+     * launch for the user to decide rather than cancelling it — see [PreLaunchNetworkCheck].
      */
     fun play(packageName: String) {
         if (local.value.busyPackage != null) return
         viewModelScope.launch {
-            val outcome = launcher.launch(packageName)
-            if (!outcome.isApplied) {
-                local.value = local.value.copy(message = outcome.message)
+            val profile = profiles.profileFor(packageName)
+            val warning = profile?.let { preLaunchCheck.evaluate(it) }
+            if (warning != null) {
+                local.value = local.value.copy(
+                    pendingLaunch = PendingLaunch(packageName, warning.reason),
+                )
+                return@launch
             }
+            start(packageName)
         }
+    }
+
+    /**
+     * Starts the game, reporting only a refusal.
+     *
+     * Split out of [play] so the §C4 dialog's two launching answers reach the same call this does — a
+     * second call site would be a second chance to diverge.
+     */
+    private suspend fun start(packageName: String) {
+        val outcome = launcher.launch(packageName)
+        if (!outcome.isApplied) {
+            local.value = local.value.copy(message = outcome.message)
+        }
+    }
+
+    /** Launches the game the §C4 warning is holding, leaving the profile's setting alone. */
+    fun confirmPendingLaunch() {
+        val pending = local.value.pendingLaunch ?: return
+        local.value = local.value.copy(pendingLaunch = null)
+        viewModelScope.launch { start(pending.packageName) }
+    }
+
+    /**
+     * Launches the game and stops this profile asking again.
+     *
+     * Only the pre-launch warning is turned off. The check itself and the in-session alert are separate
+     * switches and are left exactly as the user set them.
+     */
+    fun dontWarnPendingLaunch() {
+        val pending = local.value.pendingLaunch ?: return
+        local.value = local.value.copy(pendingLaunch = null)
+        viewModelScope.launch {
+            profiles.profileFor(pending.packageName)?.let { profile ->
+                profiles.save(profile.copy(networkPreLaunchWarn = false))
+            }
+            start(pending.packageName)
+        }
+    }
+
+    /** Drops the held launch. Nothing starts and nothing is saved. */
+    fun dismissPendingLaunch() {
+        local.value = local.value.copy(pendingLaunch = null)
     }
 
     fun setAutoApply(enabled: Boolean) {
@@ -223,5 +283,6 @@ class GamesViewModel @Inject constructor(
 private data class LocalState(
     val detection: DetectionAvailability? = null,
     val busyPackage: String? = null,
+    val pendingLaunch: PendingLaunch? = null,
     val message: String? = null,
 )

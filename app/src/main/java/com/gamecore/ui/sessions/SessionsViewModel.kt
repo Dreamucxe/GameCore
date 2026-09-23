@@ -2,11 +2,25 @@ package com.gamecore.ui.sessions
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gamecore.aimlab.AimLabRepository
+import com.gamecore.aimlab.engine.SessionSummary
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.model.GameSession
+import com.gamecore.core.model.SessionFilterKind
+import com.gamecore.core.model.SessionKind
+import com.gamecore.core.model.SessionOrder
 import com.gamecore.core.model.SessionSort
 import com.gamecore.core.model.SessionStatistics
 import com.gamecore.core.model.StopReason
+import com.gamecore.core.model.ThermalClass
+import com.gamecore.core.model.ThermalClassifier
+import com.gamecore.core.model.ThermalSensorType
+import com.gamecore.core.model.aimLabTiles
+import com.gamecore.core.model.filterByKind
+import com.gamecore.core.model.gameSessionTiles
+import com.gamecore.core.model.kindChips
+import com.gamecore.core.model.sortSessions
+import com.gamecore.core.model.tilesSentence
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.SessionRepository
 import com.gamecore.domain.gaming.GamingCoordinator
@@ -24,12 +38,18 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * The history list: what was recorded, sorted and filtered, with the totals above it.
+ * The history list: everything this device recorded, sorted and filtered, with the totals above it.
  *
- * The list is derived from one flow of finished sessions and re-derived when the sort or the filter
- * changes, rather than re-queried. That is a deliberate trade: history is small — a session is one row,
- * not one row per sample — and holding it means the filter chips can carry their own counts, which is
- * what makes them worth having.
+ * §6 makes this the one screen that answers "what have I been doing", and GameCore records that in two
+ * places: [SessionRepository] holds a row per game session, [AimLabRepository] holds a row per training
+ * run. They share no table, no model and no id space. Merging them is therefore done here, in the only
+ * layer allowed to know about both — a read, and nothing but a read. No DAO, entity, repository or
+ * schema is touched by this screen, which is also why an Aim Lab row has no Delete: this ViewModel is a
+ * reader of that repository, not an owner of it.
+ *
+ * Both lists are held in memory and re-derived when the sort or a chip changes, rather than re-queried.
+ * That is a deliberate trade: history is small — a session is one row, not one row per sample — and
+ * holding it is what lets every chip carry a real count instead of a guess.
  *
  * Deletion is the one destructive thing this screen does, so it goes through [askDelete] and needs a
  * second press. [SecurePreferenceStore] holds whether that confirmation is wanted; nothing here decides
@@ -38,12 +58,14 @@ import javax.inject.Inject
 @HiltViewModel
 class SessionsViewModel @Inject constructor(
     private val repository: SessionRepository,
+    private val aimLab: AimLabRepository,
     private val coordinator: GamingCoordinator,
     private val preferences: SecurePreferenceStore,
 ) : ViewModel() {
 
     private data class LocalState(
         val sort: SessionSort = SessionSort.NEWEST_FIRST,
+        val kind: SessionFilterKind = SessionFilterKind.ALL,
         val filterPackage: String? = null,
         val statistics: SessionStatistics = SessionStatistics.EMPTY,
         val isLoading: Boolean = true,
@@ -52,25 +74,53 @@ class SessionsViewModel @Inject constructor(
         val message: String? = null,
     )
 
+    /**
+     * A row together with the figures it is ordered by.
+     *
+     * The ordering keys have to survive the merge, and neither model can supply them for the other: a
+     * training run has no battery drain and a game session has no score. Pairing each row with a
+     * [SessionOrder] lets one pure comparator order the merged list, instead of sorting each repository
+     * separately and interleaving the results — which is not the same list.
+     */
+    private data class Entry(val row: SessionRow, val order: SessionOrder)
+
     private val local = MutableStateFlow(LocalState())
 
     val state: StateFlow<SessionsUiState> = combine(
         repository.sessions,
+        aimLab.sessions,
         coordinator.session,
         preferences.settings,
         local,
-    ) { sessions, active, settings, own ->
-        val filtered = sessions.filter { own.filterPackage == null || it.packageName == own.filterPackage }
+    ) { sessions, runs, active, settings, own ->
+        val entries = sessions.map(::gameEntry) +
+            runs.map { run -> aimLabEntry(run, isReachable = settings.aimLabEnabled) }
+
+        // The package chips only exist under All and Games, so a stale selection is ignored rather than
+        // silently emptying the Aim Lab list — every Aim Lab row has a null package and would match none.
+        val packageFilter = own.filterPackage.takeIf { own.kind != SessionFilterKind.AIMLAB }
+
+        val shown = sortSessions(
+            filterByKind(entries, own.kind) { it.row.kind }
+                .filter { packageFilter == null || it.row.packageName == packageFilter },
+            own.sort,
+        ) { it.order }
+
         SessionsUiState(
-            rows = repository.sort(filtered, own.sort).map(::rowOf),
+            rows = shown.map { it.row },
             statistics = statisticRowsOf(own.statistics),
             sort = own.sort,
-            filters = filtersOf(sessions),
-            filterPackage = own.filterPackage,
-            isEmpty = sessions.isEmpty(),
+            kinds = kindChips(gameCount = sessions.size, aimLabCount = runs.size),
+            kind = own.kind,
+            games = filtersOf(sessions),
+            filterPackage = packageFilter,
+            totalCount = entries.size,
+            isEmpty = entries.isEmpty(),
             isLoading = own.isLoading,
+            isCompact = settings.compactDensity,
             live = active?.let(::liveOf),
             trackingEnabled = settings.trackSessions,
+            aimLabAvailable = settings.aimLabEnabled,
             pendingDelete = own.pendingDelete,
             confirmBeforeDelete = settings.confirmBeforeDiscard,
             pendingClear = own.pendingClear,
@@ -89,9 +139,9 @@ class SessionsViewModel @Inject constructor(
     /**
      * Re-reads the totals.
      *
-     * The list itself is a flow and needs no prompting, but [SessionRepository.statistics] is a set of
-     * aggregate queries and is deliberately not one — it is re-read when the screen resumes and after a
-     * deletion, which are the only two moments its answer can have changed.
+     * The lists are flows and need no prompting, but [SessionRepository.statistics] is a set of aggregate
+     * queries and is deliberately not one — it is re-read when the screen resumes and after a deletion,
+     * which are the only two moments its answer can have changed.
      */
     fun onResume() {
         viewModelScope.launch { reloadStatistics() }
@@ -106,9 +156,28 @@ class SessionsViewModel @Inject constructor(
         local.value = local.value.copy(sort = sort)
     }
 
+    /**
+     * §6's All / Games / Aim Lab chips.
+     *
+     * Choosing Aim Lab drops any game selection rather than remembering it, because the two filters are
+     * not independent: a game chip under Aim Lab selects nothing at all, and coming back to Games with a
+     * chip still held down from several taps ago is a list the user did not ask for.
+     */
+    fun setKind(kind: SessionFilterKind) {
+        local.value = local.value.copy(
+            kind = kind,
+            filterPackage = local.value.filterPackage.takeIf { kind != SessionFilterKind.AIMLAB },
+        )
+    }
+
     /** Null means every game. The chip for it is always present, so there is a way back. */
     fun setFilter(packageName: String?) {
         local.value = local.value.copy(filterPackage = packageName)
+    }
+
+    /** The way out of an empty filtered list, in one press rather than two. */
+    fun clearFilters() {
+        local.value = local.value.copy(kind = SessionFilterKind.ALL, filterPackage = null)
     }
 
     /**
@@ -116,9 +185,12 @@ class SessionsViewModel @Inject constructor(
      *
      * A session is a record of something that happened and there is no undo, so the confirmation is the
      * default. The user can switch it off in Settings, and [delete] honours that by being reachable
-     * directly.
+     * directly. [SessionRow.canDelete] is checked rather than trusted: only a game session is this
+     * screen's to remove, and a row that cannot be deleted must not be able to open a dialog saying it
+     * will be.
      */
     fun askDelete(row: SessionRow) {
+        if (!row.canDelete) return
         if (state.value.confirmBeforeDelete) {
             local.value = local.value.copy(pendingDelete = row)
         } else {
@@ -147,11 +219,15 @@ class SessionsViewModel @Inject constructor(
      * Clearing everything always asks, whatever the setting says.
      *
      * [askDelete] honours `confirmBeforeDiscard` because one row is a small loss and the user chose to
-     * accept it. This is every row, and there is no setting under which deleting the whole history on a
+     * accept it. This is every row, and there is no setting under which deleting a whole history on a
      * single press is what someone meant.
+     *
+     * The gate is the game count rather than the visible rows: the list may be showing nothing but Aim
+     * Lab runs, and a button that then deleted something the user cannot see would be worse than one
+     * that is simply not offered.
      */
     fun askClear() {
-        if (state.value.rows.isEmpty()) return
+        if (state.value.gameCount == 0) return
         local.value = local.value.copy(pendingClear = true)
     }
 
@@ -182,119 +258,107 @@ class SessionsViewModel @Inject constructor(
     // ------------------------------------------------------------------------ record → row
 
     /**
-     * One recorded session as the strings its row draws.
+     * One recorded game session as the strings its card draws.
      *
      * The "at least" prefix is decided here and nowhere else. A session GameCore stopped *watching* has a
      * duration that is a floor rather than a length, and the row says which it has rather than leaving the
      * reader to assume the more flattering one.
+     *
+     * The three tiles come from [gameSessionTiles], which is where every "Unavailable" and its reason is
+     * decided. None of that is in the card: §6's rule is that an unrecorded figure reads as the word plus
+     * a reason, and a rule that lives in a composable is a rule no test can hold it to.
      */
-    private fun rowOf(session: GameSession): SessionRow {
+    private fun gameEntry(session: GameSession): Entry {
         val duration = Formatters.durationCoarse(session.durationMillis())
-        return SessionRow(
+        val tiles = gameSessionTiles(session)
+        val row = SessionRow(
+            key = GAME_KEY_PREFIX + session.id,
             id = session.id,
+            kind = SessionKind.GAME,
+            packageName = session.packageName,
             label = session.gameLabel,
-            started = Formatters.relativeDay(session.startedAtMillis) +
-                " · " + Formatters.clockTime(session.startedAtMillis),
+            started = startedText(session.startedAtMillis),
             duration = if (session.hasCompleteDuration) duration else "at least $duration",
-            figures = figuresOf(session),
-            note = session.stopReason?.takeUnless { it.durationIsComplete }?.label,
+            tiles = tiles,
+            spokenTiles = tilesSentence(tiles),
+            note = session.stopReason?.takeUnless { it.durationIsComplete }
+                ?.let { "${it.label} — the duration above is a floor, not a length." },
         )
-    }
-
-    private fun figuresOf(session: GameSession): List<Readout> =
-        listOf(batteryFigure(session), temperatureFigure(session), processorFigure(session))
-
-    /**
-     * Battery as a rate where that is honest, and as points where it is not.
-     *
-     * [com.gamecore.core.model.BatteryDrain.percentPerHour] is null for a charging session and for
-     * anything under five minutes. The points lost are still a measurement in both cases, so they are
-     * what the row shows — with the reason the rate is missing underneath it.
-     */
-    private fun batteryFigure(session: GameSession): Readout {
-        val drain = session.drain() ?: return readoutOf(
-            label = "Battery",
-            value = ABSENT,
-            detail = "No level was recorded at the end of this session.",
-            tone = Tone.Muted,
-        )
-        val perHour = drain.percentPerHour
-        return when {
-            perHour != null -> readoutOf(
-                label = "Battery",
-                value = Formatters.percentValue(perHour, decimals = 1) + " / hour",
-                detail = "${drain.pointsLost}% over ${Formatters.durationCoarse(drain.elapsedMillis)}",
-                tone = Tone.Neutral,
-            )
-            drain.wasCharging -> readoutOf(
-                label = "Battery",
-                value = "${drain.pointsLost}%",
-                detail = "A charger was connected, so a drain rate would not mean anything.",
-                tone = Tone.Muted,
-            )
-            else -> readoutOf(
-                label = "Battery",
-                value = "${drain.pointsLost}%",
-                detail = "Too short to quote a rate from.",
-                tone = Tone.Muted,
-            )
-        }
-    }
-
-    /** The peak, not the average: a thermal figure is about the worst moment, not the typical one. */
-    private fun temperatureFigure(session: GameSession): Readout {
-        val peak = session.peakTemperatureDeciCelsius ?: return readoutOf(
-            label = "Peak heat",
-            value = ABSENT,
-            detail = "No temperature sensor was readable during this session.",
-            tone = Tone.Muted,
-        )
-        return readoutOf(
-            label = "Peak heat",
-            value = Formatters.temperature(peak),
-            detail = session.averageTemperatureDeciCelsius
-                ?.let { "Average ${Formatters.temperature(it)}" },
-            tone = if (peak >= WARM_DECI_CELSIUS) Tone.Warning else Tone.Neutral,
+        return Entry(
+            row = row,
+            order = SessionOrder(
+                startedAtMillis = session.startedAtMillis,
+                durationMillis = session.durationMillis(),
+                batteryPercentPerHour = session.drain()?.percentPerHour,
+            ),
         )
     }
 
     /**
-     * Processor use, suppressed below ten samples.
+     * One Aim Lab run as the same kind of card.
      *
-     * [GameSession.hasMeaningfulAggregates] is the rule and it is worth honouring on the list as well as
-     * the report: the mean of three readings taken in a session's first six seconds describes a loading
-     * screen, and printing it beside a real average would make the two look like the same kind of number.
+     * The title is "Aim Lab" rather than the mode, because §6 puts the mode in the first tile and a card
+     * that says "Flick training" twice is not telling the reader anything the second time. It then reads
+     * exactly as a game's card does: what produced the session, when, and for how long.
+     *
+     * [isReachable] is the Aim Lab setting. The run is listed either way — it happened, and a history
+     * that quietly omits part of itself because of an unrelated toggle is the failure this merge exists
+     * to prevent — but with Aim Lab switched off its report is not in the navigation graph, so the card
+     * stops claiming to be tappable and says why.
      */
-    private fun processorFigure(session: GameSession): Readout {
-        val average = session.averageCpuPercent
-        if (average == null || !session.hasMeaningfulAggregates) {
-            return readoutOf(
-                label = "Processor",
-                value = ABSENT,
-                detail = if (average == null) {
-                    "Processor use was not readable on this device."
-                } else {
-                    "Only ${Formatters.count(session.sampleCount, "sample")} — too few to average."
-                },
-                tone = Tone.Muted,
-            )
-        }
-        return readoutOf(
-            label = "Processor",
-            value = Formatters.percentValue(average),
-            detail = session.peakCpuPercent?.let { "Peak ${Formatters.percentValue(it)}, device-wide" },
-            fraction = (average / 100f).coerceIn(0f, 1f),
-            tone = Tone.Neutral,
+    private fun aimLabEntry(run: SessionSummary, isReachable: Boolean): Entry {
+        val tiles = aimLabTiles(
+            modeLabel = run.mode.label,
+            difficultyLabel = run.difficulty.label,
+            isScored = run.mode.scored,
+            score = run.score,
+            hits = run.hits,
+            shots = run.shots,
+            accuracyPercent = run.accuracyPercent,
+            isLegacyScoring = run.isLegacy2D,
+        )
+        val row = SessionRow(
+            key = AIM_LAB_KEY_PREFIX + run.id,
+            id = run.id,
+            kind = SessionKind.AIMLAB,
+            packageName = null,
+            label = AIM_LAB_LABEL,
+            started = startedText(run.startedAtMillis),
+            duration = Formatters.durationCoarse(run.durationMillis),
+            tiles = tiles,
+            spokenTiles = tilesSentence(tiles),
+            note = if (isReachable) null else AIM_LAB_OFF_NOTE,
+            canOpen = isReachable,
+            // Read-only: this screen reads the Aim Lab repository and never writes to it. Runs are
+            // deleted from Aim Lab's own history screen, which owns them.
+            canDelete = false,
+        )
+        return Entry(
+            row = row,
+            order = SessionOrder(
+                startedAtMillis = run.startedAtMillis,
+                durationMillis = run.durationMillis,
+                // Nothing measures battery during a training run, so there is no rate to sort by. Null
+                // sorts last under "Highest battery use" rather than being read as zero drain.
+                batteryPercentPerHour = null,
+            ),
         )
     }
+
+    /** "Today · 14:32". The same line for both kinds, so a merged list reads as one list. */
+    private fun startedText(startedAtMillis: Long): String =
+        Formatters.relativeDay(startedAtMillis) + " · " + Formatters.clockTime(startedAtMillis)
 
     // ------------------------------------------------------------------------ the totals
 
     /**
-     * The summary above the list, across everything recorded rather than the current filter.
+     * The summary above the list, across every game session rather than across the current filter.
      *
-     * Deliberately across everything: the chips already carry per-game counts, and a total that moved when
-     * a filter changed would be a different quantity wearing the same label.
+     * Deliberately across everything: the chips already carry their own counts, and a total that moved
+     * when a filter changed would be a different quantity wearing the same label. It stays a game-session
+     * summary — [SessionStatistics] comes from aggregate queries over that table alone, and folding
+     * training runs into "total play time" would need both a second set of queries and a claim about what
+     * the two kinds of session have in common.
      */
     private fun statisticRowsOf(statistics: SessionStatistics): List<Readout> {
         if (!statistics.hasData) return emptyList()
@@ -302,7 +366,7 @@ class SessionsViewModel @Inject constructor(
             readoutOf(
                 label = "Sessions",
                 value = statistics.sessionCount.toString(),
-                detail = "Recorded and kept on this device only.",
+                detail = "Game sessions recorded and kept on this device only.",
             ),
             readoutOf(
                 label = "Total play time",
@@ -329,14 +393,25 @@ class SessionsViewModel @Inject constructor(
             tone = Tone.Neutral,
         )
         statistics.peakTemperatureDeciCelsius?.let { peak ->
+            // §2: the word and the colour come from the one classifier, so this row cannot end up
+            // reading "Normal" in red the way the pre-redesign screens could.
+            val thermal = ThermalClassifier.classify(peak, ThermalSensorType.CPU)
             rows += readoutOf(
                 label = "Hottest reading",
                 value = Formatters.temperature(peak),
-                detail = "Across every session recorded.",
-                tone = if (peak >= WARM_DECI_CELSIUS) Tone.Warning else Tone.Neutral,
+                detail = "${thermal.label} · across every session recorded.",
+                tone = toneOf(thermal.level),
             )
         }
         return rows
+    }
+
+    /** The one place a [ThermalClass] becomes a [Tone] on this screen, so the two cannot drift apart. */
+    private fun toneOf(thermal: ThermalClass): Tone = when (thermal) {
+        ThermalClass.CRITICAL, ThermalClass.HOT -> Tone.Danger
+        ThermalClass.WARM -> Tone.Warning
+        ThermalClass.OK -> Tone.Neutral
+        ThermalClass.UNAVAILABLE -> Tone.Muted
     }
 
     // ------------------------------------------------------------------------ chips and the live row
@@ -345,7 +420,9 @@ class SessionsViewModel @Inject constructor(
      * One chip per game that appears in history, each carrying its own count.
      *
      * The counts are the reason the list is held in memory at all. They come from the same list the rows
-     * come from, so a chip reading "4" and a filtered list of five rows is not a state this can reach.
+     * come from, so a chip reading "4" above a filtered list of five rows is not a state this can reach.
+     * Aim Lab runs are deliberately absent: they have no package, and §6's kind chips above already
+     * select them.
      */
     private fun filtersOf(sessions: List<GameSession>): List<SessionFilter> {
         if (sessions.isEmpty()) return emptyList()
@@ -366,9 +443,12 @@ class SessionsViewModel @Inject constructor(
      *
      * Its duration is read from the clock rather than from a stored end time, and its aggregates are as of
      * the last flush — which is why the detail line says how many samples are behind them instead of
-     * presenting a figure that looks as settled as a finished session's.
+     * presenting figures that look as settled as a finished session's. The tiles are the same three §6
+     * asks for, and they suppress themselves honestly: under ten samples they say so rather than showing
+     * the average of a loading screen.
      */
     private fun liveOf(session: GameSession): LiveSession = LiveSession(
+        packageName = session.packageName,
         label = session.gameLabel,
         duration = Formatters.duration(session.durationMillis()),
         detail = if (session.sampleCount > 0) {
@@ -376,16 +456,30 @@ class SessionsViewModel @Inject constructor(
         } else {
             "Recording · waiting for the first sample"
         },
+        tiles = gameSessionTiles(session),
     )
 
     private companion object {
         const val SUBSCRIPTION_GRACE_MILLIS = 5_000L
 
-        /** 42 °C at the battery or an SoC zone is where a phone starts to feel warm in the hand. */
-        const val WARM_DECI_CELSIUS = 420
+        /**
+         * Row key prefixes, and the reason a key is a string at all.
+         *
+         * The two repositories number their rows independently, so a game session and a training run can
+         * both be id 5. A `LazyColumn` keyed on the raw id would throw the first time a user has both,
+         * which is every user who opens Aim Lab once.
+         */
+        const val GAME_KEY_PREFIX = "game-"
+        const val AIM_LAB_KEY_PREFIX = "aim-"
+
+        const val AIM_LAB_LABEL = "Aim Lab"
+
+        const val AIM_LAB_OFF_NOTE =
+            "Aim Lab is switched off in Settings, so this run's report cannot be opened from here. The " +
+                "run itself is kept."
 
         const val DELETED_MESSAGE = "Session deleted."
-        const val CLEARED_MESSAGE = "Session history cleared."
+        const val CLEARED_MESSAGE = "Game session history cleared."
         const val STOPPED_MESSAGE = "Recording stopped. What was measured has been kept."
     }
 }

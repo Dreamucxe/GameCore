@@ -376,6 +376,52 @@ internal object GameCoreMigrations {
         }
     }
 
+    /**
+     * Version 10 → 11: the 3.5 features' per-profile settings and session-summary columns.
+     *
+     * The one additive migration for the whole 3.5 run, and it is additive in the strictest sense: every
+     * statement is an `ALTER TABLE … ADD COLUMN`, no table is rebuilt, no row is rewritten, no index
+     * changes. Every new profile column defaults to the feature being off (or its parameter absent), so a
+     * profile written by 3.4 reads back through the mappers exactly as it did — thermal auto-downshift,
+     * the network check and "keep full performance" are all off, which is also a new profile's default.
+     * The session columns are all nullable with no default: a session recorded before these features ran,
+     * or one where the feature was off, has nothing to report and reads NULL, which the mappers turn back
+     * into "not recorded" rather than a row of zeroes that would read as a real measurement.
+     *
+     * The column names and types match [GameProfileEntity] and [SessionEntity] exactly, so Room's own
+     * schema validation against `11.json` passes without a rebuild.
+     */
+    val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // --- game_profiles: thermal auto-downshift (§B) ---
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `thermal_downshift_enabled` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `thermal_limit_deci` INTEGER")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `thermal_status_floor` TEXT")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `thermal_floor_rate` REAL")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `thermal_hysteresis_deci` INTEGER")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `thermal_sustain_hot_millis` INTEGER")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `thermal_sustain_cool_millis` INTEGER")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `thermal_min_interval_millis` INTEGER")
+            // --- game_profiles: network check (§C) ---
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `network_check_enabled` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `network_prelaunch_warn` INTEGER NOT NULL DEFAULT 1")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `network_alerts_enabled` INTEGER NOT NULL DEFAULT 0")
+            // --- game_profiles: full performance (§D) ---
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `full_performance_enabled` INTEGER NOT NULL DEFAULT 0")
+
+            // --- sessions: 3.5 summary columns, all nullable ---
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `downshift_count` INTEGER")
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `lowest_rate_hz` REAL")
+            // Just the transport for the network side: the session's latency average is already
+            // `avg_latency` (v5) and its variability the `latency_*` columns, and this app stores no
+            // packet-loss figure it cannot measure. A parallel avg/jitter/loss trio here would only
+            // duplicate or invent those, so it is not added.
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `transport` TEXT")
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `full_performance_overridden` INTEGER")
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `system_reenabled_saver` INTEGER")
+        }
+    }
+
     /** Every migration, in order, for [androidx.room.RoomDatabase.Builder.addMigrations]. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
@@ -387,5 +433,6 @@ internal object GameCoreMigrations {
         MIGRATION_7_8,
         MIGRATION_8_9,
         MIGRATION_9_10,
+        MIGRATION_10_11,
     )
 }

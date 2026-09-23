@@ -3,14 +3,65 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.2%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore-3.2.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.5%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
 no backend, nothing you record leaves the device
 
 ---
 
-## New in 3.2
+## New in 3.5
+
+Four features about the app setting itself up, and then looking after the session on its own.
+
+- **A first-run setup wizard, and a Setup health screen.** A new install now walks through what
+  GameCore needs — which features you want, and only the permissions those features actually use —
+  instead of leaving you on an empty Home screen to work it out by trial. Nothing is granted on your
+  behalf and no step is required: skip all of it and the app still runs, minus whatever you skipped.
+  Afterwards, **Settings › Setup health** lists every item with its real state — Ready, Not set up,
+  or Unavailable with the reason Android gave — a Fix button that opens the exact system page, and a
+  re-check when you come back from it. Upgrading never re-runs the wizard over your existing
+  profiles; it offers a dismissible Home card instead, and only when something genuinely needs
+  attention.
+- **Thermal auto-downshift.** Off by default, per profile. When the device holds a temperature you
+  choose, or the thermal status Android reports crosses the floor you set, the refresh rate steps
+  down — and steps back up once it has stayed cool long enough. The hysteresis, the sustain window
+  in each direction and the minimum time between changes are all yours to set, so it cannot sit
+  there oscillating. The session records how many times it stepped down and the lowest rate it
+  reached.
+- **Network check.** Off by default, per profile. Before a launch it can warn you about the
+  connection you are about to play on; during a session it can alert you when the connection turns
+  poor — high latency, jitter, or probes that stop coming back at all. It still refuses to call any
+  of that packet loss, because a TCP handshake that times out is not a dropped packet. It reads the
+  transport, the Wi-Fi band and the link speed — **never the network name, never the BSSID, and it
+  asks for no location permission**, which is what Android would demand before handing those over.
+  Anything Android will not report shows as Unavailable with the reason.
+- **Keep full performance under battery saver.** Off by default, per profile. Battery saver caps
+  the refresh rate and the governor on most builds; with this on, a profile holds full performance
+  for that game anyway, puts the saver's own behaviour back when the game exits, and notices — and
+  records — when the system switched the saver back on behind it. No new access of any kind: it
+  goes through the same elevated shell the refresh-rate setting already uses.
+
+Also since 3.2, and until now in no release:
+
+- **A redesigned in-game overlay.** The floating button has real states — dimmed when idle, an
+  orange or red dot when the shared thermal classifier says hot or critical — three sizes and four
+  corner snaps, and it keeps its place per orientation. Tapping it opens a **quick sheet**: a narrow
+  panel on the screen edge nearest the button, holding up to six toggles you pin yourself, the
+  brightness and volume sliders and the session clock, so the things you reach for mid-game no
+  longer need the full panel and most of the game stays visible. The full panel is still there,
+  behind **More** or an optional double tap, now divided into Display, Overlays, Capture and Session
+  tabs with a hold-to-confirm End session (the older split-across-both-edges layout keeps its
+  previous design). The stats pill comes as a compact single line or a detailed card, and it stops
+  sampling the moment nothing is looking at it — including when the screen goes off, where it used
+  to keep ticking.
+- **Themes.** Follow system, Dark, Light or **AMOLED black** — a true `#000000` background that
+  switches OLED pixels off rather than dimming them — with eight accent colours or one you pick
+  yourself, applied across the app and the overlay windows alike.
+
+---
+
+## Version 3.2
 
 Two additions to the Aim Lab, both about the weapon and the way you hold the phone.
 
@@ -207,17 +258,30 @@ as an argument vector, so there is no shell in the chain to expand a glob or spl
 
 ## Features
 
+### Appearance
+
+Follow system, Dark, Light or AMOLED black, with a fixed palette of eight accents or a custom
+colour of your own. The choice applies to the whole app and to the overlay windows the service
+draws over your game, so the two never disagree.
+
 ### Floating overlay
 
-- A draggable gaming button that snaps to whichever edge its centre is nearer, stays on
-  screen when the device rotates, and remembers where you left it.
-- Tapping it opens a control panel **directly below the button**, wherever the button
-  happens to be — or, if you switch its layout, split across both screen edges with the game
-  visible between them. Brightness and media-volume sliders, saturation, contrast and hue,
-  screenshot, screen recording, Do Not Disturb, orientation lock, flashlight, colour presets,
-  display shape, refresh rate, the panel's own layout, and a shortcut back into the game.
-- A configurable performance pill: pick which stats it shows and set its position, size,
-  opacity, corner radius, text size and update interval.
+- A draggable gaming button that snaps to any of four corners — or to the nearest edge on a free
+  drag — remembers its place separately for portrait and landscape, survives rotation, and says
+  what it knows without being opened: dimmed after a few seconds idle, with a small orange or red
+  dot when the device is hot or critical.
+- Tapping it opens a **quick sheet** on the screen edge nearest the button: up to six toggles you
+  pin yourself, brightness and media volume, the game's own icon and the session clock. It is
+  narrow on purpose, so the game stays visible beside it.
+- Behind **More** — or an optional double tap on the button — is the full panel, in **Display**,
+  **Overlays**, **Capture** and **Session** tabs: brightness and media-volume sliders, saturation,
+  contrast and hue, screenshot, screen recording, Do Not Disturb, orientation lock, flashlight,
+  colour presets, display shape, refresh rate, a shortcut back into the game, and a
+  hold-to-confirm End session. Switching the panel's layout to split-across-both-edges keeps the
+  earlier design, with the game visible between the two halves.
+- A configurable performance pill, as a compact single line or a detailed card: pick which stats
+  it shows and set its position, size, opacity, corner radius, text size and update interval. It
+  samples only while something is looking at it — and not at all once the screen is off.
 - A crosshair overlay with eleven designs — cross, dot, ring, ring-and-dot, cross-in-ring, T,
   X, chevron, corner brackets, box, or a PNG you import — and independent control of size,
   thickness, centre gap, rotation, opacity, colour and screen position. The drawn designs
@@ -231,7 +295,9 @@ as an argument vector, so there is no shell in the chain to expand a glob or spl
 One profile per package, holding target refresh rate, brightness, display size, orientation
 lock, screen timeout, media volume, Do Not Disturb, which overlays to raise, a HUD layout, a
 crosshair preset, a colour preset, a performance mode, whether to free memory on launch, and
-whether to track the session.
+whether to track the session — plus the three 3.5 smart features: thermal auto-downshift, the
+network check, and holding full performance under battery saver. All three are off unless you
+turn them on for that game.
 
 Every adjustable field is nullable, and **null means leave it alone** — not "use a
 default". A profile that sets only brightness records what brightness was, changes it, and
@@ -539,25 +605,20 @@ per-session latency fold, and every word the shareable card is allowed to print.
 
 ## Your data, and the network
 
-There is no backend, no account system, no cloud sync, no analytics and no crash reporting.
-Everything GameCore records — profiles, HUD layouts, sessions, samples — lives in its own
-encrypted database on the device, and none of it leaves on its own. The session card is the one
-artefact meant to leave, and it leaves the way a screenshot does: drawn on the device, then
+There is no backend, no account system, no cloud sync, no analytics, no crash reporting and no
+advertising SDK. Everything GameCore records — profiles, HUD layouts, sessions, samples — lives in
+its own encrypted database on the device, and none of it leaves on its own. The session card is the
+one artefact meant to leave, and it leaves the way a screenshot does: drawn on the device, then
 handed to whichever app you choose from your own share sheet. GameCore has nowhere of its own to
 send it.
 
-Two things do touch the network, and both are honest about it on the screens they belong to:
+One thing touches the network, and it is honest about it on the screen it belongs to:
 
 - **The latency probe.** The single network call GameCore's own code ever makes — a payload-free
   TCP handshake to a host you choose, timed and closed the instant it connects. It exists because
   you asked for a ping figure, and it can be switched off. No payload, ever, in either direction.
-- **One banner ad** at the bottom of GameCore's own screens, served by Google's Mobile Ads SDK.
-  That SDK makes its own connections to Google — which is why the app declares the `AD_ID`
-  permission — and carries none of the data the sections above describe. Ads never appear over a
-  game: the overlay, crosshair and HUD are drawn by a service that cannot host one, and the
-  editing screens, which are where you fine-tune those, show a live preview rather than a banner.
-  Where the law requires it, Google's consent form appears before any ad can load, and Settings
-  keeps a row that reopens it on devices where a form applies.
+  The 3.5 network check reuses this same probe rather than adding one of its own; everything else
+  it reports — the transport, the Wi-Fi band, the link speed — it reads from Android on the device.
 
 ## License
 

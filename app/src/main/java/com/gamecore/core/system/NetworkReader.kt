@@ -65,6 +65,8 @@ class NetworkReader @Inject constructor(
         val transport = transportOf(capabilities)
         val counters = sampleCounters()
 
+        val wifiInfo = if (transport == NetworkTransport.WIFI) wifiConnectionInfo() else null
+
         NetworkReading(
             transport = transport,
             isConnected = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
@@ -80,6 +82,8 @@ class NetworkReader @Inject constructor(
             rxRateBytesPerSecond = rate(counters) { it.rxBytes },
             txRateBytesPerSecond = rate(counters) { it.txBytes },
             signalStrengthDbm = signalStrength(transport, capabilities),
+            wifiFrequencyMhz = wifiInfo?.frequencyMhz ?: Observed.notPresent("No Wi-Fi frequency reported"),
+            wifiLinkSpeedMbps = wifiInfo?.linkSpeedMbps ?: Observed.notPresent("No Wi-Fi link speed reported"),
         ).also { if (counters != null) previous = counters }
     }
 
@@ -221,6 +225,43 @@ class NetworkReader @Inject constructor(
         }
     }
 
+    /**
+     * The connected Wi-Fi's centre frequency and negotiated link speed (§C3).
+     *
+     * Both come from `WifiInfo` — `frequency` in MHz, `linkSpeed` in Mbps — and neither needs a new
+     * permission: they describe the network GameCore's own process is already on, not a scan of others
+     * (which is what `ACCESS_FINE_LOCATION` gates). `getConnectionInfo()` is deprecated from API 31 but
+     * still returns both for the active connection, and GameCore never reads SSID or BSSID off it. A
+     * sentinel or a throw becomes absent, reported with a reason rather than a zero.
+     */
+    @Suppress("DEPRECATION")
+    private fun wifiConnectionInfo(): WifiInfoReading? = try {
+        val wifi = context.applicationContext
+            .getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        val info = wifi?.connectionInfo
+        val freq = info?.frequency ?: -1
+        val speed = info?.linkSpeed ?: -1
+        WifiInfoReading(
+            frequencyMhz = if (freq in PLAUSIBLE_WIFI_MHZ) {
+                Observed.of(freq, DataSource.CONNECTIVITY)
+            } else {
+                Observed.notPresent("This device did not report a Wi-Fi frequency")
+            },
+            linkSpeedMbps = if (speed > 0) {
+                Observed.of(speed, DataSource.CONNECTIVITY, Precision.ESTIMATED)
+            } else {
+                Observed.notPresent("This device did not report a Wi-Fi link speed")
+            },
+        )
+    } catch (error: Throwable) {
+        null
+    }
+
+    private data class WifiInfoReading(
+        val frequencyMhz: Observed<Int>,
+        val linkSpeedMbps: Observed<Int>,
+    )
+
     private fun unsupportedCounters(): Observed<Long> =
         Observed.notPresent("This device does not report traffic counters")
 
@@ -236,5 +277,12 @@ class NetworkReader @Inject constructor(
 
         /** -120 dBm to -10 dBm. Anything outside is a sentinel. */
         val PLAUSIBLE_DBM = -120..-10
+
+        /**
+         * Wi-Fi centre frequencies span 2.4 GHz through the 6 GHz band; anything outside is `WifiInfo`'s
+         * "-1 / not connected" sentinel. Deliberately wider than [com.gamecore.domain.network.wifiBand]'s
+         * own ranges, which do the band classification — this only rejects the sentinel.
+         */
+        val PLAUSIBLE_WIFI_MHZ = 2000..7300
     }
 }

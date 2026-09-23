@@ -56,11 +56,16 @@ import com.gamecore.ui.components.colour
  * the crosshair has its own, and layouts are here — so this screen carries a row for each with its current
  * state as the trailing text. A user who cannot see their stats can find out from one screen which of the
  * four is actually up, which is the question the overlay permission being revoked always produces.
+ *
+ * [onBack] exists because of §9: this screen used to hold the third tab, and that slot is now Aim Lab's.
+ * It is reached from Home, from the profile editor's empty state and from Settings — always *from*
+ * somewhere — so it is pushed, and a pushed screen owes the user a back arrow rather than only a gesture.
  */
 @Composable
 fun HudScreen(
     onOpenEditor: (Long) -> Unit,
     onNavigate: (Destination) -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HudViewModel = hiltViewModel(),
 ) {
@@ -81,6 +86,7 @@ fun HudScreen(
             ScreenHeader(
                 title = "HUD",
                 subtitle = subtitleFor(state),
+                onBack = onBack,
                 action = {
                     TextButton(onClick = { onOpenEditor(Destination.NEW_LAYOUT) }) { Text("New") }
                 },

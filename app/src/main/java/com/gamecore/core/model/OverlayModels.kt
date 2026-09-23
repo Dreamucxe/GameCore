@@ -21,6 +21,21 @@ data class OverlayConfig(
     val cornerRadiusDp: Int = 12,
     val isVertical: Boolean = false,
     val showLabels: Boolean = true,
+    val displayMode: PillDisplayMode = PillDisplayMode.DETAILED,
+    // The quick sheet's pinned toggles (spec §4), as an ordered list of `QuickToggle` *names* rather than
+    // the enum itself. `QuickToggle` lives in `com.gamecore.core.overlay`, which depends on this model and
+    // not the reverse — holding the typed enum here would be the first back-edge in that dependency, the
+    // same wall the button's `PositionFraction` fields hit below (see the note there). So the service
+    // parses these names through `QuickToggle.of` at its boundary, exactly as it does the pill's stats.
+    // Empty means "never set" — the service falls back to `QuickToggle.DEFAULT_SET`, matching how
+    // `QuickSheetPins.normalise` collapses an empty list to the filtered defaults.
+    val quickPins: List<String> = emptyList(),
+    // Whether the quick sheet closes itself after a spell with no touches (spec §4). Default on, because
+    // the sheet is a transient thing summoned over a game and a user who opens it mid-match and then goes
+    // back to playing should not have to dismiss it. Off is for the user who wants it to stay put while
+    // they change three things in a row; the sheet then closes only when they close it, tap outside it, or
+    // something else takes it down.
+    val quickAutoClose: Boolean = true,
 ) {
     fun normalised(): OverlayConfig = copy(
         stats = stats.distinct().take(MAX_STATS),
@@ -28,6 +43,10 @@ data class OverlayConfig(
         textSizeSp = textSizeSp.coerceIn(TEXT_SIZE_RANGE),
         opacityPercent = opacityPercent.coerceIn(OPACITY_RANGE),
         cornerRadiusDp = cornerRadiusDp.coerceIn(CORNER_RANGE),
+        // Deduped and capped like `stats`. The names are not validated here — this layer cannot see
+        // `QuickToggle` to know which are real — so an unknown name survives normalisation and is dropped
+        // later by `QuickToggle.of` at the service boundary, just as `readStats` drops unknown stat names.
+        quickPins = quickPins.distinct().take(MAX_QUICK_PINS),
     )
 
     companion object {
@@ -52,6 +71,39 @@ data class OverlayConfig(
         const val MIN_INTERVAL_MILLIS = 500L
         const val MAX_INTERVAL_MILLIS = 10_000L
         const val MAX_STATS = 8
+
+        /**
+         * The quick sheet's pin cap. Mirrors `com.gamecore.core.overlay.QuickSheetPins.MAX_PINS`, which is
+         * the authority — that layer sees `QuickToggle` and does the real availability-aware normalise. This
+         * copy exists only so a config assembled here is never larger than that cap; it cannot import the
+         * overlay layer to share the constant (the same layering reason `quickPins` holds names, not enums).
+         * Keep the two in sync: 6.
+         */
+        const val MAX_QUICK_PINS = 6
+    }
+}
+
+/**
+ * How the stats pill lays its readings out (spec §3).
+ *
+ * Two shapes, one list of stats. [COMPACT] is the single glanceable line — values with units joined by
+ * a middot, "62°C · 74% · 120 Hz", plus the thermal dot the button already carries, for a user who wants
+ * a temperature check without a panel over the game. [DETAILED] is the labelled card of cells the pill
+ * has always drawn, for a user watching several numbers at once.
+ *
+ * This is the *shape*, orthogonal to [OverlayConfig.isVertical] (which is the *axis* of the detailed
+ * card — a row or a column). A compact line is always one line, so it ignores the axis. The default is
+ * [DETAILED] on purpose: it is byte-for-byte the pill every existing user already has, so an install that
+ * updates over the old version and never opens this setting sees no change at all.
+ */
+enum class PillDisplayMode(val label: String) {
+    COMPACT("Compact"),
+    DETAILED("Detailed"),
+    ;
+
+    companion object {
+        /** Parse a stored name back to a mode, falling back to [DETAILED] for an unknown or absent value. */
+        fun of(name: String?): PillDisplayMode = entries.firstOrNull { it.name == name } ?: DETAILED
     }
 }
 
@@ -103,6 +155,28 @@ enum class PanelLayoutStyle(val label: String, val description: String) {
 }
 
 /**
+ * The three named button sizes from spec §2, each a point on the existing `sizeDp` scale.
+ *
+ * Presets, not a replacement for the size slider: the chip is a one-tap way to the sizes most people
+ * want, and the slider stays for anyone who wants a value between them. Because the size is still stored
+ * as one `sizeDp`, a slider left at 50 dp is a real, kept size that simply matches no preset — [of]
+ * returns null there and no chip lights up, which is the truth rather than rounding the user's choice to
+ * the nearest name behind their back. The three dp values are the range's floor, its shipped default and
+ * its ceiling, so the presets and the slider can never disagree about what is allowed.
+ */
+enum class ButtonSizePreset(val label: String, val sizeDp: Int) {
+    SMALL("Small", FloatingButtonConfig.MIN_SIZE_DP),
+    MEDIUM("Medium", FloatingButtonConfig.DEFAULT_SIZE_DP),
+    LARGE("Large", FloatingButtonConfig.MAX_SIZE_DP),
+    ;
+
+    companion object {
+        /** The preset a stored size *exactly* is, or null when the slider sits between two of them. */
+        fun of(sizeDp: Int): ButtonSizePreset? = entries.firstOrNull { it.sizeDp == sizeDp }
+    }
+}
+
+/**
  * The floating button's configuration and remembered position.
  *
  * [snapToEdge] is on by default because a button that sits under the user's thumb in the
@@ -119,12 +193,24 @@ data class FloatingButtonConfig(
     val show: Boolean = true,
     val x: Int = 0,
     val y: Int = 400,
-    val sizeDp: Int = 48,
+    val sizeDp: Int = DEFAULT_SIZE_DP,
     val opacityPercent: Int = 80,
     val snapToEdge: Boolean = true,
     /** Fades to this while a game is in the foreground and the panel is closed. */
     val idleOpacityPercent: Int = 40,
     val hapticFeedback: Boolean = true,
+    /**
+     * Whether a double tap on the button opens the full panel, spec §4's "optional setting".
+     *
+     * Off, so a single tap opens the quick sheet with no added latency — see
+     * [com.gamecore.core.overlay.FloatingGameButton], where a null double-tap handler makes every tap
+     * fire the instant the finger lifts. Turning this on wires the second handler: the first tap of a
+     * pair still fires immediately (the quick sheet opens), and a second within the double-tap window
+     * swaps it for the panel. The user reaches the panel from the sheet's "More" button either way; this
+     * only adds the shortcut for those who want it, and defaults off because an armed double tap makes a
+     * stray second tap open a surface the user did not ask for.
+     */
+    val doubleTapForPanel: Boolean = false,
     /**
      * How wide the control panel opens, in dp. One preference for every game.
      *
@@ -175,12 +261,37 @@ data class FloatingButtonConfig(
      * [com.gamecore.domain.overlay.QuickAppLauncher].
      */
     val quickAppPackages: List<String> = emptyList(),
+    /**
+     * The button's remembered position as a fraction of the usable display, stored separately for portrait
+     * and landscape (spec §2). Null in an orientation the button has not been placed in, and in that case
+     * the raw [x]/[y] pixels are used — so an install from before these fields existed, and a button never
+     * dragged in a given orientation, behave exactly as they did.
+     *
+     * Fractions rather than pixels because a pixel set on a 1080-wide portrait screen is meaningless on a
+     * 2400-wide landscape one: the fraction re-resolves against whatever display the button is actually
+     * placed on ([com.gamecore.core.overlay.OverlayFrame.fromFraction]). Two pairs rather than one because
+     * the usable box is a different shape in each orientation and a single fraction would drift between them.
+     *
+     * Stored as four flat floats rather than a value type because [com.gamecore.core.overlay.PositionFraction]
+     * lives in the overlay layer, which depends on this model and not the other way round; the service
+     * converts between the two.
+     */
+    val portraitXFraction: Float? = null,
+    val portraitYFraction: Float? = null,
+    val landscapeXFraction: Float? = null,
+    val landscapeYFraction: Float? = null,
 ) {
     fun normalised(): FloatingButtonConfig = copy(
         sizeDp = sizeDp.coerceIn(SIZE_RANGE),
         opacityPercent = opacityPercent.coerceIn(OPACITY_RANGE),
         idleOpacityPercent = idleOpacityPercent.coerceIn(IDLE_OPACITY_RANGE),
         panelWidthDp = panelWidthDp.coerceIn(PANEL_WIDTH_RANGE),
+        // A fraction read back out of storage is not trusted any more than a package name is; a value
+        // outside 0..1 would place the button off the safe box on the next resolve.
+        portraitXFraction = portraitXFraction?.coerceIn(0f, 1f),
+        portraitYFraction = portraitYFraction?.coerceIn(0f, 1f),
+        landscapeXFraction = landscapeXFraction?.coerceIn(0f, 1f),
+        landscapeYFraction = landscapeYFraction?.coerceIn(0f, 1f),
         // Held to the same rule as AppSettings.neverKillPackages, and for the same reason: a value
         // read back out of the settings file is not trusted because it came out of storage. Every
         // entry has to look like a package name before it reaches an Intent or the user's eyes.
@@ -190,9 +301,51 @@ data class FloatingButtonConfig(
             .take(MAX_QUICK_APPS),
     )
 
+    /**
+     * The stored fraction pair for one orientation, or null if the button has not been placed there yet.
+     *
+     * `portrait` selects which of the two pairs to read; the caller knows the orientation from the live
+     * display. Returns null unless *both* components are present, because half a coordinate cannot place a
+     * window — a partially-written pair (which storage should never produce) falls back to the pixels
+     * rather than resolving to a corner the user never chose.
+     */
+    fun positionFraction(portrait: Boolean): Pair<Float, Float>? {
+        val fx = if (portrait) portraitXFraction else landscapeXFraction
+        val fy = if (portrait) portraitYFraction else landscapeYFraction
+        return if (fx != null && fy != null) fx to fy else null
+    }
+
+    /** This config with the fraction pair for [portrait] replaced, the other orientation left untouched. */
+    fun withPositionFraction(portrait: Boolean, xFraction: Float, yFraction: Float): FloatingButtonConfig =
+        if (portrait) {
+            copy(portraitXFraction = xFraction, portraitYFraction = yFraction)
+        } else {
+            copy(landscapeXFraction = xFraction, landscapeYFraction = yFraction)
+        }
+
+    /**
+     * True when any orientation has a remembered fraction — the button has been placed or pinned at least
+     * once. Lets "reset position" stay offered after a corner pin even when the pixels happen to still read
+     * as the default, since a pin the user wants gone lives in the fractions, not the pixels.
+     */
+    fun hasStoredPositionFraction(): Boolean =
+        portraitXFraction != null || portraitYFraction != null ||
+            landscapeXFraction != null || landscapeYFraction != null
+
+    /** This config with every remembered fraction cleared, for "reset position". The pixels are the caller's. */
+    fun clearedPositionFractions(): FloatingButtonConfig = copy(
+        portraitXFraction = null,
+        portraitYFraction = null,
+        landscapeXFraction = null,
+        landscapeYFraction = null,
+    )
+
     companion object {
         const val MIN_SIZE_DP = 36
         const val MAX_SIZE_DP = 72
+
+        /** The size it ships at and what the Medium preset is — the middle of the three named sizes. */
+        const val DEFAULT_SIZE_DP = 48
 
         val SIZE_RANGE = MIN_SIZE_DP..MAX_SIZE_DP
 

@@ -7,6 +7,9 @@ import com.gamecore.core.model.CapabilityStatus
 import com.gamecore.core.model.DisplayReading
 import com.gamecore.core.model.MemoryReading
 import com.gamecore.core.model.PerformanceSnapshot
+import com.gamecore.core.model.ThermalClass
+import com.gamecore.core.model.ThermalClassifier
+import com.gamecore.core.model.ThermalSensorType
 import com.gamecore.core.model.ThermalStatus
 
 /**
@@ -20,36 +23,58 @@ import com.gamecore.core.model.ThermalStatus
  */
 
 /**
- * The tile's colour: the platform's throttling status where it exists, the reading itself where it does
- * not.
+ * The tile's colour, from the one shared [ThermalClassifier] — the platform's throttling status where it
+ * exists, the reading itself where it does not, reconciled in a single computation.
  *
- * In that order deliberately. A device reporting [ThermalStatus.SEVERE] at 39 °C knows something about
- * its own limits that a threshold does not, and the thresholds below are for the devices that report no
- * status at all — every build before API 29, and a few vendor builds after it.
+ * This used to be its own `when` over raw thresholds while the *word* beside the figure came from
+ * [ThermalStatus.label]; that split is exactly how a tile once showed 85.3 °C in red with the word
+ * "Normal". Now the colour comes from the same [ThermalClass] [temperatureDetail] takes its word from, so
+ * the two cannot disagree. [WARM] and [HOT] map to the one warning tone and [CRITICAL] to danger, matching
+ * the semantic-colour set in `StatusColors.kt` (a device that is hot is cautioned in amber; red is reserved
+ * for the point the platform is protecting itself).
+ *
+ * [sensor] selects the threshold set — a battery at 50 °C is a problem where a SoC at 50 °C is idle-warm —
+ * and defaults to [ThermalSensorType.CPU] because most call sites read a SoC-class zone; the battery
+ * readout passes [ThermalSensorType.BATTERY].
  */
-internal fun temperatureTone(deciCelsius: Int?, thermal: ThermalStatus?): Tone = when {
-    thermal != null && thermal.level >= ThermalStatus.CRITICAL.level -> Tone.Danger
-    thermal != null && thermal.level >= ThermalStatus.SEVERE.level -> Tone.Warning
-    deciCelsius == null -> Tone.Neutral
-    deciCelsius >= HOT_DECI_CELSIUS -> Tone.Danger
-    deciCelsius >= WARM_DECI_CELSIUS -> Tone.Warning
-    else -> Tone.Neutral
+internal fun temperatureTone(
+    deciCelsius: Int?,
+    thermal: ThermalStatus?,
+    sensor: ThermalSensorType = ThermalSensorType.CPU,
+): Tone = when (ThermalClassifier.classify(deciCelsius, sensor, thermal).level) {
+    ThermalClass.UNAVAILABLE, ThermalClass.OK -> Tone.Neutral
+    ThermalClass.WARM, ThermalClass.HOT -> Tone.Warning
+    ThermalClass.CRITICAL -> Tone.Danger
 }
 
 /**
- * Which sensor the figure came from, and what the platform makes of it.
+ * Which sensor the figure came from, and the shared classifier's word for it.
  *
  * Named rather than implied. A CPU zone reading and a battery reading differ by several degrees on the
  * same device at the same moment, and a tile that says "41 °C" without saying what is 41 °C invites the
  * user to compare it against another app that measured the other thing.
+ *
+ * The severity word comes from [ThermalClassifier] — the same classification [temperatureTone] colours
+ * from — rather than from [ThermalStatus.label], so the word and the colour are the same verdict. It is
+ * appended only when the reading is warm or worse: "CPU sensor · Critical" earns its place, but "CPU
+ * sensor · Normal" on every idle tile is noise, and §2 asks the word to accompany the colour where the
+ * colour means something.
  */
 internal fun temperatureDetail(snapshot: PerformanceSnapshot, thermal: ThermalStatus?): String {
-    val sensor = if (snapshot.thermal.cpuTemperatureDeciCelsius.isAvailable) {
-        "CPU sensor"
-    } else {
-        "Battery sensor"
+    val cpu = snapshot.thermal.cpuTemperatureDeciCelsius.isAvailable
+    val sensorLabel = if (cpu) "CPU sensor" else "Battery sensor"
+    val sensorType = if (cpu) ThermalSensorType.CPU else ThermalSensorType.BATTERY
+    val classification = ThermalClassifier.classify(
+        snapshot.primaryTemperatureDeciCelsius.let { (it as? com.gamecore.core.common.Observed.Value)?.value },
+        sensorType,
+        thermal,
+    )
+    // Only surface the word once it carries meaning; below WARM the colour is neutral and the word would
+    // add nothing but a "Normal" the user learns to ignore.
+    val word = classification.label.takeIf {
+        classification.level.severity >= ThermalClass.WARM.severity
     }
-    return listOfNotNull(sensor, thermal?.label).joinToString(" · ")
+    return listOfNotNull(sensorLabel, word).joinToString(" · ")
 }
 
 internal fun batteryDetail(battery: BatteryReading): String = when {
@@ -101,15 +126,11 @@ internal fun capabilityTone(status: CapabilityStatus): Tone = when (status) {
     CapabilityStatus.UNSUPPORTED -> Tone.Muted
 }
 
-/**
- * Where the temperature reading changes colour, in tenths of a degree.
- *
- * Used only for devices that report no thermal status of their own. Deliberately unalarming: 42 °C is a
- * warm phone under a normal gaming load, not a fault, and a dashboard that shows red at 40 teaches the
- * user to ignore the colour.
- */
-internal const val WARM_DECI_CELSIUS = 420
-internal const val HOT_DECI_CELSIUS = 460
+// Temperature thresholds now live in one place, com.gamecore.core.model.ThermalClassifier, shared by the
+// dashboard, the performance screen, the session report and the overlay. The old Readings-local
+// WARM/HOT_DECI_CELSIUS constants (420/460) are gone with the split classification that produced the
+// "85.3 °C · Normal" bug; the session view-models keep their own peak-temperature warning threshold for a
+// different job (a recorded peak, not a live reading) and are untouched here.
 
 internal const val LOW_BATTERY_PERCENT = 15
 internal const val WARNING_BATTERY_PERCENT = 30

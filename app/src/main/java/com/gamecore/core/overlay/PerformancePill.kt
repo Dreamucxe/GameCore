@@ -2,9 +2,12 @@ package com.gamecore.core.overlay
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -12,6 +15,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -19,6 +24,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gamecore.core.model.OverlayConfig
+import com.gamecore.core.model.PillDisplayMode
+import com.gamecore.domain.monitoring.PillFormat
 import com.gamecore.domain.monitoring.StatReading
 
 /**
@@ -59,12 +66,20 @@ object OverlayPalette {
 }
 
 /**
- * The stats pill of §8.
+ * The stats pill of §3.
  *
  * Every figure comes from a [StatReading], which is either a value or a reason there is none — so the
- * one thing this composable cannot do is invent a number. A stat with no reading renders as `--` in
- * [OverlayPalette.Absent] and keeps its slot, because a pill whose contents reflow every time latency
- * drops out is harder to read than one with a gap in it.
+ * one thing this composable cannot do is invent a number. All formatting — the unit spacing, the compact
+ * line, and the word an absent reading shows — lives in [PillFormat], not here, so this composable only
+ * chooses a shape and draws the strings that object hands back.
+ *
+ * Two shapes, from [OverlayConfig.displayMode]:
+ *  - [PillDisplayMode.COMPACT]: one glanceable line, "62°C · 74% · 120 Hz", with the same thermal dot the
+ *    floating button carries. Absent stats are dropped — a gap in a single line makes the eye stop on the
+ *    one thing missing — and if nothing is readable the line falls back to the word rather than an empty
+ *    plate.
+ *  - [PillDisplayMode.DETAILED]: the labelled card the pill has always drawn, a row or a column per
+ *    [OverlayConfig.isVertical]. An absent stat keeps its slot and shows "Unavailable" ([PillFormat]).
  *
  * Digits are monospaced. With a proportional font the pill resizes every time CPU crosses from 9% to
  * 10%, and a control that twitches in the corner of a game is worse than one that is slightly wider
@@ -79,30 +94,83 @@ fun PerformancePill(
     readings: List<StatReading>,
     config: OverlayConfig,
     modifier: Modifier = Modifier,
+    thermalDot: ThermalDot = ThermalDot.NONE,
+) {
+    val plate = modifier
+        .alpha(config.opacityPercent / 100f)
+        .background(OverlayPalette.Plate, RoundedCornerShape(config.cornerRadiusDp.dp))
+        .padding(horizontal = 8.dp, vertical = 5.dp)
+
+    when (config.displayMode) {
+        PillDisplayMode.COMPACT -> CompactPill(readings = readings, config = config, thermalDot = thermalDot, modifier = plate)
+        PillDisplayMode.DETAILED -> DetailedPill(readings = readings, config = config, modifier = plate)
+    }
+}
+
+/** The labelled card (spec §3): one [PillStat] per reading, a row or a column per [OverlayConfig.isVertical]. */
+@Composable
+private fun DetailedPill(
+    readings: List<StatReading>,
+    config: OverlayConfig,
+    modifier: Modifier,
 ) {
     val content: @Composable () -> Unit = {
         readings.forEach { reading ->
             PillStat(reading = reading, config = config)
         }
     }
-    val plate = modifier
-        .alpha(config.opacityPercent / 100f)
-        .background(OverlayPalette.Plate, RoundedCornerShape(config.cornerRadiusDp.dp))
-        .padding(horizontal = 8.dp, vertical = 5.dp)
-
     if (config.isVertical) {
         Column(
-            modifier = plate,
+            modifier = modifier,
             verticalArrangement = Arrangement.spacedBy(2.dp),
             horizontalAlignment = Alignment.Start,
             content = { content() },
         )
     } else {
         Row(
-            modifier = plate,
+            modifier = modifier,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
             content = { content() },
+        )
+    }
+}
+
+@Composable
+private fun CompactPill(
+    readings: List<StatReading>,
+    config: OverlayConfig,
+    thermalDot: ThermalDot,
+    modifier: Modifier,
+) {
+    val size = config.textSizeSp.sp
+    // Falls back to the word rather than an empty plate when every chosen stat is unreadable on this phone.
+    val compact = PillFormat.compactLine(readings)
+    val line = compact ?: PillFormat.UNAVAILABLE
+    val lineAvailable = compact != null
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (thermalDot != ThermalDot.NONE) {
+            val dotColour = if (thermalDot == ThermalDot.CRITICAL) OverlayPalette.Danger else OverlayPalette.Warning
+            Box(
+                modifier = Modifier
+                    .size(config.textSizeSp.dp * 0.6f)
+                    .background(dotColour, CircleShape)
+                    // Not colour alone — the line carries the numbers; the dot names itself for a reader.
+                    .semantics { contentDescription = thermalDot.word },
+            )
+        }
+        BasicText(
+            text = line,
+            style = TextStyle(
+                color = if (lineAvailable) OverlayPalette.Text else OverlayPalette.Absent,
+                fontSize = size,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = FontFamily.Monospace,
+            ),
         )
     }
 }
@@ -132,7 +200,7 @@ private fun PillStat(reading: StatReading, config: OverlayConfig) {
             )
         }
         BasicText(
-            text = reading.display(),
+            text = PillFormat.cellValue(reading),
             style = TextStyle(
                 color = if (reading.isAvailable) OverlayPalette.Text else OverlayPalette.Absent,
                 fontSize = size,

@@ -37,11 +37,14 @@ fun Context.startIntentSafely(intent: Intent): Boolean = try {
  * wraps it, and the wrapper is what a composable is handed — so the cast that looks obvious returns null on
  * exactly the devices where it matters. Unwrapping the chain is the documented way to find it.
  *
- * Null rather than an exception, because two callers genuinely have no Activity and both should carry on:
- * a `@Preview` renders in a context that never had one, and the ad banner has to draw nothing rather than
- * crash the preview of every screen it sits under. Both of the real callers — the banner and the consent
- * form it opens — need a window, which is the same structural reason the overlay windows can never show an
- * advertisement: a Service has no Activity to unwrap to.
+ * Null rather than an exception, because a caller can genuinely have no Activity and should carry on: a
+ * `@Preview` renders in a context that never had one, and a composable that needs a window has to draw
+ * nothing rather than crash the preview of every screen it sits under.
+ *
+ * Nothing calls this at present. Its two callers were the ad banner and the consent form it opened, both
+ * removed in 3.4; it is kept because it is the correct unwrap for the next composable that needs a window,
+ * and that is the same structural reason the overlay can never show one: a Service has no Activity to
+ * unwrap to.
  */
 fun Context.findActivity(): Activity? {
     var current = this

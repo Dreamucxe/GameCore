@@ -69,6 +69,9 @@ object NotificationChannels {
     const val ID_ALERT_THERMAL = 1101
     const val ID_ALERT_BATTERY = 1102
 
+    /** The §C5 poor-network alert. Rate-limited to one a minute by the sender, not this id. */
+    const val ID_ALERT_NETWORK = 1103
+
     fun createAll(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java) ?: return

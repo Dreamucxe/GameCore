@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -64,19 +65,31 @@ fun GameCoreTheme(
     content: @Composable () -> Unit,
 ) {
     val systemDark = isSystemInDarkTheme()
+    // AMOLED is a dark theme, so it resolves dark like DARK does; the difference is the true-black scheme
+    // chosen below, not whether the app is in dark mode.
     val dark = when (settings.theme) {
         ThemeChoice.SYSTEM -> systemDark
-        ThemeChoice.DARK -> true
+        ThemeChoice.DARK, ThemeChoice.AMOLED -> true
         ThemeChoice.LIGHT -> false
     }
+    val amoled = settings.theme == ThemeChoice.AMOLED
+    // The accent colour the scheme is actually built from: the user's custom pick when it is turned on and
+    // a colour has been chosen, otherwise the selected palette swatch. normalised() has already forced the
+    // custom colour opaque, so `onPrimary`'s readability check is never fed a half-transparent accent.
+    val accentColour = if (settings.useCustomAccent && settings.customAccentArgb != null) {
+        Color(settings.customAccentArgb)
+    } else {
+        Color(settings.accent.argb)
+    }
     val context = LocalContext.current
-    val scheme = remember(dark, settings.accent, settings.useDynamicColour) {
+    val scheme = remember(dark, amoled, accentColour, settings.useDynamicColour) {
         val dynamicAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
         when {
             settings.useDynamicColour && dynamicAvailable && dark -> dynamicDarkColorScheme(context)
             settings.useDynamicColour && dynamicAvailable -> dynamicLightColorScheme(context)
-            dark -> darkSchemeFor(settings.accent)
-            else -> lightSchemeFor(settings.accent)
+            amoled -> amoledSchemeFor(accentColour)
+            dark -> darkSchemeFor(accentColour)
+            else -> lightSchemeFor(accentColour)
         }
     }
 

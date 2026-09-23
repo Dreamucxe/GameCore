@@ -67,6 +67,10 @@ interface AimLabRepository {
     /** Ensures the built-in weapons, default sensitivity presets and a default layout exist. Called once
      *  the first time Aim Lab is opened, never at process start. */
     suspend fun seedDefaultsIfEmpty()
+
+    /** Removes control rows orphaned by an older build (a layout gone, its controls left behind), leaving
+     *  every valid layout untouched. Idempotent; run when Aim Lab opens, not at process start. */
+    suspend fun cleanupOrphanControls()
 }
 
 /**

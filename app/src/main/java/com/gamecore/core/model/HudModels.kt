@@ -108,6 +108,12 @@ enum class HudStat(
     NETWORK_LATENCY("Latency", "Ping", "ms", false),
     NETWORK_DOWN("Download", "↓", "KB/s", false),
     NETWORK_UP("Upload", "↑", "KB/s", false),
+    /**
+     * The §C composite line — transport, Wi-Fi band, signal and latency in one field, e.g.
+     * "Wi-Fi 5 GHz · -58 dBm · 32 ms". Its own unit is empty because the value already carries the units
+     * of the pieces it joins, and any absent piece is omitted rather than shown as a placeholder.
+     */
+    NETWORK("Network", "Net", "", false),
     STORAGE_FREE("Storage free", "Disk", "GB", true),
     SESSION_DURATION("Session time", "Time", "", true),
     THERMAL_STATUS("Thermal state", "Therm", "", false),

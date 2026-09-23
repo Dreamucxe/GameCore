@@ -145,6 +145,37 @@ data class SessionEntity(
     /** The longest unbroken run of probes that did not complete. */
     @ColumnInfo(name = "latency_failed_run")
     val latencyFailedRun: Int? = null,
+
+    // ---- 3.5 session summary additions (schema v11). All nullable: a session recorded before the
+    // feature ran, or one where the feature was off, has nothing to report and reads back NULL.
+
+    /** How many thermal downshifts happened this session (§B6), or NULL when auto-cooling was off. */
+    @ColumnInfo(name = "downshift_count")
+    val downshiftCount: Int? = null,
+
+    /** The lowest refresh rate auto-cooling dropped to (Hz), or NULL. */
+    @ColumnInfo(name = "lowest_rate_hz")
+    val lowestRateHz: Float? = null,
+
+    /**
+     * The [com.gamecore.core.model.NetworkTransport] name that carried the session (§C7), or NULL.
+     *
+     * The one network column added in v11. There is no `avg_latency_ms`, `avg_jitter_ms` or
+     * `loss_percent` beside it on purpose: the session's latency average is already `avg_latency` and
+     * its variability the `latency_*` columns above, and this app does not store a packet-loss figure
+     * it cannot measure (see [latencyFailed]). Transport is the only network fact those columns did not
+     * already hold.
+     */
+    @ColumnInfo(name = "transport")
+    val transport: String? = null,
+
+    /** Whether "keep full performance" turned battery saver off this session (§D8), or NULL when off. */
+    @ColumnInfo(name = "full_performance_overridden")
+    val fullPerformanceOverridden: Boolean? = null,
+
+    /** Whether the system re-enabled battery saver mid-session, or NULL. */
+    @ColumnInfo(name = "system_reenabled_saver")
+    val systemReenabledSaver: Boolean? = null,
 )
 
 /**

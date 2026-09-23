@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.GridView
@@ -66,6 +67,7 @@ import com.gamecore.ui.components.ConfirmDialog
 import com.gamecore.ui.components.EmptyState
 import com.gamecore.ui.components.NoteBanner
 import com.gamecore.ui.components.PlainCard
+import com.gamecore.ui.components.PreLaunchWarningDialog
 import com.gamecore.ui.components.RowDivider
 import com.gamecore.ui.components.ScreenBottomPadding
 import com.gamecore.ui.components.ScreenHeader
@@ -196,6 +198,7 @@ fun ProfileEditorScreen(
         item { OverlaySection(state, viewModel::edit, onNavigate, padded) }
         item { PerformanceSection(state, viewModel::edit, onNavigate, padded) }
         item { CpuSection(state, viewModel::edit, onNavigate, padded) }
+        item { SmartFeaturesSection(state, viewModel::edit, onNavigate, padded) }
         item { SessionSection(state, viewModel::edit, padded) }
 
         if (!state.isNew) {
@@ -238,6 +241,18 @@ fun ProfileEditorScreen(
                 viewModel.delete()
             },
             onDismiss = { askingToDelete = false },
+        )
+    }
+
+    // §C4. Shown when starting the game from this editor measured a poor connection and the draft asked
+    // to be warned. "Don't warn for this game" is the one write this screen does outside Save, and it
+    // writes a single field of the saved profile — never the unsaved draft.
+    state.pendingLaunch?.let { pending ->
+        PreLaunchWarningDialog(
+            reason = pending.reason,
+            onLaunchAnyway = viewModel::confirmPendingLaunch,
+            onDontWarn = viewModel::dontWarnPendingLaunch,
+            onCancel = viewModel::dismissPendingLaunch,
         )
     }
 }
@@ -942,6 +957,118 @@ private fun CpuSection(
 }
 
 /** Whether this game's play is recorded. */
+/**
+ * The 3.5 smart features (§B thermal auto-downshift, §C network check, §D full performance), each off by
+ * default and each honest about what it needs.
+ *
+ * Thermal and full-performance need the same elevated shell the refresh-rate control does, so they carry
+ * the same "needs Shizuku" note the Performance section uses, and full-performance states plainly what it
+ * does not do — it removes battery saver's refresh-rate cap; it cannot push past hardware limits and does
+ * not override thermal throttling. The network check needs no permission at all and says so. None of these
+ * writes anything at apply time; they act only while the session runs.
+ */
+@Composable
+private fun SmartFeaturesSection(
+    state: ProfileEditorUiState,
+    onEdit: ((GameProfile) -> GameProfile) -> Unit,
+    onNavigate: (Destination) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val profile = state.profile ?: return
+    val elevated = state.capabilities.hasElevatedAccess
+    val floorRates = state.refreshRateChoices
+    SectionCard(title = "Smart features", icon = Icons.Filled.AutoAwesome, modifier = modifier) {
+        // --- §B thermal auto-downshift ---
+        SwitchRow(
+            title = "Auto-cool when hot",
+            checked = profile.thermalDownshiftEnabled,
+            onCheckedChange = { on -> onEdit { it.copy(thermalDownshiftEnabled = on) } },
+            description = "Steps the refresh rate down while the phone stays hot and back up as it " +
+                "cools, never below the floor you set. It reports what it changed — it does not claim " +
+                "to cool the device.",
+            enabled = elevated || profile.thermalDownshiftEnabled,
+        )
+        if (profile.thermalDownshiftEnabled) {
+            if (!elevated) {
+                NoteBanner(
+                    text = "Needs Shizuku running to change the refresh rate — it will be skipped until " +
+                        "then.",
+                    tone = Tone.Muted,
+                    icon = Icons.Filled.Info,
+                    action = { TextButton(onClick = { onNavigate(Destination.Shizuku) }) { Text("Set up") } },
+                )
+            }
+            // Temperature limit, in whole °C (stored as tenths). 40–90 °C is the sane band §B2 asks for.
+            val limitCelsius = (profile.thermalLimitDeciCelsius ?: DEFAULT_THERMAL_LIMIT_DECI) / 10
+            SliderRow(
+                title = "Cool above",
+                value = limitCelsius,
+                range = THERMAL_LIMIT_CELSIUS_RANGE,
+                onValueChange = { c -> onEdit { it.copy(thermalLimitDeciCelsius = c * 10) } },
+                valueLabel = "$limitCelsius°C",
+                description = "The auto-cool kicks in once the device stays at or above this.",
+            )
+            if (floorRates.isNotEmpty()) {
+                Text(text = "Never below", style = MaterialTheme.typography.bodyLarge)
+                Spacer(modifier = Modifier.height(6.dp))
+                ChoiceRow(
+                    options = floorRates,
+                    selected = profile.thermalFloorRateHz ?: floorRates.minOrNull(),
+                    onSelect = { hz -> onEdit { it.copy(thermalFloorRateHz = hz) } },
+                    label = { Formatters.hertz(it) },
+                    perRow = 3,
+                )
+            }
+        }
+
+        RowDivider()
+        // --- §C network check (no permission needed) ---
+        SwitchRow(
+            title = "Check the network",
+            checked = profile.networkCheckEnabled,
+            onCheckedChange = { on -> onEdit { it.copy(networkCheckEnabled = on) } },
+            description = "Watches latency, jitter and loss to the host you already set, and can warn " +
+                "before you launch. No new permission, and it never reads your Wi-Fi name.",
+        )
+        if (profile.networkCheckEnabled) {
+            SwitchRow(
+                title = "Warn before launch on a poor connection",
+                checked = profile.networkPreLaunchWarn,
+                onCheckedChange = { on -> onEdit { it.copy(networkPreLaunchWarn = on) } },
+                description = "A quick check when you tap Play. It never blocks a launch, and it cannot " +
+                    "check a game you start from outside GameCore.",
+            )
+            SwitchRow(
+                title = "Alert during a session",
+                checked = profile.networkAlertsEnabled,
+                onCheckedChange = { on -> onEdit { it.copy(networkAlertsEnabled = on) } },
+                description = "A notification when the connection turns poor mid-game, at most once a minute.",
+            )
+        }
+
+        RowDivider()
+        // --- §D full performance under battery saver ---
+        SwitchRow(
+            title = "Keep full performance",
+            checked = profile.fullPerformanceEnabled,
+            onCheckedChange = { on -> onEdit { it.copy(fullPerformanceEnabled = on) } },
+            description = "Turns Android's battery saver off for this game so it stops capping the " +
+                "refresh rate. It cannot push past your hardware's limits and does not override thermal " +
+                "throttling — heat protection always wins.",
+            enabled = elevated || profile.fullPerformanceEnabled,
+        )
+        if (profile.fullPerformanceEnabled && !elevated) {
+            NoteBanner(
+                text = "Needs Shizuku running to change the battery-saver setting — it will be skipped " +
+                    "until then.",
+                tone = Tone.Muted,
+                icon = Icons.Filled.Info,
+                action = { TextButton(onClick = { onNavigate(Destination.Shizuku) }) { Text("Set up") } },
+            )
+        }
+    }
+}
+
 @Composable
 private fun SessionSection(
     state: ProfileEditorUiState,

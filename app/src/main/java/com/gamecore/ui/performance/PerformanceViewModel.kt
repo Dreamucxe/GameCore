@@ -560,7 +560,11 @@ private fun batteryRowsOf(battery: BatteryReading, trend: BatteryTrend): List<Re
     battery.health.readout(label = "Health", format = { it.label }),
     battery.temperatureDeciCelsius.readout(
         label = "Battery temperature",
-        tone = temperatureTone(battery.temperatureDeciCelsius.valueOrNull, null),
+        tone = temperatureTone(
+            battery.temperatureDeciCelsius.valueOrNull,
+            null,
+            com.gamecore.core.model.ThermalSensorType.BATTERY,
+        ),
         format = { Formatters.temperature(it) },
     ),
     battery.voltageMilliVolts.readout(label = "Voltage", format = { Formatters.voltage(it) }),

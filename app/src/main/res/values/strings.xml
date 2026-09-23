@@ -27,8 +27,8 @@
     <string name="channel_monitor_description">Shown while GameCore keeps sampling CPU, memory, battery and temperature with the app closed. Only appears if you switch background monitoring on.</string>
     <string name="channel_trigger_name">Quick trigger</string>
     <string name="channel_trigger_description">Shown while GameCore watches the accelerometer for the shake shortcut. Android requires a service that runs outside the app to post a notification, so this appears whenever the shake trigger is armed.</string>
-    <string name="channel_alerts_name">Thermal and battery alerts</string>
-    <string name="channel_alerts_description">Warnings about device temperature or unusually fast battery drain during a session.</string>
+    <string name="channel_alerts_name">Thermal, battery and network alerts</string>
+    <string name="channel_alerts_description">Warnings about device temperature, unusually fast battery drain, or a poor network connection during a session.</string>
 
     <!-- Foreground-service notifications -->
     <string name="notification_overlay_title">Overlay active</string>
@@ -43,6 +43,8 @@
     <string name="notification_trigger_text">Shake twice to open the GameCore panel</string>
     <string name="notification_action_stop">Stop</string>
     <string name="notification_action_open">Open</string>
+    <!-- The §C5 in-session poor-connection alert. The body is the reason the check found; this is the headline over it. -->
+    <string name="notification_network_alert_title">Network connection is poor</string>
 
     <!--
       The parts of a service notification that depend on what the service found. Each of these is a

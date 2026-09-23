@@ -1,6 +1,7 @@
 package com.gamecore.service
 
 import android.app.Notification
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
 import com.gamecore.R
 import com.gamecore.core.common.NotificationChannels
@@ -92,6 +93,7 @@ class GameDetectionService : GameCoreService() {
         lifecycleScope.launch { watch() }
         lifecycleScope.launch { describe() }
         lifecycleScope.launch { followSession() }
+        lifecycleScope.launch { networkAlerts() }
     }
 
     /**
@@ -136,6 +138,45 @@ class GameDetectionService : GameCoreService() {
     }
 
     /**
+     * Posts the §C5 poor-connection alert whenever the coordinator raises one.
+     *
+     * On the alerts channel and its own id, not this service's ongoing "Playing X" line: that line is a
+     * platform requirement, this is the interruption the user opted into. The coordinator has already
+     * rate-limited these to one a minute and only emits while a profile that armed the alert is playing,
+     * so there is no gating here — each event becomes one notification.
+     *
+     * Subscribed for the service's whole lifetime, before any game starts (the source replays nothing), so
+     * an alert raised in a session's first seconds is delivered rather than missed. Dropped silently when
+     * notifications are denied, like every other post in this app.
+     */
+    private suspend fun networkAlerts() {
+        coordinator.networkAlerts.collect { alert ->
+            post(
+                NotificationChannels.ID_ALERT_NETWORK,
+                ServiceNotifications.alert(
+                    context = this,
+                    title = getString(R.string.notification_network_alert_title),
+                    text = alert.reason,
+                ),
+            )
+        }
+    }
+
+    /**
+     * Posts an alert on its own id, or drops it if notifications are denied.
+     *
+     * The same shape as [PerformanceMonitorService]'s: a revoked POST_NOTIFICATIONS must not crash a
+     * service mid-session, so the [SecurityException] is swallowed and detection carries on.
+     */
+    private fun post(id: Int, notification: Notification) {
+        try {
+            NotificationManagerCompat.from(this).notify(id, notification)
+        } catch (denied: SecurityException) {
+            // POST_NOTIFICATIONS revoked while running. Detection continues either way.
+        }
+    }
+
+    /**
      * Remembers that the user asked for this, so the session can record why it ended.
      *
      * The stop itself is not done here. This runs immediately before `stopSelf`, and everything that
@@ -166,6 +207,9 @@ class GameDetectionService : GameCoreService() {
                 if (stoppedByUser) StopReason.STOPPED_BY_USER else StopReason.DETECTION_LOST,
             )
         }
+        // The session is closed now, so a poor-connection alert about it should not outlive it on screen.
+        // It is auto-cancelled on tap; this covers the session that ended with the alert still showing.
+        NotificationManagerCompat.from(this).cancel(NotificationChannels.ID_ALERT_NETWORK)
         // The session service is this service's dependent: nothing else starts it, and a session cannot
         // continue without the coordinator that was running here.
         services.setSessionTracking(false)

@@ -212,7 +212,7 @@ class AimLabRepositoryImpl @Inject constructor(
      * table is checked independently so a user who deleted every weapon does not get the sensitivity
      * presets re-seeded on top of their own.
      */
-    override suspend fun seedDefaultsIfEmpty() = withContext(io) {
+    override suspend fun seedDefaultsIfEmpty(): Unit = withContext(io) {
         if (weaponDao.count() == 0) {
             builtInWeapons().forEach { weaponDao.insert(AimLabMappers.toEntity(it)) }
         }
@@ -223,6 +223,14 @@ class AimLabRepositoryImpl @Inject constructor(
             // Seed through the one save path so the default layout persists both orientations' controls.
             saveLayout(ControlLayout.preset(LayoutPreset.THREE_FINGER))
         }
+        // After seeding — never before — sweep any control rows an older build orphaned. Doing it here
+        // means it runs when Aim Lab is opened, once, off the process-start path, and after the default
+        // layout exists so the sweep can never race a layout being written.
+        layoutDao.deleteOrphanControls()
+    }
+
+    override suspend fun cleanupOrphanControls(): Unit = withContext(io) {
+        layoutDao.deleteOrphanControls()
     }
 
     /**

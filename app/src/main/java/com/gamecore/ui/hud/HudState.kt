@@ -76,6 +76,8 @@ internal fun HudStat.conditionNote(): String? = when (this) {
     HudStat.NETWORK_LATENCY -> "Measured against a reference host, not the game's server, and only " +
         "while latency measurement is on in Settings."
     HudStat.NETWORK_DOWN, HudStat.NETWORK_UP -> "Needs a network connection to mean anything."
+    HudStat.NETWORK -> "Transport, Wi-Fi band, signal and latency in one line. Each piece appears only " +
+        "where this device reports it; needs a connection to show anything."
     HudStat.THERMAL_STATUS -> "Reported from Android 10 onwards, and only on devices that implement it."
     else -> null
 }

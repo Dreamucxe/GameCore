@@ -102,4 +102,76 @@ class AimLabLayoutStoreTest {
     fun `loading a missing layout returns null`() = runBlocking {
         assertNull(FakeLayoutStore().loadLayout(999L))
     }
+
+    // ---------------------------------------------------------------- orphan cleanup (§bug-fix e)
+
+    /**
+     * A two-table store, because an orphan is a thing the one-object [FakeLayoutStore] cannot express: a
+     * control row whose `layout_id` points at a layout that no longer exists. This models Room's real shape
+     * — layouts in one map, control rows in another keyed by layout id — so [cleanupOrphans] runs exactly the
+     * predicate the DAO's `DELETE ... WHERE layout_id NOT IN (SELECT id FROM aimlab_layouts)` runs. If that
+     * SQL is ever mistyped to touch a valid layout's rows, this fake would have to mistype in lockstep to
+     * stay green.
+     */
+    private class TwoTableStore {
+        val layoutIds = HashSet<Long>()
+        val controlRowsByLayout = HashMap<Long, Int>() // layout_id -> how many control rows it has
+
+        fun addLayout(id: Long, controlRows: Int) {
+            layoutIds += id
+            controlRowsByLayout[id] = controlRows
+        }
+
+        /** Simulate the old bug: delete the layout row but leave its control rows behind as orphans. */
+        fun deleteLayoutRowOnly(id: Long) {
+            layoutIds -= id
+        }
+
+        /** The exact DAO predicate: drop control rows with no surviving parent layout. Returns rows removed. */
+        fun cleanupOrphans(): Int {
+            val orphanLayoutIds = controlRowsByLayout.keys.filter { it !in layoutIds }
+            val removed = orphanLayoutIds.sumOf { controlRowsByLayout.getValue(it) }
+            orphanLayoutIds.forEach { controlRowsByLayout.remove(it) }
+            return removed
+        }
+    }
+
+    @Test
+    fun `orphan cleanup removes only rows whose layout is gone and never touches valid layouts`() {
+        val store = TwoTableStore()
+        store.addLayout(id = 1L, controlRows = 5) // valid
+        store.addLayout(id = 2L, controlRows = 4) // valid
+        store.addLayout(id = 3L, controlRows = 6) // about to be orphaned
+
+        store.deleteLayoutRowOnly(3L) // the old bug: layout gone, 6 control rows left dangling
+
+        val removed = store.cleanupOrphans()
+
+        assertEquals("only the 6 orphaned rows should be removed", 6, removed)
+        assertEquals("valid layout 1 kept all its controls", 5, store.controlRowsByLayout[1L])
+        assertEquals("valid layout 2 kept all its controls", 4, store.controlRowsByLayout[2L])
+        assertNull("orphaned rows are gone", store.controlRowsByLayout[3L])
+    }
+
+    @Test
+    fun `orphan cleanup is idempotent — a second run removes nothing`() {
+        val store = TwoTableStore()
+        store.addLayout(id = 1L, controlRows = 3)
+        store.addLayout(id = 2L, controlRows = 2)
+        store.deleteLayoutRowOnly(2L)
+
+        assertEquals(2, store.cleanupOrphans())
+        assertEquals("nothing left to orphan on a second sweep", 0, store.cleanupOrphans())
+        assertEquals("the valid layout is untouched by either sweep", 3, store.controlRowsByLayout[1L])
+    }
+
+    @Test
+    fun `orphan cleanup removes nothing when every control row has a living layout`() {
+        val store = TwoTableStore()
+        store.addLayout(id = 1L, controlRows = 5)
+        store.addLayout(id = 2L, controlRows = 5)
+        assertEquals(0, store.cleanupOrphans())
+        assertEquals(5, store.controlRowsByLayout[1L])
+        assertEquals(5, store.controlRowsByLayout[2L])
+    }
 }

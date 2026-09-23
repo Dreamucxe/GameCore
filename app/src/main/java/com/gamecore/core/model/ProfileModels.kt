@@ -103,6 +103,34 @@ data class GameProfile(
      * offered at all — see [com.gamecore.domain.cpu.CpuAffinityController].
      */
     val cpuAffinity: CpuAffinityPreset? = null,
+
+    // ------------------------------------------------------------ 3.5 smart features
+    // All default off/absent — a pre-3.5 profile, and a new one, does none of these. They are session-time
+    // behaviours layered on top of the writes above, not new device writes of their own, so they do not
+    // count toward [changesNothing]: a profile whose only setting is auto-cooling still writes nothing when
+    // it is applied; it only acts if the game gets hot while running.
+
+    /** Thermal auto-downshift (§B). See [com.gamecore.domain.thermal.ThermalDownshiftMachine]. */
+    val thermalDownshiftEnabled: Boolean = false,
+    /** Trigger temperature in tenths °C, or null to trigger on platform status alone. */
+    val thermalLimitDeciCelsius: Int? = null,
+    /** Trigger at or above this class, or null for temperature-only triggering. */
+    val thermalStatusFloor: ThermalClass? = null,
+    /** Floor rate in Hz, or null to floor at the profile's own target rate. */
+    val thermalFloorRateHz: Float? = null,
+    /** Advanced overrides; null uses the machine's documented defaults. */
+    val thermalHysteresisDeciCelsius: Int? = null,
+    val thermalSustainHotMillis: Long? = null,
+    val thermalSustainCoolMillis: Long? = null,
+    val thermalMinIntervalMillis: Long? = null,
+
+    /** Network check (§C). */
+    val networkCheckEnabled: Boolean = false,
+    val networkPreLaunchWarn: Boolean = true,
+    val networkAlertsEnabled: Boolean = false,
+
+    /** "Keep full performance" (§D). See [com.gamecore.domain.power.BatterySaverOverrideMachine]. */
+    val fullPerformanceEnabled: Boolean = false,
 ) {
     /** True when applying this would write nothing, so the UI can say so plainly. */
     val changesNothing: Boolean

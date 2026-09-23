@@ -1,6 +1,7 @@
 package com.gamecore.core.model
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -125,6 +126,118 @@ class OverlayModelsTest {
         }
     }
 
+    /**
+     * The button remembers where it sits as a fraction of the display, one pair per orientation, so a phone
+     * turned sideways puts it back where the hand expects rather than off the short edge. The four fields
+     * are additive — a config that has never been placed reports null and the service falls back to pixels.
+     */
+    @Test
+    fun `a button that has never been placed reports no fraction for either orientation`() {
+        val fresh = FloatingButtonConfig()
+        assertNull(fresh.positionFraction(portrait = true))
+        assertNull(fresh.positionFraction(portrait = false))
+    }
+
+    @Test
+    fun `each orientation reads back exactly the pair written for it, leaving the other alone`() {
+        val placed = FloatingButtonConfig()
+            .withPositionFraction(portrait = true, xFraction = 0.1f, yFraction = 0.2f)
+            .withPositionFraction(portrait = false, xFraction = 0.8f, yFraction = 0.9f)
+        assertEquals(0.1f to 0.2f, placed.positionFraction(portrait = true))
+        assertEquals(0.8f to 0.9f, placed.positionFraction(portrait = false))
+    }
+
+    @Test
+    fun `placing in one orientation does not invent a fraction for the other`() {
+        val onlyPortrait = FloatingButtonConfig()
+            .withPositionFraction(portrait = true, xFraction = 0.3f, yFraction = 0.4f)
+        assertEquals(0.3f to 0.4f, onlyPortrait.positionFraction(portrait = true))
+        assertNull(onlyPortrait.positionFraction(portrait = false))
+    }
+
+    @Test
+    fun `half a coordinate is no coordinate, so a lone axis falls back to pixels`() {
+        val halfP = FloatingButtonConfig(portraitXFraction = 0.5f, portraitYFraction = null)
+        assertNull(halfP.positionFraction(portrait = true))
+        val halfL = FloatingButtonConfig(landscapeYFraction = 0.5f, landscapeXFraction = null)
+        assertNull(halfL.positionFraction(portrait = false))
+    }
+
+    @Test
+    fun `reset clears every remembered fraction and touches nothing else`() {
+        val placed = FloatingButtonConfig(x = 940, y = 1_600)
+            .withPositionFraction(portrait = true, xFraction = 0.1f, yFraction = 0.2f)
+            .withPositionFraction(portrait = false, xFraction = 0.8f, yFraction = 0.9f)
+        val cleared = placed.clearedPositionFractions()
+        assertNull(cleared.positionFraction(portrait = true))
+        assertNull(cleared.positionFraction(portrait = false))
+        assertEquals("the pixels stay put for the service to fall back on", placed.copy(
+            portraitXFraction = null, portraitYFraction = null,
+            landscapeXFraction = null, landscapeYFraction = null,
+        ), cleared)
+    }
+
+    @Test
+    fun `a fraction outside zero-to-one is pulled back onto the display when normalised`() {
+        val wild = FloatingButtonConfig(
+            portraitXFraction = 1.4f, portraitYFraction = -0.3f,
+            landscapeXFraction = 2f, landscapeYFraction = 0.5f,
+        ).normalised()
+        assertEquals(1f to 0f, wild.positionFraction(portrait = true))
+        assertEquals(1f to 0.5f, wild.positionFraction(portrait = false))
+    }
+
+    @Test
+    fun `normalising leaves a null fraction null rather than snapping it to an edge`() {
+        val normalised = FloatingButtonConfig().normalised()
+        assertNull(normalised.portraitXFraction)
+        assertNull(normalised.portraitYFraction)
+        assertNull(normalised.landscapeXFraction)
+        assertNull(normalised.landscapeYFraction)
+    }
+
+    /**
+     * The three named sizes are points on the same `sizeDp` scale the slider drives, so a preset chip and
+     * the slider can never claim different things: each preset's dp is inside the range, the chip lights up
+     * only on an exact match, and a value between two presets belongs to no chip rather than being rounded.
+     */
+    @Test
+    fun `each size preset sits on a real point of the size scale`() {
+        for (preset in ButtonSizePreset.entries) {
+            assertTrue("${preset.label} is off the scale", preset.sizeDp in FloatingButtonConfig.SIZE_RANGE)
+            assertEquals("${preset.label} does not resolve to itself", preset, ButtonSizePreset.of(preset.sizeDp))
+        }
+    }
+
+    @Test
+    fun `the medium preset is the size the button ships at`() {
+        assertEquals(ButtonSizePreset.MEDIUM.sizeDp, FloatingButtonConfig().sizeDp)
+        assertEquals(ButtonSizePreset.MEDIUM, ButtonSizePreset.of(FloatingButtonConfig().sizeDp))
+    }
+
+    @Test
+    fun `double-tap-for-panel is off by default so a single tap has no double-tap latency`() {
+        // Spec §4 makes double-tap-to-open-panel an optional setting; the shipped default is off, so the
+        // button fires a tap the instant the finger lifts (a null onDoubleTap handler) rather than waiting
+        // out the double-tap window. normalised() must leave the flag alone — it is a plain preference.
+        assertFalse(FloatingButtonConfig().doubleTapForPanel)
+        assertTrue(FloatingButtonConfig(doubleTapForPanel = true).normalised().doubleTapForPanel)
+        assertFalse(FloatingButtonConfig(doubleTapForPanel = false).normalised().doubleTapForPanel)
+    }
+
+    @Test
+    fun `the presets span the whole scale, small at the floor and large at the ceiling`() {
+        assertEquals(FloatingButtonConfig.MIN_SIZE_DP, ButtonSizePreset.SMALL.sizeDp)
+        assertEquals(FloatingButtonConfig.MAX_SIZE_DP, ButtonSizePreset.LARGE.sizeDp)
+    }
+
+    @Test
+    fun `a size between two presets matches no chip rather than rounding to a name`() {
+        val between = (ButtonSizePreset.SMALL.sizeDp + ButtonSizePreset.MEDIUM.sizeDp) / 2
+        assertTrue("test picked a value that is itself a preset", ButtonSizePreset.of(between) == null)
+        assertNull(ButtonSizePreset.of(FloatingButtonConfig.MAX_SIZE_DP + 1))
+    }
+
     /** The pill's own clamps, alongside, since the two configs are normalised by the same call sites. */
     @Test
     fun `the pill keeps its stats distinct and its interval usable`() {
@@ -147,6 +260,70 @@ class OverlayModelsTest {
         val crowded = OverlayConfig(stats = HudStat.entries.toList()).normalised()
         assertTrue(HudStat.entries.size > OverlayConfig.MAX_STATS)
         assertEquals(OverlayConfig.MAX_STATS, crowded.stats.size)
+    }
+
+    // ------------------------------------------------------------ spec §4: quick-sheet pin storage
+
+    /**
+     * The pins are stored as `QuickToggle` *names*, not the enum, because `QuickToggle` lives in the overlay
+     * layer that depends on this model and not the reverse (same wall the button's `PositionFraction` hit).
+     * So this config carries strings and the service resolves them; these tests fix the string-level rules
+     * this layer *can* enforce — order, dedup, cap — and deliberately do not assert which names are valid,
+     * because that is `QuickToggle.of`'s job at the boundary, not this layer's.
+     */
+    @Test
+    fun `a fresh overlay config pins nothing, so the service falls back to the default set`() {
+        // Empty is the "never set" signal — the service maps it to QuickToggle.DEFAULT_SET, matching how
+        // QuickSheetPins.normalise collapses an empty list. A default list here would freeze the pin set at
+        // this layer, which cannot see availability.
+        assertEquals(emptyList<String>(), OverlayConfig().quickPins)
+    }
+
+    @Test
+    fun `pins keep their order and are de-duplicated, the left-to-right order of the sheet`() {
+        val messy = OverlayConfig(quickPins = listOf("STATS", "CROSSHAIR", "STATS", "HUD")).normalised()
+        assertEquals(listOf("STATS", "CROSSHAIR", "HUD"), messy.quickPins)
+    }
+
+    @Test
+    fun `pins are capped at what the sheet can hold`() {
+        val overfull = OverlayConfig(
+            quickPins = listOf("A", "B", "C", "D", "E", "F", "G", "H"),
+        ).normalised()
+        assertTrue("test must overflow the cap", 8 > OverlayConfig.MAX_QUICK_PINS)
+        assertEquals(OverlayConfig.MAX_QUICK_PINS, overfull.quickPins.size)
+        assertEquals(listOf("A", "B", "C", "D", "E", "F"), overfull.quickPins)
+    }
+
+    @Test
+    fun `an unknown pin name survives this layer, to be dropped later by the service`() {
+        // This layer cannot see QuickToggle, so it must not silently eat a name it does not recognise —
+        // that resolution is QuickToggle.of's at the service boundary (mirrors readStats dropping unknowns).
+        val withStranger = OverlayConfig(quickPins = listOf("STATS", "NOT_A_REAL_TOGGLE")).normalised()
+        assertEquals(listOf("STATS", "NOT_A_REAL_TOGGLE"), withStranger.quickPins)
+    }
+
+    @Test
+    fun `the sheet closes itself unless the user says otherwise`() {
+        // Default on, because the sheet is summoned over a running game: a user who opens it mid-match and
+        // then goes back to playing should not have to dismiss it. The flag is a plain boolean with no
+        // clamp, so this and the round trip below are all there is to pin.
+        assertTrue(OverlayConfig().quickAutoClose)
+    }
+
+    @Test
+    fun `turning auto-close off survives normalisation`() {
+        // `normalised()` rebuilds the config field by field, which is exactly how a new flag gets dropped
+        // on the floor: the value would revert to its default on the next read and the setting would look
+        // like it never saved.
+        assertFalse(OverlayConfig(quickAutoClose = false).normalised().quickAutoClose)
+    }
+
+    @Test
+    fun `the pin cap agrees with the overlay layer's authority of six`() {
+        // MAX_QUICK_PINS is a mirror of QuickSheetPins.MAX_PINS; this pins the agreed value so a change to
+        // one without the other is caught here rather than by a pin silently vanishing on a device.
+        assertEquals(6, OverlayConfig.MAX_QUICK_PINS)
     }
 
     // ------------------------------------------------------------------- which crosshair, which layout
@@ -217,5 +394,40 @@ class OverlayModelsTest {
         )
         val after = driven.withCrosshair(visible = true, presetId = 7L, remembered = null)
         assertEquals(driven.copy(crosshair = true, crosshairPresetId = 7L), after)
+    }
+
+    // -------------------------------------------------------------- spec §3: pill display mode
+
+    /**
+     * The default is [PillDisplayMode.DETAILED] and it is load-bearing: an install updating over the old
+     * app that never opens this setting must see the exact pill it had, and the old pill was the labelled
+     * card. A default of COMPACT would silently reshape every existing user's overlay on update.
+     */
+    @Test
+    fun `a fresh overlay config is the detailed pill, unchanged from before the mode existed`() {
+        assertEquals(PillDisplayMode.DETAILED, OverlayConfig().displayMode)
+    }
+
+    @Test
+    fun `an unknown or absent stored mode falls back to detailed rather than throwing`() {
+        assertEquals(PillDisplayMode.DETAILED, PillDisplayMode.of(null))
+        assertEquals(PillDisplayMode.DETAILED, PillDisplayMode.of(""))
+        assertEquals(PillDisplayMode.DETAILED, PillDisplayMode.of("SOMETHING_A_LATER_VERSION_ADDED"))
+    }
+
+    @Test
+    fun `each mode round-trips through its stored name`() {
+        for (mode in PillDisplayMode.entries) {
+            assertEquals(mode, PillDisplayMode.of(mode.name))
+        }
+    }
+
+    /** normalising a config leaves the mode alone — it is a choice, not a value to clamp. */
+    @Test
+    fun `normalising keeps the chosen display mode`() {
+        assertEquals(
+            PillDisplayMode.COMPACT,
+            OverlayConfig(displayMode = PillDisplayMode.COMPACT).normalised().displayMode,
+        )
     }
 }

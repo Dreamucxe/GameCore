@@ -23,3 +23,6 @@ keystore.properties
 /redesign.md
 /ad/
 /tutorial/
+
+# local Gradle gate logs (never committed)
+gate_*.log

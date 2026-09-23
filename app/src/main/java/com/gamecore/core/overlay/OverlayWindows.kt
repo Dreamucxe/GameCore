@@ -17,6 +17,14 @@ enum class OverlaySlot {
     /** What the button expands into. Takes touches, and dismisses when one lands outside it. */
     PANEL,
 
+    /**
+     * The quick sheet of §4: a narrow edge-anchored strip of pinned toggles that a single tap on the
+     * button opens (the full [PANEL] is the double-tap). Takes touches, and dismisses on an outside tap
+     * like the panel — it is narrow, so "outside" exists. A separate slot from [PANEL] so the two never
+     * share a window: opening one must not hide the other through the same [hide] call.
+     */
+    QUICK_SHEET,
+
     /** The stats pill of §8. Never takes touches. */
     PILL,
 

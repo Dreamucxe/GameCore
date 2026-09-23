@@ -192,6 +192,39 @@ class SessionRecorder @Inject constructor(
     suspend fun flush(): Unit = mutex.withLock { flushLocked() }
 
     /**
+     * Stamps the smart-feature summary (§B6/§D8) onto the running session, just before it is finished.
+     *
+     * These figures are not sampled per tick — they are the session-long totals the [SmartFeatureRunner]
+     * holds and reports once at the end — so they are set on the state here rather than accumulated in
+     * [offer]. `aggregate` in [finishLocked] recomputes the sampled averages from disk and copies the rest
+     * of the row through unchanged, so a value set here survives to the finished row. Null fields mean the
+     * feature was off, which the mappers store as NULL rather than a zero.
+     */
+    suspend fun recordSmartSummary(summary: SmartSessionSummary): Unit = mutex.withLock {
+        val session = state.value ?: return@withLock
+        state.value = session.copy(
+            downshiftCount = summary.downshiftCount,
+            lowestRateHz = summary.lowestRateHz,
+            fullPerformanceOverridden = summary.fullPerformanceOverridden,
+            systemReenabledSaver = summary.systemReenabledSaver,
+        )
+    }
+
+    /**
+     * Stamps the network summary (§C7) onto the running session, just before it is finished.
+     *
+     * The transport is not sampled per row — it is the one the [NetworkAlertMonitor] latched over the
+     * session — so it is set here rather than in [offer], the same way [recordSmartSummary] sets the
+     * thermal and saver totals. `aggregate` in [finishLocked] recomputes only the sampled averages and
+     * copies the rest of the row through, so a transport set here survives to the finished row. A null
+     * transport means the network check was off, which the mapper stores as NULL rather than a guess.
+     */
+    suspend fun recordNetworkSummary(summary: NetworkSessionSummary): Unit = mutex.withLock {
+        val session = state.value ?: return@withLock
+        state.value = session.copy(transport = summary.transport)
+    }
+
+    /**
      * Closes the session and returns it, or null if it was too short to keep.
      *
      * [reason] is stored on the row. It is not decoration: `SessionRepository.finish` decides whether

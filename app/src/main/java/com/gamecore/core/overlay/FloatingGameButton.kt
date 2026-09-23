@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -27,6 +28,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.gamecore.core.model.FloatingButtonConfig
@@ -69,6 +72,18 @@ fun FloatingGameButton(
     modifier: Modifier = Modifier,
     /** True while the panel is open, so the button can show it is the thing that opened it. */
     isExpanded: Boolean = false,
+    /**
+     * The thermal dot (spec §2), from the shared [thermalDot] map. [ThermalDot.NONE] — which includes an
+     * unavailable temperature — draws nothing, so a button over a cool phone or a phone whose sensor is
+     * silent looks exactly as it does today. The same state is stated as a word in the pill and panel.
+     */
+    thermalDot: ThermalDot = ThermalDot.NONE,
+    /**
+     * Optional double-tap-to-open-the-panel (spec §2). Null when the setting is off, which is the default:
+     * a single tap opens the quick sheet, and only when the user turns this on does a double tap reach the
+     * full panel. Kept as a callback rather than a boolean so this composable owns no navigation.
+     */
+    onDoubleTap: (() -> Unit)? = null,
 ) {
     val haptics = LocalHapticFeedback.current
     val slopPx = LocalViewConfiguration.current.touchSlop
@@ -84,6 +99,10 @@ fun FloatingGameButton(
     // `ACTION_MOVE` past the slop would buzz and a two-second drag would be a continuous vibration —
     // the difference between feedback and a fault.
     var hasBuzzed by remember { mutableStateOf(false) }
+
+    // The event time of the last completed tap, for the optional double-tap. Only read when onDoubleTap is
+    // non-null; a single-tap-only button never consults it.
+    var lastTapTime by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(interactions, isExpanded) {
         if (isExpanded) {
@@ -146,7 +165,18 @@ fun FloatingGameButton(
                             if (config.hapticFeedback) {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             }
-                            onTap()
+                            // When double-tap-to-open-panel is on, a tap that lands within the window of the
+                            // previous one is the double tap; otherwise every tap opens the quick sheet. The
+                            // single tap still fires immediately when the setting is off, so the common path
+                            // has no added latency — only an armed double-tap defers, and only to itself.
+                            val now = event.eventTime
+                            if (onDoubleTap != null && now - lastTapTime <= DOUBLE_TAP_WINDOW_MILLIS) {
+                                lastTapTime = 0L
+                                onDoubleTap()
+                            } else {
+                                lastTapTime = now
+                                onTap()
+                            }
                         } else {
                             onDragFinished(ended.targetX, ended.targetY)
                         }
@@ -175,6 +205,27 @@ fun FloatingGameButton(
             tint = accent,
             modifier = Modifier.size((config.sizeDp * ICON_FRACTION).dp),
         )
+        if (thermalDot != ThermalDot.NONE) {
+            val dotColour = if (thermalDot == ThermalDot.CRITICAL) OverlayPalette.Danger else OverlayPalette.Warning
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    // A ring in the plate colour around the dot so it reads against both the icon and a
+                    // bright game behind a translucent button.
+                    .size((config.sizeDp * DOT_RING_FRACTION).dp)
+                    .background(OverlayPalette.Plate, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size((config.sizeDp * DOT_FRACTION).dp)
+                        .background(dotColour, CircleShape)
+                        // The state is not conveyed by colour alone — the word is in the pill and panel
+                        // (spec §2, §6) — but the dot still names itself for a screen reader.
+                        .semantics { contentDescription = thermalDot.word },
+                )
+            }
+        }
     }
 }
 
@@ -189,3 +240,13 @@ private const val BORDER_ALPHA = 0.55f
 
 /** The glyph inside the circle, as a fraction of the button's diameter. */
 private const val ICON_FRACTION = 0.52f
+
+/** The thermal dot and the plate-coloured ring around it, as fractions of the button's diameter. */
+private const val DOT_FRACTION = 0.22f
+private const val DOT_RING_FRACTION = 0.34f
+
+/**
+ * How close two taps must be to count as a double tap, in milliseconds. Android's own
+ * `ViewConfiguration.getDoubleTapTimeout()` is 300 ms; matching it keeps the gesture feeling native.
+ */
+private const val DOUBLE_TAP_WINDOW_MILLIS = 300L

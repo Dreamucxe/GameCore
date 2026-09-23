@@ -16,6 +16,8 @@ import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HudWidget
 import com.gamecore.core.model.LatencyLog
+import com.gamecore.core.model.NetworkTransport
+import com.gamecore.core.model.ThermalClass
 import com.gamecore.core.model.PerformanceMode
 import com.gamecore.core.model.ScreenOrientationLock
 import com.gamecore.core.model.SessionSample
@@ -62,6 +64,20 @@ internal object Mappers {
         trackSession = profile.trackSession,
         freeRamOnLaunch = profile.freeRamOnLaunch,
         cpuAffinity = profile.cpuAffinity?.name,
+        // 3.5 smart features. Enum stored by name like every other enum here; the numeric parameters are
+        // clamped/validated on the way back in toModel, so a hand-edited row cannot feed the machines junk.
+        thermalDownshiftEnabled = profile.thermalDownshiftEnabled,
+        thermalLimitDeciCelsius = profile.thermalLimitDeciCelsius,
+        thermalStatusFloor = profile.thermalStatusFloor?.name,
+        thermalFloorRateHz = profile.thermalFloorRateHz,
+        thermalHysteresisDeciCelsius = profile.thermalHysteresisDeciCelsius,
+        thermalSustainHotMillis = profile.thermalSustainHotMillis,
+        thermalSustainCoolMillis = profile.thermalSustainCoolMillis,
+        thermalMinIntervalMillis = profile.thermalMinIntervalMillis,
+        networkCheckEnabled = profile.networkCheckEnabled,
+        networkPreLaunchWarn = profile.networkPreLaunchWarn,
+        networkAlertsEnabled = profile.networkAlertsEnabled,
+        fullPerformanceEnabled = profile.fullPerformanceEnabled,
         updatedAtMillis = nowMillis,
     )
 
@@ -100,6 +116,23 @@ internal object Mappers {
         cpuAffinity = entity.cpuAffinity?.let { name ->
             CpuAffinityPreset.entries.firstOrNull { it.name == name }
         },
+        // 3.5 smart features, all read defensively — a value from a hand-edited row or a newer build is
+        // clamped into range or dropped, never trusted, matching the enum-by-name discipline above. A
+        // negative or absurd timing would otherwise drive the state machines into a corner.
+        thermalDownshiftEnabled = entity.thermalDownshiftEnabled,
+        thermalLimitDeciCelsius = entity.thermalLimitDeciCelsius?.coerceIn(0, 1_500),
+        thermalStatusFloor = entity.thermalStatusFloor?.let { name ->
+            ThermalClass.entries.firstOrNull { it.name == name }
+        },
+        thermalFloorRateHz = entity.thermalFloorRateHz?.takeIf { it in 1f..480f },
+        thermalHysteresisDeciCelsius = entity.thermalHysteresisDeciCelsius?.coerceIn(0, 500),
+        thermalSustainHotMillis = entity.thermalSustainHotMillis?.coerceIn(0L, 600_000L),
+        thermalSustainCoolMillis = entity.thermalSustainCoolMillis?.coerceIn(0L, 600_000L),
+        thermalMinIntervalMillis = entity.thermalMinIntervalMillis?.coerceIn(0L, 600_000L),
+        networkCheckEnabled = entity.networkCheckEnabled,
+        networkPreLaunchWarn = entity.networkPreLaunchWarn,
+        networkAlertsEnabled = entity.networkAlertsEnabled,
+        fullPerformanceEnabled = entity.fullPerformanceEnabled,
     )
 
     // ------------------------------------------------------------------------ hud
@@ -291,6 +324,14 @@ internal object Mappers {
         latencyWorst = session.latencyLog?.worstMillis,
         latencyJitter = session.latencyLog?.jitterMillis,
         latencyFailedRun = session.latencyLog?.longestFailureRun,
+        // 3.5 summary fields, stored as-is; enum by name like everywhere else. No avg/jitter/loss
+        // beside transport: the session's latency already lives in `avg_latency` and the `latency_*`
+        // columns, and no loss figure is stored (see SessionEntity.transport).
+        downshiftCount = session.downshiftCount,
+        lowestRateHz = session.lowestRateHz,
+        transport = session.transport?.name,
+        fullPerformanceOverridden = session.fullPerformanceOverridden,
+        systemReenabledSaver = session.systemReenabledSaver,
     )
 
     fun toModel(entity: SessionEntity): GameSession = GameSession(
@@ -333,6 +374,17 @@ internal object Mappers {
                 longestFailureRun = entity.latencyFailedRun ?: 0,
             )
         },
+        // 3.5 summary fields, read defensively: the downshift count clamped non-negative, the rate to a
+        // plausible panel range, and the transport enum matched by name and dropped if unknown — a
+        // hand-edited row cannot put a nonsense figure in front of the user or a bad enum name through
+        // valueOf. No avg/jitter/loss to read: those figures live in the latency fields above.
+        downshiftCount = entity.downshiftCount?.coerceAtLeast(0),
+        lowestRateHz = entity.lowestRateHz?.takeIf { it in 1f..480f },
+        transport = entity.transport?.let { name ->
+            NetworkTransport.entries.firstOrNull { it.name == name }
+        },
+        fullPerformanceOverridden = entity.fullPerformanceOverridden,
+        systemReenabledSaver = entity.systemReenabledSaver,
     )
 
     fun toEntity(sample: SessionSample): SessionSampleEntity = SessionSampleEntity(

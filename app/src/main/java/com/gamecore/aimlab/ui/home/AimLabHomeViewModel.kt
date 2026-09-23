@@ -3,6 +3,7 @@ package com.gamecore.aimlab.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.aimlab.AimLabRepository
+import com.gamecore.data.preferences.SecurePreferenceStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -20,26 +21,33 @@ import javax.inject.Inject
  * and home is what opening Aim Lab means. Seeding from here rather than at process start keeps the cost off
  * every launch for the users who never open the section.
  *
- * [state] is hot and combines the three observed flows through a single [stateIn] with
- * `WhileSubscribed(5000)`, following the same idiom the rest of the app's dashboards use: the flows stay
- * observed across a configuration change and a hop to a detail screen and back, and are released shortly
- * after the screen stops collecting. Every figure it exposes is derived by [AimLabSummary.from] from real
- * sessions and records — there is no synthetic data path, so an empty history yields the empty state rather
- * than a strip of zeroes (§1/§30).
+ * [state] is hot and combines the observed flows through a single [stateIn] with `WhileSubscribed(5000)`,
+ * following the same idiom the rest of the app's dashboards use: the flows stay observed across a
+ * configuration change and a hop to a detail screen and back, and are released shortly after the screen
+ * stops collecting. Every figure it exposes is derived by [AimLabSummary.from] from real sessions and
+ * records — there is no synthetic data path, so an empty history yields the empty state rather than a strip
+ * of zeroes (§1/§30).
+ *
+ * The settings flow is read for one field, [com.gamecore.core.model.AppSettings.compactDensity], so the tab
+ * spaces its cards the way the user asked the rest of the app to (§8). Nothing else is taken from it: Aim
+ * Lab's own navigation, orientation handling and dormancy rules are untouched by this screen.
  */
 @HiltViewModel
 class AimLabHomeViewModel @Inject constructor(
     private val repository: AimLabRepository,
+    preferences: SecurePreferenceStore,
 ) : ViewModel() {
 
     val state: StateFlow<AimLabHomeState> = combine(
         repository.sessions,
         repository.records,
         repository.sessionCount,
-    ) { sessions, records, count ->
+        preferences.settings,
+    ) { sessions, records, count, settings ->
         AimLabHomeState(
             loading = false,
             summary = AimLabSummary.from(sessions = sessions, records = records, count = count),
+            isCompact = settings.compactDensity,
         )
     }.stateIn(
         scope = viewModelScope,

@@ -1,6 +1,7 @@
 package com.gamecore.ui.settings
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
@@ -9,16 +10,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Animation
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.FormatSize
+import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Shield
@@ -34,21 +40,31 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gamecore.BuildConfig
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.model.AccentChoice
+import com.gamecore.core.model.AnimationsMode
 import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.RecordingQuality
+import com.gamecore.core.model.TextSizePreset
 import com.gamecore.core.model.ThemeChoice
+import com.gamecore.core.model.appVersionLabel
+import com.gamecore.core.model.customAccentLabel
+import com.gamecore.core.model.scaleForPreset
+import com.gamecore.core.model.textSizePreset
+import com.gamecore.core.model.uiScaleLabel
 import com.gamecore.ui.Destination
 import com.gamecore.ui.components.ActionRow
 import com.gamecore.ui.components.ChoiceRow
+import com.gamecore.ui.components.ColourPicker
 import com.gamecore.ui.components.ColourSwatches
 import com.gamecore.ui.components.ConfirmDialog
 import com.gamecore.ui.components.KeyValueRow
@@ -125,11 +141,18 @@ fun SettingsScreen(
             AppearanceCard(
                 state = state,
                 onEdit = viewModel::update,
+                modifier = padded,
+            )
+        }
+        item {
+            DisplayTextCard(
+                state = state,
                 onScaleChange = viewModel::setUiScale,
                 onScaleCommit = viewModel::commitScale,
                 modifier = padded,
             )
         }
+        item { BehaviorCard(state = state, onEdit = viewModel::update, modifier = padded) }
         item { OverlaysCard(state = state, onNavigate = onNavigate, modifier = padded) }
         item {
             GamesCard(
@@ -205,20 +228,28 @@ fun SettingsScreen(
 }
 
 /**
- * Theme, accent and scale.
+ * Theme, accent, custom colour and density (§7).
  *
  * Dynamic colour appears only on Android 12 and later, where the platform actually has a wallpaper palette
  * to take. On Android 11 a switch for it would be a control that does nothing, which §32 does not allow, so
  * the row is replaced by a line saying the device has no such palette.
+ *
+ * The ninth swatch is the custom colour, in the same row as the eight rather than in a row of its own —
+ * it is the same kind of thing, a colour one tap away, and the row is where a user looks to see which
+ * colour is currently on. That also makes the swatch row the *only* place `useCustomAccent` is switched:
+ * tapping one of the eight turns it off, tapping the ninth turns it on. A separate "use custom colour"
+ * toggle would give one visible property two owners, and the two would be out of step the first time
+ * somebody tapped a swatch while the toggle was off.
  */
 @Composable
 private fun AppearanceCard(
     state: SettingsUiState,
     onEdit: ((AppSettings) -> AppSettings) -> Unit,
-    onScaleChange: (Int) -> Unit,
-    onScaleCommit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var pickerOpen by remember { mutableStateOf(false) }
+    val custom = state.settings.customAccentArgb
+
     SectionCard(title = "Appearance", icon = Icons.Filled.Tune, modifier = modifier) {
         Text(
             text = "THEME",
@@ -230,7 +261,7 @@ private fun AppearanceCard(
             selected = state.settings.theme,
             onSelect = { choice -> onEdit { it.copy(theme = choice) } },
             label = { it.label },
-            perRow = 3,
+            perRow = 2,
         )
         RowDivider()
         Text(
@@ -238,11 +269,47 @@ private fun AppearanceCard(
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        // The empty ninth swatch is drawn in the surface's own grey: it is a slot, not a colour anybody
+        // chose, and filling it with a plausible hue would be a colour the user never picked being offered
+        // back to them as if they had.
+        val emptyCustom = MaterialTheme.colorScheme.surfaceVariant
         ColourSwatches(
-            colours = AccentChoice.entries.map { Color(it.argb) },
-            selected = Color(state.settings.accent.argb),
-            onSelect = { picked -> onEdit { it.copy(accent = accentFor(picked)) } },
+            colours = AccentChoice.entries.map { Color(it.argb) } + (custom?.let { Color(it) } ?: emptyCustom),
+            selected = if (state.settings.useCustomAccent && custom != null) {
+                Color(custom)
+            } else {
+                Color(state.settings.accent.argb)
+            },
+            onSelect = { picked ->
+                val choice = AccentChoice.entries.firstOrNull { Color(it.argb) == picked }
+                when {
+                    choice != null -> onEdit { it.copy(accent = choice, useCustomAccent = false) }
+                    custom != null -> onEdit { it.copy(useCustomAccent = true) }
+                    // Nothing mixed yet, so the ninth swatch has nothing to select. Opening the picker is
+                    // what the tap was asking for anyway.
+                    else -> pickerOpen = true
+                }
+            },
+            perRow = 5,
         )
+        NavRow(
+            title = "Custom colour",
+            onClick = { pickerOpen = !pickerOpen },
+            icon = Icons.Filled.Palette,
+            description = "Mix your own accent. It joins the swatches above as the ninth colour.",
+            trailing = customAccentLabel(custom, state.settings.useCustomAccent),
+        )
+        if (pickerOpen) {
+            ColourPicker(
+                initialArgb = custom ?: state.settings.accent.argb,
+                // Picking is also choosing: a colour mixed and then not applied would leave the user
+                // looking at an unchanged screen wondering which control they still had to find.
+                onPick = { argb ->
+                    onEdit { it.copy(customAccentArgb = argb, useCustomAccent = true) }
+                    pickerOpen = false
+                },
+            )
+        }
         if (state.settings.useDynamicColour) {
             Text(
                 text = "The accent is coming from your wallpaper while dynamic colour is on.",
@@ -261,21 +328,117 @@ private fun AppearanceCard(
         } else {
             KeyValueRow(label = "Wallpaper colours", value = "Android 12+", tone = Tone.Muted)
         }
-        SliderRow(
-            title = "Text and control size",
-            value = state.uiScalePercent,
-            range = AppSettings.MIN_UI_SCALE..AppSettings.MAX_UI_SCALE,
-            onValueChange = onScaleChange,
-            valueLabel = "${state.uiScalePercent}%",
-            description = "Scales GameCore's own screens. It does not change anything outside this app.",
-            onValueChangeFinished = onScaleCommit,
+        SwitchRow(
+            title = "Compact density",
+            checked = state.settings.compactDensity,
+            onCheckedChange = { enabled -> onEdit { it.copy(compactDensity = enabled) } },
+            description = "Tightens the space between rows. Tap targets keep their full size.",
         )
     }
 }
 
-/** Maps a swatch back to the choice it came from. Identity by colour, since the swatches are built from it. */
-private fun accentFor(colour: Color): AccentChoice =
-    AccentChoice.entries.firstOrNull { Color(it.argb) == colour } ?: AccentChoice.CYAN
+/**
+ * Font scale and the text-size presets — one stored multiplier, two ways to move it (§7).
+ *
+ * The presets are *derived* from [SettingsUiState.uiScalePercent] by [textSizePreset] rather than stored
+ * alongside it, which is what keeps them in sync: there is one number, so there is nothing to drift. Drag
+ * the slider to 90% and "Small" lights up; tap "Large" and the slider moves to 115%. A value between the
+ * stops is named [TextSizePreset.CUSTOM] rather than rounded to the nearest preset, because a user who
+ * deliberately chose 122% has not asked for 115%.
+ *
+ * "Custom" is shown but inert — tapping it stores nothing ([scaleForPreset] returns the current value). It
+ * is there because the row has to be able to *report* that state, and a preset row that silently lit
+ * nothing at 122% would read as the screen having lost track of the setting.
+ */
+@Composable
+private fun DisplayTextCard(
+    state: SettingsUiState,
+    onScaleChange: (Int) -> Unit,
+    onScaleCommit: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val preset = textSizePreset(state.uiScalePercent)
+
+    SectionCard(title = "Display and text", icon = Icons.Filled.FormatSize, modifier = modifier) {
+        SliderRow(
+            title = "Font scale",
+            value = state.uiScalePercent,
+            range = AppSettings.MIN_UI_SCALE..AppSettings.MAX_UI_SCALE,
+            onValueChange = onScaleChange,
+            valueLabel = uiScaleLabel(state.uiScalePercent),
+            description = "Multiplies Android's own font size setting inside GameCore. It does not " +
+                "change anything outside this app.",
+            onValueChangeFinished = onScaleCommit,
+        )
+        Text(
+            text = "TEXT SIZE",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ChoiceRow(
+            options = TextSizePreset.entries.toList(),
+            selected = preset,
+            onSelect = { chosen ->
+                val next = scaleForPreset(chosen, state.uiScalePercent)
+                if (next != state.uiScalePercent) {
+                    onScaleChange(next)
+                    onScaleCommit()
+                }
+            },
+            label = { it.label },
+            perRow = 4,
+        )
+        if (preset == TextSizePreset.CUSTOM) {
+            Text(
+                text = "The slider is between the presets, at ${uiScaleLabel(state.uiScalePercent)}.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * Motion and haptics (§7).
+ *
+ * Animations defaults to [AnimationsMode.SYSTEM] and the description says what that means, because
+ * "Follow system" on its own does not tell a user which system setting is being followed — and the one
+ * being followed here is an accessibility setting some people have deliberately turned all the way down.
+ */
+@Composable
+private fun BehaviorCard(
+    state: SettingsUiState,
+    onEdit: ((AppSettings) -> AppSettings) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(title = "Behavior", icon = Icons.Filled.Animation, modifier = modifier) {
+        Text(
+            text = "ANIMATIONS",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ChoiceRow(
+            options = AnimationsMode.entries.toList(),
+            selected = state.settings.animations,
+            onSelect = { mode -> onEdit { it.copy(animations = mode) } },
+            label = { it.label },
+            perRow = 3,
+        )
+        Text(
+            text = "Following the system uses Android's animation scale, so motion turned down for " +
+                "accessibility stays turned down here.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        RowDivider()
+        SwitchRow(
+            title = "Haptics",
+            checked = state.settings.hapticsEnabled,
+            onCheckedChange = { enabled -> onEdit { it.copy(hapticsEnabled = enabled) } },
+            description = "A short vibration on the floating button and on destructive actions.",
+        )
+    }
+}
 
 /**
  * The three overlays, each behind a link to the screen that owns it.
@@ -575,7 +738,7 @@ private fun RecordingCard(
 }
 
 /**
- * Three screens rather than three settings: none of these is a value, they are all a state of the device.
+ * Four screens rather than four settings: none of these is a value, they are all a state of the device.
  */
 @Composable
 private fun AccessCard(
@@ -583,6 +746,16 @@ private fun AccessCard(
     modifier: Modifier = Modifier,
 ) {
     SectionCard(title = "Access and tools", icon = Icons.Filled.Shield, modifier = modifier) {
+        // §A3, and first in this card because it is the summary over the two rows beneath it: it reads
+        // every grant Permissions lists and the Shizuku state that screen explains, and says which of
+        // them something the user actually turned on is waiting for. Someone who knows which grant is
+        // missing still goes straight to the row they want.
+        NavRow(
+            title = "Setup health",
+            onClick = { onNavigate(Destination.SetupHealth) },
+            description = "What is set up, what is not, and what each gap costs you.",
+            icon = Icons.Filled.Checklist,
+        )
         NavRow(
             title = "Permissions",
             onClick = { onNavigate(Destination.Permissions) },
@@ -679,14 +852,44 @@ private fun shareIntent(uri: Uri): Intent = Intent(Intent.ACTION_SEND).apply {
     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 }
 
-/** The build, the device it is on, and the short version of what this app will not do. */
+/** The build, the device it is on, the licence, and the short version of what this app will not do. */
 @Composable
 private fun AboutCard(
     onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    var licenceOpen by remember { mutableStateOf(false) }
+
+    // Read from the *installed* package rather than from `BuildConfig` (§7). A compiled-in constant
+    // describes the APK this code was built into, which is the same thing right up until it is not —
+    // a sideloaded build over the top, a user comparing two APKs, a bug report about "3.3" that turns out
+    // to be a different 3.3. The build number is the half that settles those, and it is the half a
+    // constant is least able to prove.
+    val version = remember(context) {
+        try {
+            val info = context.packageManager.getPackageInfo(context.packageName, 0)
+            val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                info.versionCode.toLong()
+            }
+            // Null means the package manager answered without a version. "Unavailable" then, not a
+            // guess — §0 applies to GameCore's own version as much as to a sensor's.
+            appVersionLabel(info.versionName, code)
+                ?: "Unavailable — the package reports no version"
+        } catch (e: PackageManager.NameNotFoundException) {
+            "Unavailable — Android could not find the package ${context.packageName}"
+        }
+    }
+
     SectionCard(title = "About", icon = Icons.Filled.PhoneAndroid, modifier = modifier) {
-        KeyValueRow(label = "GameCore", value = BuildConfig.VERSION_NAME)
+        KeyValueRow(
+            label = "GameCore",
+            value = version,
+            tone = if (version.startsWith("Unavailable")) Tone.Muted else Tone.Neutral,
+        )
         KeyValueRow(
             label = "Android",
             value = "${Build.VERSION.RELEASE} · API ${Build.VERSION.SDK_INT}",
@@ -699,6 +902,20 @@ private fun AboutCard(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         RowDivider()
+        NavRow(
+            title = "License",
+            onClick = { licenceOpen = !licenceOpen },
+            description = "GameCore is open source.",
+            icon = Icons.Filled.Gavel,
+            trailing = LICENCE_NAME,
+        )
+        if (licenceOpen) {
+            Text(
+                text = LICENCE_TEXT,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         NavRow(
             title = "Developer",
             onClick = { onNavigate(Destination.Developer) },
@@ -714,6 +931,27 @@ private const val HOST_FIELD_LENGTH = 253
 private const val NOT_PERSISTING =
     "Settings cannot be saved on this device — the encrypted preferences file would not open. Everything " +
         "here still works, but every change is lost when GameCore stops running."
+
+/** The licence GameCore is actually shipped under — the same one as the `LICENSE` file in the repository. */
+private const val LICENCE_NAME = "MIT"
+
+/**
+ * The licence, abbreviated to the part that answers the question someone taps the row to ask.
+ *
+ * Not the full text. The warranty disclaimer is two paragraphs of capitals that nobody reads on a phone,
+ * and pasting them here would bury the grant. The copyright line and the permission sentence are the two
+ * things that are actually *about this app*, and the row says plainly that the rest is in the repository
+ * rather than implying this is the whole document.
+ */
+private const val LICENCE_TEXT =
+    "MIT License · Copyright (c) 2026 Dreamucxe\n\n" +
+        "Permission is hereby granted, free of charge, to any person obtaining a copy of this software " +
+        "and associated documentation files to deal in the Software without restriction, including " +
+        "without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense " +
+        "and/or sell copies of the Software, subject to the copyright notice and this permission notice " +
+        "being included in all copies.\n\n" +
+        "The Software is provided \"as is\", without warranty of any kind. The full text ships with the " +
+        "source."
 
 private const val ABOUT_TEXT =
     "Everything GameCore records stays on this device. There is no account and no server of its own, no " +

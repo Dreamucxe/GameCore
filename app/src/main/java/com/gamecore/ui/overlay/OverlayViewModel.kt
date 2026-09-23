@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.OverlayConfig
+import com.gamecore.core.model.intervalMillis
+import com.gamecore.core.overlay.QuickSheetPins
+import com.gamecore.core.overlay.QuickToggle
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.domain.monitoring.HudStatReader
 import com.gamecore.domain.monitoring.PerformanceMonitor
@@ -61,13 +64,30 @@ class OverlayViewModel @Inject constructor(
 
     private val local = MutableStateFlow(LocalState())
 
-    val state: StateFlow<OverlayUiState> = combine(
+    /**
+     * The three stored things this screen reads, folded into one flow before the main combine.
+     *
+     * A nesting rather than a six-argument `combine`, because `combine` is only overloaded to five and
+     * the vararg form would hand the transform an `Array<Any?>` to cast its way out of. Grouping the
+     * *stored* values together and leaving the live ones at the top level also happens to say which is
+     * which: these three come from the preference file, the other two from the overlay service.
+     *
+     * [com.gamecore.core.model.AppSettings] is in here only for §3's compact-density flag — the gaps
+     * between this screen's cards follow the same setting the rest of the app's do, and reading it from
+     * the same flow the configs come from is what keeps the whole screen recomposing once per change.
+     */
+    private val stored = combine(
         preferences.overlay,
         preferences.floatingButton,
+        preferences.settings,
+    ) { pill, button, settings -> Triple(pill, button, settings) }
+
+    val state: StateFlow<OverlayUiState> = combine(
+        stored,
         overlay.desired,
         overlay.status,
         local,
-    ) { pill, button, desired, status, own ->
+    ) { (pill, button, settings), desired, status, own ->
         OverlayUiState(
             isLoaded = own.isLoaded,
             hasPermission = own.hasPermission,
@@ -83,6 +103,7 @@ class OverlayViewModel @Inject constructor(
             // The permission is this screen's own fresh read rather than the one the service reported
             // with, which can predate a trip to Settings the user has just come back from.
             statusSummary = status.copy(hasPermission = own.hasPermission).summary,
+            isCompact = settings.compactDensity,
             message = own.message,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIPTION_GRACE_MILLIS), OverlayUiState())
@@ -206,8 +227,15 @@ class OverlayViewModel @Inject constructor(
         preferences.updateOverlay(transform)
     }
 
+    /**
+     * The interval slider, in the tenths of a second it steps in.
+     *
+     * The conversion is [intervalMillis]' rather than an arithmetic expression here, so the slider's
+     * position, the figure printed beside it and the value stored are one tested round trip — and so the
+     * clamp to [OverlayConfig]'s own bounds happens before the draft is built rather than after.
+     */
     fun setInterval(tenths: Int) = editPill {
-        it.copy(updateIntervalMillis = tenths * OverlayUiState.TENTH_MILLIS)
+        it.copy(updateIntervalMillis = intervalMillis(tenths))
     }
 
     fun resetPillPosition() {
@@ -254,6 +282,59 @@ class OverlayViewModel @Inject constructor(
         }
     }
 
+    // ------------------------------------------------------------------------------- the quick sheet
+
+    /**
+     * One edit to the pinned toggles, stored back as the names [OverlayConfig.quickPins] holds.
+     *
+     * The transform starts from the *normalised* list rather than the raw stored one, because that is what
+     * the editor on screen is drawing. With nothing stored the sheet shows its six defaults, and a removal
+     * applied to the empty stored list would be a no-op the user reads as a dead button — so normalising
+     * first is what turns the fallback into a real list the first edit can act on.
+     *
+     * Availability accepts everything for the reason [OverlayUiState.pinnedToggles] gives: a settings
+     * screen cannot run the service's device probe. [QuickSheetPins.add]'s availability refusal therefore
+     * never fires here, and the cap and the dedupe are what it is enforcing.
+     */
+    private fun updatePins(transform: (List<QuickToggle>) -> List<QuickToggle>) {
+        val current = QuickSheetPins.resolve(preferences.overlay.value.quickPins) { true }
+        updatePill { config -> config.copy(quickPins = transform(current).map(QuickToggle::name)) }
+    }
+
+    fun addPin(toggle: QuickToggle) = updatePins { QuickSheetPins.add(it, toggle) { true } }
+
+    /** Moves one pin along the grid. [delta] is -1 or 1; the ends are walls, exactly as on the pill. */
+    fun movePin(toggle: QuickToggle, delta: Int) = updatePins { QuickSheetPins.move(it, toggle, delta) }
+
+    /**
+     * Takes a toggle off the sheet, and says so when that was the last one.
+     *
+     * An empty pin list is stored as "never set", and every reader of it treats that as a request for the
+     * default six rather than for a sheet with nothing on it. The fallback is right — a sheet with no
+     * controls is just a plate over a game — and it is also the wrong surprise: a user who removed six
+     * toggles one at a time and watched all six reappear would reasonably conclude the setting does not
+     * work. So the removal stands and the reason is said out loud, the same answer [removeStat] gives for
+     * the last stat on the pill.
+     */
+    fun removePin(toggle: QuickToggle) {
+        updatePins { QuickSheetPins.remove(it, toggle) }
+        if (preferences.overlay.value.quickPins.isEmpty()) {
+            local.value = local.value.copy(message = PINS_EMPTIED)
+        }
+    }
+
+    fun setQuickAutoClose(enabled: Boolean) = updatePill { it.copy(quickAutoClose = enabled) }
+
+    /**
+     * §4's optional gesture.
+     *
+     * Off by default, and the cost of turning it on is worth stating where it is set: a button that has to
+     * wait and see whether a second tap is coming cannot open the sheet until that window has passed, so
+     * every single tap gains that delay. On, the full panel is a double tap away; off, the sheet opens the
+     * instant the finger lifts and the panel is reached from the sheet's own "More".
+     */
+    fun setDoubleTapForPanel(enabled: Boolean) = updateButton { it.copy(doubleTapForPanel = enabled) }
+
     // ------------------------------------------------------------------------------------ the lot
 
     /**
@@ -292,6 +373,11 @@ class OverlayViewModel @Inject constructor(
         const val PILL_EMPTIED =
             "That was the last stat, so the pill has been switched off rather than left blank over your " +
                 "game. Add a stat and it can be shown again."
+
+        const val PINS_EMPTIED =
+            "That was the last pinned toggle, and a quick sheet with nothing on it would be a blank plate " +
+                "over your game — so it has gone back to its default set. Pin the ones you want and they " +
+                "take over."
 
         const val PILL_MOVED = "The pill is back at the left edge, a little below the top."
 

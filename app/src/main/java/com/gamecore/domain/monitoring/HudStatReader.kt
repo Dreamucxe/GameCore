@@ -5,7 +5,11 @@ import com.gamecore.core.common.Observed
 import com.gamecore.core.common.unavailabilityText
 import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.HudStat
+import com.gamecore.core.model.NetworkTransport
 import com.gamecore.core.model.PerformanceSnapshot
+import com.gamecore.core.model.ThermalClassifier
+import com.gamecore.domain.network.compactNetworkLine
+import com.gamecore.domain.network.wifiBand
 
 /**
  * One stat, resolved to the text that gets drawn, or to the reason there is no text.
@@ -119,14 +123,46 @@ object HudStatReader {
                 kilobytes(it)
             }
             HudStat.NETWORK_UP -> from(stat, snapshot.network.txRateBytesPerSecond) { kilobytes(it) }
+            // The §C composite line, built from the pieces the snapshot already carries. Not routed through
+            // `from` because it is not one Observed field: the pure `compactNetworkLine` omits whatever is
+            // absent, and the field reads unavailable only when there is no connection at all — a connected
+            // network with no latency probe yet still shows its transport and signal.
+            HudStat.NETWORK -> networkLine(snapshot)
             HudStat.STORAGE_FREE -> StatReading(
                 stat = stat,
                 value = Formatters.gigabytes(snapshot.storage.availableBytes),
             )
-            HudStat.THERMAL_STATUS -> from(stat, snapshot.thermal.status) { it.label }
+            // Route through the shared classifier, not the raw platform label: the OS reports "Normal"
+            // well past 80 °C, the bug §8 exists to kill. classify(snapshot) is the same CPU-first/
+            // battery-second seam the button and pill dots use, so all three thermal read-outs agree.
+            HudStat.THERMAL_STATUS -> StatReading(stat, ThermalClassifier.classify(snapshot).label)
             // Handled above, before the snapshot was required.
             HudStat.CLOCK, HudStat.SESSION_DURATION -> StatReading(stat, null, "Unreachable.")
         }
+    }
+
+    /**
+     * The §C composite network line: transport, Wi-Fi band, signal and the last latency, joined by
+     * [compactNetworkLine] with every absent piece dropped.
+     *
+     * Unavailable only when there is no connection — a live network with no probe yet is not "unavailable",
+     * it is a network whose latency piece is simply omitted, which is the honest state and the common one
+     * in the first seconds of a session. The band comes from [wifiBand] over the reported frequency; the
+     * latency is this tick's probe if it landed.
+     */
+    private fun networkLine(snapshot: PerformanceSnapshot): StatReading {
+        val network = snapshot.network
+        if (!network.isConnected && network.transport == NetworkTransport.NONE) {
+            return StatReading(HudStat.NETWORK, null, "No network connection.")
+        }
+        val band = wifiBand(network.wifiFrequencyMhz.valueOrNull)
+        val line = compactNetworkLine(
+            transport = network.transport,
+            band = band,
+            rssiDbm = network.signalStrengthDbm.valueOrNull,
+            latencyMillis = snapshot.latency.valueOrNull?.millis,
+        )
+        return StatReading(HudStat.NETWORK, line)
     }
 
     /**
