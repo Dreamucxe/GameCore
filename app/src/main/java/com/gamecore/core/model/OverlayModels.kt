@@ -36,6 +36,17 @@ data class OverlayConfig(
     // they change three things in a row; the sheet then closes only when they close it, tap outside it, or
     // something else takes it down.
     val quickAutoClose: Boolean = true,
+    // The user's one-tap panel macros (§14), serialized. A macro is `{id, name, actions}` — free user text
+    // and an ordered list — which the `"|"`-joined-names convention this store uses for `quickPins` cannot
+    // hold, so the macro list is carried here as the single JSON string `MacroCodec` produces. It is opaque
+    // to this layer for the same reason `quickPins` holds names and not `QuickToggle`: the codec, the enum
+    // it resolves and the sanitiser it runs all live in `com.gamecore.core.overlay`, which depends on this
+    // model and not the reverse. So this stays a `String`, `normalised()` leaves it untouched, and the
+    // service and the editor decode it through `MacroCodec` at their boundary — which is where the names are
+    // resolved, the strangers dropped and the caps applied, exactly as the service does for `quickPins`.
+    // Empty means "none set". Riding inside `OverlayConfig` is deliberate: §20's config backup serializes
+    // this config, so the macros travel with it for free.
+    val macrosJson: String = "",
 ) {
     fun normalised(): OverlayConfig = copy(
         stats = stats.distinct().take(MAX_STATS),
@@ -456,6 +467,13 @@ data class OverlayRequest(
     val pill: Boolean = false,
     val crosshair: Boolean = false,
     val hud: Boolean = false,
+    /**
+     * The pinned magnifier of §13. A plain on/off like [crosshair] and [hud], and deliberately without an
+     * id beside it: unlike a crosshair preset or a HUD layout there is nothing saved to name — the loupe's
+     * factor and corner are fixed in this build — so the request carries only whether it should be up. The
+     * frame it magnifies is not part of the request either; it comes from the capture path the service owns.
+     */
+    val magnifier: Boolean = false,
     val crosshairPresetId: Long? = null,
     val hudLayoutId: Long? = null,
     /** The game the request came from, shown in the control panel's header. Empty when manual. */
@@ -463,7 +481,7 @@ data class OverlayRequest(
     /** True while a game profile is driving this, so clearing it can restore the manual state. */
     val fromProfile: Boolean = false,
 ) {
-    val anythingVisible: Boolean get() = button || pill || crosshair || hud
+    val anythingVisible: Boolean get() = button || pill || crosshair || hud || magnifier
 
     /**
      * Switches the crosshair on or off, and settles which preset it draws.
@@ -485,6 +503,14 @@ data class OverlayRequest(
     /** The HUD's equivalent, for the same reason: a layout the user arranged is not "any layout". */
     fun withHud(visible: Boolean, layoutId: Long?, remembered: Long?): OverlayRequest =
         copy(hud = visible, hudLayoutId = layoutId ?: hudLayoutId ?: remembered)
+
+    /**
+     * Switches the magnifier on or off. A plain `copy`, not a resolver like [withCrosshair] and [withHud]:
+     * there is no id to settle — the loupe has no saved preset — so the only thing a toggle changes is the
+     * flag. Kept as a named helper anyway so every visibility change on this request reads the same way at
+     * its call site, and so a future factor/corner id has one obvious place to be resolved.
+     */
+    fun withMagnifier(visible: Boolean): OverlayRequest = copy(magnifier = visible)
 
     companion object {
         val NONE = OverlayRequest()

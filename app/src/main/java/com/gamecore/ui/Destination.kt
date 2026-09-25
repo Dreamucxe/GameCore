@@ -181,6 +181,20 @@ sealed interface Destination {
     }
 
     /**
+     * The §14 macro editor: name, order and delete the one-tap macros that appear as a row on the quick
+     * sheet, and choose which panel actions each one replays.
+     *
+     * A sibling of [QuickApps] in every way that matters here — it configures one row of one surface (the
+     * quick sheet), is reached only from that surface's card on the Overlay screen, and is deliberately not
+     * in [external]: a macro is a free-text composition of controls the user built, never a stable audited
+     * capability something outside the app could name and ask for. That same reasoning is why a macro is
+     * not a [PanelReachability] control; see the note in `PanelTabs.kt`.
+     */
+    data object MacroEditor : Destination {
+        override val route = "macro-editor"
+    }
+
+    /**
      * Who wrote this and where to find them. The last row of Settings.
      *
      * Not in [external], and it would be harmless there — the screen holds three of its own addresses and
@@ -188,6 +202,17 @@ sealed interface Destination {
      */
     data object Developer : Destination {
         override val route = "developer"
+    }
+
+    /**
+     * Back up all configuration to one file and restore it (§20). Reached from Settings' Data card.
+     *
+     * Config only — appearance, settings, profiles, presets, HUD layouts and macros — never session
+     * history. Not in [external]: nothing outside the app has a reason to open the backup screen, and a
+     * restore is a deliberate, destructive-capable action a user starts from inside Settings.
+     */
+    data object BackupRestore : Destination {
+        override val route = "backup-restore"
     }
 
     /**
@@ -217,10 +242,18 @@ sealed interface Destination {
         const val EXTERNAL = "media-access"
     }
 
-    /** The profile editor. A new profile is `profile/0`, since Room ids start at 1. */
+    /**
+     * The profile editor. A new profile is `profile/0`, since Room ids start at 1.
+     *
+     * The optional `?seed=` flag (default false, so [routeFor] and every existing caller are unchanged) is
+     * set only by the §4 suggested-profile card via [routeForSuggested]: when it is true and the game has no
+     * saved profile, the editor opens on a suggestion derived from recorded sessions, as an unsaved draft the
+     * user reviews. The arg has a default, so a route that omits it still resolves.
+     */
     data object ProfileEditor : Destination {
-        override val route = "profile/{$ARG_PACKAGE}"
+        override val route = "profile/{$ARG_PACKAGE}?$ARG_SEED={$ARG_SEED}"
         fun routeFor(packageName: String): String = "profile/$packageName"
+        fun routeForSuggested(packageName: String): String = "profile/$packageName?$ARG_SEED=true"
     }
 
     /** The HUD layout editor for one saved layout. */
@@ -333,6 +366,7 @@ sealed interface Destination {
     companion object {
         const val ARG_ID = "id"
         const val ARG_PACKAGE = "package"
+        const val ARG_SEED = "seed"
 
         /**
          * The bottom bar, in order: Home, Games, Aim Lab, Sessions, Settings (§9).

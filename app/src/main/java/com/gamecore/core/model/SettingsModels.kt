@@ -145,6 +145,16 @@ data class AppSettings(
     val neverKillPackages: List<String> = emptyList(),
 
     /**
+     * Packages whose §4 "suggested profile" card the user dismissed, so it never nags again.
+     *
+     * Held to the same package-name validation as [neverKillPackages] in [normalised], so a hand-edited
+     * file cannot smuggle arbitrary text through it. Additive: an entry only ever silences a suggestion, so
+     * a malformed one costs nothing and is dropped on read. A game is offered a suggestion again only while
+     * it is absent from this set.
+     */
+    val suggestionDismissals: Set<String> = emptySet(),
+
+    /**
      * The shortcut that opens GameCore's panel, and how it is fired.
      *
      * Off by default, and nested rather than flattened because the fields only make sense together:
@@ -199,6 +209,9 @@ data class AppSettings(
             .mapNotNull { TextSanitizer.validatePackageName(it) }
             .distinct()
             .take(MAX_NEVER_KILL_ENTRIES),
+        suggestionDismissals = suggestionDismissals
+            .mapNotNull { TextSanitizer.validatePackageName(it) }
+            .toSet(),
         quickTrigger = quickTrigger.normalised(),
         aimLabHorizontalFovDegrees = aimLabHorizontalFovDegrees.coerceIn(AIMLAB_FOV_MIN, AIMLAB_FOV_MAX),
         // Force the custom accent opaque. A pick that arrived with a transparent (or partly transparent)

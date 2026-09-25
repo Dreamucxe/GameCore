@@ -10,6 +10,7 @@ import com.gamecore.core.common.isAwaitingSample
 import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.DeviceCapabilities
 import com.gamecore.core.model.GameProfile
+import com.gamecore.core.model.GameSession
 import com.gamecore.core.model.HeroCandidate
 import com.gamecore.core.model.HeroSelection
 import com.gamecore.core.model.PerformanceSnapshot
@@ -21,6 +22,7 @@ import com.gamecore.core.model.lastPlayedByPackage
 import com.gamecore.core.model.profileChips
 import com.gamecore.core.model.selectHero
 import com.gamecore.core.model.temperatureCaption
+import com.gamecore.core.overlay.ApplyDiff
 import com.gamecore.core.shizuku.ShizukuManager
 import com.gamecore.core.system.AppLauncher
 import com.gamecore.core.system.InstalledAppLister
@@ -31,6 +33,7 @@ import com.gamecore.domain.StartupCoordinator
 import com.gamecore.domain.gaming.GameDetector
 import com.gamecore.domain.gaming.GamingCoordinator
 import com.gamecore.domain.gaming.ProfileApplier
+import com.gamecore.domain.gaming.ProfileSuggester
 import com.gamecore.domain.monitoring.PerformanceMonitor
 import com.gamecore.domain.network.PreLaunchNetworkCheck
 import com.gamecore.domain.optimization.DeviceCapabilityChecker
@@ -157,6 +160,29 @@ class HomeViewModel @Inject constructor(
         .distinctUntilChanged()
 
     /**
+     * The §4 profile suggestion, or null when there is none to make.
+     *
+     * Its own flow, folded into [local] rather than the main [combine] (already at five typed sources),
+     * and recomputed only when a profile is saved, a session ends, or the user dismisses one — the three
+     * things that can change the answer. The work is pure: [firstSuggestion] reads the lists the flows
+     * already materialised and calls [ProfileSuggester], which reaches no repository and touches no clock.
+     *
+     * The dismissal set lives in `AppSettings`, so dismissing writes a setting, the setting re-emits here,
+     * and the card clears itself — no separate "hidden" state for the two to fall out of step over.
+     */
+    private val suggestion: Flow<HomeSuggestion?> = combine(
+        profiles.profiles,
+        sessions.sessions,
+        preferences.settings,
+    ) { saved, allSessions, settings ->
+        firstSuggestion(
+            savedPackages = saved.map { it.packageName }.toSet(),
+            allSessions = allSessions,
+            dismissed = settings.suggestionDismissals,
+        )
+    }.distinctUntilChanged()
+
+    /**
      * The rows and the hero rule's answer, as one value.
      *
      * Combined here, ahead of the main [combine], for two reasons: it keeps that combine at five typed
@@ -192,6 +218,7 @@ class HomeViewModel @Inject constructor(
             isRestoring = own.isRestoring,
             busyPackage = own.busyPackage,
             pendingLaunch = own.pendingLaunch,
+            suggestion = own.suggestion,
             message = own.message,
         )
     }.stateIn(
@@ -246,6 +273,11 @@ class HomeViewModel @Inject constructor(
                     }
                 }
         }
+        viewModelScope.launch {
+            // The §4 suggestion, kept in local state for the same reason the two settings above are: the
+            // main combine is full. Recomputed by the flow, not here.
+            suggestion.collect { suggested -> local.update { it.copy(suggestion = suggested) } }
+        }
         refreshDetection()
     }
 
@@ -277,6 +309,44 @@ class HomeViewModel @Inject constructor(
         chips = profileChips(profile),
         changesNothing = profile.changesNothing,
     )
+
+    /**
+     * The one game to offer a suggestion for, or null when none qualifies.
+     *
+     * Pure and off the flow's thread only in the sense that the flow calls it — it reads the two lists it
+     * is handed and nothing else. Games are considered in most-recently-played order ([allSessions] is
+     * newest-first from the repository, so first appearance is recency), and the first that is unsaved,
+     * not dismissed, and produces a non-null [ProfileSuggester.suggest] wins. One card, for the game the
+     * user most recently put time into — not a stack of them.
+     *
+     * The label is the newest session's, because a game's display name is a fact the sessions already
+     * carry; there is no need to ask the package manager for a game that may since be uninstalled.
+     */
+    private fun firstSuggestion(
+        savedPackages: Set<String>,
+        allSessions: List<GameSession>,
+        dismissed: Set<String>,
+    ): HomeSuggestion? {
+        val byPackage = allSessions.groupBy { it.packageName }
+        for (packageName in allSessions.map { it.packageName }.distinct()) {
+            if (packageName in savedPackages || packageName in dismissed) continue
+            val forPackage = byPackage[packageName] ?: continue
+            val label = forPackage.first().gameLabel
+            val suggested = ProfileSuggester.suggest(
+                packageName = packageName,
+                label = label,
+                existingProfile = null,
+                sessions = forPackage,
+            ) ?: continue
+            return HomeSuggestion(
+                packageName = packageName,
+                label = label,
+                sessionCount = suggested.sessionCount,
+                rationale = suggested.reasons.map { it.text },
+            )
+        }
+        return null
+    }
 
     // ------------------------------------------------------------------------------------- the hero
 
@@ -388,7 +458,7 @@ class HomeViewModel @Inject constructor(
                     busyPackage = null,
                     message = when {
                         application.changedNothing -> "This profile has nothing to apply yet."
-                        else -> application.summary()
+                        else -> ApplyDiff.summarize(application.results) ?: application.summary()
                     },
                 )
             }
@@ -480,6 +550,18 @@ class HomeViewModel @Inject constructor(
 
     fun dismissMessage() {
         local.update { it.copy(message = null) }
+    }
+
+    /**
+     * Stops offering the §4 suggestion for a game, for good.
+     *
+     * Persisted into `AppSettings.suggestionDismissals` so it survives the process and does not nag: the
+     * suggestion flow re-reads settings, [firstSuggestion] skips the dismissed package, and the card
+     * clears itself. Written the same synchronous way every other settings toggle in the app is (see
+     * [com.gamecore.ui.games.GamesViewModel]); [SecurePreferenceStore.updateSettings] normalises it.
+     */
+    fun dismissSuggestion(packageName: String) {
+        preferences.updateSettings { it.copy(suggestionDismissals = it.suggestionDismissals + packageName) }
     }
 
     // ------------------------------------------------------------------------------ current session
@@ -641,6 +723,7 @@ private data class LocalState(
     val selectedPackage: String? = null,
     val busyPackage: String? = null,
     val pendingLaunch: PendingLaunch? = null,
+    val suggestion: HomeSuggestion? = null,
     val message: String? = null,
 )
 

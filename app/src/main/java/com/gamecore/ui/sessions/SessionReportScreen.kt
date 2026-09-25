@@ -1,6 +1,7 @@
 package com.gamecore.ui.sessions
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,12 +9,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -22,12 +26,16 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamecore.data.repository.SampleExporter
 import com.gamecore.ui.components.ConfirmDialog
 import com.gamecore.ui.components.EmptyState
 import com.gamecore.ui.components.GraphCard
@@ -74,6 +82,14 @@ fun SessionReportScreen(
         viewModel.cardShared(shared = intent != null && context.startIntentSafely(intent))
     }
 
+    // The sample export follows the same one-tap-to-share path as the card: written, then handed straight
+    // to the sheet, and the file left in the app's own pruned `exports` directory rather than shown here.
+    LaunchedEffect(state.sampleExportReady) {
+        if (!state.sampleExportReady) return@LaunchedEffect
+        val intent = viewModel.sampleExportIntent()
+        viewModel.sampleExportShared(shared = intent != null && context.startIntentSafely(intent))
+    }
+
     val padded = Modifier.padding(horizontal = ScreenPadding)
 
     LazyColumn(
@@ -89,6 +105,10 @@ fun SessionReportScreen(
                 action = if (!state.isMissing && !state.isLoading) {
                     {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            SampleExportAction(
+                                busy = state.isExportingSamples,
+                                onExport = viewModel::exportSamples,
+                            )
                             IconButton(
                                 onClick = viewModel::shareCard,
                                 enabled = !state.isRenderingCard,
@@ -250,4 +270,47 @@ private const val REPORT_SCOPE =
     "Everything on this page was computed from samples taken while the game was in the foreground, and it " +
         "is stored in GameCore's encrypted database on this device. Nothing was measured inside the game, " +
         "and nothing here has been uploaded anywhere."
+
+/**
+ * The header's "export the raw samples" affordance: one icon, a menu of the two formats.
+ *
+ * A menu rather than two buttons because CSV is the one most people want and JSON is the one a few do, and
+ * a header with three icons already carries share and delete. The spinner replaces the icon while a file is
+ * being written so the same tap cannot start a second export over the first.
+ */
+@Composable
+private fun SampleExportAction(
+    busy: Boolean,
+    onExport: (SampleExporter.Format) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }, enabled = !busy) {
+            if (busy) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.Download,
+                    contentDescription = "Export this session's samples",
+                )
+            }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Export samples (CSV)") },
+                onClick = {
+                    expanded = false
+                    onExport(SampleExporter.Format.CSV)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Export samples (JSON)") },
+                onClick = {
+                    expanded = false
+                    onExport(SampleExporter.Format.JSON)
+                },
+            )
+        }
+    }
+}
 

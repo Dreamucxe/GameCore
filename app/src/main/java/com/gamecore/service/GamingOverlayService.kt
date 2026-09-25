@@ -45,10 +45,16 @@ import com.gamecore.core.model.OverlayConfig
 import com.gamecore.core.model.OverlayStatus
 import com.gamecore.core.model.PanelLayoutStyle
 import com.gamecore.core.model.ThermalClassifier
+import com.gamecore.core.overlay.ApplyDiff
 import com.gamecore.core.overlay.CrosshairOverlay
 import com.gamecore.core.overlay.FloatingGameButton
 import com.gamecore.core.overlay.HeldRow
 import com.gamecore.core.overlay.HudOverlay
+import com.gamecore.core.overlay.Macro
+import com.gamecore.core.overlay.MacroBehavior
+import com.gamecore.core.overlay.MacroChip
+import com.gamecore.core.overlay.MacroCodec
+import com.gamecore.core.overlay.MagnifierOverlay
 import com.gamecore.core.overlay.OverlayAction
 import com.gamecore.core.overlay.OverlayControlPanel
 import com.gamecore.core.overlay.OverlayCrosshair
@@ -587,6 +593,23 @@ class GamingOverlayService : GameCoreService() {
             // window changing, so the panel state is refreshed rather than the windows reconciled.
             coordinator.gaming.collect { if (panelOpen.value) probePanel() }
         }
+        lifecycleScope.launch {
+            // The §2 "what changed" line. `application` is filled only on the automatic-apply path —
+            // a manual Apply reports its own diff in-app, next to the button — so this toast is the one
+            // sign an auto-applied profile gives that it did anything at all. Seeded with whatever is
+            // already applied so a service restart mid-session does not re-announce it, and keyed on
+            // `appliedAtMillis` (a fresh timestamp per apply) so it fires once per apply, never on the
+            // panel refreshes above. A null summary — a profile that changed nothing — shows nothing
+            // rather than an empty toast, exactly as the in-app path does.
+            var lastAppliedAt = coordinator.gaming.value.application?.appliedAtMillis
+            coordinator.gaming.collect { gaming ->
+                val application = gaming.application ?: return@collect
+                if (application.appliedAtMillis != lastAppliedAt) {
+                    lastAppliedAt = application.appliedAtMillis
+                    ApplyDiff.summarize(application.results)?.let { toast(it) }
+                }
+            }
+        }
     }
 
     /**
@@ -808,6 +831,17 @@ class GamingOverlayService : GameCoreService() {
             manager.hide(OverlaySlot.CROSSHAIR)
         }
         if (request.hud && hudLayout.value != null) showHud() else manager.hide(OverlaySlot.HUD)
+        if (request.magnifier) {
+            showMagnifier()
+        } else {
+            manager.hide(OverlaySlot.MAGNIFIER)
+            // The loupe is the one overlay that also holds a capture feed, so hiding its window is not the
+            // whole of switching it off: a virtual display left mirroring the screen behind a gone loupe is
+            // exactly the background cost §26 objects to. Stopping needs no consent, so it belongs on every
+            // path that drops the request — a profile taking over as much as the user's own toggle — and
+            // the running check keeps a stop from ever being routed through the consent sheet.
+            if (capture.magnifierRunning.value) startCapture(CapturePurpose.STOP_FRAME_FEED)
+        }
         publishStatus()
     }
 
@@ -1041,6 +1075,23 @@ class GamingOverlayService : GameCoreService() {
             val layout by hudLayout.collectAsState()
             val readings by hudReadings.collectAsState()
             layout?.let { HudOverlay(layout = it, readings = readings) }
+        }
+    }
+
+    /**
+     * As [showCrosshair], for the magnifier: added once, redrawn as the feed delivers frames.
+     *
+     * The pixels come from [ScreenCaptureController.magnifierFrame], collected here as state so a new
+     * frame recomposes this window rather than re-adding it. It draws nothing until the first frame
+     * arrives, so a window shown the instant the request turns on — before the feed, or through the
+     * consent it waits on — is simply a transparent, non-touchable sheet until there is something to draw.
+     */
+    private fun showMagnifier() {
+        val manager = windows ?: return
+        if (manager.isVisible(OverlaySlot.MAGNIFIER)) return
+        manager.show(OverlaySlot.MAGNIFIER, OverlayWindowSpec(fullScreen = true), host) {
+            val frame by capture.magnifierFrame.collectAsState()
+            MagnifierOverlay(frame = frame)
         }
     }
 
@@ -1372,6 +1423,7 @@ class GamingOverlayService : GameCoreService() {
                     }
                 },
                 toggle("hud", OverlayAction.HUD),
+                toggle("magnifier", OverlayAction.MAGNIFIER),
                 toggle("overlay_layout", OverlayAction.PANEL_LAYOUT),
             ),
             PanelTab.CAPTURE to listOf(
@@ -1687,10 +1739,25 @@ class GamingOverlayService : GameCoreService() {
             }
         val brightness = state.levelFor(OverlayLevel.BRIGHTNESS)
         val volume = state.levelFor(OverlayLevel.VOLUME)
+        // The §14 macros row, below the pinned grid. Decoded from the same config the pins come from and
+        // resolved through [MacroCodec] here, at the surface boundary, exactly as the pins are resolved
+        // through [QuickToggle.of] — the strangers and the barred actions are already gone by the time the
+        // sheet sees a macro. A macro has no on/off state to show, so each is a momentary chip that runs its
+        // actions on a tap through [onMacro] and marks the interaction like every other control here.
+        val macros = MacroCodec.decode(preferences.overlay.value.macrosJson).map { macro ->
+            MacroChip(
+                name = macro.name,
+                onRun = {
+                    markQuickInteraction()
+                    onMacro(macro)
+                },
+            )
+        }
         QuickSheet(
             gameLabel = state.gameLabel,
             clock = state.sessionElapsed.orEmpty(),
             pins = pins,
+            macros = macros,
             brightness = (brightness.value ?: 0).toFloat(),
             onBrightnessChange = { percent -> onQuickLevel(OverlayLevel.BRIGHTNESS, percent) },
             volume = (volume.value ?: 0).toFloat(),
@@ -1942,6 +2009,10 @@ class GamingOverlayService : GameCoreService() {
         if (request.pill) active += OverlayAction.PILL
         if (request.crosshair) active += OverlayAction.CROSSHAIR
         if (request.hud) active += OverlayAction.HUD
+        // Lit from the request like the crosshair and HUD above, not from the feed running: the tile is the
+        // user's switch and should read as on the instant they flip it, through the consent the first frame
+        // waits on. The feed catching up is [showMagnifier]'s business, not the toggle's.
+        if (request.magnifier) active += OverlayAction.MAGNIFIER
         // The HUD is the user's own arrangement; with none saved there is nothing to put on screen, and
         // that is a different sentence from "it is switched off".
         if (hudLayouts.layouts.first().isEmpty()) {
@@ -1954,6 +2025,10 @@ class GamingOverlayService : GameCoreService() {
             val reason = getString(R.string.overlay_capture_unsupported)
             unavailable[OverlayAction.SCREENSHOT] = reason
             unavailable[OverlayAction.RECORD] = reason
+            // No MediaProjection means no frame feed to magnify, for the same reason it means no screenshot.
+            // The feed and a recording can share one projection, though, so — unlike the screenshot below —
+            // the loupe is never barred merely because a recording is running.
+            unavailable[OverlayAction.MAGNIFIER] = reason
         } else if (recording.isRecording) {
             // One MediaProjection at a time is all the platform gives, and the recording owns it.
             unavailable[OverlayAction.SCREENSHOT] = getString(R.string.overlay_recording_in_progress)
@@ -2181,6 +2256,35 @@ class GamingOverlayService : GameCoreService() {
             execute(action)
             // Re-probe when either surface is up: the quick sheet draws the same [panel] the panel does,
             // so a toggle fired from the sheet has to refresh its own on-states too, not just the panel's.
+            if (panelOpen.value || quickSheetOpen.value) probePanel()
+        }
+    }
+
+    /**
+     * Runs a §14 macro: its actions in order, on one tap, through the same [execute] the panel's own tiles
+     * use — a macro is composition, not a new capability, so it can do nothing a tile cannot and every
+     * control keeps its own honesty (its refusal toast, its unavailable reason).
+     *
+     * Deterministic replay is the point: a macro tapped twice must not undo what the first tap did. So a
+     * [MacroBehavior.FORCE_ON] toggle is fired only when it is currently *off*, and "off" is read from a
+     * single [panel] snapshot taken up front rather than re-read between steps — a toggle a macro lists once
+     * is decided once, and a step cannot see the half-applied state a previous step left. A
+     * [MacroBehavior.FIRE_ONCE] action simply runs. An action a macro may not carry cannot reach a stored
+     * macro ([MacroCodec] drops it), and is ignored here rather than trusted.
+     *
+     * One launch for the whole run and one re-probe at the end, mirroring [onAction]: the sheet redraws its
+     * toggle states once the sequence has settled, not after each step.
+     */
+    private fun onMacro(macro: Macro) {
+        lifecycleScope.launch {
+            val activeAtStart = panel.value.active
+            macro.actions.forEach { action ->
+                when (action.macroBehavior) {
+                    MacroBehavior.FORCE_ON -> if (action !in activeAtStart) execute(action)
+                    MacroBehavior.FIRE_ONCE -> execute(action)
+                    null -> Unit
+                }
+            }
             if (panelOpen.value || quickSheetOpen.value) probePanel()
         }
     }
@@ -2520,6 +2624,26 @@ class GamingOverlayService : GameCoreService() {
                 val next = !request.hud
                 overlays.setHud(next)
                 if (!request.fromProfile) preferences.showHudOverlay = next
+            }
+            // The loupe is two things where the crosshair is one — a window *and* a capture feed — so this
+            // branch also drives the projection. Turning it on asks for the feed (through consent when no
+            // projection is held yet); turning it off stops the feed, but only when a projection could be
+            // running one, since a stop with none would send the user to the consent sheet just to switch
+            // something off. The window itself follows [OverlayController.setMagnifier] like the others.
+            //
+            // Not persisted, unlike the crosshair and HUD. Their flags are the manual state the next launch
+            // rebuilds from, but the feed needs a live MediaProjection and consent for one does not survive
+            // the process — a magnifier "remembered" across a restart would be a switch shown on with an
+            // empty loupe behind it. So the loupe is a within-session control, and [restoreManualState]
+            // leaves it off.
+            OverlayAction.MAGNIFIER -> {
+                val next = !overlays.desired.value.magnifier
+                overlays.setMagnifier(next)
+                if (next) {
+                    startCapture(CapturePurpose.START_FRAME_FEED)
+                } else if (capture.hasProjection()) {
+                    startCapture(CapturePurpose.STOP_FRAME_FEED)
+                }
             }
             OverlayAction.SCREENSHOT -> takeScreenshot()
             OverlayAction.RECORD -> toggleRecording()

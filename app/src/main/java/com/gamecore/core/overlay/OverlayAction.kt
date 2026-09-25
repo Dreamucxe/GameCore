@@ -24,6 +24,19 @@ enum class OverlayAction(val label: String) {
 
     HUD("HUD"),
 
+    /**
+     * The pinned magnifier: a crop-and-scale loupe drawn in a screen corner (§13, the no-ML half of it).
+     *
+     * A toggle, and grouped with the drawn overlays above rather than with the capture actions, because that
+     * is what it *is* to the user — a window GameCore draws, shown or hidden. But unlike [PILL], [CROSSHAIR]
+     * and [HUD] it is not [QuickToggle.isAlwaysAvailable]: the loupe magnifies the live screen, and the only
+     * honest source of those pixels is the same `MediaProjection` frame feed the capture actions use. So it
+     * carries the capture path's one hard truth — it renders disabled, with a reason, on a build with no
+     * projection support — while reading as an overlay everywhere else. It is deliberately *not* macroable;
+     * see [macroBehavior].
+     */
+    MAGNIFIER("Magnifier"),
+
     SCREENSHOT("Screenshot"),
 
     /** Start or stop screen recording. Needs its own consent flow; see §24B. */
@@ -118,7 +131,8 @@ enum class OverlayAction(val label: String) {
     val isToggle: Boolean
         get() = this == PILL || this == CROSSHAIR || this == HUD || this == RECORD ||
             this == FLASHLIGHT || this == DO_NOT_DISTURB || this == ROTATION_LOCK ||
-            this == COLOR || this == ASPECT || this == REFRESH_RATE || this == PANEL_LAYOUT
+            this == COLOR || this == ASPECT || this == REFRESH_RATE || this == PANEL_LAYOUT ||
+            this == MAGNIFIER
 
     /**
      * Which second row a held press on this tile opens, or null for the tiles that have nothing behind one.
@@ -145,6 +159,63 @@ enum class OverlayAction(val label: String) {
             CROSSHAIR -> HeldRow.CROSSHAIR_QUICK_PICK
             else -> null
         }
+
+    /**
+     * How a one-tap macro (§14) replays this action, or null for an action a macro must not carry.
+     *
+     * A macro is a deterministic composition: tapping it must end in the same place whatever state it was
+     * fired from, which is exactly the "forces a target state" the spec asks for. Several kinds of action
+     * cannot honour that and are left out — a `when` with no `else`, so a sixteenth action cannot be added
+     * without a decision here, the same discipline [isToggle] and [heldRow] keep.
+     *
+     *  * [FORCE_ON]: the overlays and the device toggles that report a real on/off state through
+     *    [OverlayPanelState.active]. A macro forces them *on* — the runner reads the current state and fires
+     *    the toggle only when it is off, so replaying a macro twice does not turn a light back off.
+     *  * [FIRE_ONCE]: [SCREENSHOT], the one self-contained one-shot; it has no state to force, it just runs.
+     *  * `null`: [COLOR], [ASPECT] and [REFRESH_RATE] are grid toggles whose tap opens an editor or a chip
+     *    row rather than setting a state — there is nothing to force them *to*. [OPEN_APP] and
+     *    [STOP_SESSION] leave the overlay (and the session) behind, so a later step would run against a
+     *    surface that is going away. [PANEL_LAYOUT] flips a preference with no natural "on" and would
+     *    rearrange the very window the macro was tapped from. [MAGNIFIER] is the one barred for a different
+     *    reason: it does force a state, but turning it on may raise the system's `MediaProjection` consent
+     *    dialog, and a consent prompt cannot honestly appear in the middle of a silent one-tap replay — a
+     *    macro that sometimes stops to ask permission is not the deterministic thing §14 promises. None
+     *    belongs in a one-tap set.
+     */
+    val macroBehavior: MacroBehavior?
+        get() = when (this) {
+            PILL, CROSSHAIR, HUD, RECORD, FLASHLIGHT, DO_NOT_DISTURB, ROTATION_LOCK ->
+                MacroBehavior.FORCE_ON
+            SCREENSHOT -> MacroBehavior.FIRE_ONCE
+            COLOR, ASPECT, REFRESH_RATE, PANEL_LAYOUT, STOP_SESSION, OPEN_APP, MAGNIFIER -> null
+        }
+
+    /** True for the actions a macro may replay; see [macroBehavior] for why the rest are excluded. */
+    val isMacroable: Boolean get() = macroBehavior != null
+
+    companion object {
+        /**
+         * Parse a stored action name back to its [OverlayAction], or null for one this build does not know.
+         *
+         * Null rather than a fallback, and for [QuickToggle.of]'s reason: a macro is a list of choices, and
+         * a name written by a newer build or since removed must drop out of the list rather than resolve to
+         * some stand-in the user never chose. Doing the drop here lets the macro layer reason in real
+         * [OverlayAction] values and never see a junk string.
+         */
+        fun of(name: String?): OverlayAction? = entries.firstOrNull { it.name == name }
+    }
+}
+
+/**
+ * How a macro replays one [OverlayAction] (§14). See [OverlayAction.macroBehavior] for which action gets
+ * which, and why the actions that get neither are barred from a macro.
+ */
+enum class MacroBehavior {
+    /** A toggle the macro drives *to on*: fired only when the action is currently off, so replay is idempotent. */
+    FORCE_ON,
+
+    /** A one-shot the macro simply runs; it carries no state to force. */
+    FIRE_ONCE,
 }
 
 /**

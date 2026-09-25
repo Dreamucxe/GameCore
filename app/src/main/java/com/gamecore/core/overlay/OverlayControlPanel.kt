@@ -51,6 +51,7 @@ import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.StopCircle
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VerticalSplit
+import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -1863,6 +1864,7 @@ private fun OverlayAction.icon(): ImageVector = when (this) {
     OverlayAction.PILL -> Icons.Rounded.Speed
     OverlayAction.CROSSHAIR -> Icons.Rounded.GpsFixed
     OverlayAction.HUD -> Icons.Rounded.Dashboard
+    OverlayAction.MAGNIFIER -> Icons.Rounded.ZoomIn
     OverlayAction.SCREENSHOT -> Icons.Rounded.PhotoCamera
     OverlayAction.RECORD -> Icons.Rounded.FiberManualRecord
     OverlayAction.FLASHLIGHT -> Icons.Rounded.FlashlightOn

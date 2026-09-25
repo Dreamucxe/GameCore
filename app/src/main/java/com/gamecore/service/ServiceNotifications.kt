@@ -130,6 +130,34 @@ object ServiceNotifications {
             .build()
 
     /**
+     * The magnifier's frame-feed notification (§13).
+     *
+     * A near-twin of [recording]: the pinned loupe is drawn from the same `MediaProjection`, so the
+     * feed runs behind the same `mediaProjection` foreground service — but it is *not* a recording, and
+     * a "Recording screen" notification over a user who is only magnifying would be a false statement
+     * about what the app is doing with the capture. So the feed gets its own wording on the same channel.
+     *
+     * Its Stop button carries the feed's own stop intent rather than the shared [ACTION_STOP], for the
+     * same shape of reason [recording] does: stopping the feed is a specific teardown the service knows
+     * how to do without ending a recording that might be running alongside it. No chronometer — how long
+     * a loupe has been up is not information the user is waiting on the way a recording's length is.
+     */
+    fun magnifier(context: Context, stop: PendingIntent): Notification =
+        NotificationCompat.Builder(context, NotificationChannels.RECORDING)
+            .setSmallIcon(R.drawable.ic_stat_gamecore)
+            .setContentTitle(context.getString(R.string.notification_magnifier_title))
+            .setContentText(context.getString(R.string.notification_magnifier_text))
+            .setContentIntent(openApp(context))
+            .setOngoing(true)
+            .setSilent(true)
+            .setLocalOnly(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .addAction(0, context.getString(R.string.notification_action_stop), stop)
+            .build()
+
+    /**
      * A thermal or battery warning.
      *
      * Not tied to a service and therefore dismissible, auto-cancelling, and `BigTextStyle` — the whole

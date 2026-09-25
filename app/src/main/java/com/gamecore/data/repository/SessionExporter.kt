@@ -1,15 +1,11 @@
 package com.gamecore.data.repository
 
-import android.content.Context
 import android.net.Uri
-import androidx.core.content.FileProvider
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.model.GameSession
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
-import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -26,51 +22,32 @@ import javax.inject.Singleton
  */
 @Singleton
 class SessionExporter @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val sessions: SessionRepository,
+    private val files: FileShareStore,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) {
 
     suspend fun export(): ExportResult = withContext(io) {
         val rows = sessions.snapshot()
         if (rows.isEmpty()) return@withContext ExportResult.Empty
-        try {
-            val directory = File(context.filesDir, DIRECTORY_NAME).apply {
-                if (!exists()) mkdirs()
-            }
-            prune(directory)
-            val file = File(directory, "gamecore-sessions-${Formatters.fileTimestamp(now())}.csv")
-            file.writeText(buildCsv(rows))
-            ExportResult.Written(
-                fileName = file.name,
-                sizeBytes = file.length(),
-                sessionCount = rows.size,
-                uri = shareUri(file),
+        val fileName = "gamecore-sessions-${Formatters.fileTimestamp(now())}.csv"
+        when (
+            val result = files.writeText(
+                subdir = DIRECTORY_NAME,
+                fileName = fileName,
+                text = buildCsv(rows),
+                keep = KEEP_EXPORTS,
+                accept = FileShareStore.byExtension(EXTENSION),
             )
-        } catch (error: Throwable) {
-            // Storage full, a directory that could not be created, a provider that refused the URI.
-            ExportResult.Failed(error.javaClass.simpleName)
+        ) {
+            is FileWriteResult.Stored -> ExportResult.Written(
+                fileName = result.file.name,
+                sizeBytes = result.file.length(),
+                sessionCount = rows.size,
+                uri = result.uri,
+            )
+            is FileWriteResult.Failed -> ExportResult.Failed(result.detail)
         }
-    }
-
-    /**
-     * Keeps the last few exports and no more.
-     *
-     * An export is a convenience copy of data that is already in the database, so an unbounded pile of
-     * them in the app's own storage is a slow leak the user never sees and cannot clear from here.
-     */
-    private fun prune(directory: File) {
-        val existing = directory.listFiles()
-            ?.filter { it.isFile && it.name.endsWith(EXTENSION) }
-            ?.sortedByDescending { it.lastModified() }
-            .orEmpty()
-        existing.drop(KEEP_EXPORTS - 1).forEach { runCatching { it.delete() } }
-    }
-
-    private fun shareUri(file: File): Uri? = try {
-        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-    } catch (error: Throwable) {
-        null
     }
 
     private fun now(): Long = System.currentTimeMillis()

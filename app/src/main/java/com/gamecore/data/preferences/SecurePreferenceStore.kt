@@ -223,6 +223,7 @@ class SecurePreferenceStore @Inject constructor(
             setupCompletedVersion = p.getInt(KEY_SETUP_VERSION, defaults.setupCompletedVersion),
             setupDismissed = p.getBoolean(KEY_SETUP_DISMISSED, defaults.setupDismissed),
             neverKillPackages = readNeverKill(p),
+            suggestionDismissals = readSuggestionDismissals(p),
             quickTrigger = readQuickTrigger(p),
             aimLabEnabled = p.getBoolean(KEY_AIMLAB_ENABLED, defaults.aimLabEnabled),
             aimLabOrientation = enumOrDefault(
@@ -288,6 +289,7 @@ class SecurePreferenceStore @Inject constructor(
             putInt(KEY_SETUP_VERSION, value.setupCompletedVersion)
             putBoolean(KEY_SETUP_DISMISSED, value.setupDismissed)
             putString(KEY_NEVER_KILL, value.neverKillPackages.joinToString(SEPARATOR))
+            putString(KEY_SUGGESTION_DISMISSALS, value.suggestionDismissals.joinToString(SEPARATOR))
             putBoolean(KEY_TRIGGER_ENABLED, value.quickTrigger.enabled)
             putString(KEY_TRIGGER_METHOD, value.quickTrigger.method.name)
             putString(KEY_TRIGGER_ACTION, value.quickTrigger.action.name)
@@ -313,6 +315,18 @@ class SecurePreferenceStore @Inject constructor(
         p.getString(KEY_NEVER_KILL, null)
             ?.split(SEPARATOR)
             ?.filter { it.isNotBlank() }
+            .orEmpty()
+
+    /**
+     * The §4 suggestion dismissals, as package names joined by [SEPARATOR] — a set, since order and
+     * duplicates carry no meaning for "don't offer this game a profile again". Validated in
+     * `AppSettings.normalised()`, so a hand-edited entry that is not a package name never survives the read.
+     */
+    private fun readSuggestionDismissals(p: SharedPreferences): Set<String> =
+        p.getString(KEY_SUGGESTION_DISMISSALS, null)
+            ?.split(SEPARATOR)
+            ?.filter { it.isNotBlank() }
+            ?.toSet()
             .orEmpty()
 
     // -------------------------------------------------------------------- overlay
@@ -352,6 +366,9 @@ class SecurePreferenceStore @Inject constructor(
             displayMode = PillDisplayMode.of(p.getString(KEY_PILL_DISPLAY_MODE, null)),
             quickPins = readQuickPins(p),
             quickAutoClose = p.getBoolean(KEY_QUICK_AUTO_CLOSE, defaults.quickAutoClose),
+            // Opaque here (see [OverlayConfig.macrosJson]); `MacroCodec` gives it meaning at the service and
+            // editor boundary, just as `QuickToggle.of` does for the pin names. Absent reads as "none set".
+            macrosJson = p.getString(KEY_MACROS, defaults.macrosJson) ?: defaults.macrosJson,
         ).normalised()
     }
 
@@ -370,6 +387,7 @@ class SecurePreferenceStore @Inject constructor(
             putString(KEY_PILL_DISPLAY_MODE, value.displayMode.name)
             putString(KEY_QUICK_PINS, value.quickPins.joinToString(SEPARATOR))
             putBoolean(KEY_QUICK_AUTO_CLOSE, value.quickAutoClose)
+            putString(KEY_MACROS, value.macrosJson)
         }?.apply()
     }
 
@@ -805,6 +823,7 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_SETUP_STEP = "setup_step"
         const val KEY_SETUP_CHOICES = "setup_choices"
         const val KEY_NEVER_KILL = "never_kill"
+        const val KEY_SUGGESTION_DISMISSALS = "suggestion_dismissals"
         const val KEY_TRIGGER_ENABLED = "trigger_enabled"
         const val KEY_TRIGGER_METHOD = "trigger_method"
         const val KEY_TRIGGER_ACTION = "trigger_action"
@@ -828,6 +847,7 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_PILL_DISPLAY_MODE = "pill_display_mode"
         const val KEY_QUICK_PINS = "quick_pins"
         const val KEY_QUICK_AUTO_CLOSE = "quick_auto_close"
+        const val KEY_MACROS = "quick_macros"
 
         const val KEY_BUTTON_SHOW = "button_show"
         const val KEY_BUTTON_X = "button_x"

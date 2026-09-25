@@ -39,6 +39,10 @@ enum class QuickToggle(
     SILENCE("Silence", isAlwaysAvailable = false),
     ROTATION("Rotation", isAlwaysAvailable = false),
     REFRESH("Refresh", isAlwaysAvailable = false),
+
+    // Magnifier — an overlay window like the three above, but its pixels come from the MediaProjection frame
+    // feed, so it is conditional on the capture path exactly as Screenshot and Record are.
+    MAGNIFIER("Magnifier", isAlwaysAvailable = false),
     ;
 
     companion object {

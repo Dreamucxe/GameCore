@@ -14,8 +14,10 @@ import com.gamecore.data.repository.ColorPresetRepository
 import com.gamecore.data.repository.CrosshairRepository
 import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.data.repository.HudLayoutRepository
+import com.gamecore.data.repository.SessionRepository
 import com.gamecore.domain.cpu.CpuAffinityController
 import com.gamecore.domain.display.DisplaySizeController
+import com.gamecore.domain.gaming.ProfileSuggester
 import com.gamecore.domain.network.PreLaunchNetworkCheck
 import com.gamecore.domain.optimization.DeviceCapabilityChecker
 import com.gamecore.ui.Destination
@@ -52,12 +54,23 @@ class ProfileEditorViewModel @Inject constructor(
     private val displaySize: DisplaySizeController,
     private val cpuAffinity: CpuAffinityController,
     private val preLaunchCheck: PreLaunchNetworkCheck,
+    private val sessions: SessionRepository,
     preferences: SecurePreferenceStore,
 ) : ViewModel() {
 
     /** The package this editor was opened for, or [Destination.NEW_PROFILE] for a new one. */
     private val argument: String =
         savedState.get<String>(Destination.ARG_PACKAGE) ?: Destination.NEW_PROFILE
+
+    /**
+     * True when Home's §4 suggestion card sent the user here to review a derived starting profile.
+     *
+     * A nav argument, read the same way [argument] is. It only matters for a package with no saved
+     * profile: when set, [load] fills the editor with [ProfileSuggester]'s draft instead of an empty form.
+     * Read with a literal key rather than a [Destination] constant so this file compiles independently of
+     * the route change that supplies it; the navArgument the route registers must be named exactly [SEED_ARG].
+     */
+    private val isSeeded: Boolean = savedState.get<Boolean>(SEED_ARG) ?: false
 
     private val editing = MutableStateFlow(
         ProfileEditorUiState(
@@ -134,12 +147,50 @@ class ProfileEditorViewModel @Inject constructor(
         }
         val existing = profiles.profileFor(argument)
         val installed = installedApps.isInstalled(argument)
+        // A game with no saved profile that arrived through Home's suggestion card: fill the form with the
+        // derived draft rather than the "no longer saved" message, which would be false — this game never
+        // had a profile, and the point of the card was to offer it one.
+        if (existing == null && isSeeded) {
+            loadSuggested(installed)
+            return
+        }
         editing.value = editing.value.copy(
             isLoaded = true,
             isNew = existing == null,
             profile = existing,
             isGameInstalled = installed,
             message = if (existing == null) "That profile is no longer saved." else null,
+        )
+    }
+
+    /**
+     * Fills the editor with the §4 suggested starting profile for [argument].
+     *
+     * The draft is [ProfileSuggester]'s own output — a real [GameProfile] with only the measurement-backed
+     * fields set — marked dirty and new so Save writes it and Back warns, exactly as though the user had
+     * set those switches by hand. Nothing is saved or applied here; this is a draft for them to review.
+     *
+     * The suggestion is recomputed rather than carried from Home, so the editor reads the same measurements
+     * from the same source and cannot show a field Home's card did not, or miss one it did. If the history
+     * no longer supports a suggestion — a session deleted in the moment between the card and this screen —
+     * the game falls back to an empty profile for that package rather than a stale or invented draft.
+     */
+    private suspend fun loadSuggested(installed: Boolean) {
+        val forPackage = sessions.sessionsFor(argument).first()
+        val label = forPackage.firstOrNull()?.gameLabel ?: argument
+        val suggested = ProfileSuggester.suggest(
+            packageName = argument,
+            label = label,
+            existingProfile = null,
+            sessions = forPackage,
+        )
+        editing.value = editing.value.copy(
+            isLoaded = true,
+            isNew = true,
+            profile = suggested?.profile ?: GameProfile.forGame(argument, label),
+            isGameInstalled = installed,
+            isDirty = true,
+            message = if (suggested != null) SUGGESTION_NOTE else null,
         )
     }
 
@@ -312,6 +363,20 @@ class ProfileEditorViewModel @Inject constructor(
 
     fun dismissMessage() {
         editing.value = editing.value.copy(message = null)
+    }
+
+    private companion object {
+        /**
+         * The SavedStateHandle key carrying Home's "review this suggestion" flag.
+         *
+         * A literal, not a [Destination] constant, so this ViewModel compiles without the route change that
+         * feeds it — but the navArgument the ProfileEditor route registers must use this exact name.
+         */
+        const val SEED_ARG = "seed"
+
+        /** Says the form was filled from history and, like every other unsaved edit, is not yet applied. */
+        const val SUGGESTION_NOTE = "Suggested from this game's recorded sessions. Nothing is applied " +
+            "until you save it — change anything you like first, or leave the screen to discard it."
     }
 }
 

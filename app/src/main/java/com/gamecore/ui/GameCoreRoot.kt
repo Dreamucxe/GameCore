@@ -61,6 +61,7 @@ import com.gamecore.aimlab.ui.stats.StatisticsScreen
 import com.gamecore.aimlab.ui.tracking.TrackingScreen
 import com.gamecore.aimlab.ui.weapon.WeaponEditorScreen
 import com.gamecore.domain.setup.WizardEntry
+import com.gamecore.ui.backup.BackupRestoreScreen
 import com.gamecore.ui.capability.CapabilityScreen
 import com.gamecore.ui.color.ColorScreen
 import com.gamecore.ui.components.ScreenPadding
@@ -72,6 +73,7 @@ import com.gamecore.ui.games.ProfileEditorScreen
 import com.gamecore.ui.home.HomeScreen
 import com.gamecore.ui.hud.HudEditorScreen
 import com.gamecore.ui.hud.HudScreen
+import com.gamecore.ui.macros.MacroEditorScreen
 import com.gamecore.ui.media.MediaAccessScreen
 import com.gamecore.ui.motion.MotionScreen
 import com.gamecore.ui.overlay.OverlayScreen
@@ -316,6 +318,9 @@ private fun GameCoreNav(
                 onNavigate = open,
                 aimLabEnabled = aimLabEnabled,
                 onOpenProfile = { name -> navController.push(Destination.ProfileEditor.routeFor(name)) },
+                onReviewSuggestion = { name ->
+                    navController.push(Destination.ProfileEditor.routeForSuggested(name))
+                },
             )
         }
 
@@ -431,6 +436,14 @@ private fun GameCoreNav(
             QuickAppsScreen(onBack = back)
         }
 
+        composable(Destination.MacroEditor.route) {
+            MacroEditorScreen(onBack = back)
+        }
+
+        composable(Destination.BackupRestore.route) {
+            BackupRestoreScreen(onBack = back)
+        }
+
         composable(Destination.NeverClose.route) {
             NeverCloseScreen(onBack = back)
         }
@@ -441,7 +454,13 @@ private fun GameCoreNav(
 
         composable(
             route = Destination.ProfileEditor.route,
-            arguments = listOf(navArgument(Destination.ARG_PACKAGE) { type = NavType.StringType }),
+            arguments = listOf(
+                navArgument(Destination.ARG_PACKAGE) { type = NavType.StringType },
+                navArgument(Destination.ARG_SEED) {
+                    type = NavType.BoolType
+                    defaultValue = false
+                },
+            ),
         ) {
             ProfileEditorScreen(onBack = back, onNavigate = open)
         }

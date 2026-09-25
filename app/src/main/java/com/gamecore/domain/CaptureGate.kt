@@ -39,6 +39,12 @@ class CaptureGate @Inject constructor(
      */
     fun request(purpose: CapturePurpose): CaptureRequest {
         if (!capture.isSupported()) return CaptureRequest.Unsupported
+        // Stopping the magnifier feed with no projection held is a no-op, never a reason to prompt: the
+        // feed is already down, and opening the system consent sheet to "stop" something would make no
+        // sense. Every other purpose needs the projection, so only this one is special-cased.
+        if (purpose == CapturePurpose.STOP_FRAME_FEED && !capture.hasProjection()) {
+            return CaptureRequest.Started
+        }
         return try {
             if (capture.hasProjection()) {
                 ContextCompat.startForegroundService(

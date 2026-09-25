@@ -145,8 +145,8 @@ class DestinationTest {
         Destination.Hud, Destination.Performance, Destination.Crosshair, Destination.Shizuku,
         Destination.Permissions, Destination.Tools, Destination.Overlay, Destination.Motion, Destination.Touch,
         Destination.Controller, Destination.Capability, Destination.QuickTrigger, Destination.NeverClose,
-        Destination.GameStorage, Destination.QuickApps, Destination.Developer, Destination.Colour,
-        Destination.MediaAccess,
+        Destination.GameStorage, Destination.QuickApps, Destination.MacroEditor, Destination.Developer,
+        Destination.Colour, Destination.MediaAccess, Destination.BackupRestore,
         // argument-carrying
         Destination.ProfileEditor, Destination.HudEditor, Destination.SessionReport,
         // Aim Lab (registered only while the section is on, but declared unconditionally)

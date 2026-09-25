@@ -1,11 +1,14 @@
 package com.gamecore.ui.games
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,6 +23,7 @@ import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -30,6 +34,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,6 +56,7 @@ import com.gamecore.core.model.chipsSentence
 import com.gamecore.core.model.deleteProfileMessage
 import com.gamecore.core.model.profileClaimNote
 import com.gamecore.core.model.shownChips
+import com.gamecore.data.repository.ProfileCollisionPolicy
 import com.gamecore.ui.Destination
 import com.gamecore.ui.components.ActionRow
 import com.gamecore.ui.components.ConfirmDialog
@@ -67,6 +74,7 @@ import com.gamecore.ui.components.StatusChip
 import com.gamecore.ui.components.SwitchRow
 import com.gamecore.ui.components.Tone
 import com.gamecore.ui.components.colour
+import com.gamecore.ui.components.startIntentSafely
 import com.gamecore.ui.theme.Density
 import com.gamecore.ui.theme.Spacing
 
@@ -91,11 +99,28 @@ fun GamesScreen(
     viewModel: GamesViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val transferState by viewModel.transferState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var pendingDelete by remember { mutableStateOf<GameRow?>(null) }
 
     // The remedy for "no detection" is a system settings page, so the answer can change while this
     // screen is still on top of the stack.
     OnResume { viewModel.refreshDetection() }
+
+    // SAF hands back a URI readable for this call only; [ProfileTransfer] copies what it needs out of it and
+    // never keeps the grant. A cancelled pick returns null and simply does nothing (§5, mirroring the
+    // crosshair image picker and the backup restore picker).
+    val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.importFrom(uri)
+    }
+
+    // A written export stages a one-shot share intent; fire it once and let the ViewModel clear it, telling
+    // it back whether anything on the device actually accepted the file.
+    LaunchedEffect(transferState.share?.id) {
+        transferState.share?.let { request ->
+            viewModel.shareHandled(shared = context.startIntentSafely(request.intent))
+        }
+    }
 
     val padded = Modifier.padding(horizontal = ScreenPadding)
     // §3 compact density tightens the gaps *between* cards while leaving the padding inside them alone.
@@ -111,10 +136,13 @@ fun GamesScreen(
                 title = "Games",
                 subtitle = state.subtitle,
                 action = {
-                    // Kept in every state, including the empty one — the empty state's button and this
-                    // are two doors to the same place, and hiding this on an empty list would be the one
-                    // time a user looking for "add" cannot find it in the corner it always lives in.
-                    TextButton(onClick = { onOpenProfile(Destination.NEW_PROFILE) }) { Text("Add") }
+                    // Import and Add share the corner that is present in every state, the empty one
+                    // included — bringing a profile in from a file is exactly what a user with an empty
+                    // list reaches for, so hiding it there would be the one time it cannot be found.
+                    Row {
+                        TextButton(onClick = { importPicker.launch(arrayOf(MIME_JSON)) }) { Text("Import") }
+                        TextButton(onClick = { onOpenProfile(Destination.NEW_PROFILE) }) { Text("Add") }
+                    }
                 },
             )
         }
@@ -162,6 +190,7 @@ fun GamesScreen(
                 onSetEnabled = { viewModel.setEnabled(row.packageName, it) },
                 onPlay = { viewModel.play(row.packageName) },
                 onApply = { viewModel.applyNow(row.packageName) },
+                onExport = { viewModel.exportProfile(row.packageName) },
                 onDelete = { pendingDelete = row },
                 modifier = padded,
             )
@@ -200,6 +229,17 @@ fun GamesScreen(
             onLaunchAnyway = viewModel::confirmPendingLaunch,
             onDontWarn = viewModel::dontWarnPendingLaunch,
             onCancel = viewModel::dismissPendingLaunch,
+        )
+    }
+
+    // §5. An import found a package that already has a saved profile. Nothing has been written yet — the
+    // user decides how each clash is resolved, and Cancel writes nothing at all.
+    transferState.collision?.let { prompt ->
+        ImportCollisionDialog(
+            prompt = prompt,
+            onReplace = { viewModel.resolveImport(ProfileCollisionPolicy.REPLACE) },
+            onKeepBoth = { viewModel.resolveImport(ProfileCollisionPolicy.KEEP_BOTH) },
+            onCancel = viewModel::cancelImport,
         )
     }
 }
@@ -283,6 +323,7 @@ private fun ProfileCard(
     onSetEnabled: (Boolean) -> Unit,
     onPlay: () -> Unit,
     onApply: () -> Unit,
+    onExport: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -395,7 +436,12 @@ private fun ProfileCard(
                 Text(if (isBusy) "Applying" else "Apply now")
             }
             Spacer(modifier = Modifier.weight(1f))
-            ProfileOverflowMenu(label = row.label, enabled = !anyBusy, onDelete = onDelete)
+            ProfileOverflowMenu(
+                label = row.label,
+                enabled = !anyBusy,
+                onExport = onExport,
+                onDelete = onDelete,
+            )
         }
     }
 }
@@ -413,20 +459,33 @@ private fun StateChip(state: GameCardState) {
 }
 
 /**
- * The per-profile overflow, holding Delete.
+ * The per-profile overflow, holding Export / Share and Delete.
  *
- * Delete lives behind a menu and a confirm dialog rather than as a fifth button on the row: it is the one
+ * Delete lives behind a menu and a confirm dialog rather than as a button on the row: it is the one
  * irreversible action on the card, and a destructive button sitting a thumb-width from Play and Apply is
- * how it gets pressed by accident. The menu keeps its own open state locally — nothing about which card's
- * menu is showing needs to survive a recomposition of the list.
+ * how it gets pressed by accident. Export / Share sits above it — a rarely-used, non-destructive action
+ * that does not earn a permanent button either. The menu keeps its own open state locally; nothing about
+ * which card's menu is showing needs to survive a recomposition of the list.
  */
 @Composable
-private fun ProfileOverflowMenu(label: String, enabled: Boolean, onDelete: () -> Unit) {
+private fun ProfileOverflowMenu(
+    label: String,
+    enabled: Boolean,
+    onExport: () -> Unit,
+    onDelete: () -> Unit,
+) {
     var expanded by remember { mutableStateOf(false) }
     IconButton(onClick = { expanded = true }, enabled = enabled) {
         Icon(imageVector = Icons.Filled.MoreVert, contentDescription = "More options for $label")
     }
     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenuItem(
+            text = { Text("Export / Share") },
+            onClick = {
+                expanded = false
+                onExport()
+            },
+        )
         DropdownMenuItem(
             text = { Text("Delete", color = Tone.Danger.colour()) },
             onClick = {
@@ -462,3 +521,59 @@ private fun RestoreRow(isBusy: Boolean, onRestore: () -> Unit, modifier: Modifie
 /** How far a disabled or uninstalled profile's identity half fades — dim enough to read as inactive, not so
  * dim it cannot be read at all (it stays above the 4.5:1 body-text floor on this app's surfaces). */
 private const val DIMMED_ALPHA = 0.6f
+
+/**
+ * A §5 import found packages already saved on this device, and asks how to resolve them before writing
+ * anything. Three choices, stacked as [PreLaunchWarningDialog] stacks its own, because the labels are too
+ * long for the AlertDialog's one-line button row:
+ *
+ *  - **Keep both** imports each clashing profile under a new name and leaves the saved one untouched.
+ *  - **Replace** overwrites the saved profile with the incoming one.
+ *  - **Cancel** writes nothing — not the clashing profiles, and not the ones that did not clash.
+ *
+ * Cancel dropping even the non-colliding profiles is deliberate: an import is one action the user chose as a
+ * whole, and a Cancel that quietly kept half of it would be a surprise. They can pick the file again.
+ */
+@Composable
+private fun ImportCollisionDialog(
+    prompt: ImportCollisionPrompt,
+    onReplace: () -> Unit,
+    onKeepBoth: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(text = "Some profiles already exist", style = MaterialTheme.typography.titleLarge) },
+        text = { Text(text = collisionMessage(prompt), style = MaterialTheme.typography.bodyMedium) },
+        confirmButton = {
+            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
+                TextButton(onClick = onKeepBoth) { Text("Keep both") }
+                TextButton(onClick = onReplace) { Text("Replace") }
+                TextButton(onClick = onCancel) { Text("Cancel") }
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.large,
+    )
+}
+
+/** Names the clashing profiles (capped) and what each choice will do, for the collision dialog's body. */
+private fun collisionMessage(prompt: ImportCollisionPrompt): String {
+    val shown = prompt.collidingLabels.take(COLLISION_LABELS_SHOWN)
+    val extra = prompt.collidingLabels.size - shown.size
+    val names = shown.joinToString(", ") + if (extra > 0) " and $extra more" else ""
+    val count = prompt.collidingLabels.size
+    val head = if (count == prompt.total) {
+        "All $count of the profiles in this file are already saved here: $names."
+    } else {
+        "$count of the ${prompt.total} profiles in this file are already saved here: $names."
+    }
+    return "$head\n\nReplace overwrites what is saved. Keep both imports the incoming ones under a new " +
+        "name and leaves yours untouched. Cancel imports nothing."
+}
+
+/** The MIME the import picker filters on, and the type the export share sheet offers — a profile file is JSON. */
+private const val MIME_JSON = "application/json"
+
+/** How many clashing profile names the collision dialog lists before it summarises the rest as "and N more". */
+private const val COLLISION_LABELS_SHOWN = 5

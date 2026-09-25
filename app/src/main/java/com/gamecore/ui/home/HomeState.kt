@@ -80,6 +80,16 @@ data class HomeUiState(
      * [com.gamecore.ui.components.PreLaunchWarningDialog].
      */
     val pendingLaunch: PendingLaunch? = null,
+    /**
+     * A §4 profile suggestion for a game with history but no profile yet, or null when there is none.
+     *
+     * Held here already resolved to strings, the same discipline the rest of this state follows: the
+     * derivation runs in the ViewModel against [com.gamecore.domain.gaming.ProfileSuggester], and the
+     * card only draws the label, the count and the rationale lines it is handed. Null covers every
+     * "nothing to offer" case at once — no eligible game, thin data, or a suggestion the user dismissed —
+     * so the screen has one thing to check rather than three.
+     */
+    val suggestion: HomeSuggestion? = null,
     val message: String? = null,
 ) {
 
@@ -141,6 +151,22 @@ data class HomeUiState(
             profileCount = profileCount,
         )
 }
+
+/**
+ * A §4 "suggested profile" as the Home card draws it.
+ *
+ * The strings are already made — [rationale] is one line per field the suggester filled, each naming the
+ * measurement behind it — so the card renders text and nothing more. [packageName] is what Review carries
+ * to the editor (with the seed flag) and what Dismiss remembers so the offer does not return.
+ * [sessionCount] is the M in "Suggested from your last M sessions": the number of recorded sessions the
+ * derivation actually read.
+ */
+data class HomeSuggestion(
+    val packageName: String,
+    val label: String,
+    val sessionCount: Int,
+    val rationale: List<String>,
+)
 
 /**
  * One saved profile, as the §4.2 hero card draws it.

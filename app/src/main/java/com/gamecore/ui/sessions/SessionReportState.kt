@@ -42,6 +42,15 @@ data class SessionReportUiState(
      * rule the captures list follows.
      */
     val cardReady: Boolean = false,
+    /** True while a sample export is being written, so the export action cannot be started twice. */
+    val isExportingSamples: Boolean = false,
+    /**
+     * Set when a sample file has been written and is waiting for the share sheet. A one-shot consumed by
+     * [SessionReportViewModel.sampleExportShared], exactly as [cardReady] is consumed by
+     * [SessionReportViewModel.cardShared] — a flag, never the `content://` URI, so no read grant reaches a
+     * composable.
+     */
+    val sampleExportReady: Boolean = false,
     val message: String? = null,
 ) {
     val hasGraphs: Boolean get() = graphs.any { it.isPlottable }

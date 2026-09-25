@@ -38,11 +38,37 @@ import javax.inject.Singleton
  * the mode list. It is only needed to confirm a *change*, which is
  * [RefreshRateController]'s problem.
  */
+/**
+ * Just enough of the display to mirror it into a virtual display: its size in pixels and its density.
+ *
+ * A deliberately smaller thing than [DisplayReading] — no modes, no rates, nothing that has to be gathered
+ * off-thread — so it can be produced synchronously by [DisplayReader.mirrorMetrics] for the one caller that
+ * cannot suspend, the magnifier feed.
+ */
+data class MirrorMetrics(val widthPixels: Int, val heightPixels: Int, val densityDpi: Int)
+
 @Singleton
 class DisplayReader @Inject constructor(
     @ApplicationContext private val context: Context,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) {
+
+    /**
+     * The pixel size and density a virtual display needs, read synchronously.
+     *
+     * [read] is `suspend` only because it also gathers the mode table and refresh-rate list, which are
+     * worth pushing off the caller's thread; the bare size is a `WindowManager` bounds read and the
+     * density a `DisplayMetrics` field, neither heavy enough to dispatch for. The magnifier feed
+     * ([com.gamecore.core.system.ScreenCaptureController.startFrameFeed]) is deliberately not `suspend`
+     * — it must start alongside a recording without taking the capture lock — so it reads its dimensions
+     * through this rather than through [read]. Returns zeroes when no default display answers, which the
+     * caller treats as "cannot start" exactly as it treats a zero size from [read].
+     */
+    fun mirrorMetrics(): MirrorMetrics {
+        val display = defaultDisplay() ?: return MirrorMetrics(0, 0, 0)
+        val size = logicalResolution(display)
+        return MirrorMetrics(size.x, size.y, context.resources.displayMetrics.densityDpi)
+    }
 
     suspend fun read(): DisplayReading = withContext(io) {
         val display = defaultDisplay()

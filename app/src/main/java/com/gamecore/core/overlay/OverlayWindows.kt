@@ -9,7 +9,7 @@ import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import com.gamecore.core.permissions.PermissionChecker
 
-/** The five windows GameCore can put on screen. One live view each, at most. */
+/** The windows GameCore can put on screen. One live view each, at most. */
 enum class OverlaySlot {
     /** The draggable button of §7. Takes touches. */
     BUTTON,
@@ -33,6 +33,15 @@ enum class OverlaySlot {
 
     /** The user's HUD layout from §10. Full screen, never takes touches. */
     HUD,
+
+    /**
+     * The pinned magnifier of §13. Full screen, never takes touches: like the crosshair and the HUD it is
+     * a decoration the player looks *through*, so it must pass every touch to the game. The window covers
+     * the screen but the loupe it draws is a single corner rectangle computed from the [MediaProjection]
+     * frame; the rest is transparent. A separate slot so hiding the magnifier never disturbs the crosshair
+     * or the HUD sharing the screen with it.
+     */
+    MAGNIFIER,
 }
 
 /**

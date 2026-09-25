@@ -56,6 +56,20 @@ data class QuickToggleState(
 )
 
 /**
+ * One §14 macro as the sheet draws it: the name to label the chip, and what to run on a tap.
+ *
+ * A macro has no on/off state — it is a one-tap composition of actions, not a toggle — so unlike
+ * [QuickToggleState] it carries no `isOn`; the chip is momentary. The service builds these from
+ * [MacroCodec] and [Macro], resolving names and dropping strangers before the sheet ever sees one, so this
+ * carries only a display string and a lambda. The sheet never asks a store what macros exist any more than
+ * it asks what is pinned.
+ */
+data class MacroChip(
+    val name: String,
+    val onRun: () -> Unit,
+)
+
+/**
  * The quick sheet of spec §4 — the tap-and-back surface — as **pure UI**.
  *
  * This composable owns no state and knows nothing about the service, Hilt, preferences, or the window it is
@@ -79,6 +93,8 @@ data class QuickToggleState(
  * @param gameLabel the running game's name for the header.
  * @param clock the session clock, already formatted by the caller (e.g. "12:34").
  * @param pins the pinned toggles to draw, already normalised to at most six by [QuickSheetPins].
+ * @param macros the §14 macro chips to draw in a row under the grid, already resolved and capped by the
+ *   caller; empty draws no row at all, so a user with no macros sees exactly the sheet they always had.
  * @param brightness current brightness as a percent 0f..100f; [onBrightnessChange] receives the new
  *   percent on drag/tap. Percent, not 0f..1f, so the sheet lives in the same value-space as
  *   [OverlayLevel.PERCENT_RANGE] and the shared [OverlaySlider] end to end — no ×100 round trip.
@@ -102,6 +118,7 @@ fun QuickSheet(
     onMore: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    macros: List<MacroChip> = emptyList(),
     side: QuickSheetSide = QuickSheetSide.RIGHT,
     accent: Color = OverlayPalette.Good,
     gameIcon: (@Composable () -> Unit)? = null,
@@ -123,6 +140,13 @@ fun QuickSheet(
         )
 
         ToggleGrid(pins = pins, accent = accent)
+
+        // §14 macro chips: momentary one-tap compositions, drawn only when the user actually has some, so a
+        // user with no macros sees exactly the sheet they always had. No on/off state (unlike the grid
+        // above), so each is a plain tappable chip rather than a toggle cell.
+        if (macros.isNotEmpty()) {
+            MacroRow(macros = macros, accent = accent)
+        }
 
         // The shared §6 slider, in percent space. Per-frame `onValueChange` is fine here: the service
         // debounces the commit (`onQuickLevel`, 120 ms), so a drag is one device write, not sixty.
@@ -305,3 +329,63 @@ private fun SheetButton(label: String, onClick: () -> Unit, filled: Boolean, acc
 
 /** The grid's column count, matching the 3×2 shape [QuickSheetPins.MAX_PINS] fills. */
 private const val COLUMNS = 3
+
+/**
+ * The §14 macro chips: a small wrapped grid of momentary one-tap chips under the toggle grid. A macro carries
+ * no on/off state, so unlike [ToggleCell] a chip is never accent-*filled* — it is an accent-*outlined* button
+ * that just fires [MacroChip.onRun] on tap, marked with a ▶ glyph so it reads as "run this", not "toggle
+ * this". Chunked two-per-row (fewer than the toggle grid's three) so a macro name has room in the narrow
+ * sheet; the odd last chip keeps a full row's width via a [Spacer], exactly like [ToggleGrid].
+ */
+@Composable
+private fun MacroRow(macros: List<MacroChip>, accent: Color) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        macros.chunked(MACRO_COLUMNS).forEach { rowMacros ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                rowMacros.forEach { chip ->
+                    MacroChipCell(chip = chip, accent = accent, modifier = Modifier.weight(1f))
+                }
+                // Keep the last, short row's chips the same width as full rows.
+                repeat(MACRO_COLUMNS - rowMacros.size) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+/** One macro chip (spec §14): an accent-outlined momentary button — a ▶ glyph and the macro's name. */
+@Composable
+private fun MacroChipCell(chip: MacroChip, accent: Color, modifier: Modifier) {
+    val shape = RoundedCornerShape(10.dp)
+    Row(
+        modifier = modifier
+            .heightIn(min = 40.dp)
+            .clip(shape)
+            .background(OverlayPalette.Plate)
+            .border(1.dp, accent, shape)
+            .clickable(onClick = chip.onRun)
+            .padding(vertical = 8.dp, horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        BasicText(
+            text = "▶",
+            style = TextStyle(color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+        )
+        BasicText(
+            text = chip.name,
+            maxLines = 1,
+            style = TextStyle(color = OverlayPalette.Text, fontSize = 11.sp, fontWeight = FontWeight.Medium),
+        )
+    }
+}
+
+/** The macro chips' column count — two, fewer than the toggle grid, so a name has room in the narrow sheet. */
+private const val MACRO_COLUMNS = 2

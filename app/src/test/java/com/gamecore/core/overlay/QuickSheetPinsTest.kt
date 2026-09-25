@@ -62,7 +62,7 @@ class QuickSheetPinsTest {
 
     @Test
     fun `normalise keeps at most six`() {
-        // Every toggle there is, in enum order, is nine — two over the cap.
+        // Every toggle there is, in enum order, is ten — four over the cap.
         val raw = QuickToggle.entries.toList()
         val out = QuickSheetPins.normalise(raw, all)
         assertEquals(QuickSheetPins.MAX_PINS, out.size)

@@ -78,6 +78,10 @@ class OverlayController @Inject constructor(
             crosshairPresetId = preferences.activeCrosshairPresetId ?: manual.crosshairPresetId,
             hud = preferences.showHudOverlay,
             hudLayoutId = preferences.activeHudLayoutId ?: manual.hudLayoutId,
+            // The magnifier is deliberately absent: it is a within-session control, not part of the state
+            // the next launch rebuilds. Its feed needs a live MediaProjection, and consent for one does not
+            // survive the process — restoring the flag would put the loupe's switch on with an empty window
+            // behind it and no feed to fill it. It comes back only when the user turns it on again.
         )
         if (!requested.value.fromProfile) publish(manual)
     }
@@ -101,6 +105,20 @@ class OverlayController @Inject constructor(
     fun setHud(visible: Boolean, layoutId: Long? = null) = update {
         it.withHud(visible, layoutId, preferences.activeHudLayoutId)
     }
+
+    /**
+     * Shows or hides the pinned magnifier of §13.
+     *
+     * The crosshair's and HUD's sibling, minus the id: the magnifier has no saved preset to name, so this
+     * takes only the flag. It writes the same manual request the others do, so a magnifier switched on by
+     * hand survives a profile taking over and coming back, and — through [publish]'s `anythingVisible`
+     * check — is enough on its own to keep the service up.
+     *
+     * It does not itself start the capture feed the loupe draws from; that is the overlay service's job
+     * when it reconciles this request, because the feed needs the `MediaProjection` consent the service
+     * owns and this class deliberately knows nothing about.
+     */
+    fun setMagnifier(visible: Boolean) = update { it.withMagnifier(visible) }
 
     /** Hides everything, manual and profile alike. The panel's own "stop overlay" and Settings' switch. */
     fun hideAll() {

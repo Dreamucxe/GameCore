@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SportsEsports
@@ -198,6 +199,7 @@ fun SettingsScreen(
                 onDismissExport = viewModel::dismissExport,
                 onClearHistory = viewModel::askClearHistory,
                 onResetSettings = viewModel::askResetSettings,
+                onNavigate = onNavigate,
                 modifier = padded,
             )
         }
@@ -792,6 +794,7 @@ private fun DataCard(
     onDismissExport: () -> Unit,
     onClearHistory: () -> Unit,
     onResetSettings: () -> Unit,
+    onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -804,6 +807,14 @@ private fun DataCard(
         KeyValueRow(label = "Recorded sessions", value = Formatters.count(state.sessionCount, "session"))
         KeyValueRow(label = "Game profiles", value = Formatters.count(state.profileCount, "profile"))
         KeyValueRow(label = "HUD layouts", value = Formatters.count(state.layoutCount, "layout"))
+        RowDivider()
+        NavRow(
+            title = "Backup & restore",
+            onClick = { onNavigate(Destination.BackupRestore) },
+            description = "Save your appearance, settings, profiles, presets, HUD layouts and macros to a " +
+                "file, or bring them back. Session history is never included.",
+            icon = Icons.Filled.SettingsBackupRestore,
+        )
         RowDivider()
         Text(
             text = "Export writes a CSV with one row per session. An empty cell means that reading was " +

@@ -133,6 +133,9 @@ import kotlinx.coroutines.delay
  *   offering a tap that lands nowhere is worse than no tile.
  * @param onOpenProfile open the editor for one profile by package. Defaulted to the Games tab so the
  *   screen stays correct on its own; the graph wires the real editor.
+ * @param onReviewSuggestion open the editor for a §4 suggestion, seeded with the derived draft. Defaulted
+ *   to [onOpenProfile] so the screen is correct alone; the graph wires the seeded route (the same editor
+ *   destination with the seed flag set), so a suggestion opens as an unsaved draft rather than empty.
  */
 @Composable
 fun HomeScreen(
@@ -140,6 +143,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     aimLabEnabled: Boolean = true,
     onOpenProfile: (String) -> Unit = { onNavigate(Destination.Games) },
+    onReviewSuggestion: (String) -> Unit = onOpenProfile,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -298,6 +302,21 @@ fun HomeScreen(
                         modifier = padded,
                     )
                 }
+            }
+        }
+
+        // §4 feature #3. A game with real recorded history but no profile yet, and a starting profile
+        // derived only from what it was measured doing. Below the hero because it is an offer, not a task
+        // the device is waiting on. Dismiss persists (HomeViewModel.dismissSuggestion), so a game waved
+        // away here does not come back tomorrow; Review opens the editor seeded with the draft.
+        state.suggestion?.let { suggestion ->
+            item {
+                SuggestionCard(
+                    suggestion = suggestion,
+                    onReview = { onReviewSuggestion(suggestion.packageName) },
+                    onDismiss = { viewModel.dismissSuggestion(suggestion.packageName) },
+                    modifier = padded,
+                )
             }
         }
 
@@ -1012,6 +1031,47 @@ private fun RepairNotice(
             TextButton(onClick = onOpenSessions) { Text("View history") }
             Spacer(modifier = Modifier.weight(1f))
             TextButton(onClick = onDismiss) { Text("OK") }
+        }
+    }
+}
+
+/**
+ * A §4 starting profile GameCore worked out from a game's own history, offered rather than applied.
+ *
+ * Everything on it is [com.gamecore.domain.gaming.ProfileSuggester]'s output already turned to strings:
+ * the subtitle names how many sessions were read (the M the spec asks for), and each rationale line is one
+ * field the suggester filled with the measurement behind it, so the card states why it is offering each
+ * change rather than asking the user to trust it. Nothing here is saved or applied — Review opens the
+ * editor on an unsaved draft, and Dismiss remembers the package so the offer does not return.
+ */
+@Composable
+private fun SuggestionCard(
+    suggestion: HomeSuggestion,
+    onReview: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Suggested profile for ${suggestion.label}",
+        subtitle = "From your last ${Formatters.count(suggestion.sessionCount, "session")}. " +
+            "Nothing is applied until you save it.",
+        icon = Icons.Filled.Tune,
+        modifier = modifier,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            suggestion.rationale.forEach { line ->
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        ActionRow {
+            TextButton(onClick = onReview) { Text("Review") }
+            Spacer(modifier = Modifier.weight(1f))
+            TextButton(onClick = onDismiss) { Text("Dismiss") }
         }
     }
 }

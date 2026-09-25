@@ -13,6 +13,8 @@ import com.gamecore.core.model.SessionCard
 import com.gamecore.core.model.SessionSample
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.CardResult
+import com.gamecore.data.repository.SampleExportResult
+import com.gamecore.data.repository.SampleExporter
 import com.gamecore.data.repository.SessionCardRenderer
 import com.gamecore.data.repository.SessionRepository
 import com.gamecore.ui.Destination
@@ -46,6 +48,7 @@ class SessionReportViewModel @Inject constructor(
     private val repository: SessionRepository,
     private val preferences: SecurePreferenceStore,
     private val cards: SessionCardRenderer,
+    private val sampleExporter: SampleExporter,
 ) : ViewModel() {
 
     /**
@@ -75,6 +78,13 @@ class SessionReportViewModel @Inject constructor(
 
     /** The URI of a card that has been written and not yet handed to the share sheet. Never in state. */
     private var pending: Uri? = null
+
+    /**
+     * The URI and MIME of a sample export written and not yet shared. Never in state, for the same reason
+     * [pending] is not: the read grant stays out of the presentation layer, which is handed a flag.
+     */
+    private var pendingExport: Uri? = null
+    private var pendingExportMime: String = ""
 
     init {
         load()
@@ -195,6 +205,65 @@ class SessionReportViewModel @Inject constructor(
         editing.value = editing.value.copy(
             cardReady = false,
             message = if (shared) editing.value.message else CARD_NO_APP,
+        )
+    }
+
+    // ------------------------------------------------------------------------ the sample export
+
+    /**
+     * Writes this session's raw per-sample series out as a file and hands it to the share sheet (§19).
+     *
+     * The delta to [shareCard]: that draws a picture of the aggregates for a chat window; this exports the
+     * numbers behind them for a spreadsheet. The one-tap-to-share shape is identical — write, then fire the
+     * sheet through [SessionReportUiState.sampleExportReady] — so a file the user never asked to keep is not
+     * left sitting in the app's storage with a screen to manage it.
+     *
+     * An [SampleExportResult.Empty] is not an error: a session with no samples has nothing to export and
+     * says so, the same judgement the aggregate exporter makes about empty history.
+     */
+    fun exportSamples(format: SampleExporter.Format) {
+        if (sessionId == MISSING_ID) return
+        if (editing.value.isExportingSamples) return
+        editing.value = editing.value.copy(isExportingSamples = true, message = null)
+        viewModelScope.launch {
+            val result = sampleExporter.export(sessionId, format)
+            val written = result as? SampleExportResult.Written
+            pendingExport = written?.uri
+            pendingExportMime = written?.mimeType.orEmpty()
+            editing.value = editing.value.copy(
+                isExportingSamples = false,
+                sampleExportReady = pendingExport != null,
+                message = when (result) {
+                    is SampleExportResult.Written ->
+                        if (pendingExport != null) null else SAMPLES_NOT_SHAREABLE
+                    SampleExportResult.Empty -> SAMPLES_EMPTY
+                    is SampleExportResult.Failed -> SAMPLES_FAILED
+                },
+            )
+        }
+    }
+
+    /**
+     * The share-sheet intent for the file that was just written, or null when there is none.
+     *
+     * Built here for the same reason [cardIntent] is: the `content://` URI and its one-shot read grant
+     * never reach a composable. The MIME rides along on the result rather than being inferred from the
+     * name, so a `.csv` and a `.json` are each offered to the apps that actually read them.
+     */
+    fun sampleExportIntent(): Intent? {
+        val uri = pendingExport ?: return null
+        return Intent(Intent.ACTION_SEND)
+            .setType(pendingExportMime.ifEmpty { "text/csv" })
+            .putExtra(Intent.EXTRA_STREAM, uri)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+
+    /** Consumes the one-shot, and says so when nothing on the device would open the file. */
+    fun sampleExportShared(shared: Boolean) {
+        pendingExport = null
+        editing.value = editing.value.copy(
+            sampleExportReady = false,
+            message = if (shared) editing.value.message else SAMPLES_NO_APP,
         )
     }
 
@@ -621,6 +690,12 @@ class SessionReportViewModel @Inject constructor(
         const val CARD_FAILED = "The card could not be created. Storage may be full."
         const val CARD_NOT_SHAREABLE = "The card was created, but this device would not share it."
         const val CARD_NO_APP = "No app on this device can accept an image."
+
+        const val SAMPLES_EMPTY = "This session has no samples to export."
+        const val SAMPLES_FAILED = "The samples could not be exported. Storage may be full."
+        const val SAMPLES_NOT_SHAREABLE =
+            "The file was written, but this device would not share it."
+        const val SAMPLES_NO_APP = "No app on this device can open that file."
 
         const val PROFILE_APPLIED =
             "A profile was applied for this game when it started, and the settings it changed were put " +

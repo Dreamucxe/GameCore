@@ -86,6 +86,27 @@ class ScreenCaptureController @Inject constructor(
     val recording: StateFlow<RecordingState> = recordingState.asStateFlow()
 
     /**
+     * The latest screen frame for the pinned magnifier (§13), or null when the feed is not running or
+     * has not produced a frame yet.
+     *
+     * A whole `Bitmap` handed over on each update rather than a reused buffer: the overlay reads this on
+     * the main thread while the feed thread produces the next one, and overwriting a bitmap Compose is
+     * mid-draw on would tear the picture. The previous frame is left for the garbage collector rather than
+     * recycled for the same reason — the composable may still be holding it — so the feed is deliberately
+     * throttled ([FEED_MIN_INTERVAL_MILLIS]) to keep that allocation rate sane.
+     */
+    private val magnifierFrameState = MutableStateFlow<Bitmap?>(null)
+    val magnifierFrame: StateFlow<Bitmap?> = magnifierFrameState.asStateFlow()
+
+    /**
+     * Whether the magnifier feed is live, so the panel's Magnifier toggle can light up from the real
+     * state of the capture rather than from a guess. Distinct from [recording]: the feed and a recording
+     * are independent virtual displays on the same projection and either can be up without the other.
+     */
+    private val magnifierRunningState = MutableStateFlow(false)
+    val magnifierRunning: StateFlow<Boolean> = magnifierRunningState.asStateFlow()
+
+    /**
      * One capture at a time. A virtual display is a real system resource, and two
      * concurrent ones on a mid-range phone drop frames in the game rather than in
      * GameCore.
@@ -98,6 +119,14 @@ class ScreenCaptureController @Inject constructor(
     private var recordingFile: File? = null
     private var recordingStartedElapsed: Long = 0L
 
+    // The magnifier feed's own resources, separate from the recorder's so stopping one never touches the
+    // other. The frames are converted on [feedThread] rather than the main looper, because a full-screen
+    // bitmap copy every frame on the main thread would jank the game the loupe is laid over.
+    private var feedReader: ImageReader? = null
+    private var feedDisplay: VirtualDisplay? = null
+    private var feedThread: android.os.HandlerThread? = null
+    private var feedLastFrameElapsed: Long = 0L
+
     /**
      * Stops everything if the user revokes the projection from the system UI.
      *
@@ -108,6 +137,7 @@ class ScreenCaptureController @Inject constructor(
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
             releaseRecorder(keepFile = true)
+            stopFrameFeed()
             projection = null
             recordingState.value = RecordingState.IDLE
         }
@@ -160,6 +190,7 @@ class ScreenCaptureController @Inject constructor(
     /** Gives the projection up. Called when recording ends and when the overlay stops. */
     fun releaseProjection() {
         releaseRecorder(keepFile = true)
+        stopFrameFeed()
         try {
             projection?.unregisterCallback(projectionCallback)
             projection?.stop()
@@ -416,6 +447,120 @@ class ScreenCaptureController @Inject constructor(
         }
     }
 
+    // ------------------------------------------------------------- magnifier feed
+
+    /**
+     * Starts a continuous feed of screen frames for the pinned magnifier (§13), or returns false.
+     *
+     * A second virtual display on the held projection, independent of any recording: it mirrors the
+     * display into an [ImageReader] whose frames become [magnifierFrame]. False when there is no live
+     * projection — the caller then routes through consent exactly as the screenshot and recording paths
+     * do — or when the display size cannot be read or the device refuses the capture surface. Idempotent:
+     * a feed already running is left alone and reported as success.
+     *
+     * Not `suspend` and holds no lock, unlike [takeScreenshot] and [startRecording]: the feed is meant to
+     * run *alongside* those, so blocking on [captureLock] for its whole lifetime would wedge every other
+     * capture while the magnifier is pinned. Setup is a couple of cheap system calls, done inline.
+     */
+    fun startFrameFeed(): Boolean {
+        val active = projection ?: return false
+        if (magnifierRunningState.value) return true
+        val metrics = display.mirrorMetrics()
+        val width = metrics.widthPixels
+        val height = metrics.heightPixels
+        if (width <= 0 || height <= 0) return false
+        return try {
+            val thread = android.os.HandlerThread("GameCore-magnifier-feed").apply { start() }
+            feedThread = thread
+            val handler = Handler(thread.looper)
+            val reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, FEED_BUFFERS)
+            feedReader = reader
+            reader.setOnImageAvailableListener({ r -> onFeedImage(r, width, height) }, handler)
+            feedDisplay = active.createVirtualDisplay(
+                "GameCore-magnifier",
+                width,
+                height,
+                metrics.densityDpi.coerceAtLeast(1),
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                reader.surface,
+                null,
+                handler,
+            ) ?: run {
+                stopFrameFeed()
+                return false
+            }
+            feedLastFrameElapsed = 0L
+            magnifierRunningState.value = true
+            true
+        } catch (error: SecurityException) {
+            // The token expired between the liveness check and the call.
+            projection = null
+            stopFrameFeed()
+            false
+        } catch (error: Throwable) {
+            stopFrameFeed()
+            false
+        }
+    }
+    /**
+     * Stops the feed and frees its display, reader and thread. Safe to call when nothing is running.
+     *
+     * Clears [magnifierFrame] to null so the overlay draws nothing the instant the feed goes down, rather
+     * than holding the last frame frozen on screen until a stale bitmap is noticed.
+     */
+    fun stopFrameFeed() {
+        magnifierRunningState.value = false
+        try {
+            feedDisplay?.release()
+        } catch (error: Throwable) {
+            // Gone either way.
+        }
+        feedDisplay = null
+        try {
+            feedReader?.setOnImageAvailableListener(null, null)
+            feedReader?.close()
+        } catch (error: Throwable) {
+            // Same.
+        }
+        feedReader = null
+        try {
+            feedThread?.quitSafely()
+        } catch (error: Throwable) {
+            // Same.
+        }
+        feedThread = null
+        magnifierFrameState.value = null
+    }
+    /**
+     * Turns one delivered frame into [magnifierFrame], on the feed thread.
+     *
+     * `acquireLatestImage` drops any backlog and returns the newest frame; the returned image is always
+     * closed so the reader's two buffers are freed even on a frame this drops. Throttled to
+     * [FEED_MIN_INTERVAL_MILLIS] so a 120 Hz display does not mean 120 full-screen bitmap copies a second.
+     * A conversion that throws costs one frame, not the feed.
+     */
+    private fun onFeedImage(reader: ImageReader, width: Int, height: Int) {
+        val image = try {
+            reader.acquireLatestImage()
+        } catch (error: Throwable) {
+            null
+        } ?: return
+        try {
+            val now = SystemClock.elapsedRealtime()
+            if (now - feedLastFrameElapsed < FEED_MIN_INTERVAL_MILLIS) return
+            feedLastFrameElapsed = now
+            magnifierFrameState.value = bitmapFrom(image, width, height)
+        } catch (error: Throwable) {
+            // A dropped frame is not worth taking the feed down for.
+        } finally {
+            try {
+                image.close()
+            } catch (error: Throwable) {
+                // Already closed.
+            }
+        }
+    }
+
     /**
      * Configures the encoder.
      *
@@ -559,5 +704,15 @@ class ScreenCaptureController @Inject constructor(
         /** Long enough for the first composited frame on a slow device. */
         const val FRAME_WAIT_MILLIS = 1_000L
         const val FRAME_POLL_MILLIS = 40L
+
+        /** Two buffers for the feed reader: one being read while the next is composited. */
+        const val FEED_BUFFERS = 2
+
+        /**
+         * Floor on the gap between magnifier frames — about 15 a second. Enough to read a moving screen
+         * through the loupe, and low enough that a full-screen bitmap copy per frame is not what heats
+         * the phone. On-device thermals are the part of §13 a JVM cannot check, so this errs conservative.
+         */
+        const val FEED_MIN_INTERVAL_MILLIS = 66L
     }
 }

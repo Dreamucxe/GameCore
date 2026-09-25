@@ -40,13 +40,21 @@ enum class PanelTab(val label: String) {
  * The lists mirror spec §5's tab descriptions and the control inventory in `GC_Pill_Audit.md`:
  *  - Display: brightness + the rows that open a value/sub-view (colour, gamma/contrast/hue, aspect ratio,
  *    refresh rate, rotation).
- *  - Overlays: the stats pill, crosshair, HUD and their layout controls.
+ *  - Overlays: the stats pill, crosshair, HUD, the pinned magnifier, and their layout controls.
  *  - Capture: screenshot, record, torch.
  *  - Session: silence/DND, end session, open GameCore, and the media row.
  *
  * Ids are stable strings shared with the reachability test. The panel composable renders a tab by looking
  * its controls up here, so a control cannot be drawn under a tab it was not assigned to, and cannot be
  * forgotten without [everyControlReachableOnce] going red.
+ *
+ * A §14 **macro** is deliberately *not* one of these ids, and must never be added as one. A macro is
+ * composition — an ordered replay of controls that already appear above through their own audited ids
+ * ([Macro], surfaced as a [MacroChip] on the quick sheet) — not a new capability the audit is promising to
+ * surface. Registering one here would make [everyControlReachableOnce] demand the full panel draw a control
+ * for it, when a macro belongs on the quick sheet and is defined in its own editor, and would let a user's
+ * free-text macro name masquerade as a stable audited id. Macros ride in [OverlayConfig.macrosJson] and are
+ * reached through the sheet and the macro editor, never through this coverage map.
  */
 object PanelReachability {
 
@@ -63,6 +71,7 @@ object PanelReachability {
             "stats_pill",
             "crosshair",
             "hud",
+            "magnifier",
             "overlay_layout",
         ),
         PanelTab.CAPTURE to listOf(

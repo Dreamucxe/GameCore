@@ -24,4 +24,5 @@ fun QuickToggle.toOverlayAction(): OverlayAction = when (this) {
     QuickToggle.SILENCE -> OverlayAction.DO_NOT_DISTURB
     QuickToggle.ROTATION -> OverlayAction.ROTATION_LOCK
     QuickToggle.REFRESH -> OverlayAction.REFRESH_RATE
+    QuickToggle.MAGNIFIER -> OverlayAction.MAGNIFIER
 }

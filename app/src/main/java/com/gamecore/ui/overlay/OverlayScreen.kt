@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.AlertDialog
@@ -73,6 +74,8 @@ import com.gamecore.core.model.pillStyleSummary
 import com.gamecore.core.model.quickAppsSummary
 import com.gamecore.core.model.sliderDescription
 import com.gamecore.core.overlay.Corner
+import com.gamecore.core.overlay.MacroCodec
+import com.gamecore.core.overlay.MacroLibrary
 import com.gamecore.core.overlay.OverlayAction
 import com.gamecore.core.overlay.OverlayPalette
 import com.gamecore.core.overlay.PerformancePill
@@ -247,6 +250,7 @@ fun OverlayScreen(
                 onRemovePin = viewModel::removePin,
                 onAutoClose = viewModel::setQuickAutoClose,
                 onDoubleTap = viewModel::setDoubleTapForPanel,
+                onMacros = { onNavigate(Destination.MacroEditor) },
                 modifier = padded,
             )
         }
@@ -1085,6 +1089,7 @@ private fun QuickSheetCard(
     onRemovePin: (QuickToggle) -> Unit,
     onAutoClose: (Boolean) -> Unit,
     onDoubleTap: (Boolean) -> Unit,
+    onMacros: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     SectionCard(
@@ -1118,6 +1123,24 @@ private fun QuickSheetCard(
                 "toggle the device cannot do is dimmed there, with the reason.",
             tone = Tone.Muted,
             icon = Icons.Filled.Info,
+        )
+
+        RowDivider()
+        GroupLabel("MACROS")
+        // The macro row rides on the quick sheet, under the pinned tiles, so its editor is reached from
+        // here rather than the panel card. The count is read straight off the stored JSON — the same
+        // source the sheet and the editor decode — so "2 of 6" here can never disagree with what the sheet
+        // draws. Decoding is cheap and only repeats when the stored string actually changes.
+        val macroCount = remember(state.pill.macrosJson) { MacroCodec.decode(state.pill.macrosJson).size }
+        NavRow(
+            title = "Macros",
+            onClick = onMacros,
+            description = "One tap that runs several toggles in the order you set — a row of them sits under " +
+                "the tiles",
+            icon = Icons.Filled.PlayArrow,
+            // "2 of 6", the model's own ceiling, matching the quick-launch row above; nothing when there
+            // are none, so an unused feature adds no number to read.
+            trailing = if (macroCount == 0) null else "$macroCount of ${MacroLibrary.MAX_MACROS}",
         )
 
         RowDivider()
