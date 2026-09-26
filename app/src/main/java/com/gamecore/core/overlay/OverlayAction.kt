@@ -5,6 +5,7 @@ import com.gamecore.core.model.AspectPreset
 import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.ColorField
 import com.gamecore.core.model.CrosshairDesign
+import com.gamecore.core.model.ResolutionScale
 
 /**
  * What the control panel of §7 can do, as a closed set.
@@ -415,6 +416,27 @@ data class OverlayPanelState(
     val activeAspect: AspectPreset? = null,
     /** What the display is doing when no chip matches it, or when the size could not be read at all. */
     val aspectNote: String? = null,
+    /**
+     * The resolution downscale in force this session, or null when the display's resolution was left at
+     * native (§B8).
+     *
+     * Its own field and not something read off [activeAspect] or [aspects], because a scale and a stretch
+     * reach the display through the very same `wm size` write and so look identical from the outside: both
+     * light [OverlayAction.ASPECT], and a scale — which keeps the native ratio — even lands on the Native
+     * chip while shrinking the actual pixels. The difference is the whole point. A stretch changes the
+     * screen's *shape*; a scale keeps it and drops only the pixel count. It is not one the panel can recover
+     * from the size alone, so the service carries the recorded scale through and the shape control names it,
+     * rather than letting a lit tile read as a stretch the player never asked for.
+     *
+     * Sourced from the running session's [com.gamecore.core.model.GameSession.resolutionApplied], not from
+     * the profile, so it reports what GameCore *confirmed* it did — never a scale a profile asked for and
+     * the device refused. Null on every session that left the resolution alone, and outside a session
+     * entirely. [ResolutionScale.FULL] is a real value here and not folded into null: it is GameCore holding
+     * the display at native on purpose, a session on which the shape tile is dark and this is the only place
+     * that deliberate reset shows at all.
+     */
+    val resolutionOverride: ResolutionScale? = null,
+
     /**
      * The rates this panel advertises, or empty when there is nothing to choose from.
      *

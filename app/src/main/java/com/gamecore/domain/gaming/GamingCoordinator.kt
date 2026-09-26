@@ -7,6 +7,7 @@ import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.MemoryReclaimReport
 import com.gamecore.core.model.OptimizationAction
 import com.gamecore.core.model.ProfileApplication
+import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.RestoreReport
 import com.gamecore.core.model.StopReason
 import com.gamecore.core.system.InstalledAppLister
@@ -258,6 +259,7 @@ class GamingCoordinator @Inject constructor(
                 // the invented statistic §24 forbids.
                 applied = (application?.appliedCount ?: 0) > 0,
                 colour = appliedColour(profile, application),
+                resolution = appliedResolution(profile, application),
                 scope = scope,
             )
         }
@@ -336,6 +338,31 @@ class GamingCoordinator @Inject constructor(
     }
 
     /**
+     * The resolution scale this session actually put the display on, or null if it did not.
+     *
+     * The same rule as [appliedColour], for the same reason: only a confirmed change is recorded, so a
+     * device that accepted the `wm size` write and stayed where it was — [DisplaySizeOutcome.NotHonoured],
+     * which is most built-in screens on some builds — leaves the session saying the resolution was not
+     * overridden rather than naming a scale nothing read back.
+     *
+     * Read from the profile and not from the display, because the display cannot answer it. By the time
+     * this runs the panel holds a *size*, and nothing on the device records whether that size came from a
+     * percentage or from a custom `WxH` typed into the same field — both are one `wm size` write and one
+     * restore row. The profile is the only place the intent still exists, which is why the plan is asked
+     * rather than the panel.
+     */
+    private fun appliedResolution(
+        profile: GameProfile,
+        application: ProfileApplication?,
+    ): ResolutionScale? {
+        val scale = profile.resolutionOverride ?: return null
+        val applied = application?.results?.any {
+            it.action == OptimizationAction.SET_DISPLAY_SIZE && it.isApplied
+        } == true
+        return if (applied) scale else null
+    }
+
+    /**
      * Opens the session row and feeds it samples for as long as the game runs.
      *
      * The opening sample comes from the monitor's own stream rather than a one-off read, because
@@ -364,6 +391,7 @@ class GamingCoordinator @Inject constructor(
         label: String,
         applied: Boolean,
         colour: ColorPreset?,
+        resolution: ResolutionScale?,
         scope: CoroutineScope,
     ) {
         monitor.watch(event.packageName)
@@ -385,6 +413,7 @@ class GamingCoordinator @Inject constructor(
                 // applied.
                 colorPresetName = colour?.name,
                 colorCorrection = colour?.correction,
+                resolution = resolution,
             )
 
             launch {

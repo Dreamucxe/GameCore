@@ -81,4 +81,9 @@ data class InstalledApp(
     val isLikelyGame: Boolean,
     val isSystemApp: Boolean,
     val versionName: String?,
+    /**
+     * The package's last-update time in epoch milliseconds, taken from
+     * `PackageInfo.lastUpdateTime`. Null when it could not be read.
+     */
+    val lastUpdateTime: Long? = null,
 )

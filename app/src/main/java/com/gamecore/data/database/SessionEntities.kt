@@ -176,6 +176,16 @@ data class SessionEntity(
     /** Whether the system re-enabled battery saver mid-session, or NULL. */
     @ColumnInfo(name = "system_reenabled_saver")
     val systemReenabledSaver: Boolean? = null,
+
+    /**
+     * The [com.gamecore.core.model.ResolutionScale] name that was applied while this session ran (§B),
+     * or NULL when the resolution was left alone. Added in schema version 12, so NULL is also what
+     * every session recorded before the resolution override existed reads back as — the truth about
+     * those sessions. Stored by name and parsed defensively like every enum here; NULL is distinct
+     * from `FULL`, which would be a real reset-to-native rather than "never touched".
+     */
+    @ColumnInfo(name = "resolution_applied")
+    val resolutionApplied: String? = null,
 )
 
 /**

@@ -93,6 +93,18 @@ data class GameSession(
     val fullPerformanceOverridden: Boolean? = null,
     /** Whether the system re-enabled battery saver mid-session, or null. */
     val systemReenabledSaver: Boolean? = null,
+
+    /**
+     * The resolution-scale preset that was actually applied while this session ran (§B), or null when
+     * the display's resolution was left alone.
+     *
+     * The record of what the screen was doing, kept for the same reason [colorPresetName] is: a report
+     * of an old session should say the session ran at 60%, not infer it from a profile that may since
+     * have changed. Null is the honest reading for a session where the override was off or one recorded
+     * before the feature existed — never [ResolutionScale.FULL], which is a real "reset to native"
+     * request and a different fact from "the resolution was never touched".
+     */
+    val resolutionApplied: ResolutionScale? = null,
 ) {
     val isRunning: Boolean get() = endedAtMillis == null
 
@@ -164,6 +176,7 @@ data class GameSession(
             gameLabel: String,
             batteryPercent: Int,
             profileApplied: Boolean,
+            resolutionApplied: ResolutionScale? = null,
             nowMillis: Long = System.currentTimeMillis(),
         ) = GameSession(
             packageName = packageName,
@@ -171,6 +184,7 @@ data class GameSession(
             startedAtMillis = nowMillis,
             batteryStartPercent = batteryPercent,
             profileApplied = profileApplied,
+            resolutionApplied = resolutionApplied,
             // Empty rather than null from the first second: a session being recorded now has a probe
             // log, even before a probe has gone out. Null is reserved for the sessions that never had
             // one, so the report can tell "nothing was measured" from "this predates the log".

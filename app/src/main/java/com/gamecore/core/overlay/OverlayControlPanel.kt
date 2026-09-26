@@ -83,6 +83,7 @@ import com.gamecore.core.common.Formatters
 import com.gamecore.core.model.AspectChoice
 import com.gamecore.core.model.CrosshairDesign
 import com.gamecore.core.model.FloatingButtonConfig
+import com.gamecore.core.model.ResolutionScale
 import com.gamecore.domain.media.MediaCommand
 import com.gamecore.domain.media.NowPlaying
 import com.gamecore.domain.monitoring.StatReading
@@ -1429,6 +1430,37 @@ internal fun AspectChips(
             )
         }
     }
+}
+
+/**
+ * The line under the shape tile that names a resolution downscale, drawn only while one is in force (§B8).
+ *
+ * The shape tile lights the instant `wm size` is off native, and a resolution scale is written with exactly
+ * the same command as a stretch — so on a session running at 80% the tile reads as a stretch the player
+ * never asked for, and because a scale keeps the native ratio it even fills the Native chip while the pixels
+ * beneath it have shrunk. This says what actually happened: the resolution was scaled, both axes by one
+ * factor, so the screen keeps its shape and only sheds pixels. It sits between the tile and [AspectChips]
+ * because it is the reason the tile above it is lit, not a caption on the shapes below, and it is drawn in
+ * the accent rather than the muted grey [AspectChips]'s own notes use for the same reason — it reports
+ * something GameCore is *doing* now.
+ *
+ * [ResolutionScale.FULL] gets its own sentence: it is GameCore holding the display at native on purpose, a
+ * session on which the shape tile is dark, so this line is the only place that deliberate reset shows at all.
+ */
+@Composable
+internal fun ResolutionScaleNote(scale: ResolutionScale, accent: Color) {
+    BasicText(
+        text = when (scale) {
+            ResolutionScale.FULL -> "Resolution held at native by GameCore."
+            else -> "Resolution scaled to ${scale.label} — same screen shape, fewer pixels. Not a stretch."
+        },
+        maxLines = 2,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(accent.copy(alpha = ACTIVE_PLATE_ALPHA), RoundedCornerShape(8.dp))
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        style = TextStyle(color = accent, fontSize = 9.sp, fontWeight = FontWeight.Medium),
+    )
 }
 
 /**

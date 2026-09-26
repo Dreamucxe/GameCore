@@ -66,6 +66,8 @@ class BackupCodecTest {
             animations = AnimationsMode.OFF,
             hapticsEnabled = false,
             latencyHost = "8.8.8.8",
+            showResolutionOverrideNotice = false,
+            showConfigEditNotice = false,
             neverKillPackages = listOf("com.example.game"),
             aimLabHorizontalFovDegrees = 100,
         )

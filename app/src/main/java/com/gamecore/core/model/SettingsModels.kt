@@ -72,6 +72,36 @@ data class AppSettings(
     /** Detect game launches and apply the matching profile without asking. */
     val autoApplyProfiles: Boolean = true,
 
+    /**
+     * Whether the §B7 one-time resolution-override note is still armed.
+     *
+     * A preference, not a capability — it says nothing about whether the elevated shell can change a
+     * resolution, only whether the editor should explain what doing so means before the first time. True
+     * on a fresh install; the editor flips it false the moment the user continues past the note, which is
+     * what makes it "one-time". Exposed in Settings so it is revocable: turning it back on re-arms the note,
+     * the same way [showThermalWarnings] and [confirmBeforeDiscard] are plain on/off warnings the user owns.
+     *
+     * Global rather than per-profile because the thing being explained — what a system-level resolution
+     * change is, and that it is not a guaranteed frame-rate win — is the same for every game, so a user who
+     * has read it once for one game has read it for all of them.
+     */
+    val showResolutionOverrideNotice: Boolean = true,
+
+    /**
+     * Whether the §A2 one-time config-edit disclaimer is still armed.
+     *
+     * A preference, not a capability — it says nothing about whether the elevated shell can reach a game's
+     * sandbox, only whether the config editor should explain what editing a game's own files means before
+     * the first time. True on a fresh install; the editor flips it false the moment the user continues past
+     * the notice, which is what makes it "one-time". Exposed in Settings so it is revocable: turning it back
+     * on re-arms the notice, exactly like [showResolutionOverrideNotice] and the plain warnings the user owns.
+     *
+     * Global rather than per-game because the thing being explained — that editing a config file can corrupt
+     * a save or make a game misbehave, and that GameCore secures one untouched original first and can restore
+     * it — is the same for every game, so a user who has read it once has read it for all of them.
+     */
+    val showConfigEditNotice: Boolean = true,
+
     /** Record a session for every game launch that has a profile with tracking on. */
     val trackSessions: Boolean = true,
 

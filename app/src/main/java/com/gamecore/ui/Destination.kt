@@ -1,5 +1,6 @@
 package com.gamecore.ui
 
+import android.net.Uri
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
@@ -268,6 +269,38 @@ sealed interface Destination {
         fun routeFor(sessionId: Long): String = "session/$sessionId"
     }
 
+    /**
+     * The config-file browser for one game's sandbox (spec §A3/§A7).
+     *
+     * Carries three arguments, not one: a [ConfigTarget][com.gamecore.core.config.ConfigTarget] is a
+     * package, an Android user and a path together, and the browser walks a tree, so the same route shape
+     * has to name a folder as well as the game whose folder it is. Package and user sit in the path; the
+     * relative path is a *query* argument with an empty default, because it is the one part that contains
+     * slashes — a slash in a path segment would split the route into segments that never match — and the
+     * root of the sandbox is the empty path rather than a missing one. Every value is [Uri.encode]d on the
+     * way in and read back decoded by [ConfigBrowserViewModel][com.gamecore.ui.config.ConfigBrowserViewModel].
+     */
+    data object ConfigBrowser : Destination {
+        override val route = "config-browser/{$ARG_CFG_PACKAGE}/{$ARG_CFG_USER}?$ARG_CFG_PATH={$ARG_CFG_PATH}"
+        fun routeFor(packageName: String, userId: Int, relativePath: String = ""): String =
+            "config-browser/${Uri.encode(packageName)}/$userId?$ARG_CFG_PATH=${Uri.encode(relativePath)}"
+    }
+
+    /**
+     * The config-file editor for one file in a game's sandbox (spec §A3/§28).
+     *
+     * The same three arguments as [ConfigBrowser] and encoded the same way — a file is reached by naming its
+     * package, user and relative path — so a tap on a file row in the browser becomes this route with the
+     * path the row carried. The path is a query argument here too, for the same slash reason; unlike the
+     * browser it has no sensible root default, but the argument still declares one so a route that somehow
+     * omits it resolves to the editor's own "opened without a file" state rather than failing to match.
+     */
+    data object ConfigEditor : Destination {
+        override val route = "config-editor/{$ARG_CFG_PACKAGE}/{$ARG_CFG_USER}?$ARG_CFG_PATH={$ARG_CFG_PATH}"
+        fun routeFor(packageName: String, userId: Int, relativePath: String): String =
+            "config-editor/${Uri.encode(packageName)}/$userId?$ARG_CFG_PATH=${Uri.encode(relativePath)}"
+    }
+
     // --------------------------------------------------------------------------------- Aim Lab
 
     /*
@@ -367,6 +400,22 @@ sealed interface Destination {
         const val ARG_ID = "id"
         const val ARG_PACKAGE = "package"
         const val ARG_SEED = "seed"
+
+        /**
+         * The three parts a [ConfigTarget][com.gamecore.core.config.ConfigTarget] travels as, one nav
+         * argument each: [ConfigBrowser] and [ConfigEditor] name them in their routes, `GameCoreNav`
+         * registers navArguments under exactly these keys, and the config ViewModels read them back out.
+         * The path is the query argument (it alone can hold slashes); the other two are path segments.
+         */
+        const val ARG_CFG_PACKAGE = "cfg_package"
+        const val ARG_CFG_USER = "cfg_user"
+        const val ARG_CFG_PATH = "cfg_path"
+
+        /**
+         * The Android user a config browse opens against. GameCore edits the primary user's sandbox, so the
+         * profile editor's entry point supplies this rather than asking; a route can still carry any user id.
+         */
+        const val PRIMARY_USER = 0
 
         /**
          * The bottom bar, in order: Home, Games, Aim Lab, Sessions, Settings (§9).

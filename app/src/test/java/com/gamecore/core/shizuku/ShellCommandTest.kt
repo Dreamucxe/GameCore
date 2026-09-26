@@ -49,13 +49,23 @@ class ShellCommandTest {
         add(ShellCommand.clearSharedCache("com.example.game", 0)!!)
         add(ShellCommand.readCpuAffinity(4021)!!)
         add(ShellCommand.setCpuAffinity(4021, 0xf0)!!)
+        add(ShellCommand.listConfigDir("com.example.game", 0)!!)
+        add(ShellCommand.statConfigFile("com.example.game", 0, "settings.ini")!!)
+        add(
+            ShellCommand.copyConfigFile(
+                "com.example.game", 0, "settings.ini",
+                BuildConfig.APPLICATION_ID, 0, "read-scratch",
+            )!!,
+        )
+        add(ShellCommand.moveConfigFile("com.example.game", 0, "settings.ini.gc-tmp", "settings.ini")!!)
+        add(ShellCommand.deleteConfigFile("com.example.game", 0, "settings.ini.gc-tmp")!!)
     }
 
     @Test
-    fun `the only programs GameCore can invoke are these eleven`() {
+    fun `the only programs GameCore can invoke are these fifteen`() {
         val allowed = setOf(
             "id", "cat", "dumpsys", "settings", "getprop", "pm", "appops", "wm", "am", "rm",
-            "taskset",
+            "taskset", "ls", "stat", "cp", "mv",
         )
         everyCommand().forEach { command ->
             assertTrue(
@@ -68,16 +78,19 @@ class ShellCommandTest {
     @Test
     fun `nothing here can force-stop an app, wipe app data or rewrite a game`() {
         // §24's absences, asserted rather than trusted to review. `cmd` and `su` are not reachable at
-        // all, so neither is a thermal override nor a compile of another application. The four programs
-        // with authority over anything outside GameCore — `wm`, `am`, `rm` and `taskset` — have their own
-        // dangerous subcommands named here as well, because a reachable program is not a reachable
-        // subcommand: `wm` can reach only `size`, `am` only `kill`, `rm` only one cache directory, and
-        // `taskset` only `-ap`, which is a mask and never a command to run.
+        // all, so neither is a thermal override nor a compile of another application. The programs with
+        // authority over anything outside GameCore — `wm`, `am`, `rm`, `taskset`, and the config
+        // editor's `cp` and `mv` — have their own dangerous subcommands named here as well, because a
+        // reachable program is not a reachable subcommand: `wm` can reach only `size`, `am` only `kill`,
+        // `rm` only one cache directory or one file inside a game's own `files` (never `-r`), `taskset`
+        // only `-ap`, which is a mask and never a command to run, and `cp`/`mv` only paths this app built
+        // from parts under one `Android/data/<pkg>/files`.
         //
         // `clear` and `trim-caches` are on this list because of the cache feature, not despite it. The
         // first takes the user's saves with it and the second is the whole device at once; the feature
         // deletes one directory belonging to one package the user tapped, and neither shortcut becomes
-        // admissible because a screen now exists that would have a use for them.
+        // admissible because a screen now exists that would have a use for them. The config editor writes
+        // files, but through `cp`/`mv`/`rm` on built paths, never through any of these.
         //
         // `chrt`, `renice`, `nice` and `ionice` are here because of the affinity feature, for the same
         // reason. Pinning a game to a set of cores is a bounded change the user can be told the truth
@@ -223,11 +236,15 @@ class ShellCommandTest {
         readOnly.forEach { assertEquals(ShellCommand.Effect.READ_ONLY, it.effect) }
         readOnly.forEach { assertFalse(it.argv.contains("put")) }
         // Nineteen settings keys, three self-grants, two self-appops, the two halves of a display size
-        // override, the one close, the one cache delete and the one affinity write. Nothing else writes.
+        // override, the one close, the one cache delete, the one affinity write, and the config editor's
+        // three file writes (copy, move, delete). Nothing else writes.
         assertEquals(19, WritableSetting.entries.size)
-        assertEquals(29, writes.size)
+        assertEquals(32, writes.size)
         writes.forEach {
-            assertTrue(it.argv.first() in setOf("settings", "pm", "appops", "wm", "am", "rm", "taskset"))
+            assertTrue(
+                "unexpected write program: ${it.argv}",
+                it.argv.first() in setOf("settings", "pm", "appops", "wm", "am", "rm", "taskset", "cp", "mv"),
+            )
         }
     }
 
@@ -473,5 +490,119 @@ class ShellCommandTest {
         assertFalse(WritableSetting.PEAK_REFRESH_RATE in normal)
         assertFalse(WritableSetting.LOW_POWER in normal)
         assertFalse(WritableSetting.WINDOW_ANIMATION_SCALE in normal)
+    }
+
+    @Test
+    fun `a config path is built from parts under one game's files, never taken as a string`() {
+        val base = "/storage/emulated/0/Android/data/com.example.game/files"
+        assertEquals(
+            listOf("ls", "-1Ap", base),
+            ShellCommand.listConfigDir("com.example.game", 0)!!.argv,
+        )
+        assertEquals(
+            listOf("ls", "-1Ap", "$base/graphics"),
+            ShellCommand.listConfigDir("com.example.game", 0, "graphics")!!.argv,
+        )
+        assertEquals(
+            listOf("stat", "-c", "%s|%F", "$base/settings.ini"),
+            ShellCommand.statConfigFile("com.example.game", 0, "settings.ini")!!.argv,
+        )
+        assertEquals(
+            listOf("rm", "-f", "$base/settings.ini.gc-tmp"),
+            ShellCommand.deleteConfigFile("com.example.game", 0, "settings.ini.gc-tmp")!!.argv,
+        )
+        assertEquals(
+            listOf("mv", "$base/settings.ini.gc-tmp", "$base/settings.ini"),
+            ShellCommand.moveConfigFile("com.example.game", 0, "settings.ini.gc-tmp", "settings.ini")!!.argv,
+        )
+        // A nested relative path is still one game's files, joined segment by segment.
+        assertEquals("$base/a/b/c.cfg", ShellCommand.configFilePath("com.example.game", 0, "a/b/c.cfg"))
+    }
+
+    @Test
+    fun `a config file operation is refused for a traversal, an absolute path, or a bad package`() {
+        // The relative path can never climb out of the game's files, and the package has to be a real one.
+        assertNull(ShellCommand.statConfigFile("com.example.game", 0, "../cache/x"))
+        assertNull(ShellCommand.statConfigFile("com.example.game", 0, "a/../../b"))
+        assertNull(ShellCommand.statConfigFile("com.example.game", 0, "/etc/hosts"))
+        assertNull(ShellCommand.statConfigFile("com.example.game", 0, "a//b"))
+        assertNull(ShellCommand.statConfigFile("com.example.game", 0, "trailing/"))
+        assertNull(ShellCommand.statConfigFile("com.example.game", 0, "."))
+        assertNull(ShellCommand.statConfigFile("com.example.game", 0, ".."))
+        assertNull(ShellCommand.statConfigFile("com.example.game", 0, ""))          // a file op must name a file
+        assertNull(ShellCommand.statConfigFile("com.example.game", 0, "a\u0000b"))  // NUL truncates the C string
+        // A space is a real filename character and, reaching exec unparsed, splits nothing — so it is kept.
+        assertNotNull(ShellCommand.statConfigFile("com.example.game", 0, "My Save.dat"))
+        assertNull(ShellCommand.statConfigFile("com.example.game", 0, "a\nb"))      // control character
+        assertNull(ShellCommand.statConfigFile("nodots", 0, "settings.ini"))
+        assertNull(ShellCommand.statConfigFile("com.example.game;rm -rf /", 0, "settings.ini"))
+        assertNull(ShellCommand.statConfigFile("", 0, "settings.ini"))
+        assertNull(ShellCommand.statConfigFile("com.example.game", -1, "settings.ini"))
+        assertNull(ShellCommand.statConfigFile("com.example.game", 1000, "settings.ini"))
+        assertNotNull(ShellCommand.statConfigFile("com.example.game", 999, "settings.ini"))
+        // The directory listing is the one op that may name the files root, but nothing above it.
+        assertNotNull(ShellCommand.listConfigDir("com.example.game", 0))
+        assertNull(ShellCommand.listConfigDir("com.example.game", 0, ".."))
+    }
+
+    @Test
+    fun `a config copy always has GameCore's own storage as one end`() {
+        // cp is how a file crosses to or from GameCore's own dir; it is never a mover between two games.
+        assertNull(
+            ShellCommand.copyConfigFile(
+                "com.example.game", 0, "settings.ini",
+                "com.other.game", 0, "stolen.ini",
+            ),
+        )
+        assertNotNull(
+            ShellCommand.copyConfigFile(
+                "com.example.game", 0, "settings.ini",
+                BuildConfig.APPLICATION_ID, 0, "read-scratch",
+            ),
+        )
+        assertNotNull(
+            ShellCommand.copyConfigFile(
+                BuildConfig.APPLICATION_ID, 0, "write-scratch",
+                "com.example.game", 0, "settings.ini",
+            ),
+        )
+        // Own storage on one end does not excuse a traversal on the other.
+        assertNull(
+            ShellCommand.copyConfigFile(
+                BuildConfig.APPLICATION_ID, 0, "scratch",
+                "com.example.game", 0, "../cache/x",
+            ),
+        )
+    }
+
+    @Test
+    fun `a config move names one game on both ends and cannot leave its files`() {
+        val base = "/storage/emulated/0/Android/data/com.example.game/files"
+        val move = ShellCommand.moveConfigFile("com.example.game", 0, "a.gc-tmp", "a")!!
+        assertEquals(listOf("mv", "$base/a.gc-tmp", "$base/a"), move.argv)
+        assertNull(ShellCommand.moveConfigFile("com.example.game", 0, "../a", "a"))
+        assertNull(ShellCommand.moveConfigFile("com.example.game", 0, "a", "../b"))
+        assertNull(ShellCommand.moveConfigFile("nodots", 0, "a", "b"))
+    }
+
+    @Test
+    fun `listing and measuring a config file change nothing, and writing one says it does`() {
+        assertTrue(ShellCommand.listConfigDir("com.example.game", 0)!!.isReadOnly)
+        assertTrue(ShellCommand.statConfigFile("com.example.game", 0, "settings.ini")!!.isReadOnly)
+        assertEquals(
+            ShellCommand.Effect.CHANGES_SETTING,
+            ShellCommand.moveConfigFile("com.example.game", 0, "a.gc-tmp", "a")!!.effect,
+        )
+        assertEquals(
+            ShellCommand.Effect.CHANGES_SETTING,
+            ShellCommand.deleteConfigFile("com.example.game", 0, "a.gc-tmp")!!.effect,
+        )
+        assertEquals(
+            ShellCommand.Effect.CHANGES_SETTING,
+            ShellCommand.copyConfigFile(
+                "com.example.game", 0, "settings.ini",
+                BuildConfig.APPLICATION_ID, 0, "read-scratch",
+            )!!.effect,
+        )
     }
 }

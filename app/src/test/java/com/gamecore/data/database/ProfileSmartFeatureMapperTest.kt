@@ -2,6 +2,7 @@ package com.gamecore.data.database
 
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.NetworkTransport
+import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.ThermalClass
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -141,6 +142,33 @@ class ProfileSmartFeatureMapperTest {
     fun `an unknown transport name in a session row is dropped rather than crashing`() {
         val session = Mappers.toModel(baseSessionEntity().copy(transport = "TELEPATHY"))
         assertNull(session.transport)
+    }
+
+    @Test
+    fun `a resolution override round-trips and a defaulted pre-v12 profile reads none`() {
+        // A pre-v12 row leaves resolution_override at its NULL default — the ALTER TABLE adds none — which
+        // the mapper reads as "leave the resolution alone", never a spurious FULL that would reset the panel.
+        assertNull(Mappers.toModel(legacyEntity()).resolutionOverride)
+
+        val override = GameProfile.forGame("com.example.game", "Example")
+            .copy(resolutionOverride = ResolutionScale.MEDIUM)
+        val back = Mappers.toModel(Mappers.toEntity(override, nowMillis = 1L))
+        assertEquals(ResolutionScale.MEDIUM, back.resolutionOverride)
+
+        // Stored by name and matched against `entries`, so a name this build has dropped reads as null
+        // and the profile stops overriding the resolution rather than failing to load.
+        assertNull(Mappers.toModel(legacyEntity().copy(resolutionOverride = "ULTRA_LOW")).resolutionOverride)
+    }
+
+    @Test
+    fun `an applied resolution round-trips on a session and a defaulted row reads null`() {
+        assertNull(Mappers.toModel(baseSessionEntity()).resolutionApplied)
+
+        val recorded = Mappers.toModel(baseSessionEntity()).copy(resolutionApplied = ResolutionScale.HIGH)
+        assertEquals(ResolutionScale.HIGH, Mappers.toModel(Mappers.toEntity(recorded)).resolutionApplied)
+
+        // An unknown name is dropped to null — "not touched" — and stays distinct from FULL's reset-to-native.
+        assertNull(Mappers.toModel(baseSessionEntity().copy(resolutionApplied = "NONSENSE")).resolutionApplied)
     }
 
     private fun baseSessionEntity() = SessionEntity(

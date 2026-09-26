@@ -3,14 +3,68 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.5%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.5.4%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
 no backend, nothing you record leaves the device
 
 ---
 
-## New in 3.5
+## New in 3.5.4
+
+Two features about reaching past the settings a game exposes — to the files behind them, and to
+the resolution it renders at.
+
+- **A config editor.** Browse a game's own configuration files and edit one in place, with the
+  whole change shown as a line-by-line diff before a single byte is written — nothing is saved
+  until you confirm exactly what changed. The write is whole-file and atomic, so a config is never
+  left half-applied. The first time you edit a game's config its original is backed up
+  automatically; you can keep named checkpoints and restore any of them later, and if the game has
+  been updated since that backup the editor says so, because an edit made against a config the
+  update already replaced is an edit against a stale file. It reaches those files through the same
+  elevated shell the rest of the app uses, so it needs Shizuku — without it the screen says so and
+  points at the setup — and a path outside the selected game's own config is refused rather than
+  opened. A one-time notice explains the feature before the first edit, and can be shown again.
+- **Resolution override.** A per-game render resolution, set as a scale of the display's native
+  size and applied through `wm size` when the game comes to the front — then cleared and the
+  display put back exactly as it was when the game leaves, the same restore rule every other
+  profile field follows. Lowering it can lift frame rate on a GPU-bound game at the cost of
+  sharpness; it is per game, off unless you set it, and it asks once for confirmation the first
+  time because it reshapes the whole display while the game runs. An in-game status chip shows when
+  an override is active, so a changed resolution is never a mystery. Needs Shizuku, like every
+  display-size write.
+
+Also since 3.5, and until now in no release:
+
+- **A pinned magnifier.** A loupe overlay that shows the centre of the screen enlarged — a
+  crop-and-scale of a single capture frame, parked in a corner with its geometry chosen so it can
+  never fall over the region it magnifies and mirror itself. There is no detection, no tracking and
+  no aim logic: it enlarges pixels and nothing else. It uses the same screen-capture permission the
+  other overlays do.
+- **Panel macros.** A named, ordered set of overlay actions you already have, fired in sequence by
+  one tap. A macro invents no new capability — every step runs through the same handler the panel's
+  own tiles use — so all it adds is the order and the count. They live as an editable, reorderable
+  config list, not a database table.
+- **Config backup and restore.** Export every configuration store — profiles, presets, overlay
+  layouts, macros — to one file you can keep or move to another install, and restore it later. It
+  touches configuration only: your recorded sessions and Aim Lab runs are never written into the
+  file and a restore can never overwrite them, and everything a restored file carries is validated
+  before it reaches a store.
+- **Profile transfer.** Share one or more game profiles as a single file, presets and all, and
+  import them elsewhere — recreating what is missing and matching-then-remapping what already
+  exists, so an import never silently duplicates a preset or clobbers one you had.
+- **Profile suggestions.** A starting profile derived only from what a game was actually measured
+  doing, with a plain sentence behind every field it fills. A dimension the sessions did not measure
+  enough to speak to is left alone; a game with thin or contradictory history gets no suggestion at
+  all rather than a guess dressed as advice. It only drafts — nothing is saved or applied until you
+  open it in the editor.
+- **Per-sample export.** Alongside the one-row-per-session export, write one row per *sample* — the
+  raw time series a graph is drawn from — as CSV or JSON. It keeps the same honesty rule the
+  aggregate export follows: blank, never zero, for a reading a sample never took.
+
+---
+
+## Version 3.5
 
 Four features about the app setting itself up, and then looking after the session on its own.
 
@@ -232,7 +286,7 @@ is the feature, not a gap.
 
 ### Things this app deliberately does not do
 
-No root. No modifying game files, no code injection, no reading or writing another
+No root. No code injection, no reading or writing another
 process's memory, no anti-cheat interference. No fabricated statistics. No claiming a
 system call worked when it did not. No background service that closes apps on a timer, and
 nothing closed without a profile asking for it — never your launcher, your keyboard, the
@@ -243,16 +297,28 @@ and never a save, a login or a downloaded asset. No packet-loss percentage, beca
 refused TCP handshake is not a dropped packet. And nothing you record is uploaded: the
 shareable session card is drawn on the device and handed to your own share sheet.
 
+The one thing that does write a game's own files is the config editor, and it stays inside that
+game's shared `Android/data/<package>/files` directory — the config file you opened and edited,
+its original backed up before the first change, each write shown to you line by line and committed
+whole or not at all. Never its code, never a save in the private storage a shell running as `shell`
+could not reach anyway, never a path that a `..` could climb out of, and never without Shizuku and
+a one-time notice you accept.
+
 The full set of shell commands the app can construct lives in one file
 (`core/shizuku/ShellCommand.kt`) and a unit test enumerates every one of them and asserts
 that `cmd`, `su`, `sh`, `setprop`, `force-stop`, `pm clear`, `pm trim-caches`, `install` and
-friends are unreachable at any privilege level. Two of the programs it can invoke reach
-something outside GameCore, and each is reachable in exactly one form, pinned literally by
-the test so that a second use cannot be added without it failing: `am kill --user current
-<package>`, the memory reclaim's command, and `rm -rf
-/storage/emulated/<user>/Android/data/<package>/cache`, the cache clear's. Both validate the
-package name against the platform's grammar before a command exists, and both reach `exec`
-as an argument vector, so there is no shell in the chain to expand a glob or split a word.
+friends are unreachable at any privilege level. Most of what that file can build reads or
+writes something about *this device* — a settings key, the display size, GameCore's own
+permissions. A few reach further, and each is bounded to a form the test pins literally so
+that a second use cannot be added without it failing: `am kill --user current <package>`
+closes one game's background processes; `rm -rf /storage/emulated/<user>/Android/data/<package>/cache`
+clears one game's shared cache; `taskset -ap <mask> <pid>` pins one game's process to a set of
+cores; and the config editor's `ls`, `stat`, `cp`, `mv` and `rm -f` read and rewrite files inside
+one game's own `Android/data/<package>/files` — never its `cache`, never its `obb`, never the
+private storage a `shell`-uid process cannot reach, and never through a path a `..` could climb out
+of. Every argument that originates outside the app's own code is validated against a form before a
+command exists, and every command reaches `exec` as an argument vector, so there is no shell in the
+chain to expand a glob or split a word.
 
 ---
 
@@ -432,8 +498,9 @@ and shows *"Not available on this device"* when it does not — rather than esti
 The app is fully usable without it. Shizuku (or a wireless-ADB pairing) raises the app to
 ADB-level authority, which is what most devices require for a *device-wide* refresh-rate
 change, for animation scales, for the display's colour keys, for reading and reshaping the
-display's own size, for deleting a game's shared-storage cache, and for a handful of `dumpsys`
-reads Android does not expose to ordinary apps.
+display's own size, for deleting a game's shared-storage cache, for reading and editing a game's
+own configuration files, and for a handful of `dumpsys` reads Android does not expose to ordinary
+apps.
 
 When it is absent, capabilities that need it say so and point at the setup screen. Nothing
 silently degrades into a fake result.
@@ -444,14 +511,18 @@ What the app can run with that authority is a closed, enumerated set:
 | --- | --- |
 | `id` | confirming the shell's own uid before trusting it |
 | `cat` | `/proc/stat`, `/proc/meminfo` |
-| `dumpsys` | `thermalservice`, `battery`, `display`, `SurfaceFlinger --latency`, `gfxinfo` |
+| `dumpsys` | `thermalservice`, `battery`, `display`, `SurfaceFlinger --latency`, `activity`, `gfxinfo` |
 | `settings get/put` | nineteen specific keys, each with its own value range |
 | `getprop` | three `ro.*` chipset properties |
 | `pm grant` | three permissions, **to this app only** |
 | `appops set` | two app-ops, **to this app only** |
 | `wm size` | reading the display's size, setting a per-game override, and clearing it |
+| `taskset -ap` | reading one game process's CPU affinity, and pinning it to chosen cores |
 | `am kill` | closing one named background app, when a profile asks to free memory |
 | `rm -rf` | one game's shared-storage cache directory, on a tap in Game storage |
+| `ls` / `stat` | listing and sizing files inside one game's own config directory |
+| `cp` / `mv` | staging an edited config to a temp file and committing it over the original atomically |
+| `rm -f` | removing one staged temp, or one config file you deleted in the editor |
 
 There is no shell interpreter in that list, so there is no string to inject into. Every
 argument that originates outside the app's own code — a package name from a stored profile,
@@ -534,8 +605,8 @@ Nothing runs when it is not needed — each service stops itself.
 ## Architecture
 
 Kotlin only, Jetpack Compose with Material 3, MVVM, Hilt, Coroutines and `StateFlow`. No
-Java, no XML layouts — the only XML is Android resources and the manifest. 198 source files,
-about 49k lines.
+Java, no XML layouts — the only XML is Android resources and the manifest. 438 source files,
+about 114,000 lines.
 
 ```
 app/
@@ -600,8 +671,8 @@ signing key is not blocked — but an unsigned APK will not install on a device.
 
 The unit tests are deliberately written against the pure, Android-free seams: the geometry,
 the formatters, the sanitizer, the command builder, the aggregators, the state reducers, the
-per-session latency fold, and every word the shareable card is allowed to print. 26 suites,
-293 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
+per-session latency fold, and every word the shareable card is allowed to print. 118 suites,
+1,549 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
 
 ## Your data, and the network
 

@@ -69,8 +69,9 @@ import androidx.room.RoomDatabase
         AimLabLayoutEntity::class,
         AimLabControlEntity::class,
         AimLabRecordEntity::class,
+        ConfigBackupEntity::class,
     ],
-    version = 11,
+    version = 13,
     exportSchema = true,
 )
 abstract class GameCoreDatabase : RoomDatabase() {
@@ -94,6 +95,8 @@ abstract class GameCoreDatabase : RoomDatabase() {
     abstract fun aimLabSensitivities(): AimLabSensitivityDao
 
     abstract fun aimLabLayouts(): AimLabLayoutDao
+
+    abstract fun configBackups(): ConfigBackupDao
 
     companion object {
         /**

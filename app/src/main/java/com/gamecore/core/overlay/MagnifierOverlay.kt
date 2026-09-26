@@ -15,9 +15,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import com.gamecore.core.vision.MagnifierGeometry
-import com.gamecore.core.vision.MagnifierResolution
-import com.gamecore.core.vision.PixelRect
 import kotlin.math.roundToInt
 
 /**

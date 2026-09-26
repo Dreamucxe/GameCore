@@ -3,6 +3,7 @@ package com.gamecore.di
 import android.content.Context
 import androidx.room.Room
 import com.gamecore.data.database.ColorPresetDao
+import com.gamecore.data.database.ConfigBackupDao
 import com.gamecore.data.database.CrosshairPresetDao
 import com.gamecore.data.database.GameCoreDatabase
 import com.gamecore.data.database.GameCoreMigrations
@@ -91,6 +92,9 @@ object DatabaseModule {
 
     @Provides
     fun restorePointDao(database: GameCoreDatabase): RestorePointDao = database.restorePoints()
+
+    @Provides
+    fun configBackupDao(database: GameCoreDatabase): ConfigBackupDao = database.configBackups()
 
     /**
      * Loads `libsqlcipher.so`.

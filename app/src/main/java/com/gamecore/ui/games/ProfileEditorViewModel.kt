@@ -7,6 +7,7 @@ import com.gamecore.core.common.Formatters
 import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.ColorVisionFilter
 import com.gamecore.core.model.GameProfile
+import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.system.AppLauncher
 import com.gamecore.core.system.InstalledAppLister
 import com.gamecore.data.preferences.SecurePreferenceStore
@@ -55,7 +56,7 @@ class ProfileEditorViewModel @Inject constructor(
     private val cpuAffinity: CpuAffinityController,
     private val preLaunchCheck: PreLaunchNetworkCheck,
     private val sessions: SessionRepository,
-    preferences: SecurePreferenceStore,
+    private val preferences: SecurePreferenceStore,
 ) : ViewModel() {
 
     /** The package this editor was opened for, or [Destination.NEW_PROFILE] for a new one. */
@@ -76,6 +77,7 @@ class ProfileEditorViewModel @Inject constructor(
         ProfileEditorUiState(
             isNew = argument == Destination.NEW_PROFILE,
             confirmOnDiscard = preferences.settings.value.confirmBeforeDiscard,
+            showResolutionNotice = preferences.settings.value.showResolutionOverrideNotice,
         ),
     )
 
@@ -266,6 +268,51 @@ class ProfileEditorViewModel @Inject constructor(
     fun edit(transform: (GameProfile) -> GameProfile) {
         val current = editing.value.profile ?: return
         editing.value = editing.value.copy(profile = transform(current), isDirty = true)
+    }
+
+    /**
+     * The resolution row's selection, gated by the §B7 one-time note.
+     *
+     * Clearing the choice and forcing native (100%) never need explaining — one undoes the feature, the
+     * other is a reset — so those apply straight away. A real downscale is the thing the note is about, so
+     * the first one, while the note is still armed, is held in [ProfileEditorUiState.pendingResolutionScale]
+     * until the user continues past [confirmResolutionNotice]. Once the note has been spent, every later
+     * downscale applies without asking again.
+     */
+    fun requestResolutionOverride(scale: ResolutionScale?) {
+        val needsNote = scale != null &&
+            scale != ResolutionScale.FULL &&
+            editing.value.showResolutionNotice
+        if (needsNote) {
+            editing.value = editing.value.copy(pendingResolutionScale = scale)
+        } else {
+            applyResolutionOverride(scale)
+        }
+    }
+
+    /** Continues past the §B7 note: applies the held downscale and spends the note, in Settings and here. */
+    fun confirmResolutionNotice() {
+        val scale = editing.value.pendingResolutionScale ?: return
+        editing.value = editing.value.copy(pendingResolutionScale = null, showResolutionNotice = false)
+        applyResolutionOverride(scale)
+        preferences.updateSettings { it.copy(showResolutionOverrideNotice = false) }
+    }
+
+    /** Backs out of the §B7 note. The held downscale is dropped and the profile is left untouched. */
+    fun dismissResolutionNotice() {
+        editing.value = editing.value.copy(pendingResolutionScale = null)
+    }
+
+    /**
+     * Writes the resolution choice, holding the display-size mutual exclusion
+     * [com.gamecore.domain.gaming.DisplayTarget] keeps at apply time: a real scale clears any picked or typed
+     * size, while clearing the scale leaves the size row alone.
+     */
+    private fun applyResolutionOverride(scale: ResolutionScale?) {
+        edit {
+            if (scale == null) it.copy(resolutionOverride = null)
+            else it.copy(resolutionOverride = scale, displaySize = null)
+        }
     }
 
     fun save() {

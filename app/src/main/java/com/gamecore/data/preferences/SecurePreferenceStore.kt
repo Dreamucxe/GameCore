@@ -205,6 +205,10 @@ class SecurePreferenceStore @Inject constructor(
             hapticsEnabled = p.getBoolean(KEY_HAPTICS, defaults.hapticsEnabled),
             allowElevatedReads = p.getBoolean(KEY_ALLOW_ELEVATED, defaults.allowElevatedReads),
             autoApplyProfiles = p.getBoolean(KEY_AUTO_APPLY, defaults.autoApplyProfiles),
+            showResolutionOverrideNotice =
+                p.getBoolean(KEY_RESOLUTION_NOTICE, defaults.showResolutionOverrideNotice),
+            showConfigEditNotice =
+                p.getBoolean(KEY_CONFIG_EDIT_NOTICE, defaults.showConfigEditNotice),
             trackSessions = p.getBoolean(KEY_TRACK_SESSIONS, defaults.trackSessions),
             detectionIntervalMillis = p.getLong(KEY_DETECT_INTERVAL, defaults.detectionIntervalMillis),
             sampleIntervalMillis = p.getLong(KEY_SAMPLE_INTERVAL, defaults.sampleIntervalMillis),
@@ -275,6 +279,8 @@ class SecurePreferenceStore @Inject constructor(
             putBoolean(KEY_HAPTICS, value.hapticsEnabled)
             putBoolean(KEY_ALLOW_ELEVATED, value.allowElevatedReads)
             putBoolean(KEY_AUTO_APPLY, value.autoApplyProfiles)
+            putBoolean(KEY_RESOLUTION_NOTICE, value.showResolutionOverrideNotice)
+            putBoolean(KEY_CONFIG_EDIT_NOTICE, value.showConfigEditNotice)
             putBoolean(KEY_TRACK_SESSIONS, value.trackSessions)
             putLong(KEY_DETECT_INTERVAL, value.detectionIntervalMillis)
             putLong(KEY_SAMPLE_INTERVAL, value.sampleIntervalMillis)
@@ -807,6 +813,8 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_HAPTICS = "haptics_enabled"
         const val KEY_ALLOW_ELEVATED = "allow_elevated"
         const val KEY_AUTO_APPLY = "auto_apply"
+        const val KEY_RESOLUTION_NOTICE = "resolution_notice"
+        const val KEY_CONFIG_EDIT_NOTICE = "config_edit_notice"
         const val KEY_TRACK_SESSIONS = "track_sessions"
         const val KEY_DETECT_INTERVAL = "detect_interval"
         const val KEY_SAMPLE_INTERVAL = "sample_interval"

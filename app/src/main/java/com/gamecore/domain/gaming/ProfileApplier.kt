@@ -16,6 +16,7 @@ import com.gamecore.core.model.OptimizationAction
 import com.gamecore.core.model.OptimizationResult
 import com.gamecore.core.model.PerformanceMode
 import com.gamecore.core.model.ProfileApplication
+import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.RestoreReport
 import com.gamecore.core.shizuku.ShizukuManager
 import com.gamecore.core.system.DisplayReader
@@ -96,7 +97,8 @@ class ProfileApplier @Inject constructor(
             results += when (step) {
                 is Step.Attempt -> optimizations.apply(step.request, profile.packageName, origin)
                 is Step.Colour -> applyColour(step.presetId, profile, origin)
-                is Step.Stretch -> applyDisplaySize(step.size, profile)
+                is Step.Stretch -> applyDisplaySize(DisplayTarget.Stretch(step.size), profile)
+                is Step.Scale -> applyDisplaySize(DisplayTarget.Scale(step.scale), profile)
                 is Step.Affinity -> applyAffinity(step.preset, profile)
                 is Step.Skip -> step.result
             }
@@ -149,6 +151,23 @@ class ProfileApplier @Inject constructor(
          * read-back and its restore row — see `OptimizationAction.isEngineAction`.
          */
         data class Stretch(val size: DisplaySize) : Step
+
+        /**
+         * The resolution scale to run the display at.
+         *
+         * The second variant that bypasses [OptimizationManager] and the sibling of [Stretch], which it
+         * shares every guard with. A separate variant rather than a resolved [DisplaySize] because the
+         * *percentage* is the instruction: [DisplaySizeController] computes the size from the panel's own
+         * physical resolution, and resolving it here would compute it from whatever size the display is
+         * currently carrying — which, on a display GameCore already overrode, is its own leftover rather
+         * than the panel's.
+         *
+         * [ResolutionScale.FULL] travels as a [Scale] rather than being turned into a skip or into a size
+         * equal to the panel. It is a real reset-to-native request — the same thing
+         * [com.gamecore.core.model.AspectPreset.NATIVE] is — and the controller routes it to
+         * `wm size reset`, which is the only thing that removes an override rather than replacing it.
+         */
+        data class Scale(val scale: ResolutionScale) : Step
 
         /**
          * The core-affinity preset to pin the game's process to.
@@ -243,14 +262,21 @@ class ProfileApplier @Inject constructor(
      * display size is named by the user field by field, like a refresh rate or a colour preset and unlike
      * either of those; the honest answer when the shell is missing is
      * [OptimizationResult.Blocked] with the way to fix it, which is what the controller returns.
+     *
+     * One plan entry for two profile fields, because they are one `wm size` write.
+     * [DisplayTarget.of] decides which — the resolution override, when a profile somehow holds both — and
+     * the field that loses produces a skip naming it rather than disappearing from the report. Nothing
+     * downstream has to know two fields exist, and no second step can be added that would silently
+     * overwrite this one.
      */
-    private fun displaySizeStep(profile: GameProfile): Step =
-        profile.displaySize
-            ?.let { Step.Stretch(it) }
-            ?: skip(
-                OptimizationAction.SET_DISPLAY_SIZE,
-                "This profile leaves the display's own size alone.",
-            )
+    private fun displaySizeStep(profile: GameProfile): Step = when (val target = DisplayTarget.of(profile)) {
+        is DisplayTarget.Stretch -> Step.Stretch(target.size)
+        is DisplayTarget.Scale -> Step.Scale(target.scale)
+        null -> skip(
+            OptimizationAction.SET_DISPLAY_SIZE,
+            "This profile leaves the display's own size alone.",
+        )
+    }
 
     private fun brightnessStep(profile: GameProfile): Step =
         profile.brightnessPercent
@@ -584,7 +610,7 @@ class ProfileApplier @Inject constructor(
     // ------------------------------------------------------------------------ display size
 
     /**
-     * Hands the profile's size to [DisplaySizeController] and reports what came back.
+     * Hands the profile's display target to [DisplaySizeController] and reports what came back.
      *
      * The second step that does not go through [OptimizationManager], and the reason is simpler than
      * colour's: `wm size` is a window-manager command, not a `settings` write, so the manager's
@@ -598,26 +624,41 @@ class ProfileApplier @Inject constructor(
      * this panel will not take is [OptimizationResult.Failed] because the profile is asking for something
      * it will never get, and a missing shell is [OptimizationResult.Blocked] with the sentence that says
      * why and what unlocks it.
+     *
+     * A scale and a stretch share every arm below, because they share every outcome: the controller
+     * resolves the percentage to a size before it writes, so by the time anything can go wrong the two
+     * are the same request with different arithmetic behind them. Only the wording differs, and only
+     * where the difference is the point — §B5's honest note that a smaller logical display does not
+     * oblige a game to render fewer pixels belongs beside a *scale*, and saying it beside a stretched
+     * aspect ratio would be answering a question the user did not ask.
      */
-    private suspend fun applyDisplaySize(size: DisplaySize, profile: GameProfile): OptimizationResult {
+    private suspend fun applyDisplaySize(target: DisplayTarget, profile: GameProfile): OptimizationResult {
         val action = OptimizationAction.SET_DISPLAY_SIZE
-        return when (val outcome = displaySize.apply(size, profile.packageName)) {
+        val outcome = when (target) {
+            is DisplayTarget.Stretch -> displaySize.apply(target.size, profile.packageName)
+            is DisplayTarget.Scale -> displaySize.apply(target.scale, profile.packageName)
+        }
+        return when (outcome) {
             // Restored cannot arrive from an apply — it is what a reset is confirmed by — and is mapped
             // rather than lumped into an `else` so that a change to the outcome type surfaces here.
             is DisplaySizeOutcome.Applied,
             is DisplaySizeOutcome.Restored,
-            -> OptimizationResult.Applied(action, outcome.message)
+            -> OptimizationResult.Applied(action, scaleDetail(target, outcome.message))
 
             // The one case whose own sentence is not reused. OptimizationResult.Unverified appends
             // "(not confirmed)" to whatever detail it is given, and this outcome's message already says
             // as much in words; twice over it reads like a stutter.
             is DisplaySizeOutcome.AppliedUnverified -> OptimizationResult.Unverified(
                 action = action,
-                detail = "Asked for ${outcome.requested?.label ?: "the display's native size"} — " +
+                detail = target.scaleNote() +
+                    "Asked for ${outcome.requested?.label ?: "the display's native size"} — " +
                     outcome.reason,
             )
 
-            is DisplaySizeOutcome.NotHonoured -> OptimizationResult.NotHonoured(action, outcome.message)
+            is DisplaySizeOutcome.NotHonoured -> OptimizationResult.NotHonoured(
+                action = action,
+                detail = scaleDetail(target, outcome.message),
+            )
 
             is DisplaySizeOutcome.SizeUnsupported -> OptimizationResult.Failed(action, outcome.message)
 
@@ -629,5 +670,24 @@ class ProfileApplier @Inject constructor(
 
             is DisplaySizeOutcome.Failed -> OptimizationResult.Failed(action, outcome.message)
         }
+    }
+
+    /**
+     * The controller's sentence, with §B5's caveat in front of it when the request was a scale.
+     *
+     * The caveat is not a hedge on the result — the size *was* read back, and the sentence it precedes says
+     * what it is. It answers the question a user asks next: the display reports a smaller size, and the
+     * game's own frame may not have changed, because a logical display is a surface the compositor scales
+     * and not an instruction to the game's renderer. Leaving that out would let the report imply a
+     * performance win this feature cannot promise.
+     */
+    private fun scaleDetail(target: DisplayTarget, message: String): String =
+        target.scaleNote() + message
+
+    private fun DisplayTarget.scaleNote(): String = when (this) {
+        is DisplayTarget.Scale ->
+            "${scale.label} is the display size the system reports, not a render resolution — " +
+                "a game that keeps its own render target will not draw fewer pixels. "
+        is DisplayTarget.Stretch -> ""
     }
 }

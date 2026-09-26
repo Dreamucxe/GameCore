@@ -19,6 +19,7 @@ import com.gamecore.core.model.LatencyLog
 import com.gamecore.core.model.NetworkTransport
 import com.gamecore.core.model.ThermalClass
 import com.gamecore.core.model.PerformanceMode
+import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.ScreenOrientationLock
 import com.gamecore.core.model.SessionSample
 import com.gamecore.core.model.StopReason
@@ -59,6 +60,7 @@ internal object Mappers {
         crosshairPresetId = profile.crosshairPresetId,
         colorPresetId = profile.colorPresetId,
         displaySize = profile.displaySize?.argument,
+        resolutionOverride = profile.resolutionOverride?.name,
         performanceMode = profile.performanceMode.name,
         useShizukuOptimizations = profile.useShizukuOptimizations,
         trackSession = profile.trackSession,
@@ -104,6 +106,13 @@ internal object Mappers {
         // Better than a profile that cannot be opened because one row holds "1080x" — and
         // better than stretching the display to a size nobody asked for.
         displaySize = entity.displaySize?.let { DisplaySize.parse(it) },
+        // The resolution sibling of display_size, parsed the same defensive way every enum here is:
+        // an unrecognised name means this profile stops overriding the resolution, which is what null
+        // means everywhere else and the safe direction to fail in. Never both — the editor and applier
+        // keep display_size and this one mutually exclusive, and this mapper trusts what it is given.
+        resolutionOverride = entity.resolutionOverride?.let { name ->
+            ResolutionScale.entries.firstOrNull { it.name == name }
+        },
         performanceMode = PerformanceMode.entries
             .firstOrNull { it.name == entity.performanceMode }
             ?: PerformanceMode.BALANCED,
@@ -332,6 +341,7 @@ internal object Mappers {
         transport = session.transport?.name,
         fullPerformanceOverridden = session.fullPerformanceOverridden,
         systemReenabledSaver = session.systemReenabledSaver,
+        resolutionApplied = session.resolutionApplied?.name,
     )
 
     fun toModel(entity: SessionEntity): GameSession = GameSession(
@@ -385,6 +395,11 @@ internal object Mappers {
         },
         fullPerformanceOverridden = entity.fullPerformanceOverridden,
         systemReenabledSaver = entity.systemReenabledSaver,
+        // Matched by name and dropped if unknown, like transport above; NULL stays NULL rather than
+        // becoming FULL, so "the resolution was left alone" never reads as a reset-to-native.
+        resolutionApplied = entity.resolutionApplied?.let { name ->
+            ResolutionScale.entries.firstOrNull { it.name == name }
+        },
     )
 
     fun toEntity(sample: SessionSample): SessionSampleEntity = SessionSampleEntity(

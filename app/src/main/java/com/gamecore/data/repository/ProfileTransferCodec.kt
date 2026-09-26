@@ -14,6 +14,7 @@ import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HudWidget
 import com.gamecore.core.model.PerformanceMode
+import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.ScreenOrientationLock
 import com.gamecore.core.model.ThermalClass
 import org.json.JSONArray
@@ -125,6 +126,7 @@ object ProfileTransferCodec {
         putOpt("crosshairPresetId", p.crosshairPresetId)
         putOpt("colorPresetId", p.colorPresetId)
         putOpt("displaySize", p.displaySize?.argument)
+        putOpt("resolutionOverride", p.resolutionOverride?.name)
         put("performanceMode", p.performanceMode.name)
         put("useShizukuOptimizations", p.useShizukuOptimizations)
         put("trackSession", p.trackSession)
@@ -266,6 +268,10 @@ object ProfileTransferCodec {
             crosshairPresetId = idOrNull(o, "crosshairPresetId"),
             colorPresetId = idOrNull(o, "colorPresetId"),
             displaySize = o.optStringOrNull("displaySize")?.let { DisplaySize.parse(it) },
+            // An enum name a newer build wrote, or an absent key, degrades to null — the field's own
+            // default, which reads as "leave the resolution alone". An older file has no such key and
+            // so imports with the feature off, exactly as §5's older-file rule requires.
+            resolutionOverride = enumOrNull<ResolutionScale>(o.optStringOrNull("resolutionOverride")),
             performanceMode = enumOrNull<PerformanceMode>(o.optStringOrNull("performanceMode"))
                 ?: PerformanceMode.BALANCED,
             useShizukuOptimizations = o.optBoolean("useShizukuOptimizations", false),

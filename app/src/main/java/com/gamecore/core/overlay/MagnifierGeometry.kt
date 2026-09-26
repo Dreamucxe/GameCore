@@ -1,4 +1,4 @@
-package com.gamecore.core.vision
+package com.gamecore.core.overlay
 
 /**
  * A rectangle in screen pixels, as plain `Int`s.

@@ -5,6 +5,7 @@ import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.GameSession
 import com.gamecore.core.model.LatencyProbe
 import com.gamecore.core.model.PerformanceSnapshot
+import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.SessionSample
 import com.gamecore.core.model.StopReason
 import com.gamecore.data.repository.SessionRepository
@@ -101,6 +102,7 @@ class SessionRecorder @Inject constructor(
         nowMillis: Long = System.currentTimeMillis(),
         colorPresetName: String? = null,
         colorCorrection: ColorCorrection? = null,
+        resolution: ResolutionScale? = null,
     ): GameSession = mutex.withLock {
         state.value?.let { running ->
             if (running.packageName == packageName) return@withLock running
@@ -120,6 +122,7 @@ class SessionRecorder @Inject constructor(
             wasCharging = opening.battery.isCharging,
             colorPresetName = colorPresetName,
             colorCorrection = colorCorrection,
+            resolutionApplied = resolution,
         )
 
         val session = started.copy(id = sessions.begin(started))

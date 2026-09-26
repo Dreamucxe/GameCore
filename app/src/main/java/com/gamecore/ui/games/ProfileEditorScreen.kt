@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +60,7 @@ import com.gamecore.core.model.CpuAffinityPreset
 import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.PerformanceMode
+import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.ScreenOrientationLock
 import com.gamecore.ui.Destination
 import com.gamecore.ui.components.ActionRow
@@ -65,6 +68,7 @@ import com.gamecore.ui.components.ChoiceRow
 import com.gamecore.ui.components.ClickableCard
 import com.gamecore.ui.components.ConfirmDialog
 import com.gamecore.ui.components.EmptyState
+import com.gamecore.ui.components.NavRow
 import com.gamecore.ui.components.NoteBanner
 import com.gamecore.ui.components.PlainCard
 import com.gamecore.ui.components.PreLaunchWarningDialog
@@ -98,6 +102,7 @@ import com.gamecore.ui.components.colour
 fun ProfileEditorScreen(
     onBack: () -> Unit,
     onNavigate: (Destination) -> Unit,
+    onOpenConfigBrowser: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ProfileEditorViewModel = hiltViewModel(),
 ) {
@@ -193,13 +198,28 @@ fun ProfileEditorScreen(
         }
 
         item { GameCard(state, viewModel::edit, viewModel::play, viewModel::openPicker, padded) }
-        item { DisplaySection(state, viewModel::edit, onNavigate, padded) }
+        item {
+            DisplaySection(
+                state = state,
+                onEdit = viewModel::edit,
+                onRequestResolution = viewModel::requestResolutionOverride,
+                onNavigate = onNavigate,
+                modifier = padded,
+            )
+        }
         item { AudioSection(state, viewModel::edit, padded) }
         item { OverlaySection(state, viewModel::edit, onNavigate, padded) }
         item { PerformanceSection(state, viewModel::edit, onNavigate, padded) }
         item { CpuSection(state, viewModel::edit, onNavigate, padded) }
         item { SmartFeaturesSection(state, viewModel::edit, onNavigate, padded) }
         item { SessionSection(state, viewModel::edit, padded) }
+
+        // Config files are the game's own, read and written through the elevated shell, so the door is only
+        // worth offering when the game is actually on the device — an uninstalled game has no sandbox to walk.
+        // The browse itself opens against the primary user; the destination supplies that (see [PRIMARY_USER]).
+        if (state.isGameInstalled) {
+            item { GameFilesSection(state, onOpenConfigBrowser, onNavigate, padded) }
+        }
 
         if (!state.isNew) {
             item {
@@ -253,6 +273,15 @@ fun ProfileEditorScreen(
             onLaunchAnyway = viewModel::confirmPendingLaunch,
             onDontWarn = viewModel::dontWarnPendingLaunch,
             onCancel = viewModel::dismissPendingLaunch,
+        )
+    }
+
+    // §B7. The one-time note before the first resolution downscale. Non-blocking, like the launch sheet
+    // above it: continuing applies the held choice and spends the note, cancelling leaves the profile alone.
+    state.pendingResolutionScale?.let {
+        ResolutionOverrideNoticeDialog(
+            onContinue = viewModel::confirmResolutionNotice,
+            onCancel = viewModel::dismissResolutionNotice,
         )
     }
 }
@@ -323,6 +352,7 @@ private fun GameCard(
 private fun DisplaySection(
     state: ProfileEditorUiState,
     onEdit: ((GameProfile) -> GameProfile) -> Unit,
+    onRequestResolution: (ResolutionScale?) -> Unit,
     onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -367,7 +397,13 @@ private fun DisplaySection(
         }
 
         RowDivider()
-        DisplaySizeRows(state = state, profile = profile, onEdit = onEdit, onNavigate = onNavigate)
+        DisplaySizeRows(
+            state = state,
+            profile = profile,
+            onEdit = onEdit,
+            onRequestResolution = onRequestResolution,
+            onNavigate = onNavigate,
+        )
 
         RowDivider()
         OptionalPercent(
@@ -463,6 +499,7 @@ private fun DisplaySizeRows(
     state: ProfileEditorUiState,
     profile: GameProfile,
     onEdit: ((GameProfile) -> GameProfile) -> Unit,
+    onRequestResolution: (ResolutionScale?) -> Unit,
     onNavigate: (Destination) -> Unit,
 ) {
     Text(text = "Display size", style = MaterialTheme.typography.bodyLarge)
@@ -491,7 +528,15 @@ private fun DisplaySizeRows(
     ChoiceRow(
         options = listOf<DisplaySize?>(null) + presetSizes + listOfNotNull(custom),
         selected = chosen,
-        onSelect = { size -> onEdit { it.copy(displaySize = size) } },
+        // A real size clears any resolution scale, since both are the one `wm size` write and the applier
+        // would otherwise have to pick between them. "Leave alone" only clears this half: it is the chip
+        // that lights when a resolution *is* set, so tapping it must not wipe that resolution too.
+        onSelect = { size ->
+            onEdit {
+                if (size == null) it.copy(displaySize = null)
+                else it.copy(displaySize = size, resolutionOverride = null)
+            }
+        },
         label = { size ->
             if (size == null) "Leave alone" else AspectPreset.of(size, physical)?.label ?: "Custom"
         },
@@ -510,6 +555,113 @@ private fun DisplaySizeRows(
         )
     }
     CustomSizeFields(physical = physical, chosen = chosen, onEdit = onEdit)
+
+    Spacer(modifier = Modifier.height(12.dp))
+    RowDivider()
+    Spacer(modifier = Modifier.height(12.dp))
+    ResolutionScaleRows(
+        state = state,
+        profile = profile,
+        physical = physical,
+        onRequestResolution = onRequestResolution,
+    )
+}
+
+/**
+ * The other half of the display-size control: a downscale that keeps the panel's shape (§B2/§B5).
+ *
+ * Kept a row apart from the stretch chips above, and worded against them, because the two are opposites a
+ * user is right to confuse. A stretch changes the screen's *shape*; a resolution scale keeps the shape and
+ * lowers the *pixel count* the system reports. They are mutually exclusive — both are one `wm size` write —
+ * so choosing a percentage here clears the stretch above, and [com.gamecore.domain.gaming.DisplayTarget]
+ * holds the same line at apply time for a profile that arrives from an import rather than through this editor.
+ *
+ * The honest caveat is the one that matters most, so it is always on screen rather than tucked behind a
+ * selection: a smaller *logical* resolution does not make a game render fewer pixels. Only the size the
+ * system reports changes; whether the game follows is the game's own decision.
+ *
+ * The percentages come from [ProfileEditorUiState.resolutionChoices] — [ResolutionScale.optionsFor] over the
+ * real panel, 100% always and a smaller preset only when it would still leave a usable display. Absent
+ * entirely, with the stretch rows, on a device whose size could not be read (the caller returns first).
+ */
+@Composable
+private fun ResolutionScaleRows(
+    state: ProfileEditorUiState,
+    profile: GameProfile,
+    physical: DisplaySize,
+    onRequestResolution: (ResolutionScale?) -> Unit,
+) {
+    Text(text = "Resolution", style = MaterialTheme.typography.bodyLarge)
+    Spacer(modifier = Modifier.height(6.dp))
+    ChoiceRow(
+        options = listOf<ResolutionScale?>(null) + state.resolutionChoices.map { it.scale },
+        selected = profile.resolutionOverride,
+        // Routed through the view model rather than straight to onEdit: a first downscale has to pass the
+        // §B7 note before it lands. Clearing and forcing native skip the note (the view model decides), and
+        // the mutual exclusion with the stretch row above is applied there too, in one place.
+        onSelect = { scale -> onRequestResolution(scale) },
+        label = { scale -> scale?.label ?: "Leave alone" },
+        perRow = 3,
+    )
+    Spacer(modifier = Modifier.height(6.dp))
+    NoteBanner(text = DISPLAY_RESOLUTION_SCALE, tone = Tone.Muted, icon = Icons.Filled.Info)
+    val scale = profile.resolutionOverride
+    if (scale != null) {
+        Spacer(modifier = Modifier.height(6.dp))
+        val resolved = scale.sizeFor(physical)
+        NoteBanner(
+            text = if (scale == ResolutionScale.FULL) {
+                // 100% is a reset, not an override left behind: `wm size reset` clears any size rather than
+                // writing one, so there is nothing that outlives a reboot and nothing to restore. Said
+                // plainly, because next to "80%" a user reads "100%" as the same kind of thing, and it isn't.
+                "Forces this display to its native ${resolved.label} while the game is open. This clears any " +
+                    "size override rather than leaving one behind, so there is nothing to undo afterwards — " +
+                    "pick “Leave alone” instead unless a game needs native forced back over a change made " +
+                    "elsewhere."
+            } else {
+                "Runs this game at ${scale.label} of native — ${resolved.label} — keeping the panel's shape, " +
+                    "and puts the resolution back when it closes. Like a size override it outlives a reboot, " +
+                    "so the Home screen lists the change until GameCore has undone it."
+            },
+            tone = Tone.Muted,
+            icon = Icons.Filled.Info,
+        )
+    }
+}
+
+/**
+ * The §B7 one-time note, shown before the user's first resolution downscale and never again once passed.
+ *
+ * Non-blocking by design, like [PreLaunchWarningDialog]: "Continue" applies the held choice, "Cancel" leaves
+ * the profile untouched. The copy says what the change really is — a system-level resolution the game may or
+ * may not honour, not a guaranteed frame-rate win — and where to bring the note back, because it is revocable
+ * in Settings. It lives beside the composable rather than in strings.xml, as the editor's other copy does.
+ */
+@Composable
+private fun ResolutionOverrideNoticeDialog(
+    onContinue: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(text = "About changing resolution", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Text(
+                text = "Lowering a game's resolution changes the size Android reports for the whole screen " +
+                    "while the game is open, through the same privileged command as a size override. It is " +
+                    "not a guaranteed frame-rate win: a game that renders at its own resolution will not draw " +
+                    "fewer pixels because of this — only the size the system reports changes. The change is " +
+                    "made at the system level and outlives a reboot; GameCore records the current size first " +
+                    "and puts it back when the game closes, and the Home screen lists the change until it is " +
+                    "undone.\n\nYou will only see this once. Turn it back on under Games in Settings.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        },
+        confirmButton = { TextButton(onClick = onContinue) { Text("Continue") } },
+        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.large,
+    )
 }
 
 /**
@@ -544,7 +696,11 @@ private fun CustomSizeFields(
             return
         }
         val size = DisplaySize.parse("${rawWidth}x$rawHeight")?.orientedLike(physical) ?: return
-        if (size.rejectionFor(physical) == null) onEdit { it.copy(displaySize = size) }
+        // Clears any resolution scale for the same reason the chips do: a typed size and a scale are the
+        // same write, and only one can survive to the plan.
+        if (size.rejectionFor(physical) == null) {
+            onEdit { it.copy(displaySize = size, resolutionOverride = null) }
+        }
     }
 
     val typed = DisplaySize.parse("${width}x$height")?.orientedLike(physical)
@@ -1088,6 +1244,49 @@ private fun SessionSection(
 }
 
 /**
+ * The door into this game's own configuration files (spec §A3/§A7).
+ *
+ * A single [NavRow] rather than a settings control, because nothing here is a field of the profile: the
+ * files belong to the game, GameCore only reads and writes them through the elevated shell, and none of that
+ * is applied when the game launches. So this is a *place to go*, not a switch — it hands the package name to
+ * [onOpenConfigBrowser] and the browser takes over from there. The copy names the safety net the §26 notice
+ * elaborates on, because a user deciding whether to tap into their game's files deserves to know the original
+ * is kept before they commit to the trip, not only once they are mid-edit.
+ *
+ * Reaching a config at all needs the elevated shell, so when it is not connected a "Set up" note sits under
+ * the row — the same affordance the elevated Performance/CPU/Smart sections use (§A1). The row stays tappable
+ * rather than disabled: a user can still look, and the browser reports the missing shell honestly on open, so
+ * gating here would only duplicate that check with a deader end.
+ */
+@Composable
+private fun GameFilesSection(
+    state: ProfileEditorUiState,
+    onOpenConfigBrowser: (String) -> Unit,
+    onNavigate: (Destination) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val profile = state.profile ?: return
+    SectionCard(title = "Game files", icon = Icons.Filled.Folder, modifier = modifier) {
+        NavRow(
+            title = "Browse config files",
+            onClick = { onOpenConfigBrowser(profile.packageName) },
+            description = "Look through this game's own settings files and edit the ones that are text. " +
+                "GameCore keeps an untouched original of every file it changes, so a restore is always a " +
+                "tap away.",
+        )
+        if (!state.capabilities.hasElevatedAccess) {
+            NoteBanner(
+                text = "Reaching a game's config files needs Shizuku running — GameCore reads and writes " +
+                    "them through the elevated shell, so without it there is nothing to browse here.",
+                tone = Tone.Muted,
+                icon = Icons.Filled.Info,
+                action = { TextButton(onClick = { onNavigate(Destination.Shizuku) }) { Text("Set up") } },
+            )
+        }
+    }
+}
+
+/**
  * The installed-app list, as a whole screen rather than a dialog.
  *
  * A device has hundreds of packages and this list is scrolled, not glanced at. Games sort to the top by
@@ -1186,6 +1385,17 @@ private fun AppRow(app: AppOption, onClick: () -> Unit, modifier: Modifier = Mod
 private const val DISPLAY_SIZE_STRETCH =
     "This stretches the display: the game is handed a shorter screen and the picture is reshaped to fill " +
         "the panel. It is not a wider field of view, and no game sees more of the world because of it."
+
+/**
+ * The always-on note under the resolution row (§B5). Two facts, both load-bearing: it is the *opposite* of a
+ * stretch, and it changes only what the system reports — not what a game chooses to render. The second is the
+ * honesty the whole feature turns on, so it is stated here rather than left for the user to discover.
+ */
+private const val DISPLAY_RESOLUTION_SCALE =
+    "This keeps the screen's shape and lowers the resolution the system reports — the opposite of a stretch, " +
+        "which keeps the resolution and changes the shape. A game that renders at its own resolution will " +
+        "not draw fewer pixels because of this: it changes the size the system reports, not what the game " +
+        "chooses to draw."
 
 /** Said when `wm size` could not be read and the [Observed] reason came back empty. */
 private const val DISPLAY_SIZE_UNREADABLE =

@@ -1,7 +1,7 @@
-package com.gamecore.core.vision
+package com.gamecore.core.overlay
 
-import com.gamecore.core.vision.MagnifierGeometry.MAX_FACTOR
-import com.gamecore.core.vision.MagnifierGeometry.MIN_FACTOR
+import com.gamecore.core.overlay.MagnifierGeometry.MAX_FACTOR
+import com.gamecore.core.overlay.MagnifierGeometry.MIN_FACTOR
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull

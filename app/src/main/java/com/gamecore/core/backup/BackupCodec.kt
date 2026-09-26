@@ -198,6 +198,8 @@ object BackupCodec {
         put("hapticsEnabled", s.hapticsEnabled)
         put("allowElevatedReads", s.allowElevatedReads)
         put("autoApplyProfiles", s.autoApplyProfiles)
+        put("showResolutionOverrideNotice", s.showResolutionOverrideNotice)
+        put("showConfigEditNotice", s.showConfigEditNotice)
         put("trackSessions", s.trackSessions)
         put("detectionIntervalMillis", s.detectionIntervalMillis)
         put("sampleIntervalMillis", s.sampleIntervalMillis)
@@ -411,6 +413,10 @@ object BackupCodec {
             hapticsEnabled = o.optBoolean("hapticsEnabled", d.hapticsEnabled),
             allowElevatedReads = o.optBoolean("allowElevatedReads", d.allowElevatedReads),
             autoApplyProfiles = o.optBoolean("autoApplyProfiles", d.autoApplyProfiles),
+            showResolutionOverrideNotice =
+                o.optBoolean("showResolutionOverrideNotice", d.showResolutionOverrideNotice),
+            showConfigEditNotice =
+                o.optBoolean("showConfigEditNotice", d.showConfigEditNotice),
             trackSessions = o.optBoolean("trackSessions", d.trackSessions),
             detectionIntervalMillis = o.optLong("detectionIntervalMillis", d.detectionIntervalMillis),
             sampleIntervalMillis = o.optLong("sampleIntervalMillis", d.sampleIntervalMillis),

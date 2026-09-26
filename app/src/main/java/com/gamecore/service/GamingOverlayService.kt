@@ -76,6 +76,7 @@ import com.gamecore.core.overlay.PanelControl
 import com.gamecore.core.overlay.PanelTab
 import com.gamecore.core.overlay.PresetChips
 import com.gamecore.core.overlay.RateChips
+import com.gamecore.core.overlay.ResolutionScaleNote
 import com.gamecore.core.overlay.OverlaySplitPanel
 import com.gamecore.core.overlay.OverlayViewHost
 import com.gamecore.core.overlay.OverlayWindowSpec
@@ -592,6 +593,14 @@ class GamingOverlayService : GameCoreService() {
             // The panel header names the game and its session timer; both change without any overlay
             // window changing, so the panel state is refreshed rather than the windows reconciled.
             coordinator.gaming.collect { if (panelOpen.value) probePanel() }
+        }
+        lifecycleScope.launch {
+            // The session carries the one display fact the gaming state above does not: the resolution
+            // scale GameCore recorded for it (§B8). It is filled a beat after the game is detected — the
+            // recorder opens the row only once the profile has been applied — so the collector above can
+            // fire with the scale not yet set. Re-probing when the session itself changes is what lets the
+            // shape control name the downscale the moment it lands, and clear the line when the session ends.
+            coordinator.session.collect { if (panelOpen.value) probePanel() }
         }
         lifecycleScope.launch {
             // The §2 "what changed" line. `application` is filled only on the automatic-apply path —
@@ -1373,6 +1382,9 @@ class GamingOverlayService : GameCoreService() {
                             enabled = state.isUsable(OverlayAction.ASPECT),
                             accent = accent,
                         )
+                        // Between the tile and the shapes: the scale is why the tile is lit, so it reads as
+                        // the tile's own footnote rather than a caption on the stretch chips below it.
+                        state.resolutionOverride?.let { ResolutionScaleNote(scale = it, accent = accent) }
                         AspectChips(state = state, accent = accent, widthDp = widthDp, onAspect = ::onAspect)
                     }
                 },
@@ -2128,6 +2140,11 @@ class GamingOverlayService : GameCoreService() {
             aspectsExpanded = panel.value.aspectsExpanded,
             activeAspect = sizeState?.activePreset,
             aspectNote = sizeState?.let(::aspectNote),
+            // The scale GameCore recorded for this session, not a reading off the size: a downscale reaches
+            // the display through the same `wm size` write as a stretch, so the size alone cannot tell the
+            // shape tile above from the resolution it is actually running. Null outside a session and on
+            // every session that left the resolution alone. See [OverlayPanelState.resolutionOverride].
+            resolutionOverride = coordinator.session.value?.resolutionApplied,
             refreshRates = offeredRates,
             // Carried over for the same reason [presetsExpanded] is.
             refreshRatesExpanded = panel.value.refreshRatesExpanded,

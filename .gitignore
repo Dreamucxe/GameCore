@@ -26,3 +26,14 @@ keystore.properties
 
 # local Gradle gate logs (never committed)
 gate_*.log
+*_build.log
+
+# Removed ESP/figure-highlight package — deleted 2026-09-25 and must never be
+# recreated or tracked again. Guardrail so the folder can never re-enter git.
+**/core/vision/
+
+# Internal working docs for the in-flight feature runs — never published.
+/GraphicsTools_Progress.md
+/GraphicsTools_Audit.md
+/InstantReplay_Progress.md
+/GC_ConfigEditor_Handover.md

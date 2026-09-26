@@ -12,6 +12,8 @@ import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.DisplaySizeState
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.RefreshRateMechanism
+import com.gamecore.core.model.ResolutionScale
+import com.gamecore.core.model.ResolutionScaleChoice
 import com.gamecore.ui.components.PendingLaunch
 
 /**
@@ -70,6 +72,22 @@ data class ProfileEditorUiState(
     val isDirty: Boolean = false,
     /** From settings: whether backing out of unsaved edits should ask first. */
     val confirmOnDiscard: Boolean = true,
+    /**
+     * From settings: whether the §B7 one-time resolution-override note is still armed.
+     *
+     * Seeded once from [com.gamecore.core.model.AppSettings.showResolutionOverrideNotice] when the editor
+     * opens, and flipped false in the same breath the user continues past the note — so it gates only the
+     * *first* downscale, never a reset to native or clearing the choice. Revoking it lives in Settings, not
+     * here; the editor only reads it and consumes it once.
+     */
+    val showResolutionNotice: Boolean = true,
+    /**
+     * The downscale the §B7 note is holding, non-null only while that note is on screen.
+     *
+     * A held decision, exactly like [pendingLaunch]: the chip the user tapped is not applied to [profile]
+     * until they continue, so cancelling leaves the profile untouched and the row still on "Leave alone".
+     */
+    val pendingResolutionScale: ResolutionScale? = null,
     val isSaving: Boolean = false,
     /**
      * A launch the §C4 network check flagged, waiting on the user's answer.
@@ -106,6 +124,18 @@ data class ProfileEditorUiState(
      */
     val aspectChoices: List<AspectChoice>
         get() = display.valueOrNull?.options ?: emptyList()
+
+    /**
+     * The resolution downscales worth offering on this panel, or empty when its size could not be read.
+     *
+     * The counterpart to [aspectChoices]: same "empty rather than a guess" rule and the same source of
+     * truth, the real panel size. [ResolutionScale.optionsFor] is that single place — it always offers
+     * 100% and drops a smaller preset only when it would leave the display unusable — so the editor asks
+     * it rather than deciding for itself which percentages fit, the same way the aspect row leans on the
+     * shapes [DisplaySizeState] precomputed.
+     */
+    val resolutionChoices: List<ResolutionScaleChoice>
+        get() = physicalSize?.let { ResolutionScale.optionsFor(it) } ?: emptyList()
 
     /**
      * The panel's own size, for validating a size the user types in.

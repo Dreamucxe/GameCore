@@ -8,6 +8,7 @@ import com.gamecore.core.model.AspectPreset
 import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.DisplaySizeOutcome
 import com.gamecore.core.model.DisplaySizeState
+import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.shizuku.ElevatedShell
 import com.gamecore.core.shizuku.ShellCommand
 import com.gamecore.core.system.DisplayReader
@@ -100,6 +101,43 @@ class DisplaySizeController @Inject constructor(
                     detail = "${preset.label} is not a shape a ${physical.aspectLabel} display can be " +
                         "stretched to. GameCore only offers ratios shorter than the panel's own.",
                 )
+            apply(size, packageName)
+        }
+
+    /**
+     * Runs the display at [scale] of its own resolution (§B2).
+     *
+     * The sibling of the [AspectPreset] overload above and the opposite kind of change. A preset
+     * *stretches*: it keeps the short side, cuts the long one and hands the game a different shape. This
+     * *downscales*: both axes move by the same factor, so the panel's aspect ratio is preserved exactly
+     * and only the number of pixels drops. The presets are computed from the panel's real physical size —
+     * [ResolutionScale.sizeFor] of `physical`, never of the active size — for the reason [state]'s own
+     * note gives: on a display that already carries an override, the active size is GameCore's own
+     * leftover, and "80% of what the last game asked for" is not a resolution anyone chose.
+     *
+     * [ResolutionScale.FULL] is routed to [resetToNative] rather than written as an override equal to the
+     * panel, exactly as [AspectPreset.NATIVE] is and for exactly the same reason: an override that happens
+     * to equal the physical size is still a row in the window manager's settings that outlives GameCore,
+     * and only `wm size reset` removes it. So "100%" means *the panel's own resolution, nothing of mine
+     * left behind*, not "an override I happen to have set to the panel's numbers".
+     *
+     * Everything after the size is derived is the existing [apply]: the previous size is recorded under
+     * [RestorePointRepository.KEY_DISPLAY_SIZE] before the write, the rejection check runs against the real
+     * panel, and the result is read back through [verify] — so a resolution override and a stretch share
+     * one restore row and one undo, which is what keeps the "Reset to native" affordance honest for both.
+     *
+     * What this is not, and the copy has to say so (§B5): a smaller logical display does not oblige the
+     * game to render fewer pixels. It changes the surface size the window manager reports; whether the
+     * game's own render target follows is the game's decision.
+     */
+    suspend fun apply(scale: ResolutionScale, packageName: String? = null): DisplaySizeOutcome =
+        withContext(io) {
+            if (scale.percent >= 100) return@withContext resetToNative()
+            val physical = readState().valueOrNull?.physical ?: return@withContext unreadable()
+            val size = scale.sizeFor(physical)
+            size.rejectionFor(physical)?.let { reason ->
+                return@withContext DisplaySizeOutcome.SizeUnsupported(size, reason)
+            }
             apply(size, packageName)
         }
 

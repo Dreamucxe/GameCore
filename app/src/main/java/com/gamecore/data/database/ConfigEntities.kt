@@ -174,6 +174,20 @@ data class GameProfileEntity(
     @ColumnInfo(name = "full_performance_enabled")
     val fullPerformanceEnabled: Boolean = false,
 
+    /**
+     * The resolution downscale preset to run this game at, by [com.gamecore.core.model.ResolutionScale]
+     * name, or null to leave the display's resolution alone.
+     *
+     * Added in schema version 12, nullable with no default for the reason `display_size` and
+     * `cpu_affinity` were: a profile written before this feature existed asked for nothing, and null is
+     * exactly that. Stored as the enum name and parsed back through `ResolutionScale.entries` by name
+     * like every other enum here, so a name a later build has dropped reads as null and the profile
+     * stops overriding the resolution instead of failing to load. It is the resolution sibling of
+     * `display_size` — both become one `wm size` write — and the mapper never sets both.
+     */
+    @ColumnInfo(name = "resolution_override")
+    val resolutionOverride: String? = null,
+
     @ColumnInfo(name = "updated_at")
     val updatedAtMillis: Long,
 )

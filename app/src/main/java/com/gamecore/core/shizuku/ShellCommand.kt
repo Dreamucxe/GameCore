@@ -59,6 +59,25 @@ import com.gamecore.core.model.DisplaySize
  * leaves the render thread wherever it was, which is a change that reads as working and is
  * not.
  *
+ * The config editor is the third amendment, and the largest, because it qualifies the
+ * fourth absence above rather than one of the programs. GameCore now writes a game's own
+ * config files — the ones under `Android/data/<pkg>/files` the user opened and edited —
+ * through [ListConfigDir], [StatConfigFile], [CopyConfigFile], [MoveConfigFile] and
+ * [DeleteConfigFile]. "GameCore does not modify games" no longer holds without that
+ * clause, so the clause is written here. Five things bound it, and they are the reason a
+ * config edit is not `pm clear` wearing a friendlier name. No path reaches the argv as a
+ * string: each is built by [externalFilesPath] from a user id, a validated package name
+ * and segments checked one at a time, so the set of files reachable is exactly one game's
+ * own external files tree — never its `cache`, never its `obb`, never the private
+ * `/data/data` a shell as uid 2000 cannot read anyway, and nowhere a `..` could climb to.
+ * `rm` here is single-file and never `-r`. `cp` always has GameCore's own storage on one
+ * end, so it cannot be turned into a mover of one app's files into another's. The one
+ * destructive step, replacing a file, is an atomic [MoveConfigFile] onto a copy that was
+ * read back first, and the feature writes a backup of the original before its first edit —
+ * the undo a settings write gets from the restore ledger, a file edit gets from that
+ * backup. And the whole surface is unreachable without Shizuku and a disclaimer the user
+ * accepts once and can revoke.
+ *
  * Arguments are validated by the factory functions in [ShellCommand.Companion]
  * rather than trusted: an index is range-checked, a package name has to match the
  * platform's grammar, a refresh rate has to be a plain number in a plausible range.
@@ -85,6 +104,13 @@ sealed class ShellCommand(
      * something — so both are accounted for in the report of the pass that ran them
      * rather than in the restore ledger. Neither is reachable from a profile: one is the
      * launch-time reclaim, the other is a button the user pressed.
+     *
+     * The config editor's three writes — [CopyConfigFile], [MoveConfigFile] and
+     * [DeleteConfigFile] — are [Effect.CHANGES_SETTING] for the same honest reason (they
+     * change the device), but no profile applies them either, and their undo is the
+     * backup this feature takes of a file before its first edit, not the settings ledger.
+     * Their read siblings [ListConfigDir] and [StatConfigFile] are [Effect.READ_ONLY]:
+     * naming a file and measuring it changes nothing.
      */
     enum class Effect { READ_ONLY, CHANGES_SETTING }
 
@@ -578,6 +604,135 @@ sealed class ShellCommand(
         }
     }
 
+    // ------------------------------------------------ config editor file access
+
+    /**
+     * Lists the immediate children of a directory inside one game's own
+     * `Android/data/<pkg>/files`, so the config editor can show a file to open.
+     *
+     * The path is not accepted as a string. [ListConfigDir.of] builds it from a package
+     * name, a user id and a relative path whose every segment is checked, so the only
+     * directories this can name live inside that one game's external files tree — `..`
+     * never reaches the argv, an absolute path cannot be substituted, and the `cache` and
+     * `obb` siblings [ClearSharedCache] documents are not expressible here either. `-A`
+     * shows dotfiles a config might hide behind (but not `.`/`..`); `-p` marks a directory
+     * with a trailing slash so the browser tells one from a file without a second call.
+     */
+    class ListConfigDir private constructor(val path: String) : ShellCommand(
+        listOf("ls", "-1Ap", path),
+        "List a game's config directory",
+        Effect.READ_ONLY,
+    ) {
+        companion object {
+            fun of(packageName: String, userId: Int, relativePath: String = ""): ListConfigDir? =
+                externalFilesPath(packageName, userId, relativePath)?.let { ListConfigDir(it) }
+        }
+    }
+
+    /**
+     * Reads the size and type of one file inside a game's `files`, without reading its
+     * contents. The editor calls this first: a file past the editable cap is refused as
+     * "too large" before a byte of it is copied anywhere, and a directory is told apart
+     * from a regular file so the editor never tries to open one. `%s` is the size in
+     * bytes and `%F` the type; a non-zero exit is how a missing file reports itself.
+     */
+    class StatConfigFile private constructor(val path: String) : ShellCommand(
+        listOf("stat", "-c", "%s|%F", path),
+        "Read the size and type of a config file",
+        Effect.READ_ONLY,
+    ) {
+        companion object {
+            fun of(packageName: String, userId: Int, relativePath: String): StatConfigFile? =
+                externalFilesPath(packageName, userId, relativePath, requireLeaf = true)
+                    ?.let { StatConfigFile(it) }
+        }
+    }
+
+    /**
+     * Copies one file, with one end always inside GameCore's own external storage.
+     *
+     * This is how a file crosses between a game's `files` and GameCore's own — out to be
+     * read and parsed, or in from the staged copy the editor wrote. [CopyConfigFile.of]
+     * refuses any pair not anchored to GameCore's own package on one side, so it cannot be
+     * turned into a general mover of one app's files into another's. It is not the atomic
+     * step; [MoveConfigFile] is. A copy only ever lands on a temporary name, which a move
+     * then swaps into place.
+     */
+    class CopyConfigFile private constructor(
+        val from: String,
+        val to: String,
+    ) : ShellCommand(
+        listOf("cp", from, to),
+        "Copy a config file to or from GameCore's own storage",
+        Effect.CHANGES_SETTING,
+    ) {
+        companion object {
+            fun of(
+                fromPackageName: String, fromUserId: Int, fromRelativePath: String,
+                toPackageName: String, toUserId: Int, toRelativePath: String,
+            ): CopyConfigFile? {
+                val from = externalFilesPath(fromPackageName, fromUserId, fromRelativePath, requireLeaf = true)
+                    ?: return null
+                val to = externalFilesPath(toPackageName, toUserId, toRelativePath, requireLeaf = true)
+                    ?: return null
+                val ownOnAnEnd =
+                    TextSanitizer.validatePackageName(fromPackageName) == BuildConfig.APPLICATION_ID ||
+                        TextSanitizer.validatePackageName(toPackageName) == BuildConfig.APPLICATION_ID
+                return if (ownOnAnEnd) CopyConfigFile(from, to) else null
+            }
+        }
+    }
+
+    /**
+     * Renames a file within one game's `files`, which on a single filesystem is atomic —
+     * a reader sees either the old file or the new one, never a half-written one. This is
+     * the step that commits an edit: the new contents are copied to a temporary name
+     * first and read back, and only then moved onto the real name. Both ends share one
+     * user id and one package, so a move can no more leave that game's files tree than a
+     * copy can escape into it.
+     */
+    class MoveConfigFile private constructor(
+        val from: String,
+        val to: String,
+    ) : ShellCommand(
+        listOf("mv", from, to),
+        "Atomically replace a config file with its edited copy",
+        Effect.CHANGES_SETTING,
+    ) {
+        companion object {
+            fun of(
+                packageName: String, userId: Int,
+                fromRelativePath: String, toRelativePath: String,
+            ): MoveConfigFile? {
+                val from = externalFilesPath(packageName, userId, fromRelativePath, requireLeaf = true)
+                    ?: return null
+                val to = externalFilesPath(packageName, userId, toRelativePath, requireLeaf = true)
+                    ?: return null
+                return MoveConfigFile(from, to)
+            }
+        }
+    }
+
+    /**
+     * Deletes one file inside a game's `files`, and only ever one file. `-f` keeps an
+     * already-absent temporary from being an error on the cleanup path; the absence of
+     * `-r` is what makes this a single-file delete that can never walk a directory, and
+     * the built path is what keeps it inside the game's own files tree. The editor uses it
+     * to remove the staged temporary a failed write leaves behind — never the file the
+     * user is editing, which is replaced by [MoveConfigFile], not deleted.
+     */
+    class DeleteConfigFile private constructor(val path: String) : ShellCommand(
+        listOf("rm", "-f", path),
+        "Remove a staged config temporary",
+        Effect.CHANGES_SETTING,
+    ) {
+        companion object {
+            fun of(packageName: String, userId: Int, relativePath: String): DeleteConfigFile? =
+                externalFilesPath(packageName, userId, relativePath, requireLeaf = true)
+                    ?.let { DeleteConfigFile(it) }
+        }
+    }
+
     /**
      * The call-site surface.
      *
@@ -636,6 +791,44 @@ sealed class ShellCommand(
          */
         fun setCpuAffinity(pid: Int, mask: Int): SetCpuAffinity? = SetCpuAffinity.of(pid, mask)
 
+        /** Null unless the directory is inside the named game's own external files. */
+        fun listConfigDir(packageName: String, userId: Int, relativePath: String = ""): ListConfigDir? =
+            ListConfigDir.of(packageName, userId, relativePath)
+
+        /** Null unless the file is inside the named game's own external files. */
+        fun statConfigFile(packageName: String, userId: Int, relativePath: String): StatConfigFile? =
+            StatConfigFile.of(packageName, userId, relativePath)
+
+        /**
+         * Null unless both ends are well-formed external-files paths and one of them is
+         * GameCore's own package. See [CopyConfigFile].
+         */
+        fun copyConfigFile(
+            fromPackageName: String, fromUserId: Int, fromRelativePath: String,
+            toPackageName: String, toUserId: Int, toRelativePath: String,
+        ): CopyConfigFile? = CopyConfigFile.of(
+            fromPackageName, fromUserId, fromRelativePath,
+            toPackageName, toUserId, toRelativePath,
+        )
+
+        /** Null unless both names sit within the one game's files. See [MoveConfigFile]. */
+        fun moveConfigFile(
+            packageName: String, userId: Int, fromRelativePath: String, toRelativePath: String,
+        ): MoveConfigFile? =
+            MoveConfigFile.of(packageName, userId, fromRelativePath, toRelativePath)
+
+        /** Null unless the file is inside the named game's own external files. */
+        fun deleteConfigFile(packageName: String, userId: Int, relativePath: String): DeleteConfigFile? =
+            DeleteConfigFile.of(packageName, userId, relativePath)
+
+        /**
+         * The absolute path [listConfigDir] and friends target, exposed so the editor can
+         * show the user exactly where a change will land without building a command. A
+         * blank [relativePath] names the game's `files` directory itself.
+         */
+        fun configFilePath(packageName: String, userId: Int, relativePath: String = ""): String? =
+            externalFilesPath(packageName, userId, relativePath)
+
         /**
          * Validates a package name. Exposed so a caller that has to decide whether a
          * profile's stored package is still usable can ask without building a command.
@@ -676,6 +869,59 @@ private fun validPidOrNull(pid: Int): Int? =
 
 /** 2^22, the largest value Linux will accept for `pid_max`. */
 private const val MAX_PID = 4_194_304
+
+/**
+ * Builds an absolute path inside one app's external `files` directory from parts, or null
+ * if any part is unfit — the config editor's equivalent of the way
+ * [ShellCommand.ClearSharedCache] assembles its one path rather than accepting one.
+ *
+ * The fixed prefix is `/storage/emulated/<user>/Android/data/<pkg>/files`, so nothing this
+ * returns can name a directory outside that tree. [relativePath] is split on `/` and every
+ * segment is checked by [validPathSegmentOrNull]; a `..`, an empty segment (a leading,
+ * trailing or doubled slash), a NUL or a control character rejects the whole path. A blank
+ * [relativePath] names the `files` directory itself, which [requireLeaf] forbids for the
+ * commands that must name a file rather than a directory.
+ */
+private fun externalFilesPath(
+    packageName: String,
+    userId: Int,
+    relativePath: String,
+    requireLeaf: Boolean = false,
+): String? {
+    if (userId < 0 || userId > MAX_EXTERNAL_USER_ID) return null
+    val pkg = TextSanitizer.validatePackageName(packageName) ?: return null
+    val base = "/storage/emulated/$userId/Android/data/$pkg/files"
+    if (relativePath.isEmpty()) return if (requireLeaf) null else base
+    val checked = relativePath.split('/').map { validPathSegmentOrNull(it) ?: return null }
+    val joined = checked.joinToString("/")
+    if (base.length + 1 + joined.length > MAX_CONFIG_PATH_LENGTH) return null
+    return "$base/$joined"
+}
+
+/**
+ * One path segment, or null if it could climb out of or reach past its directory. A segment
+ * is a single name: no separator, no `.`/`..`, no NUL to truncate the C string the argv
+ * becomes, no control character, and nothing absurdly long. A space is allowed — it is a
+ * real filename character, and because the vector reaches `exec` unparsed it splits nothing.
+ */
+private fun validPathSegmentOrNull(segment: String): String? {
+    if (segment.isEmpty() || segment == "." || segment == "..") return null
+    if (segment.length > MAX_SEGMENT_LENGTH) return null
+    for (ch in segment) {
+        if (ch == '/') return null
+        if (ch.code < 0x20 || ch.code == 0x7f) return null
+    }
+    return segment
+}
+
+/** Same ceiling as [ShellCommand.ClearSharedCache]'s user id: multi-user, never absurd. */
+private const val MAX_EXTERNAL_USER_ID = 999
+
+/** A generous cap on one path component; real config file names are far shorter. */
+private const val MAX_SEGMENT_LENGTH = 255
+
+/** A generous cap on the whole built path, well under a filesystem's `PATH_MAX`. */
+private const val MAX_CONFIG_PATH_LENGTH = 4096
 
 /**
  * The three settings tables GameCore touches.

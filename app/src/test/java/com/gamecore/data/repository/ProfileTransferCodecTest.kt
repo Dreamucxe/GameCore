@@ -11,6 +11,7 @@ import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HudWidget
 import com.gamecore.core.model.PerformanceMode
+import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.ScreenOrientationLock
 import com.gamecore.data.repository.ProfileTransferCodec.PresetBundle
 import org.json.JSONObject
@@ -235,5 +236,76 @@ class ProfileTransferCodecTest {
         assertEquals(HudStat.CPU_USAGE, decoded.hud[3L]?.widgets?.single()?.stat)
         assertFalse(decoded.profiles.isEmpty())
         assertNotNull(decoded.hud[3L])
+    }
+
+    // --- The resolution override (§B, schema v12) -------------------------------------------------
+
+    @Test
+    fun `a resolution override survives the round trip`() {
+        val profile = GameProfile(
+            packageName = "com.example.g",
+            label = "G",
+            resolutionOverride = ResolutionScale.MEDIUM,
+        )
+        val decoded = ProfileTransferCodec.decodeEnvelope(
+            ProfileTransferCodec.encodeEnvelope(listOf(profile), PresetBundle()),
+        )
+        assertEquals(ResolutionScale.MEDIUM, decoded.profiles.single().resolutionOverride)
+        assertEquals(profile, decoded.profiles.single())
+    }
+
+    @Test
+    fun `every preset round-trips by name, FULL included`() {
+        // FULL must survive as FULL rather than collapsing into "absent": it is a real reset-to-native
+        // request, and null is the separate spelling of "leave the resolution alone".
+        ResolutionScale.entries.forEach { scale ->
+            val decoded = ProfileTransferCodec.decodeEnvelope(
+                ProfileTransferCodec.encodeEnvelope(
+                    listOf(GameProfile(packageName = "com.example.g", label = "G", resolutionOverride = scale)),
+                    PresetBundle(),
+                ),
+            )
+            assertEquals(scale.name, scale, decoded.profiles.single().resolutionOverride)
+        }
+    }
+
+    @Test
+    fun `a file written before the resolution override existed imports with it off`() {
+        // §5's older-file rule: the key is simply absent, and absent must read as null — not as FULL,
+        // which would silently reset the panel of anyone importing an old backup.
+        val decoded = ProfileTransferCodec.decodeBody(
+            bodyWithProfile("""{"packageName":"com.example.g","label":"G"}"""),
+        )
+        assertNull(decoded.profiles.single().resolutionOverride)
+    }
+
+    @Test
+    fun `a resolution override left unset is not written into the file at all`() {
+        val encoded = ProfileTransferCodec.encodeEnvelope(
+            listOf(GameProfile(packageName = "com.example.g", label = "G")),
+            PresetBundle(),
+        )
+        assertFalse(encoded, encoded.contains("resolutionOverride"))
+    }
+
+    @Test
+    fun `a resolution name this build does not know degrades to off rather than to a preset`() {
+        val decoded = ProfileTransferCodec.decodeBody(
+            bodyWithProfile(
+                """{"packageName":"com.example.g","label":"G","resolutionOverride":"POTATO"}""",
+            ),
+        )
+        assertNull(decoded.profiles.single().resolutionOverride)
+        // A JSON null and a value of the wrong type are the same two absences, and both mean off.
+        assertNull(
+            ProfileTransferCodec.decodeBody(
+                bodyWithProfile("""{"packageName":"com.example.g","label":"G","resolutionOverride":null}"""),
+            ).profiles.single().resolutionOverride,
+        )
+        assertNull(
+            ProfileTransferCodec.decodeBody(
+                bodyWithProfile("""{"packageName":"com.example.g","label":"G","resolutionOverride":60}"""),
+            ).profiles.single().resolutionOverride,
+        )
     }
 }

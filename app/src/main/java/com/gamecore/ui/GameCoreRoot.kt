@@ -60,11 +60,21 @@ import com.gamecore.aimlab.ui.sensitivity.SensitivityLabScreen
 import com.gamecore.aimlab.ui.stats.StatisticsScreen
 import com.gamecore.aimlab.ui.tracking.TrackingScreen
 import com.gamecore.aimlab.ui.weapon.WeaponEditorScreen
+import com.gamecore.core.config.LineDiff
 import com.gamecore.domain.setup.WizardEntry
 import com.gamecore.ui.backup.BackupRestoreScreen
 import com.gamecore.ui.capability.CapabilityScreen
 import com.gamecore.ui.color.ColorScreen
 import com.gamecore.ui.components.ScreenPadding
+import com.gamecore.ui.config.ConfigBackupPickerDialog
+import com.gamecore.ui.config.ConfigBrowserNav
+import com.gamecore.ui.config.ConfigBrowserScreen
+import com.gamecore.ui.config.ConfigBrowserViewModel
+import com.gamecore.ui.config.ConfigCheckpointDialog
+import com.gamecore.ui.config.ConfigDiffDialog
+import com.gamecore.ui.config.ConfigEditNoticeDialog
+import com.gamecore.ui.config.ConfigEditorScreen
+import com.gamecore.ui.config.ConfigEditorViewModel
 import com.gamecore.ui.controller.ControllerScreen
 import com.gamecore.ui.crosshair.CrosshairScreen
 import com.gamecore.ui.developer.DeveloperScreen
@@ -462,7 +472,15 @@ private fun GameCoreNav(
                 },
             ),
         ) {
-            ProfileEditorScreen(onBack = back, onNavigate = open)
+            ProfileEditorScreen(
+                onBack = back,
+                onNavigate = open,
+                // The browser opens against the primary user; the profile screen threads only the package,
+                // and the destination pins the user id (see [Destination.PRIMARY_USER]).
+                onOpenConfigBrowser = { pkg ->
+                    navController.push(Destination.ConfigBrowser.routeFor(pkg, Destination.PRIMARY_USER))
+                },
+            )
         }
 
         composable(
@@ -477,6 +495,133 @@ private fun GameCoreNav(
             arguments = listOf(navArgument(Destination.ARG_ID) { type = NavType.LongType }),
         ) {
             SessionReportScreen(onBack = back)
+        }
+
+        // The config-file browser and editor (spec §A3/§A7/§28). Both carry the same three arguments — the
+        // package and user as path segments, the relative path as a query argument with an empty default so
+        // the root resolves and a slash in a path cannot split the route — matching the keys the config
+        // ViewModels read out of their own SavedStateHandle.
+        composable(
+            route = Destination.ConfigBrowser.route,
+            arguments = listOf(
+                navArgument(Destination.ARG_CFG_PACKAGE) { type = NavType.StringType },
+                navArgument(Destination.ARG_CFG_USER) { type = NavType.IntType },
+                navArgument(Destination.ARG_CFG_PATH) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+            ),
+        ) {
+            val browserViewModel = hiltViewModel<ConfigBrowserViewModel>()
+            val browserState by browserViewModel.state.collectAsStateWithLifecycle()
+            // The VM only names where a tap wants to go; this collects that and does the moving — a folder
+            // opens another browser one level down, a file opens the editor. Routing lives here rather than
+            // in the VM so a recomposition cannot re-fire a navigation already made (see [ConfigBrowserNav]).
+            LaunchedEffect(browserViewModel) {
+                browserViewModel.nav.collect { intent ->
+                    when (intent) {
+                        is ConfigBrowserNav.OpenDirectory -> navController.push(
+                            Destination.ConfigBrowser.routeFor(
+                                intent.packageName, intent.userId, intent.relativePath,
+                            ),
+                        )
+                        is ConfigBrowserNav.OpenFile -> navController.push(
+                            Destination.ConfigEditor.routeFor(
+                                intent.packageName, intent.userId, intent.relativePath,
+                            ),
+                        )
+                    }
+                }
+            }
+            ConfigBrowserScreen(
+                title = browserState.title,
+                items = browserState.items,
+                isLoading = browserState.isLoading,
+                emptyMessage = browserState.emptyMessage,
+                onOpen = { item -> browserViewModel.onOpen(item.relativePath) },
+                onBack = back,
+            )
+        }
+
+        composable(
+            route = Destination.ConfigEditor.route,
+            arguments = listOf(
+                navArgument(Destination.ARG_CFG_PACKAGE) { type = NavType.StringType },
+                navArgument(Destination.ARG_CFG_USER) { type = NavType.IntType },
+                navArgument(Destination.ARG_CFG_PATH) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+            ),
+        ) {
+            val editorViewModel = hiltViewModel<ConfigEditorViewModel>()
+            val editorState by editorViewModel.state.collectAsStateWithLifecycle()
+            // Whether the diff is being confirmed and whether a checkpoint is being named are facts about
+            // this view, not the document, so they live here and reset when the screen leaves. The notice,
+            // the backup picker and the drift banner are the VM's, because they outlive a single tap.
+            var confirmingSave by remember { mutableStateOf(false) }
+            var namingCheckpoint by remember { mutableStateOf(false) }
+            ConfigEditorScreen(
+                fileName = editorState.fileName,
+                text = editorState.text,
+                onTextChange = editorViewModel::onTextChange,
+                isDirty = editorState.isDirty,
+                readOnly = editorState.readOnly,
+                isLoading = editorState.isLoading,
+                showDriftWarning = editorState.showDriftWarning,
+                message = editorState.message,
+                error = editorState.error,
+                // Save never writes straight away: it raises the diff so the user sees exactly what the
+                // whole-file replace will change before it commits.
+                onSave = { confirmingSave = true },
+                onRestore = editorViewModel::requestRestore,
+                onCheckpoint = { namingCheckpoint = true },
+                onDismissDriftWarning = editorViewModel::dismissDriftWarning,
+                onMessageShown = editorViewModel::dismissMessage,
+                onBack = back,
+            )
+            // The one-time §26 notice sits in front of the buffer until it is accepted. Backing out pops the
+            // editor rather than only hiding the notice: the dialog's contract is that no edit follows a
+            // dismiss, and leaving an editable buffer behind a dropped back would break exactly that.
+            if (editorState.showEditNotice) {
+                ConfigEditNoticeDialog(
+                    onProceed = editorViewModel::proceedPastNotice,
+                    onDismiss = back,
+                )
+            }
+            if (confirmingSave) {
+                // The diff is the textbook O(m·n) LCS over lines; recomputing it on every recomposition
+                // while the dialog is up — any unrelated state change would force one — is wasted work on
+                // the main thread. Key it on the two texts so it runs once per (baseline, text) pair; while
+                // the dialog is open both are held still anyway, so in practice it computes exactly once.
+                val diff = remember(editorState.baseline, editorState.text) {
+                    LineDiff.diff(editorState.baseline, editorState.text)
+                }
+                ConfigDiffDialog(
+                    result = diff,
+                    onConfirm = {
+                        confirmingSave = false
+                        editorViewModel.save()
+                    },
+                    onDismiss = { confirmingSave = false },
+                )
+            }
+            if (namingCheckpoint) {
+                ConfigCheckpointDialog(
+                    onConfirm = { label ->
+                        namingCheckpoint = false
+                        editorViewModel.checkpoint(label)
+                    },
+                    onDismiss = { namingCheckpoint = false },
+                )
+            }
+            if (editorState.showBackupPicker) {
+                ConfigBackupPickerDialog(
+                    backups = editorState.backups,
+                    onPick = { backup -> editorViewModel.restore(backup.id) },
+                    onDismiss = editorViewModel::dismissBackupPicker,
+                )
+            }
         }
 
         // ------------------------------------------------------------------------------- Aim Lab

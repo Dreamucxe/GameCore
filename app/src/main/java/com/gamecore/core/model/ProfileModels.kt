@@ -67,6 +67,31 @@ data class GameProfile(
      */
     val displaySize: DisplaySize? = null,
 
+    /**
+     * A resolution *downscale* to run this game at, expressed as a [ResolutionScale] preset, or null
+     * to leave the display's own resolution alone.
+     *
+     * The counterpart to [displaySize] and mutually exclusive with it, because both end up as one
+     * `wm size` write. Where [displaySize] stores a literal `WxH` — usually an aspect *stretch* that
+     * hands the game a different screen shape — this stores a percentage of the panel's real native
+     * size that keeps the aspect ratio exactly and only drops the pixel count. It is a preset rather
+     * than a size for the reason [displaySize]'s note gives in reverse: "60%" is a different pixel
+     * size on every panel, so what is stored is the intent (the scale) and the concrete size is
+     * derived against the real display at apply time (see [ResolutionScale.sizeFor]). The editor keeps
+     * the two from being set at once, and the applier holds the same line where it matters: both fields
+     * become one plan entry and the *resolution override wins* — see
+     * [com.gamecore.domain.gaming.DisplayTarget], which is the single place that decides and which exists
+     * so the rule is asserted rather than assumed. Editor alone would not be enough: a profile is
+     * exported and imported, and a file is not obliged to have been written by this build's editor.
+     *
+     * A smaller logical resolution does not guarantee the game's internal render resolution follows —
+     * that is the game's decision. This only changes what `wm size` reports (§B5). Nullable and null
+     * by default like every write here, and — as with [cpuAffinity] — there is deliberately no
+     * "off" member on [ResolutionScale]: [ResolutionScale.FULL] is a real request (reset to native),
+     * and null is the only spelling of "do not touch the resolution".
+     */
+    val resolutionOverride: ResolutionScale? = null,
+
     // ---------------------------------------------------------- optimization
     val performanceMode: PerformanceMode = PerformanceMode.BALANCED,
     /** Only attempted when Shizuku is connected; skipped, not failed, when it is not. */
@@ -147,6 +172,9 @@ data class GameProfile(
             // A display size counts twice over: it writes device state and it is the one change
             // here that survives a reboot, so a profile carrying one is never a no-op.
             displaySize == null &&
+            // A resolution scale counts for exactly the same reasons as a display size: it is the
+            // same `wm size` write, equally reboot-surviving, and equally a promise to restore.
+            resolutionOverride == null &&
             performanceMode == PerformanceMode.BALANCED &&
             !useShizukuOptimizations &&
             // Leaves nothing behind to restore, so it is not a change in the sense the rest of

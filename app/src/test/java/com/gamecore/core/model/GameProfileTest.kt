@@ -44,6 +44,10 @@ class GameProfileTest {
         assertNull(profile.crosshairPresetId)
         assertNull(profile.colorPresetId)
         assertNull(profile.displaySize)
+        // Null, not [ResolutionScale.FULL]: FULL is a real reset-to-native request, so — like
+        // [CpuAffinityPreset] having no `LEAVE_TO_OS` — null is the only spelling of "leave the
+        // resolution alone" and nothing downstream has a second one to check for.
+        assertNull(profile.resolutionOverride)
         // The core preset included, and this is the field the invariant was worth restating for:
         // [CpuAffinityPreset] deliberately has no `LEAVE_TO_OS` member, so null here is the only
         // spelling of "let Android decide" and nothing downstream has a second one to check for.
@@ -69,6 +73,12 @@ class GameProfileTest {
         // A display size more so than anything else here: a `wm size` override survives a reboot, so a
         // profile holding one is never a profile that leaves the device as it found it.
         assertFalse(base.copy(displaySize = DisplaySize(1080, 1440)).changesNothing)
+        // A resolution scale is the same `wm size` write and equally reboot-surviving, so every preset —
+        // FULL included, because FULL is a real reset-to-native request rather than "leave it alone" —
+        // stops the profile being a no-op.
+        ResolutionScale.entries.forEach { scale ->
+            assertFalse(scale.name, base.copy(resolutionOverride = scale).changesNothing)
+        }
         // And a core preset, which writes onto the game's own process rather than a device setting
         // and records what that process was found on so it can be put back. Whether it helps is a
         // different question from whether it changes anything, which is the one being asked here.

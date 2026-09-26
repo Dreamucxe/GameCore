@@ -110,15 +110,16 @@ class InstalledAppLister @Inject constructor(
         } else {
             pm.getApplicationInfo(packageName, 0)
         }
-        val versionName = try {
+        val packageInfo = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0L))
             } else {
                 pm.getPackageInfo(packageName, 0)
-            }.versionName
+            }
         } catch (error: Throwable) {
             null
         }
+        val versionName = packageInfo?.versionName
 
         InstalledApp(
             packageName = packageName,
@@ -130,6 +131,7 @@ class InstalledAppLister @Inject constructor(
             isLikelyGame = isLikelyGame(info),
             isSystemApp = info.flags and ApplicationInfo.FLAG_SYSTEM != 0,
             versionName = versionName?.let { TextSanitizer.sanitizeName(it, maxLength = 32) },
+            lastUpdateTime = packageInfo?.lastUpdateTime,
         )
     } catch (error: Throwable) {
         null

@@ -532,6 +532,23 @@ private fun GamesCard(
             onCheckedChange = { enabled -> onEdit { it.copy(keepScreenOnInGame = enabled) } },
             description = "Holds the display awake while a game with a profile is in front.",
         )
+        SwitchRow(
+            title = "Explain resolution override before first use",
+            checked = state.settings.showResolutionOverrideNotice,
+            onCheckedChange = { enabled -> onEdit { it.copy(showResolutionOverrideNotice = enabled) } },
+            description = "Shows a one-time note the first time you lower a game's resolution — what the " +
+                "change does at the system level, and that it is not a guaranteed frame-rate win. GameCore " +
+                "stops showing it once you continue past it; turn this back on to see it again.",
+        )
+        SwitchRow(
+            title = "Explain config editing before first use",
+            checked = state.settings.showConfigEditNotice,
+            onCheckedChange = { enabled -> onEdit { it.copy(showConfigEditNotice = enabled) } },
+            description = "Shows a one-time note the first time you edit a game's config files — that a bad " +
+                "edit can corrupt a save, and that GameCore keeps an untouched original you can restore. " +
+                "It keeps appearing until you tick \"Don't show this again\" in the note itself; turn this " +
+                "back on to see it again.",
+        )
         StepperRow(
             title = "Check what is in front every",
             valueLabel = "${state.detectionSeconds}s",
