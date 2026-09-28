@@ -156,6 +156,21 @@ data class GameProfile(
 
     /** "Keep full performance" (§D). See [com.gamecore.domain.power.BatterySaverOverrideMachine]. */
     val fullPerformanceEnabled: Boolean = false,
+
+    /**
+     * Instant Replay (§3.6): keep a rolling buffer of the last [instantReplayBufferSeconds] so the user
+     * can save that window on demand. Off by default and for every pre-feature profile. Deliberately
+     * NOT part of [changesNothing] below, for the same reason the other 3.5 session-time features are
+     * excluded: it changes nothing about the device state a profile applies and restores — it is
+     * behaviour that runs during the session, so a profile whose only setting is this one still "changes
+     * nothing" in the sense that property means (there is nothing to write on apply and nothing to
+     * restore on exit). [instantReplayBufferSeconds] is one of {15,30,60,120}. [instantReplayIncludeAudio]
+     * is stored but the buffer ships video-only for now (see the §1 audit) — the toggle is surfaced with
+     * a reason rather than silently honoured.
+     */
+    val instantReplayEnabled: Boolean = false,
+    val instantReplayBufferSeconds: Int = 30,
+    val instantReplayIncludeAudio: Boolean = false,
 ) {
     /** True when applying this would write nothing, so the UI can say so plainly. */
     val changesNothing: Boolean
@@ -193,6 +208,13 @@ data class GameProfile(
             packageName = packageName,
             label = label,
         )
+
+        /**
+         * The buffer windows the Instant Replay picker offers, in seconds (§3.6). The mapper snaps a
+         * stored [instantReplayBufferSeconds] to this set, so it is the single source of truth for both
+         * the UI choices and the "is this a value the picker could have produced" check on read.
+         */
+        val INSTANT_REPLAY_BUFFER_CHOICES: List<Int> = listOf(15, 30, 60, 120)
     }
 }
 

@@ -28,6 +28,20 @@ enum class CapturePurpose {
      */
     START_FRAME_FEED,
     STOP_FRAME_FEED,
+
+    /**
+     * Start, stop and save the Instant Replay rolling buffer (§3.6).
+     *
+     * Here for the same Android 14 reason as the feed and screenshots: the buffer records through
+     * `createVirtualDisplay`, which is only permitted while a `mediaProjection` foreground service runs, so
+     * it has to be driven through that same service. [START_REPLAY_BUFFER] needs a live projection like the
+     * other starts — no projection routes through consent first. [STOP_REPLAY_BUFFER] and [SAVE_REPLAY_CLIP]
+     * must *not* open consent when there is no projection: stopping a buffer that is already down is a no-op,
+     * and a save with nothing captured has nothing to reach — neither is a reason to prompt for a projection.
+     */
+    START_REPLAY_BUFFER,
+    STOP_REPLAY_BUFFER,
+    SAVE_REPLAY_CLIP,
     ;
 
     companion object {

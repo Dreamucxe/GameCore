@@ -42,6 +42,16 @@ enum class OverlaySlot {
      * or the HUD sharing the screen with it.
      */
     MAGNIFIER,
+
+    /**
+     * The Instant Replay save controls of §3.6: the status chip and the "Save last N" pill, up only while
+     * the rolling buffer is running. Takes touches — unlike the pill, crosshair, HUD and magnifier, this is
+     * an action the player reaches for mid-game, not a decoration looked through, so the save has to be
+     * tappable. It is the one deliberate dead zone: a small self-anchored strip along the top edge, present
+     * only while buffering, so the touch-blocked area exists exactly when the action it carries does. A
+     * separate slot so showing or hiding it never disturbs a recording pill or the magnifier beside it.
+     */
+    REPLAY,
 }
 
 /**
@@ -75,6 +85,17 @@ data class OverlayWindowSpec(
      * measurement, which is exact rather than an estimate.
      */
     val anchorBottom: Boolean = false,
+    /**
+     * Centres the window horizontally instead of measuring [x] from the left edge, so a `WRAP_CONTENT`
+     * window sits mid-screen without its width — unknown until it is laid out — being measured first. With
+     * this set, [x] becomes an offset from centre (0 for dead centre).
+     *
+     * For the Instant Replay controls ([OverlaySlot.REPLAY]), which are not draggable and hold no stored
+     * coordinate: they belong centred along the top edge, and centring by gravity is exact on the very
+     * first frame, where computing a centred x from a not-yet-measured width would place them half a
+     * window off until something triggered a re-clamp.
+     */
+    val centerHorizontal: Boolean = false,
 )
 
 /**
@@ -316,6 +337,11 @@ class OverlayWindows(
                 Gravity.BOTTOM or Gravity.LEFT
             } else {
                 Gravity.TOP or Gravity.LEFT
+            }
+            if (centerHorizontal) {
+                // Replace the horizontal component only, so a centred window still anchors to top or
+                // bottom as [anchorBottom] chose. CENTER_HORIZONTAL makes [x] an offset from centre.
+                gravity = (gravity and Gravity.HORIZONTAL_GRAVITY_MASK.inv()) or Gravity.CENTER_HORIZONTAL
             }
             this.x = this@toLayoutParams.x
             this.y = this@toLayoutParams.y

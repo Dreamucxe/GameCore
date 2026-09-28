@@ -3,14 +3,35 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.5.4%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.6%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
 no backend, nothing you record leaves the device
 
 ---
 
-## New in 3.5.4
+## New in 3.6
+
+The feature people ask for by name — keep the last few seconds of play, and decide to save them
+after they have already happened.
+
+- **Instant Replay.** A rolling video buffer that always holds the most recent stretch of the
+  game — 15, 30, 60 or 120 seconds, 30 by default — so a moment you did not know you would want is
+  already recorded by the time you reach for it. When you save, the buffered window is written out
+  as a single clip and nothing outside it is; the buffer itself lives in the app's own private cache
+  and is trimmed back to the length you chose as it rolls, so it never grows without bound. It is
+  **off until you turn it on**, set per game like every other profile field, and the first time you
+  enable it a one-time notice states the three things worth knowing first: the buffer records the
+  whole time the game is open, everything stays on this device, and **this version is video only** —
+  it holds no microphone permission and captures no audio, on purpose, because a "record audio"
+  switch that produced a silent track on half the games it was used with is exactly the kind of
+  control this app refuses to ship. It reuses the same screen-capture consent the recorder already
+  asks for, so it adds **no new permission**. An in-game chip shows when it is armed, and a save
+  control sits in the overlay while the game runs.
+
+---
+
+## Version 3.5.4
 
 Two features about reaching past the settings a game exposes — to the files behind them, and to
 the resolution it renders at.
@@ -605,8 +626,8 @@ Nothing runs when it is not needed — each service stops itself.
 ## Architecture
 
 Kotlin only, Jetpack Compose with Material 3, MVVM, Hilt, Coroutines and `StateFlow`. No
-Java, no XML layouts — the only XML is Android resources and the manifest. 438 source files,
-about 114,000 lines.
+Java, no XML layouts — the only XML is Android resources and the manifest. 457 source files,
+about 117,000 lines.
 
 ```
 app/
@@ -671,8 +692,8 @@ signing key is not blocked — but an unsigned APK will not install on a device.
 
 The unit tests are deliberately written against the pure, Android-free seams: the geometry,
 the formatters, the sanitizer, the command builder, the aggregators, the state reducers, the
-per-session latency fold, and every word the shareable card is allowed to print. 118 suites,
-1,549 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
+per-session latency fold, and every word the shareable card is allowed to print. 125 suites,
+1,613 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
 
 ## Your data, and the network
 

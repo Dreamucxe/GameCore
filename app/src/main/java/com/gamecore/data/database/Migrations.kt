@@ -493,6 +493,38 @@ internal object GameCoreMigrations {
         }
     }
 
+    /**
+     * Version 13 → 14: Instant Replay (§3.6), five additive columns across the two existing tables and
+     * nothing else touched — additive in the strictest sense, every one an `ALTER TABLE … ADD COLUMN`
+     * with no table rebuilt, no row rewritten, no index changed. Template is [MIGRATION_10_11] (both
+     * tables, NOT-NULL toggles carry their DEFAULT here) and [MIGRATION_11_12] (nullable session record,
+     * no default).
+     *
+     * `game_profiles` gets the opt-in and its two settings, NOT-NULL with a DEFAULT so every profile
+     * written before this feature existed reads the feature off / the 30s default window / audio off —
+     * which is also a new profile's default. The DEFAULT lives here in the migration only; the matching
+     * entity fields carry a Kotlin default and NO `@ColumnInfo(defaultValue=)`, or the exported `14.json`
+     * would disagree with what this migration wrote and fail Room's open check.
+     *
+     * `sessions` gets the two-column session record, both nullable with no default: a session that ran
+     * with the feature off, or one recorded before it existed, has nothing to report and reads NULL,
+     * which the mappers turn back into "not recorded" rather than a `0` that would read as a real total.
+     *
+     * The column names and types match [GameProfileEntity] and [SessionEntity] exactly, so Room's schema
+     * validation against `14.json` passes without a rebuild.
+     */
+    val MIGRATION_13_14 = object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // --- game_profiles: Instant Replay opt-in + settings (§3.6) ---
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `instant_replay_enabled` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `instant_replay_buffer_seconds` INTEGER NOT NULL DEFAULT 30")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `instant_replay_include_audio` INTEGER NOT NULL DEFAULT 0")
+            // --- sessions: Instant Replay record, both nullable ---
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `instant_replay_used` INTEGER")
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `clips_saved` INTEGER")
+        }
+    }
+
     /** Every migration, in order, for [androidx.room.RoomDatabase.Builder.addMigrations]. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
@@ -507,5 +539,6 @@ internal object GameCoreMigrations {
         MIGRATION_10_11,
         MIGRATION_11_12,
         MIGRATION_12_13,
+        MIGRATION_13_14,
     )
 }

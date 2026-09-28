@@ -88,6 +88,25 @@ data class ProfileEditorUiState(
      * until they continue, so cancelling leaves the profile untouched and the row still on "Leave alone".
      */
     val pendingResolutionScale: ResolutionScale? = null,
+    /**
+     * From settings: whether the §3.6 one-time Instant Replay disclaimer is still armed.
+     *
+     * Seeded once from [com.gamecore.core.model.AppSettings.showInstantReplayNotice] when the editor opens,
+     * and flipped false in the same breath the user continues past the disclaimer — so it gates only the
+     * *first* opt-in, never a later one and never switching the feature back off. Revoking it lives in
+     * Settings, not here; the editor only reads it and consumes it once.
+     */
+    val showInstantReplayNotice: Boolean = true,
+    /**
+     * Whether an Instant Replay opt-in is being held by the §3.6 disclaimer, true only while it is on screen.
+     *
+     * A held decision, exactly like [pendingResolutionScale]: the switch the user flipped is not applied to
+     * [profile] until they continue, so cancelling leaves the profile untouched and the row still off. A plain
+     * `Boolean` rather than a nullable one because only turning Instant Replay *on* is ever held — turning it
+     * off needs no explaining, for the same reason clearing a resolution override does not — so the held value
+     * would always be `true` and a nullable type would carry one unreachable state.
+     */
+    val pendingInstantReplayEnable: Boolean = false,
     val isSaving: Boolean = false,
     /**
      * A launch the §C4 network check flagged, waiting on the user's answer.

@@ -78,6 +78,7 @@ class ProfileEditorViewModel @Inject constructor(
             isNew = argument == Destination.NEW_PROFILE,
             confirmOnDiscard = preferences.settings.value.confirmBeforeDiscard,
             showResolutionNotice = preferences.settings.value.showResolutionOverrideNotice,
+            showInstantReplayNotice = preferences.settings.value.showInstantReplayNotice,
         ),
     )
 
@@ -313,6 +314,58 @@ class ProfileEditorViewModel @Inject constructor(
             if (scale == null) it.copy(resolutionOverride = null)
             else it.copy(resolutionOverride = scale, displaySize = null)
         }
+    }
+
+    /**
+     * The Instant Replay switch, gated by the §3.6 one-time disclaimer.
+     *
+     * Switching the feature *off* never needs explaining — it withdraws the thing being explained — so it
+     * applies straight away, the same way clearing a resolution override does. The first opt-in, while the
+     * disclaimer is still armed, is held in [ProfileEditorUiState.pendingInstantReplayEnable] until the user
+     * continues past [confirmInstantReplayNotice]. Once the disclaimer has been spent, every later opt-in
+     * applies without asking again.
+     */
+    fun requestInstantReplayEnable(enabled: Boolean) {
+        if (enabled && editing.value.showInstantReplayNotice) {
+            editing.value = editing.value.copy(pendingInstantReplayEnable = true)
+        } else {
+            applyInstantReplayEnable(enabled)
+        }
+    }
+
+    /**
+     * Continues past the §3.6 disclaimer: lets the opt-in stand and spends the disclaimer, in Settings and
+     * here. The order mirrors [confirmResolutionNotice] — release the held decision and spend the local flag,
+     * apply the edit, then persist the global one, so this screen cannot re-ask before the preference flow
+     * re-emits.
+     */
+    fun confirmInstantReplayNotice() {
+        if (!editing.value.pendingInstantReplayEnable) return
+        editing.value = editing.value.copy(
+            pendingInstantReplayEnable = false,
+            showInstantReplayNotice = false,
+        )
+        applyInstantReplayEnable(true)
+        preferences.updateSettings { it.copy(showInstantReplayNotice = false) }
+    }
+
+    /**
+     * Backs out of the §3.6 disclaimer. The held opt-in is dropped and the profile is left untouched, so
+     * Instant Replay stays off — the contract `InstantReplayDisclaimerDialog` states for its cancel.
+     */
+    fun dismissInstantReplayNotice() {
+        editing.value = editing.value.copy(pendingInstantReplayEnable = false)
+    }
+
+    /** Writes the Instant Replay opt-in. The buffer window and the audio flag are separate rows. */
+    private fun applyInstantReplayEnable(enabled: Boolean) {
+        edit { it.copy(instantReplayEnabled = enabled) }
+    }
+
+    /** The buffer window, in seconds. Snapped to a `GameProfile.INSTANT_REPLAY_BUFFER_CHOICES` entry. */
+    fun setInstantReplayBufferSeconds(seconds: Int) {
+        if (seconds !in GameProfile.INSTANT_REPLAY_BUFFER_CHOICES) return
+        edit { it.copy(instantReplayBufferSeconds = seconds) }
     }
 
     fun save() {

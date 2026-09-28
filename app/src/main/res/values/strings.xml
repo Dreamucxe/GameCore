@@ -41,6 +41,8 @@
     <string name="notification_recording_text">Everything on screen is being captured</string>
     <string name="notification_magnifier_title">Magnifier running</string>
     <string name="notification_magnifier_text">The screen is being read to draw the pinned loupe</string>
+    <string name="notification_replay_title">Instant Replay on</string>
+    <string name="notification_replay_text">Keeping the last few seconds ready to save</string>
     <string name="notification_trigger_title">Shake trigger armed</string>
     <string name="notification_trigger_text">Shake twice to open the GameCore panel</string>
     <string name="notification_action_stop">Stop</string>
@@ -150,4 +152,7 @@
     <string name="capture_consent_failed">Screen capture permission could not be used</string>
     <string name="capture_unsupported">Screen capture is not available on this device</string>
     <string name="capture_magnifier_failed">The magnifier could not read the screen</string>
+    <string name="capture_replay_failed">Instant Replay could not start on this device</string>
+    <string name="capture_replay_saved">Replay saved</string>
+    <string name="capture_replay_save_failed">Replay could not be saved</string>
 </resources>

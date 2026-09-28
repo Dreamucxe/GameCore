@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -50,6 +51,7 @@ import com.gamecore.core.overlay.CrosshairOverlay
 import com.gamecore.core.overlay.FloatingGameButton
 import com.gamecore.core.overlay.HeldRow
 import com.gamecore.core.overlay.HudOverlay
+import com.gamecore.core.overlay.InstantReplaySavePill
 import com.gamecore.core.overlay.Macro
 import com.gamecore.core.overlay.MacroBehavior
 import com.gamecore.core.overlay.MacroChip
@@ -110,6 +112,8 @@ import com.gamecore.domain.color.ColorApplyResult
 import com.gamecore.domain.color.ColorCorrectionController
 import com.gamecore.domain.display.DisplaySizeController
 import com.gamecore.domain.gaming.GamingCoordinator
+import com.gamecore.domain.gaming.replay.StorageVerdict
+import com.gamecore.domain.gaming.replay.replayChip
 import com.gamecore.domain.media.MediaCommand
 import com.gamecore.domain.media.MediaSessionReader
 import com.gamecore.domain.media.NowPlaying
@@ -121,6 +125,7 @@ import com.gamecore.domain.overlay.QuickApp
 import com.gamecore.domain.overlay.QuickAppLauncher
 import com.gamecore.domain.overlay.QuickLaunchOutcome
 import com.gamecore.ui.capture.CaptureConsentActivity
+import com.gamecore.ui.components.InstantReplayChip
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -580,6 +585,11 @@ class GamingOverlayService : GameCoreService() {
         lifecycleScope.launch { overlays.desired.collect { reconcile() } }
         lifecycleScope.launch { preferences.floatingButton.collect { reconcile() } }
         lifecycleScope.launch { preferences.overlay.collect { reconcile() } }
+        // The Instant Replay save controls (§3.6) are up exactly while the rolling buffer runs, which is
+        // capture state rather than a desired-overlay request — so their show/hide rides the buffer's own
+        // running flag. The paused, saving and window flows are read inside the window's content with
+        // `collectAsState`, so they recompose it live without a reconcile; only start/stop adds or removes.
+        lifecycleScope.launch { capture.replayRunning.collect { reconcile() } }
         lifecycleScope.launch {
             preferences.settings
                 .map { it.accent }
@@ -851,6 +861,12 @@ class GamingOverlayService : GameCoreService() {
             // the running check keeps a stop from ever being routed through the consent sheet.
             if (capture.magnifierRunning.value) startCapture(CapturePurpose.STOP_FRAME_FEED)
         }
+        // The replay save controls track the buffer, not the desired-overlay request: shown while it runs,
+        // hidden the moment it stops. Unlike the magnifier, hiding the window is the whole of it — the
+        // buffer is owned by the recording service, and its own stop path (panel action, profile, teardown)
+        // frees the capture; leaving the window up with a dead buffer is what this must not do, and the flag
+        // driving both is the same one the collector in observe() reconciles on.
+        if (capture.replayRunning.value) showReplayPill() else manager.hide(OverlaySlot.REPLAY)
         publishStatus()
     }
 
@@ -1057,6 +1073,70 @@ class GamingOverlayService : GameCoreService() {
             val live by preferences.overlay.collectAsState()
             val dot by buttonThermalDot.collectAsState()
             PerformancePill(readings = readings, config = live.normalised(), thermalDot = dot)
+        }
+    }
+
+    /**
+     * The Instant Replay save controls (§3.6): the status chip above the "Save last N" pill, up while the
+     * rolling buffer runs and gone when it stops. A touchable window — the one overlay besides the button
+     * and panel that takes touches, because the save is an action and not a decoration — so it is a small
+     * deliberate dead zone, centred along the top edge and present only for as long as the buffer it saves.
+     *
+     * Self-anchored, unlike the pill and button: it holds no user coordinate and is never dragged, so it is
+     * centred by gravity ([OverlayWindowSpec.centerHorizontal]) at a fixed top margin rather than clamped to
+     * a stored position. Added once and left — the [OverlayWindows.isVisible] guard stops a reconcile fired
+     * by some other state from removing and re-adding the window, which would restart its composition
+     * mid-save. The live inputs — a thermal pause, a save in flight, the window being held — are read inside
+     * the content with `collectAsState`, so the chip and pill recompose from the real capture state without
+     * the window being moved or re-added.
+     */
+    private fun showReplayPill() {
+        val manager = windows ?: return
+        if (manager.isVisible(OverlaySlot.REPLAY)) return
+        manager.show(
+            slot = OverlaySlot.REPLAY,
+            spec = OverlayWindowSpec(
+                x = 0,
+                y = px(REPLAY_PILL_TOP_MARGIN_DP),
+                touchable = true,
+                centerHorizontal = true,
+            ),
+            host = host,
+        ) {
+            val paused by capture.replayPaused.collectAsState()
+            val saving by capture.replaySaving.collectAsState()
+            val windowSeconds by capture.replayWindowSeconds.collectAsState()
+            val tint by accent.collectAsState()
+            // The two states reachable while the buffer runs: healthy (Buffering) and a self-clearing thermal
+            // pause (PausedOverheating). Consent is held — the buffer could not have started without it — and
+            // the storage guard and blocked-capture detection are not wired to a live flow on this path, so
+            // their inputs are the honest "not the reason we are showing this": permission yes, storage
+            // available, not blocked. The chip's other three states belong to the settings screen.
+            val chip = replayChip(
+                enabled = true,
+                hasPermission = true,
+                storage = StorageVerdict.Available,
+                blocked = false,
+                thermalPaused = paused,
+            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                InstantReplayChip(chip = chip)
+                InstantReplaySavePill(
+                    bufferSeconds = windowSeconds,
+                    // A tap routes through the same capture path every action uses; the buffer holds the
+                    // projection, so startCapture reaches the recording service directly rather than the
+                    // consent sheet. The bare intent carries an empty display name, letting the saver name it.
+                    onSaveClip = { startCapture(CapturePurpose.SAVE_REPLAY_CLIP) },
+                    // Disabled while paused — the buffer is retaining no fresh footage, so there is nothing
+                    // new to keep — with the chip beside it naming why (§10). A save in flight drops the tap.
+                    enabled = !paused,
+                    saving = saving,
+                    accent = tint,
+                )
+            }
         }
     }
 
@@ -1441,6 +1521,7 @@ class GamingOverlayService : GameCoreService() {
             PanelTab.CAPTURE to listOf(
                 toggle("screenshot", OverlayAction.SCREENSHOT),
                 toggle("record", OverlayAction.RECORD),
+                toggle("replay", OverlayAction.REPLAY),
                 toggle("torch", OverlayAction.FLASHLIGHT),
             ),
             PanelTab.SESSION to listOf(
@@ -2033,6 +2114,10 @@ class GamingOverlayService : GameCoreService() {
 
         val recording = capture.recording.value
         if (recording.isRecording) active += OverlayAction.RECORD
+        // Its own peer virtual display on the shared projection, read straight off the controller like the
+        // recording above — never gated on a recording being in progress, for the same reason the loupe is
+        // not (they can share one projection).
+        if (capture.replayRunning.value) active += OverlayAction.REPLAY
         if (!capture.isSupported()) {
             val reason = getString(R.string.overlay_capture_unsupported)
             unavailable[OverlayAction.SCREENSHOT] = reason
@@ -2041,6 +2126,9 @@ class GamingOverlayService : GameCoreService() {
             // The feed and a recording can share one projection, though, so — unlike the screenshot below —
             // the loupe is never barred merely because a recording is running.
             unavailable[OverlayAction.MAGNIFIER] = reason
+            // The replay buffer is another `createVirtualDisplay` on that same projection, so it is barred
+            // by the same absence and, like the loupe, by nothing else.
+            unavailable[OverlayAction.REPLAY] = reason
         } else if (recording.isRecording) {
             // One MediaProjection at a time is all the platform gives, and the recording owns it.
             unavailable[OverlayAction.SCREENSHOT] = getString(R.string.overlay_recording_in_progress)
@@ -2664,6 +2752,20 @@ class GamingOverlayService : GameCoreService() {
             }
             OverlayAction.SCREENSHOT -> takeScreenshot()
             OverlayAction.RECORD -> toggleRecording()
+            // A capture toggle like [RECORD], not a window like [MAGNIFIER], so it holds no overlay flag and
+            // changes nothing the reconciler tears down — the buffer lives with the session, and its only
+            // stops are the coordinator ending the session and the service being destroyed. The tap just
+            // arms or disarms through the capture service: arming asks for a projection (through consent when
+            // none is held yet); disarming discards, the same as the notification's Stop. Manual arming takes
+            // the default window and quality — the profile-configured window is honoured by the auto-arm the
+            // coordinator drives, which is the path that knows the profile.
+            OverlayAction.REPLAY -> {
+                if (capture.replayRunning.value) {
+                    startCapture(CapturePurpose.STOP_REPLAY_BUFFER)
+                } else {
+                    startCapture(CapturePurpose.START_REPLAY_BUFFER)
+                }
+            }
             OverlayAction.FLASHLIGHT -> report(action, torch.toggle())
             OverlayAction.DO_NOT_DISTURB -> {
                 val silencing = audio.doNotDisturbState().valueOrNull?.isSilencing == true
@@ -2865,6 +2967,13 @@ class GamingOverlayService : GameCoreService() {
          * display is partly under the curve, where it both looks wrong and competes with the back gesture.
          */
         const val EDGE_MARGIN_DP = 6
+
+        /**
+         * How far the Instant Replay save controls (§3.6) sit below the top edge. Centred horizontally by
+         * gravity, so only the vertical offset is set here — enough to clear the status bar and notch on a
+         * phone held either way, and low enough to stay out of the way of a game's own top HUD.
+         */
+        const val REPLAY_PILL_TOP_MARGIN_DP = 36
 
         /** The gap between the floating button and the panel it opens. */
         const val PANEL_GAP_DP = 8

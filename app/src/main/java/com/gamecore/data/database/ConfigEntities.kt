@@ -188,6 +188,24 @@ data class GameProfileEntity(
     @ColumnInfo(name = "resolution_override")
     val resolutionOverride: String? = null,
 
+    /**
+     * Instant Replay (§3.6): opt-in per profile, off for every pre-feature profile. Added in schema
+     * version 14 as three flat columns — the precedent is the `thermal_*`/`network_*` clusters, not an
+     * `@Embedded` blob, so each reads back on its own and an old row simply reads the defaults below.
+     *
+     * NOT-NULL like the other feature toggles here: the column carries its `DEFAULT` in `MIGRATION_13_14`
+     * only, and the field carries a Kotlin default with NO `@ColumnInfo(defaultValue=)`, because a
+     * `defaultValue` here would make the exported `14.json` disagree with what the migration wrote and
+     * fail Room's open check. `instant_replay_buffer_seconds` is clamped to {15,30,60,120} in the mapper,
+     * so a hand-edited row cannot ask the ring buffer for a window it was never sized for.
+     */
+    @ColumnInfo(name = "instant_replay_enabled")
+    val instantReplayEnabled: Boolean = false,
+    @ColumnInfo(name = "instant_replay_buffer_seconds")
+    val instantReplayBufferSeconds: Int = 30,
+    @ColumnInfo(name = "instant_replay_include_audio")
+    val instantReplayIncludeAudio: Boolean = false,
+
     @ColumnInfo(name = "updated_at")
     val updatedAtMillis: Long,
 )

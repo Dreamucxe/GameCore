@@ -549,6 +549,15 @@ private fun GamesCard(
                 "It keeps appearing until you tick \"Don't show this again\" in the note itself; turn this " +
                 "back on to see it again.",
         )
+        SwitchRow(
+            title = "Explain Instant Replay before first use",
+            checked = state.settings.showInstantReplayNotice,
+            onCheckedChange = { enabled -> onEdit { it.copy(showInstantReplayNotice = enabled) } },
+            description = "Shows a one-time note the first time you switch Instant Replay on for a game — " +
+                "that it keeps a rolling window of video in a private cache while you play, records no " +
+                "audio, and only writes a file when you save a clip. GameCore stops showing it once you " +
+                "continue past it; turn this back on to see it again.",
+        )
         StepperRow(
             title = "Check what is in front every",
             valueLabel = "${state.detectionSeconds}s",

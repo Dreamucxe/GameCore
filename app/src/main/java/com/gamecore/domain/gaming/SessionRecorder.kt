@@ -228,6 +228,22 @@ class SessionRecorder @Inject constructor(
     }
 
     /**
+     * Stamps the Instant Replay summary (§3.6) onto the running session, just before it is finished.
+     *
+     * Neither figure is sampled per row — [instantReplayUsed] is whether the rolling buffer ran at any
+     * point this session and [clipsSaved] is how many clips the player kept from it — so they are set
+     * here rather than in [offer], the same way [recordNetworkSummary] sets the transport. `aggregate`
+     * in [finishLocked] recomputes only the sampled averages and copies the rest of the row through, so
+     * values set here survive to the finished row. The caller records this only when the buffer actually
+     * ran; a session that never armed replay leaves both fields null, which the mapper stores as NULL —
+     * "the feature was off" — rather than a `false`/`0` that would read as "armed but unused".
+     */
+    suspend fun recordCaptureSummary(instantReplayUsed: Boolean, clipsSaved: Int): Unit = mutex.withLock {
+        val session = state.value ?: return@withLock
+        state.value = session.copy(instantReplayUsed = instantReplayUsed, clipsSaved = clipsSaved)
+    }
+
+    /**
      * Closes the session and returns it, or null if it was too short to keep.
      *
      * [reason] is stored on the row. It is not decoration: `SessionRepository.finish` decides whether

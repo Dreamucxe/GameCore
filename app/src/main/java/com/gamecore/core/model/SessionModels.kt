@@ -105,6 +105,15 @@ data class GameSession(
      * request and a different fact from "the resolution was never touched".
      */
     val resolutionApplied: ResolutionScale? = null,
+
+    /**
+     * Instant Replay (§3.6) session record. [instantReplayUsed] is whether the rolling buffer ran during
+     * this session; [clipsSaved] is how many clips the user saved from it. Both null for a session that
+     * ran with the feature off or one recorded before it existed — the honest reading, never `false`/`0`,
+     * which the mapper preserves so a report never shows a measurement that was not taken.
+     */
+    val instantReplayUsed: Boolean? = null,
+    val clipsSaved: Int? = null,
 ) {
     val isRunning: Boolean get() = endedAtMillis == null
 

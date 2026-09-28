@@ -186,6 +186,18 @@ data class SessionEntity(
      */
     @ColumnInfo(name = "resolution_applied")
     val resolutionApplied: String? = null,
+
+    /**
+     * Instant Replay (§3.6) session record. Both NULLABLE with no default anywhere — a session that
+     * predates the feature, or ran with it off, has nothing to report and reads NULL, which the mapper
+     * turns back into "not recorded" rather than a `false`/`0` that would read as a real measurement.
+     * Added in schema version 14. `instant_replay_used` is whether the buffer ran at all; `clips_saved`
+     * is how many clips the user saved from it this session — never a 0 written to mean "off".
+     */
+    @ColumnInfo(name = "instant_replay_used")
+    val instantReplayUsed: Boolean? = null,
+    @ColumnInfo(name = "clips_saved")
+    val clipsSaved: Int? = null,
 )
 
 /**

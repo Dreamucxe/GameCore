@@ -158,6 +158,35 @@ object ServiceNotifications {
             .build()
 
     /**
+     * The Instant Replay buffer notification (§3.6).
+     *
+     * Another near-twin of [recording] and [magnifier]: the rolling buffer records from the same
+     * `MediaProjection`, so it lives behind the same `mediaProjection` foreground service — but it is
+     * neither a save-to-disk recording nor the loupe, and reusing either wording would misstate what the
+     * capture is for. A user who reads "Recording screen" while only a discardable buffer is running would
+     * reasonably think a file is being written; it is not until they choose to save one.
+     *
+     * Its Stop button carries the buffer's own stop intent rather than the shared [ACTION_STOP], for the
+     * same reason the others do: stopping the buffer is a specific teardown the service performs without
+     * touching a recording that may run alongside it. No chronometer — a rolling window that keeps only
+     * the last few seconds has no meaningful elapsed time to count up.
+     */
+    fun replay(context: Context, stop: PendingIntent): Notification =
+        NotificationCompat.Builder(context, NotificationChannels.RECORDING)
+            .setSmallIcon(R.drawable.ic_stat_recording)
+            .setContentTitle(context.getString(R.string.notification_replay_title))
+            .setContentText(context.getString(R.string.notification_replay_text))
+            .setContentIntent(openApp(context))
+            .setOngoing(true)
+            .setSilent(true)
+            .setLocalOnly(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .addAction(0, context.getString(R.string.notification_action_stop), stop)
+            .build()
+
+    /**
      * A thermal or battery warning.
      *
      * Not tied to a service and therefore dismissible, auto-cancelling, and `BigTextStyle` — the whole

@@ -112,6 +112,10 @@ class ProfileSmartFeatureMapperTest {
         assertTrue(onlyThermal.changesNothing)
         val onlyNetwork = GameProfile.forGame("com.example.game", "Example").copy(networkCheckEnabled = true)
         assertTrue(onlyNetwork.changesNothing)
+        // Instant Replay is session-time behaviour with nothing to write on apply and nothing to restore
+        // on exit, so a profile whose only setting is the rolling buffer still "changes nothing".
+        val onlyReplay = GameProfile.forGame("com.example.game", "Example").copy(instantReplayEnabled = true)
+        assertTrue(onlyReplay.changesNothing)
     }
 
     @Test
@@ -169,6 +173,53 @@ class ProfileSmartFeatureMapperTest {
 
         // An unknown name is dropped to null — "not touched" — and stays distinct from FULL's reset-to-native.
         assertNull(Mappers.toModel(baseSessionEntity().copy(resolutionApplied = "NONSENSE")).resolutionApplied)
+    }
+
+    @Test
+    fun `an instant-replay opt-in round-trips and a defaulted pre-feature profile reads off`() {
+        // A pre-v14 row leaves the three instant_replay_* columns at the DEFAULTs the ALTER TABLE set —
+        // feature off, 30s window, audio off — which is also a new profile's default and the honest
+        // reading for a profile written before the feature existed.
+        val legacy = Mappers.toModel(legacyEntity())
+        assertFalse(legacy.instantReplayEnabled)
+        assertEquals(30, legacy.instantReplayBufferSeconds)
+        assertFalse(legacy.instantReplayIncludeAudio)
+
+        val opted = GameProfile.forGame("com.example.game", "Example")
+            .copy(instantReplayEnabled = true, instantReplayBufferSeconds = 60, instantReplayIncludeAudio = true)
+        val back = Mappers.toModel(Mappers.toEntity(opted, nowMillis = 1L))
+        assertTrue(back.instantReplayEnabled)
+        assertEquals(60, back.instantReplayBufferSeconds)
+        assertTrue(back.instantReplayIncludeAudio)
+    }
+
+    @Test
+    fun `an out-of-range instant-replay window from a hand-edited row snaps back to the default`() {
+        // The buffer window is only ever one of the picker's choices {15,30,60,120}; a hand-edited 999
+        // is not a size the ring buffer was built for, so the mapper snaps it to the 30s default rather
+        // than sizing the buffer to a value the UI could never have produced.
+        assertEquals(30, Mappers.toModel(legacyEntity().copy(instantReplayBufferSeconds = 999)).instantReplayBufferSeconds)
+        assertEquals(30, Mappers.toModel(legacyEntity().copy(instantReplayBufferSeconds = 0)).instantReplayBufferSeconds)
+        // A legitimate choice is preserved untouched.
+        assertEquals(120, Mappers.toModel(legacyEntity().copy(instantReplayBufferSeconds = 120)).instantReplayBufferSeconds)
+    }
+
+    @Test
+    fun `an instant-replay session record round-trips and a defaulted row reads null`() {
+        // A session that ran with the feature off, or one recorded before v14, has nothing to report and
+        // reads NULL — never false/0, which would read as a real measurement that was never taken.
+        val defaulted = Mappers.toModel(baseSessionEntity())
+        assertNull(defaulted.instantReplayUsed)
+        assertNull(defaulted.clipsSaved)
+
+        val recorded = Mappers.toModel(baseSessionEntity().copy(instantReplayUsed = true, clipsSaved = 2))
+        assertEquals(true, recorded.instantReplayUsed)
+        assertEquals(2, recorded.clipsSaved)
+        // Round-trips back through the entity unchanged.
+        assertEquals(2, Mappers.toModel(Mappers.toEntity(recorded)).clipsSaved)
+
+        // A hand-edited negative clip count is clamped non-negative, never read back as a real total.
+        assertEquals(0, Mappers.toModel(baseSessionEntity().copy(clipsSaved = -5)).clipsSaved)
     }
 
     private fun baseSessionEntity() = SessionEntity(

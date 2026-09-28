@@ -80,6 +80,11 @@ internal object Mappers {
         networkPreLaunchWarn = profile.networkPreLaunchWarn,
         networkAlertsEnabled = profile.networkAlertsEnabled,
         fullPerformanceEnabled = profile.fullPerformanceEnabled,
+        // Instant Replay (§3.6). Passed straight through; the buffer window is clamped to the allowed
+        // set in toModel, not here, so the stored column is only ever a value the picker could produce.
+        instantReplayEnabled = profile.instantReplayEnabled,
+        instantReplayBufferSeconds = profile.instantReplayBufferSeconds,
+        instantReplayIncludeAudio = profile.instantReplayIncludeAudio,
         updatedAtMillis = nowMillis,
     )
 
@@ -142,6 +147,13 @@ internal object Mappers {
         networkPreLaunchWarn = entity.networkPreLaunchWarn,
         networkAlertsEnabled = entity.networkAlertsEnabled,
         fullPerformanceEnabled = entity.fullPerformanceEnabled,
+        // Instant Replay (§3.6), read defensively like every field above. The window is snapped to the
+        // allowed set {15,30,60,120}s and falls back to the 30s default if a hand-edited row holds
+        // anything else, so the ring buffer is never asked for a size the picker could not have chosen.
+        instantReplayEnabled = entity.instantReplayEnabled,
+        instantReplayBufferSeconds = entity.instantReplayBufferSeconds
+            .takeIf { it in GameProfile.INSTANT_REPLAY_BUFFER_CHOICES } ?: 30,
+        instantReplayIncludeAudio = entity.instantReplayIncludeAudio,
     )
 
     // ------------------------------------------------------------------------ hud
@@ -342,6 +354,10 @@ internal object Mappers {
         fullPerformanceOverridden = session.fullPerformanceOverridden,
         systemReenabledSaver = session.systemReenabledSaver,
         resolutionApplied = session.resolutionApplied?.name,
+        // Instant Replay (§3.6). Pass-through: a null means the feature was off or the session predates
+        // it, and that null must survive to the row rather than becoming a 0 that reads as a measurement.
+        instantReplayUsed = session.instantReplayUsed,
+        clipsSaved = session.clipsSaved,
     )
 
     fun toModel(entity: SessionEntity): GameSession = GameSession(
@@ -400,6 +416,10 @@ internal object Mappers {
         resolutionApplied = entity.resolutionApplied?.let { name ->
             ResolutionScale.entries.firstOrNull { it.name == name }
         },
+        // Instant Replay (§3.6), read defensively: NULL stays NULL ("not recorded"), and a saved-clip
+        // count is clamped non-negative so a hand-edited negative can never read back as a real total.
+        instantReplayUsed = entity.instantReplayUsed,
+        clipsSaved = entity.clipsSaved?.coerceAtLeast(0),
     )
 
     fun toEntity(sample: SessionSample): SessionSampleEntity = SessionSampleEntity(

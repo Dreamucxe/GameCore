@@ -11,6 +11,7 @@ import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.RestoreReport
 import com.gamecore.core.model.StopReason
 import com.gamecore.core.system.InstalledAppLister
+import com.gamecore.core.system.ScreenCaptureController
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.ColorPresetRepository
 import com.gamecore.data.repository.GameProfileRepository
@@ -105,6 +106,7 @@ class GamingCoordinator @Inject constructor(
     private val preferences: SecurePreferenceStore,
     private val smartFeatures: SmartFeatureRunner,
     private val networkAlertMonitor: NetworkAlertMonitor,
+    private val capture: ScreenCaptureController,
 ) {
 
     private val state = MutableStateFlow(GamingState.IDLE)
@@ -279,6 +281,12 @@ class GamingCoordinator @Inject constructor(
         // unregister on stop. Dormant unless the profile opted in; the monitor writes and emits nothing then.
         networkActive = profile.networkCheckEnabled
         if (networkActive) networkAlertMonitor.onSessionStart(profile)
+
+        // Instant Replay's session tally (§3.6) is reset here so the summary at stop counts only this
+        // game's use of the buffer. Nothing is armed automatically — the buffer runs only when the
+        // player toggles it from the panel — so this opens no capture and raises no consent; it just
+        // marks the buffer as already-used if the player armed it before the game came to the front.
+        capture.beginReplaySession()
 
         if (profile.freeRamOnLaunch) freeMemoryFor(event)
     }
@@ -481,6 +489,18 @@ class GamingCoordinator @Inject constructor(
         if (networkActive) {
             recorder.recordNetworkSummary(networkAlertMonitor.onSessionEnd())
             networkActive = false
+        }
+
+        // Instant Replay (§3.6), stamped the same way and just before the row is closed, so `aggregate`
+        // copies it through unchanged. Recorded only when the rolling buffer actually ran this session;
+        // a session that never armed replay leaves both fields null — "the feature was off" — rather
+        // than a false/0. Like the network check there is nothing to put back: the buffer's teardown is
+        // the recording service's own, not part of the profile restore below.
+        if (capture.replayUsedInSession) {
+            recorder.recordCaptureSummary(
+                instantReplayUsed = true,
+                clipsSaved = capture.clipsSavedInSession,
+            )
         }
 
         // The game's overlays go before its settings do. A crosshair left on the launcher for the length

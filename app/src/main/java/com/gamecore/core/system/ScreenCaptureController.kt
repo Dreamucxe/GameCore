@@ -17,14 +17,26 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import androidx.core.content.FileProvider
+import com.gamecore.core.common.ApplicationScope
 import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.model.CaptureKind
 import com.gamecore.core.model.CaptureOutcome
+import com.gamecore.core.model.RecordingQuality
 import com.gamecore.core.model.RecordingSpec
 import com.gamecore.core.model.RecordingState
 import com.gamecore.core.model.SavedCapture
+import com.gamecore.core.system.replay.save.ReplayClipSaver
+import com.gamecore.core.system.replay.save.ReplaySaveResult
+import com.gamecore.domain.gaming.replay.ReplayClock
+import com.gamecore.domain.gaming.replay.ReplayThermalDecision
+import com.gamecore.domain.gaming.replay.SystemReplayClock
+import com.gamecore.domain.monitoring.PerformanceMonitor
+import com.gamecore.service.replay.ReplayBufferController
+import com.gamecore.service.replay.ReplaySegmentStore
+import com.gamecore.service.replay.ReplayThermalCollector
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,6 +50,7 @@ import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -78,7 +91,15 @@ class ScreenCaptureController @Inject constructor(
     @ApplicationContext private val context: Context,
     private val display: DisplayReader,
     @IoDispatcher private val io: CoroutineDispatcher,
+    private val clipSaver: ReplayClipSaver,
+    private val performanceMonitor: PerformanceMonitor,
+    @ApplicationScope private val scope: CoroutineScope,
 ) {
+
+    // The clock the rolling buffer stamps segments with. A plain field rather than a constructor
+    // parameter: it has no Hilt binding and needs none — the real implementation is the only one used
+    // outside tests, and the buffer that consumes it is built here, not injected.
+    private val replayClock: ReplayClock = SystemReplayClock()
 
     private val recordingState = MutableStateFlow(RecordingState.IDLE)
 
@@ -107,6 +128,78 @@ class ScreenCaptureController @Inject constructor(
     val magnifierRunning: StateFlow<Boolean> = magnifierRunningState.asStateFlow()
 
     /**
+     * Whether the Instant Replay rolling buffer is live (§3.6), so the panel's Instant Replay toggle and
+     * the recording service's notification decision read the real state of the capture rather than a guess.
+     * A third independent virtual display on the same projection, peer to [magnifierRunning] and [recording]:
+     * any of the three can be up without the others.
+     */
+    private val replayRunningState = MutableStateFlow(false)
+    val replayRunning: StateFlow<Boolean> = replayRunningState.asStateFlow()
+
+    /**
+     * Whether the running buffer is paused by [ReplayThermalMachine] (§3.6) — the device went critically
+     * hot and [ReplayBufferController.pause] stopped feeding the encoder until it cools. Distinct from
+     * [replayRunning], which stays true across a thermal pause: the buffer is still armed and its display
+     * still mirrored, it just is not retaining new footage. The in-game save pill reads this to disable the
+     * save while paused, and the status chip to say "Paused: overheating" rather than the bare "Buffering".
+     * Only meaningful while [replayRunning]; reset to false when the buffer stops.
+     */
+    private val replayPausedState = MutableStateFlow(false)
+    val replayPaused: StateFlow<Boolean> = replayPausedState.asStateFlow()
+
+    /**
+     * Whether a [saveReplayClip] call is in flight (§3.6). The save stitches the retained segments off the
+     * main thread, so it is not instant; the pill shows "Saving…" and drops a second tap while this is true,
+     * which is the only guard against a double-save starting a second mux over the first. Latched true around
+     * the delegation to [ReplayClipSaver] and cleared in a `finally` so a failed or cancelled save still
+     * releases it.
+     */
+    private val replaySavingState = MutableStateFlow(false)
+    val replaySaving: StateFlow<Boolean> = replaySavingState.asStateFlow()
+
+    /**
+     * The window, in seconds, the running buffer is currently holding (§3.6) — the real `windowSeconds` the
+     * live [startReplayBuffer] was given, not the profile's stored preference, so the save pill's "Save last
+     * N" names what pressing it would actually keep. One of `GameProfile.INSTANT_REPLAY_BUFFER_CHOICES`.
+     * Holds [IDLE_REPLAY_WINDOW_SECONDS] while no buffer is running, where it is not shown.
+     */
+    private val replayWindowState = MutableStateFlow(IDLE_REPLAY_WINDOW_SECONDS)
+    val replayWindowSeconds: StateFlow<Int> = replayWindowState.asStateFlow()
+
+    /**
+     * Per game-session Instant Replay tally, for the session summary (§3.6). Distinct from
+     * [replayRunning], which is the instantaneous live/not-live state: these answer "did the buffer run
+     * at any point during this game session" and "how many clips did the player keep from it", which is
+     * what the finished session row records.
+     *
+     * Written from the recording service (the latch in [startReplayBuffer], the count in [saveReplayClip])
+     * and reset from the coordinator ([beginReplaySession]); read from the coordinator when it closes the
+     * row. Every one of those callers runs on the main thread today, but the summary has to keep reading
+     * true once [saveReplayClip] moves onto an IO dispatcher the way its sibling capture calls already
+     * have, so the two carry their own cross-thread guarantees — a `@Volatile` latch and an
+     * [AtomicInteger] counter — rather than leaning on that confinement.
+     */
+    @Volatile
+    private var replayUsedThisSession = false
+    private val clipsSavedThisSession = AtomicInteger(0)
+
+    /** Whether the rolling buffer ran at any point since the last [beginReplaySession]. */
+    val replayUsedInSession: Boolean get() = replayUsedThisSession
+
+    /** How many clips the player has saved since the last [beginReplaySession]. */
+    val clipsSavedInSession: Int get() = clipsSavedThisSession.get()
+
+    /**
+     * Resets the session tally at the start of a game session. A buffer that is already running — armed
+     * by hand from the panel before the game reached the foreground — counts as used from the first
+     * second, so a clip saved off that carried-over buffer is still attributed to this session.
+     */
+    fun beginReplaySession() {
+        replayUsedThisSession = replayRunningState.value
+        clipsSavedThisSession.set(0)
+    }
+
+    /**
      * One capture at a time. A virtual display is a real system resource, and two
      * concurrent ones on a mid-range phone drop frames in the game rather than in
      * GameCore.
@@ -127,6 +220,15 @@ class ScreenCaptureController @Inject constructor(
     private var feedThread: android.os.HandlerThread? = null
     private var feedLastFrameElapsed: Long = 0L
 
+    // The Instant Replay rolling buffer's resources (§3.6), independent of both the recorder and the
+    // magnifier feed. The buffer controller owns its own encoder and thread; this class owns only the
+    // mirror VirtualDisplay hung on the buffer's input surface, plus the per-session segment store and
+    // thermal collector. All null while the buffer is not running.
+    private var replayController: ReplayBufferController? = null
+    private var replayStore: ReplaySegmentStore? = null
+    private var replayDisplay: VirtualDisplay? = null
+    private var replayThermal: ReplayThermalCollector? = null
+
     /**
      * Stops everything if the user revokes the projection from the system UI.
      *
@@ -138,6 +240,7 @@ class ScreenCaptureController @Inject constructor(
         override fun onStop() {
             releaseRecorder(keepFile = true)
             stopFrameFeed()
+            stopReplayBuffer(discard = true)
             projection = null
             recordingState.value = RecordingState.IDLE
         }
@@ -561,6 +664,163 @@ class ScreenCaptureController @Inject constructor(
         }
     }
 
+    // ------------------------------------------------------------- instant replay
+    /**
+     * Starts the Instant Replay rolling buffer (§3.6), or returns false.
+     *
+     * A third virtual display on the held projection, peer to the recorder and the magnifier feed and
+     * independent of both: it mirrors the display onto the encoder-input surface the per-session
+     * [ReplayBufferController] prepares, and the controller keeps only the last [windowSeconds] of footage
+     * as a ring of short mp4 segments in the private cache. False when there is no live projection — the
+     * caller then routes through consent as the other capture paths do — or when the display size cannot be
+     * read or the device's encoder refuses the buffer. Idempotent: a buffer already running is reported as
+     * success.
+     *
+     * Not `suspend` and holds no lock, like [startFrameFeed] and for the same reason: the buffer runs
+     * alongside a recording or the magnifier, so blocking [captureLock] for its lifetime would wedge every
+     * other capture. Each field is assigned as its resource is built so any failure — including a mid-setup
+     * throw — is undone by [stopReplayBuffer], which tears down exactly what exists.
+     */
+    fun startReplayBuffer(windowSeconds: Int, quality: RecordingQuality): Boolean {
+        val active = projection ?: return false
+        if (replayRunningState.value) return true
+        val metrics = display.mirrorMetrics()
+        val width = metrics.widthPixels
+        val height = metrics.heightPixels
+        if (width <= 0 || height <= 0) return false
+        return try {
+            val store = ReplaySegmentStore(context.cacheDir)
+            replayStore = store
+            val controller = ReplayBufferController(
+                context = context,
+                store = store,
+                windowSeconds = windowSeconds,
+                quality = quality,
+                clock = replayClock,
+                onError = {},
+            )
+            replayController = controller
+            val surface = controller.prepare(width, height) ?: run {
+                stopReplayBuffer(discard = true)
+                return false
+            }
+            replayDisplay = active.createVirtualDisplay(
+                "GameCore-replay",
+                width,
+                height,
+                metrics.densityDpi.coerceAtLeast(1),
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                surface,
+                null,
+                mainHandler(),
+            ) ?: run {
+                stopReplayBuffer(discard = true)
+                return false
+            }
+            if (!controller.start()) {
+                stopReplayBuffer(discard = true)
+                return false
+            }
+            val thermal = ReplayThermalCollector(
+                monitor = performanceMonitor,
+                scope = scope,
+                onDecision = { decision ->
+                    when (decision) {
+                        is ReplayThermalDecision.Pause -> {
+                            controller.pause()
+                            replayPausedState.value = true
+                        }
+                        is ReplayThermalDecision.Resume -> {
+                            controller.resume()
+                            replayPausedState.value = false
+                        }
+                        ReplayThermalDecision.NoChange -> Unit
+                    }
+                },
+            )
+            replayThermal = thermal
+            thermal.start()
+            replayRunningState.value = true
+            replayWindowState.value = windowSeconds
+            // The session summary (§3.6) records that replay ran even if it is stopped again before the
+            // game exits, so the flag latches here and is only cleared by the next beginReplaySession.
+            replayUsedThisSession = true
+            true
+        } catch (error: SecurityException) {
+            // The token expired between the liveness check and the call.
+            projection = null
+            stopReplayBuffer(discard = true)
+            false
+        } catch (error: Throwable) {
+            stopReplayBuffer(discard = true)
+            false
+        }
+    }
+
+    /**
+     * Stops the rolling buffer and frees its display, encoder and thermal collector. Safe to call when
+     * nothing is running.
+     *
+     * [discard] deletes the buffered segments through [ReplaySegmentStore.cleanupAll]; false keeps the
+     * files on disk so a save can still reach them (the service passes false on its own teardown, true on
+     * a revoked projection where the footage must not be orphaned). The controller's own `stop()` never
+     * deletes files, so the choice is made here.
+     */
+    fun stopReplayBuffer(discard: Boolean) {
+        try {
+            replayThermal?.stop()
+        } catch (error: Throwable) {
+            // Gone either way.
+        }
+        replayThermal = null
+        try {
+            replayDisplay?.release()
+        } catch (error: Throwable) {
+            // Gone either way.
+        }
+        replayDisplay = null
+        try {
+            replayController?.stop()
+        } catch (error: Throwable) {
+            // Gone either way.
+        }
+        replayController = null
+        if (discard) {
+            try {
+                replayStore?.cleanupAll()
+            } catch (error: Throwable) {
+                // A leftover cache file is reclaimed by the OS or the next start.
+            }
+        }
+        replayStore = null
+        replayRunningState.value = false
+        replayPausedState.value = false
+        replayWindowState.value = IDLE_REPLAY_WINDOW_SECONDS
+    }
+
+    /**
+     * Stitches the retained buffer into one clip in the gallery, or reports why it could not.
+     *
+     * Delegates to the injected [ReplayClipSaver]; this only supplies the currently-retained segments,
+     * which the store already keeps ordered by capture time and trimmed to the window by the ring. Returns
+     * [ReplaySaveResult.Failed] with [ReplaySaveResult.Reason.NoSegments] when the buffer is not running.
+     */
+    suspend fun saveReplayClip(displayName: String): ReplaySaveResult {
+        val store = replayStore ?: return ReplaySaveResult.Failed(ReplaySaveResult.Reason.NoSegments)
+        replaySavingState.value = true
+        try {
+            val result = clipSaver.save(store.current(), displayName)
+            // Count only clips the pipeline confirmed on disk, so the session summary's tally matches what
+            // is actually in the gallery rather than the number of times the player tapped save.
+            if (result is ReplaySaveResult.Saved) clipsSavedThisSession.incrementAndGet()
+            return result
+        } finally {
+            // Cleared on success, failure and cancellation alike, so a dropped save never wedges the pill
+            // in its "Saving…" state. CancellationException propagates through the finally uncaught (§style).
+            replaySavingState.value = false
+        }
+    }
+
     /**
      * Configures the encoder.
      *
@@ -704,6 +964,14 @@ class ScreenCaptureController @Inject constructor(
         /** Long enough for the first composited frame on a slow device. */
         const val FRAME_WAIT_MILLIS = 1_000L
         const val FRAME_POLL_MILLIS = 40L
+
+        /**
+         * The window shown while no buffer is running — the idle placeholder for [replayWindowSeconds],
+         * never displayed (the save pill is up only while buffering, when the flow holds the real window).
+         * Matches `GameProfile.instantReplayBufferSeconds`'s default so the two agree if it is ever read
+         * before the first start.
+         */
+        const val IDLE_REPLAY_WINDOW_SECONDS = 30
 
         /** Two buffers for the feed reader: one being read while the next is composited. */
         const val FEED_BUFFERS = 2

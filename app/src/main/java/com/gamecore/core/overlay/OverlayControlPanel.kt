@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material.icons.rounded.ScreenLockRotation
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
@@ -1899,6 +1900,8 @@ private fun OverlayAction.icon(): ImageVector = when (this) {
     OverlayAction.MAGNIFIER -> Icons.Rounded.ZoomIn
     OverlayAction.SCREENSHOT -> Icons.Rounded.PhotoCamera
     OverlayAction.RECORD -> Icons.Rounded.FiberManualRecord
+    // A single loop of the "replay" arrow: the buffer that keeps circling back over the last seconds.
+    OverlayAction.REPLAY -> Icons.Rounded.Replay
     OverlayAction.FLASHLIGHT -> Icons.Rounded.FlashlightOn
     OverlayAction.DO_NOT_DISTURB -> Icons.Rounded.DoNotDisturbOn
     OverlayAction.ROTATION_LOCK -> Icons.Rounded.ScreenLockRotation

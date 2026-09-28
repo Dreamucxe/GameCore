@@ -43,6 +43,19 @@ enum class OverlayAction(val label: String) {
     /** Start or stop screen recording. Needs its own consent flow; see §24B. */
     RECORD("Record"),
 
+    /**
+     * Arm or disarm the Instant Replay rolling buffer (§3.6): the last seconds of play held in memory to
+     * save after something happens, ShadowPlay-style.
+     *
+     * A toggle — the tile reads as on while the buffer is running — and grouped with the capture actions,
+     * because that is what it is: another `createVirtualDisplay` on the same `MediaProjection` the other
+     * capture actions use, so it renders disabled, with a reason, on a build with no projection support.
+     * Like [MAGNIFIER] it is deliberately *not* macroable (see [macroBehavior]): arming it may raise the
+     * system's `MediaProjection` consent dialog, which cannot honestly interrupt a silent one-tap replay.
+     * Saving a clip is a separate action the save pill drives, not a panel tile.
+     */
+    REPLAY("Replay"),
+
     FLASHLIGHT("Torch"),
 
     /** Do Not Disturb. Needs notification-policy access. */
@@ -133,7 +146,7 @@ enum class OverlayAction(val label: String) {
         get() = this == PILL || this == CROSSHAIR || this == HUD || this == RECORD ||
             this == FLASHLIGHT || this == DO_NOT_DISTURB || this == ROTATION_LOCK ||
             this == COLOR || this == ASPECT || this == REFRESH_RATE || this == PANEL_LAYOUT ||
-            this == MAGNIFIER
+            this == MAGNIFIER || this == REPLAY
 
     /**
      * Which second row a held press on this tile opens, or null for the tiles that have nothing behind one.
@@ -177,18 +190,18 @@ enum class OverlayAction(val label: String) {
      *    row rather than setting a state — there is nothing to force them *to*. [OPEN_APP] and
      *    [STOP_SESSION] leave the overlay (and the session) behind, so a later step would run against a
      *    surface that is going away. [PANEL_LAYOUT] flips a preference with no natural "on" and would
-     *    rearrange the very window the macro was tapped from. [MAGNIFIER] is the one barred for a different
-     *    reason: it does force a state, but turning it on may raise the system's `MediaProjection` consent
-     *    dialog, and a consent prompt cannot honestly appear in the middle of a silent one-tap replay — a
-     *    macro that sometimes stops to ask permission is not the deterministic thing §14 promises. None
-     *    belongs in a one-tap set.
+     *    rearrange the very window the macro was tapped from. [MAGNIFIER] and [REPLAY] are barred for a
+     *    different reason: each does force a state, but arming it may raise the system's `MediaProjection`
+     *    consent dialog, and a consent prompt cannot honestly appear in the middle of a silent one-tap
+     *    replay — a macro that sometimes stops to ask permission is not the deterministic thing §14
+     *    promises. None belongs in a one-tap set.
      */
     val macroBehavior: MacroBehavior?
         get() = when (this) {
             PILL, CROSSHAIR, HUD, RECORD, FLASHLIGHT, DO_NOT_DISTURB, ROTATION_LOCK ->
                 MacroBehavior.FORCE_ON
             SCREENSHOT -> MacroBehavior.FIRE_ONCE
-            COLOR, ASPECT, REFRESH_RATE, PANEL_LAYOUT, STOP_SESSION, OPEN_APP, MAGNIFIER -> null
+            COLOR, ASPECT, REFRESH_RATE, PANEL_LAYOUT, STOP_SESSION, OPEN_APP, MAGNIFIER, REPLAY -> null
         }
 
     /** True for the actions a macro may replay; see [macroBehavior] for why the rest are excluded. */

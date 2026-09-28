@@ -68,6 +68,7 @@ class BackupCodecTest {
             latencyHost = "8.8.8.8",
             showResolutionOverrideNotice = false,
             showConfigEditNotice = false,
+            showInstantReplayNotice = false,
             neverKillPackages = listOf("com.example.game"),
             aimLabHorizontalFovDegrees = 100,
         )

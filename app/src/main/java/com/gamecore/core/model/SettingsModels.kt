@@ -102,6 +102,22 @@ data class AppSettings(
      */
     val showConfigEditNotice: Boolean = true,
 
+    /**
+     * Whether the §3.6 one-time Instant Replay disclaimer is still armed.
+     *
+     * A preference, not a capability — it says nothing about whether this device can hold a
+     * `MediaProjection`, only whether the editor should explain what a rolling video buffer keeps before the
+     * first time one is switched on. True on a fresh install; the editor flips it false the moment the user
+     * continues past the disclaimer, which is what makes it "one-time". Exposed in Settings so it is
+     * revocable: turning it back on re-arms the disclaimer, exactly like [showResolutionOverrideNotice] and
+     * [showConfigEditNotice].
+     *
+     * Global rather than per-profile because the thing being explained — that a buffer is continuously
+     * recording video to a private cache and what leaves the device when a clip is saved — is the same for
+     * every game, so a user who has read it once for one game has read it for all of them.
+     */
+    val showInstantReplayNotice: Boolean = true,
+
     /** Record a session for every game launch that has a profile with tracking on. */
     val trackSessions: Boolean = true,
 

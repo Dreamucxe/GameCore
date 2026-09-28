@@ -39,10 +39,11 @@ class CaptureGate @Inject constructor(
      */
     fun request(purpose: CapturePurpose): CaptureRequest {
         if (!capture.isSupported()) return CaptureRequest.Unsupported
-        // Stopping the magnifier feed with no projection held is a no-op, never a reason to prompt: the
-        // feed is already down, and opening the system consent sheet to "stop" something would make no
-        // sense. Every other purpose needs the projection, so only this one is special-cased.
-        if (purpose == CapturePurpose.STOP_FRAME_FEED && !capture.hasProjection()) {
+        // Some purposes must never open the consent sheet when no projection is held. Stopping the
+        // magnifier feed or the replay buffer with nothing running is a no-op, and a replay save with no
+        // buffer has nothing to reach — prompting for a fresh projection only to "stop" or "save" something
+        // that is already gone would make no sense. Every other purpose genuinely needs the projection.
+        if (purpose in CONSENT_FREE_WHEN_IDLE && !capture.hasProjection()) {
             return CaptureRequest.Started
         }
         return try {
@@ -68,6 +69,19 @@ class CaptureGate @Inject constructor(
     }
 
     fun hasConsent(): Boolean = capture.hasProjection()
+
+    private companion object {
+        /**
+         * Purposes that are a no-op — not a fresh capture — when no projection is held, so a missing
+         * projection is answered with [CaptureRequest.Started] rather than the consent sheet. Stopping a
+         * feed or buffer that is already down, or saving a buffer that never ran, all have nothing to act on.
+         */
+        val CONSENT_FREE_WHEN_IDLE = setOf(
+            CapturePurpose.STOP_FRAME_FEED,
+            CapturePurpose.STOP_REPLAY_BUFFER,
+            CapturePurpose.SAVE_REPLAY_CLIP,
+        )
+    }
 }
 
 /** How far [CaptureGate.request] got. The file, if there is one, arrives separately. */

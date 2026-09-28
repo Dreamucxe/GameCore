@@ -213,6 +213,21 @@ fun ProfileEditorScreen(
         item { CpuSection(state, viewModel::edit, onNavigate, padded) }
         item { SmartFeaturesSection(state, viewModel::edit, onNavigate, padded) }
         item { SessionSection(state, viewModel::edit, padded) }
+        // §3.6. Takes values rather than the whole state, so the call site names them: the section is a shared
+        // composable in its own file, not one of this screen's privates. The opt-in goes through the gated
+        // request so the first one can be held by the disclaimer below; the window is a plain edit. Audio is
+        // passed for the row it draws but has no sink — Instant Replay is video-only by design, and there is
+        // no RECORD_AUDIO permission to honour a change with.
+        item {
+            InstantReplaySettingsSection(
+                enabled = profile.instantReplayEnabled,
+                bufferSeconds = profile.instantReplayBufferSeconds,
+                includeAudio = profile.instantReplayIncludeAudio,
+                onEnabledChange = viewModel::requestInstantReplayEnable,
+                onBufferChange = viewModel::setInstantReplayBufferSeconds,
+                modifier = padded,
+            )
+        }
 
         // Config files are the game's own, read and written through the elevated shell, so the door is only
         // worth offering when the game is actually on the device — an uninstalled game has no sandbox to walk.
@@ -282,6 +297,16 @@ fun ProfileEditorScreen(
         ResolutionOverrideNoticeDialog(
             onContinue = viewModel::confirmResolutionNotice,
             onCancel = viewModel::dismissResolutionNotice,
+        )
+    }
+
+    // §3.6. The same shape as the note above it, for the first Instant Replay opt-in: the switch the user
+    // flipped is held here until they continue, so backing out leaves the draft — and the row — off. A plain
+    // flag rather than a held value because only turning it on is ever explained.
+    if (state.pendingInstantReplayEnable) {
+        InstantReplayDisclaimerDialog(
+            onConfirm = viewModel::confirmInstantReplayNotice,
+            onCancel = viewModel::dismissInstantReplayNotice,
         )
     }
 }

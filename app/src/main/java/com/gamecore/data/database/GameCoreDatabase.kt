@@ -71,7 +71,7 @@ import androidx.room.RoomDatabase
         AimLabRecordEntity::class,
         ConfigBackupEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = true,
 )
 abstract class GameCoreDatabase : RoomDatabase() {

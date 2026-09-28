@@ -200,6 +200,7 @@ object BackupCodec {
         put("autoApplyProfiles", s.autoApplyProfiles)
         put("showResolutionOverrideNotice", s.showResolutionOverrideNotice)
         put("showConfigEditNotice", s.showConfigEditNotice)
+        put("showInstantReplayNotice", s.showInstantReplayNotice)
         put("trackSessions", s.trackSessions)
         put("detectionIntervalMillis", s.detectionIntervalMillis)
         put("sampleIntervalMillis", s.sampleIntervalMillis)
@@ -417,6 +418,8 @@ object BackupCodec {
                 o.optBoolean("showResolutionOverrideNotice", d.showResolutionOverrideNotice),
             showConfigEditNotice =
                 o.optBoolean("showConfigEditNotice", d.showConfigEditNotice),
+            showInstantReplayNotice =
+                o.optBoolean("showInstantReplayNotice", d.showInstantReplayNotice),
             trackSessions = o.optBoolean("trackSessions", d.trackSessions),
             detectionIntervalMillis = o.optLong("detectionIntervalMillis", d.detectionIntervalMillis),
             sampleIntervalMillis = o.optLong("sampleIntervalMillis", d.sampleIntervalMillis),
