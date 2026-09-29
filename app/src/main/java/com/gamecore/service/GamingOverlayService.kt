@@ -42,6 +42,7 @@ import com.gamecore.core.model.DisplaySizeState
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
+import com.gamecore.core.model.HuntFilter
 import com.gamecore.core.model.OverlayConfig
 import com.gamecore.core.model.OverlayStatus
 import com.gamecore.core.model.PanelLayoutStyle
@@ -51,12 +52,15 @@ import com.gamecore.core.overlay.CrosshairOverlay
 import com.gamecore.core.overlay.FloatingGameButton
 import com.gamecore.core.overlay.HeldRow
 import com.gamecore.core.overlay.HudOverlay
+import com.gamecore.core.overlay.HuntOverlay
 import com.gamecore.core.overlay.InstantReplaySavePill
 import com.gamecore.core.overlay.Macro
 import com.gamecore.core.overlay.MacroBehavior
 import com.gamecore.core.overlay.MacroChip
 import com.gamecore.core.overlay.MacroCodec
 import com.gamecore.core.overlay.MagnifierOverlay
+import com.gamecore.core.overlay.ScoutOverlay
+import com.gamecore.core.overlay.WheelOverlay
 import com.gamecore.core.overlay.OverlayAction
 import com.gamecore.core.overlay.OverlayControlPanel
 import com.gamecore.core.overlay.OverlayCrosshair
@@ -596,6 +600,27 @@ class GamingOverlayService : GameCoreService() {
                 .distinctUntilChanged()
                 .collect { accent.value = Color(it.argb) }
         }
+        lifecycleScope.launch {
+            // The one Hunt input that changes without the desired request changing: the chosen grade. Its
+            // window redraws itself from `preferences.settings` collected inside it, but whether that grade
+            // needs the shared capture feed is decided in reconcile() — so a switch between a capture grade
+            // and the capture-free MOVIE has to reconcile the feed. This never starts a feed that would need
+            // consent (reconcile() only resumes one silently when a projection is already held), so changing
+            // the filter in the settings screen never pops a projection prompt on its own.
+            preferences.settings
+                .map { it.huntFilter }
+                .distinctUntilChanged()
+                .collect { reconcile() }
+        }
+        lifecycleScope.launch {
+            // The advanced HUD's master switch (AppSettings.advancedHudEnabled). Turned off it hides the
+            // HUD window even while a layout is requested — the gate lives in reconcile(), so a change to
+            // the flag on its own has to reconcile, exactly as the Hunt grade above does.
+            preferences.settings
+                .map { it.advancedHudEnabled }
+                .distinctUntilChanged()
+                .collect { reconcile() }
+        }
         lifecycleScope.launch { resolveCrosshair() }
         lifecycleScope.launch { resolveHud() }
         lifecycleScope.launch { streamReadings() }
@@ -849,17 +874,37 @@ class GamingOverlayService : GameCoreService() {
         } else {
             manager.hide(OverlaySlot.CROSSHAIR)
         }
-        if (request.hud && hudLayout.value != null) showHud() else manager.hide(OverlaySlot.HUD)
-        if (request.magnifier) {
-            showMagnifier()
+        if (request.hud && hudLayout.value != null && preferences.settings.value.advancedHudEnabled) {
+            showHud()
         } else {
-            manager.hide(OverlaySlot.MAGNIFIER)
-            // The loupe is the one overlay that also holds a capture feed, so hiding its window is not the
-            // whole of switching it off: a virtual display left mirroring the screen behind a gone loupe is
-            // exactly the background cost §26 objects to. Stopping needs no consent, so it belongs on every
-            // path that drops the request — a profile taking over as much as the user's own toggle — and
-            // the running check keeps a stop from ever being routed through the consent sheet.
-            if (capture.magnifierRunning.value) startCapture(CapturePurpose.STOP_FRAME_FEED)
+            manager.hide(OverlaySlot.HUD)
+        }
+        // The four overlays that draw *through* the game rather than beside it — the loupe and its three
+        // §Game-mode siblings — each own a window shown or hidden on their own request. Three of the four also
+        // draw from one shared capture feed, and that is not per-window: it is a single virtual display on the
+        // one MediaProjection, so it is decided once below for all of them rather than in four branches, where
+        // two overlays turning off would each try to stop a feed the third still needs.
+        if (request.magnifier) showMagnifier() else manager.hide(OverlaySlot.MAGNIFIER)
+        if (request.scout) showScout() else manager.hide(OverlaySlot.SCOUT)
+        if (request.hunt) showHunt() else manager.hide(OverlaySlot.HUNT)
+        if (request.wheel) showWheel() else manager.hide(OverlaySlot.WHEEL)
+        // Who needs the frames: the loupe and Scout always, Hunt only for the grades that re-draw the live
+        // screen — the capture-free MOVIE tints GameCore's own glass and needs none. The wheels ring reads
+        // nothing at all, so it never appears here.
+        val wantsFeed = request.magnifier || request.scout ||
+            (request.hunt && preferences.settings.value.huntFilter.needsCapture)
+        // Resumed silently, never started: a feed needs a live projection and the consent for one has no place
+        // on a path that runs every drag frame, so this only picks the feed back up when a projection is
+        // already held — the consent-popping start stays in [execute]. Stopping needs no consent, so a feed
+        // left mirroring the screen behind overlays that no longer want it — a profile dropping them as much
+        // as the user's own toggle — is torn down here on every path, exactly the background cost §26 objects
+        // to, and the running check keeps a stop from ever being routed through the consent sheet.
+        if (wantsFeed) {
+            if (!capture.magnifierRunning.value && capture.hasProjection()) {
+                startCapture(CapturePurpose.START_FRAME_FEED)
+            }
+        } else if (capture.magnifierRunning.value) {
+            startCapture(CapturePurpose.STOP_FRAME_FEED)
         }
         // The replay save controls track the buffer, not the desired-overlay request: shown while it runs,
         // hidden the moment it stops. Unlike the magnifier, hiding the window is the whole of it — the
@@ -1163,7 +1208,8 @@ class GamingOverlayService : GameCoreService() {
         manager.show(OverlaySlot.HUD, OverlayWindowSpec(fullScreen = true), host) {
             val layout by hudLayout.collectAsState()
             val readings by hudReadings.collectAsState()
-            layout?.let { HudOverlay(layout = it, readings = readings) }
+            val live by preferences.overlay.collectAsState()
+            layout?.let { HudOverlay(layout = it, readings = readings, mode = live.hudDisplayMode) }
         }
     }
 
@@ -1181,6 +1227,65 @@ class GamingOverlayService : GameCoreService() {
         manager.show(OverlaySlot.MAGNIFIER, OverlayWindowSpec(fullScreen = true), host) {
             val frame by capture.magnifierFrame.collectAsState()
             MagnifierOverlay(frame = frame)
+        }
+    }
+
+    /**
+     * As [showMagnifier], for the Scout pane: added once, redrawn as the feed delivers frames.
+     *
+     * Draws from the same [ScreenCaptureController.magnifierFrame] the loupe does — they are one feed on one
+     * projection — and reads its zoom factor and dark-scene lift from settings, collected here so a change on
+     * the Scout screen redraws this window rather than re-adding it. Like the loupe it draws nothing until the
+     * first frame arrives, so a window shown before the feed — or through the consent it waits on — is a
+     * transparent, non-touchable sheet until there is a crop to lift.
+     */
+    private fun showScout() {
+        val manager = windows ?: return
+        if (manager.isVisible(OverlaySlot.SCOUT)) return
+        manager.show(OverlaySlot.SCOUT, OverlayWindowSpec(fullScreen = true), host) {
+            val frame by capture.magnifierFrame.collectAsState()
+            val settings by preferences.settings.collectAsState()
+            ScoutOverlay(
+                frame = frame,
+                factor = settings.scoutZoomTenths / 10f,
+                liftPercent = settings.scoutLiftPercent,
+            )
+        }
+    }
+
+    /**
+     * As [showMagnifier], for the Hunt grade: added once, redrawn as the grade or the feed changes.
+     *
+     * The chosen grade is read from settings and collected here, so switching it on the Hunt screen redraws
+     * this window in place. Only the capture grades read [ScreenCaptureController.magnifierFrame]; the
+     * capture-free [HuntFilter.MOVIE] ignores the frame and tints GameCore's own glass, which is why
+     * reconcile() never starts the feed for it. A capture grade shown before its first frame draws nothing —
+     * the same transparent sheet the loupe is until the feed catches up.
+     */
+    private fun showHunt() {
+        val manager = windows ?: return
+        if (manager.isVisible(OverlaySlot.HUNT)) return
+        manager.show(OverlaySlot.HUNT, OverlayWindowSpec(fullScreen = true), host) {
+            val frame by capture.magnifierFrame.collectAsState()
+            val settings by preferences.settings.collectAsState()
+            HuntOverlay(filter = settings.huntFilter, frame = frame)
+        }
+    }
+
+    /**
+     * As [showCrosshair], for the wheels feel-guide: added once, redrawn from settings.
+     *
+     * Grouped with the crosshair rather than the loupe because that is what it is — a `FLAG_NOT_TOUCHABLE`
+     * sticker on GameCore's own glass that reads nothing from the game and holds no feed. Its ring radius is a
+     * user preference, collected here so a drag on the wheels screen redraws this window rather than replacing
+     * it.
+     */
+    private fun showWheel() {
+        val manager = windows ?: return
+        if (manager.isVisible(OverlaySlot.WHEEL)) return
+        manager.show(OverlaySlot.WHEEL, OverlayWindowSpec(fullScreen = true), host) {
+            val settings by preferences.settings.collectAsState()
+            WheelOverlay(radiusPercent = settings.wheelGuideRadiusPercent)
         }
     }
 
@@ -1516,6 +1621,9 @@ class GamingOverlayService : GameCoreService() {
                 },
                 toggle("hud", OverlayAction.HUD),
                 toggle("magnifier", OverlayAction.MAGNIFIER),
+                toggle("scout", OverlayAction.SCOUT),
+                toggle("hunt", OverlayAction.HUNT),
+                toggle("wheels", OverlayAction.WHEEL),
                 toggle("overlay_layout", OverlayAction.PANEL_LAYOUT),
             ),
             PanelTab.CAPTURE to listOf(
@@ -2106,6 +2214,12 @@ class GamingOverlayService : GameCoreService() {
         // user's switch and should read as on the instant they flip it, through the consent the first frame
         // waits on. The feed catching up is [showMagnifier]'s business, not the toggle's.
         if (request.magnifier) active += OverlayAction.MAGNIFIER
+        // Scout, Hunt and the wheels guide light from the request for the same reason the loupe does — the
+        // tile is the user's switch and reads as on the instant they flip it, through any consent the first
+        // frame waits on. The feed catching up is [showScout]/[showHunt]'s business, not the toggle's.
+        if (request.scout) active += OverlayAction.SCOUT
+        if (request.hunt) active += OverlayAction.HUNT
+        if (request.wheel) active += OverlayAction.WHEEL
         // The HUD is the user's own arrangement; with none saved there is nothing to put on screen, and
         // that is a different sentence from "it is switched off".
         if (hudLayouts.layouts.first().isEmpty()) {
@@ -2129,6 +2243,14 @@ class GamingOverlayService : GameCoreService() {
             // The replay buffer is another `createVirtualDisplay` on that same projection, so it is barred
             // by the same absence and, like the loupe, by nothing else.
             unavailable[OverlayAction.REPLAY] = reason
+            // Scout draws from the loupe's feed, so no projection support bars it for the loupe's reason.
+            // Hunt is barred only when its saved grade needs the feed — the capture-free MOVIE tints
+            // GameCore's own glass and works on a build with no projection at all — and the wheels guide is
+            // never barred here: it reads nothing and holds no feed, exactly like the crosshair.
+            unavailable[OverlayAction.SCOUT] = reason
+            if (preferences.settings.value.huntFilter.needsCapture) {
+                unavailable[OverlayAction.HUNT] = reason
+            }
         } else if (recording.isRecording) {
             // One MediaProjection at a time is all the platform gives, and the recording owns it.
             unavailable[OverlayAction.SCREENSHOT] = getString(R.string.overlay_recording_in_progress)
@@ -2749,6 +2871,51 @@ class GamingOverlayService : GameCoreService() {
                 } else if (capture.hasProjection()) {
                     startCapture(CapturePurpose.STOP_FRAME_FEED)
                 }
+            }
+            // Scout is the loupe's sibling — a window plus the same shared feed — and toggles exactly like it,
+            // which is why this mirrors [MAGNIFIER] line for line: the feed is asked for on the way on (through
+            // consent when no projection is held yet) and stopped on the way off when one could be running.
+            // reconcile()'s unified feed block is the backstop that keeps the frames alive if the loupe or a
+            // Hunt grade still needs them — a stop here it would undo is silently resumed there. Not persisted,
+            // for the loupe's reason: a feed cannot survive the consent it needs across a restart.
+            OverlayAction.SCOUT -> {
+                val next = !overlays.desired.value.scout
+                overlays.setScout(next)
+                if (next) {
+                    startCapture(CapturePurpose.START_FRAME_FEED)
+                } else if (capture.hasProjection()) {
+                    startCapture(CapturePurpose.STOP_FRAME_FEED)
+                }
+            }
+            // Hunt is a window and — for the capture grades only — the same shared feed. The window always
+            // follows [OverlayController.setHunt]; the projection is touched only when the saved grade needs
+            // it, so the capture-free MOVIE never asks for one to tint GameCore's own glass. It *is* persisted,
+            // unlike the loupe and Scout: a chosen filter is a setting the next launch rebuilds, and
+            // [OverlayController.restoreManualState] brings back only the grade that needs no feed. Written
+            // when the user flips it, not while a profile drives the overlay, for the crosshair's reason.
+            OverlayAction.HUNT -> {
+                val request = overlays.desired.value
+                val next = !request.hunt
+                overlays.setHunt(next)
+                if (!request.fromProfile) preferences.updateSettings { it.copy(huntEnabled = next) }
+                if (preferences.settings.value.huntFilter.needsCapture) {
+                    if (next) {
+                        startCapture(CapturePurpose.START_FRAME_FEED)
+                    } else if (capture.hasProjection()) {
+                        startCapture(CapturePurpose.STOP_FRAME_FEED)
+                    }
+                }
+            }
+            // The wheels guide holds no feed — a `FLAG_NOT_TOUCHABLE` sticker on GameCore's own glass like the
+            // crosshair — so this is the plainest of the four: the window follows [OverlayController.setWheel]
+            // and nothing here touches the projection. Persisted like Hunt and for the same reason, and
+            // restored plainly next launch because there is no feed for a remembered flag to strand behind an
+            // empty window.
+            OverlayAction.WHEEL -> {
+                val request = overlays.desired.value
+                val next = !request.wheel
+                overlays.setWheel(next)
+                if (!request.fromProfile) preferences.updateSettings { it.copy(wheelGuideEnabled = next) }
             }
             OverlayAction.SCREENSHOT -> takeScreenshot()
             OverlayAction.RECORD -> toggleRecording()

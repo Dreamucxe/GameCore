@@ -1247,6 +1247,33 @@ private fun SmartFeaturesSection(
                 action = { TextButton(onClick = { onNavigate(Destination.Shizuku) }) { Text("Set up") } },
             )
         }
+
+        RowDivider()
+        // --- charge bypass while plugged in ---
+        // Off a charger this does nothing; the switch only matters for a session played while plugged in.
+        // Kept beside "Keep full performance" because it is the same kind of thing — a power decision that
+        // acts only while the game runs, writes nothing at apply time, and needs the elevated shell to reach
+        // a node an ordinary app cannot. It reduces heat and battery wear rather than adding speed, and it
+        // stops when the game closes, so the copy says that plainly the way §D's does about its own limits.
+        SwitchRow(
+            title = "Bypass charging while plugged in",
+            checked = profile.chargeBypassEnabled,
+            onCheckedChange = { on -> onEdit { it.copy(chargeBypassEnabled = on) } },
+            description = "While this game runs on a charger, feeds the phone from the charger instead of " +
+                "the battery, so the pack neither charges nor discharges and runs cooler. It adds no speed " +
+                "— it spares heat and battery wear — does nothing off a charger, stops when the game " +
+                "closes, and a device whose kernel offers no charge-control switch skips it.",
+            enabled = elevated || profile.chargeBypassEnabled,
+        )
+        if (profile.chargeBypassEnabled && !elevated) {
+            NoteBanner(
+                text = "Needs Shizuku running to reach the charge-control switch — it will be skipped " +
+                    "until then.",
+                tone = Tone.Muted,
+                icon = Icons.Filled.Info,
+                action = { TextButton(onClick = { onNavigate(Destination.Shizuku) }) { Text("Set up") } },
+            )
+        }
     }
 }
 

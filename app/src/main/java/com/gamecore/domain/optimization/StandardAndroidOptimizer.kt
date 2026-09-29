@@ -95,6 +95,12 @@ class StandardAndroidOptimizer @Inject constructor(
         // hold reaches. CpuAffinityController owns it, and needs a readable core layout on top of the
         // shell before it will offer a preset at all.
         OptimizationAction.SET_CPU_AFFINITY -> CapabilityStatus.UNSUPPORTED
+
+        // Nor this one: stopping the battery charging writes a sysfs power-supply node, which needs
+        // the elevated shell — no permission an ordinary app can hold reaches it. ChargeBypassController
+        // owns the probe, the write and the restore, and reports REQUIRES_SHIZUKU / UNSUPPORTED itself
+        // from its own `support()`. Unsupported is the truth about this tier.
+        OptimizationAction.SET_CHARGE_BYPASS -> CapabilityStatus.UNSUPPORTED
     }
 
     override suspend fun apply(request: OptimizationRequest): OptimizationResult {
@@ -139,6 +145,13 @@ class StandardAndroidOptimizer @Inject constructor(
                 detail = "Which cores a game runs on is set by GameCore's affinity controller, not " +
                     "by the optimization tiers — it has to find the game's process first, and it " +
                     "needs the elevated shell either way.",
+            )
+
+            OptimizationAction.SET_CHARGE_BYPASS -> action.blocked(
+                status = CapabilityStatus.UNSUPPORTED,
+                detail = "Running the phone from the charger is done by GameCore's charge controller, " +
+                    "not by the optimization tiers — it probes for a writable charge-control node, " +
+                    "records what it held, and needs the elevated shell to write it.",
             )
 
             // Handled by the two helpers above; unreachable, and left as a branch rather than an

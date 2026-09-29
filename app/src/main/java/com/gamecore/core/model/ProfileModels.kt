@@ -158,6 +158,19 @@ data class GameProfile(
     val fullPerformanceEnabled: Boolean = false,
 
     /**
+     * Charge bypass (§3.5 power): while this game runs on a charger, feed the phone from the charger
+     * instead of the battery so the pack neither charges nor discharges and runs cooler. Off by default
+     * and for every pre-feature profile. It adds no speed — it spares heat and battery wear — does
+     * nothing off a charger, and a device whose kernel offers no charge-control node skips it.
+     *
+     * Unlike the other toggles in this §3.5 cluster, this one DOES count toward [changesNothing]: applying
+     * it writes a device node and records a restore row, exactly like [cpuAffinity] and [displaySize], so
+     * a profile whose only setting is this one is not a no-op. It reaches the kernel node through the
+     * elevated shell — see [com.gamecore.domain.charge.ChargeBypassController].
+     */
+    val chargeBypassEnabled: Boolean = false,
+
+    /**
      * Instant Replay (§3.6): keep a rolling buffer of the last [instantReplayBufferSeconds] so the user
      * can save that window on demand. Off by default and for every pre-feature profile. Deliberately
      * NOT part of [changesNothing] below, for the same reason the other 3.5 session-time features are
@@ -200,7 +213,12 @@ data class GameProfile(
             // Counts, and the honest reading of it is the same as the one above: it writes something
             // and records the previous value for restore. Whether it helps is a separate question
             // from whether it changes anything, and this property answers the second one.
-            cpuAffinity == null
+            cpuAffinity == null &&
+            // Counts for the same reason cpuAffinity does: applying it writes a kernel charge-control
+            // node and records a restore row, so a profile carrying only this one is not a no-op.
+            // (Its §3.5 cluster-mates — thermal, network, full-performance — write nothing on apply and
+            // so are deliberately absent from this list; charge bypass is the exception among them.)
+            !chargeBypassEnabled
 
     companion object {
         /** A new profile for a game the user just picked: overlay on, nothing written. */

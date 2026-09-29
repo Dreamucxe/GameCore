@@ -3,14 +3,34 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.6%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.6.1%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
 no backend, nothing you record leaves the device
 
 ---
 
-## New in 3.6
+## New in 3.6.1
+
+Three leaf screens, each turned on or off from Settings, and each holding the app's one rule: a
+figure it cannot measure is shown as "Unavailable", with the reason, never as a zero.
+
+- **Network Stability Mode.** A live read of the connection you play on — transport, signal,
+  estimated link speed, device-wide download and upload, and whether the system calls it metered —
+  with a stability window built from TCP-handshake bursts. It reports ping (median handshake time)
+  and jitter (the variation between consecutive probes, the honest stand-in for the packet-loss
+  figure it will not fake), and how many probes in the window completed. Where Android allows it, it
+  also keeps the device from switching networks mid-game.
+- **Advanced Performance HUD.** A customisable heads-up display over FPS, CPU, GPU where the device
+  exposes a load node, RAM, temperature, battery, ping and session time, as a compact line or an
+  expanded card. Any stat the device will not report reads "Unavailable" rather than a made-up value.
+- **Custom Overlay Modules.** Turn individual overlay modules on and off, drag them to position,
+  resize the ones that support it, and choose exactly which information each shows — saved as an
+  overlay layout per game that a profile can raise by name.
+
+---
+
+## Version 3.6
 
 The feature people ask for by name — keep the last few seconds of play, and decide to save them
 after they have already happened.
@@ -327,19 +347,24 @@ a one-time notice you accept.
 
 The full set of shell commands the app can construct lives in one file
 (`core/shizuku/ShellCommand.kt`) and a unit test enumerates every one of them and asserts
-that `cmd`, `su`, `sh`, `setprop`, `force-stop`, `pm clear`, `pm trim-caches`, `install` and
+that `cmd`, `su`, `setprop`, `force-stop`, `pm clear`, `pm trim-caches`, `install` and
 friends are unreachable at any privilege level. Most of what that file can build reads or
 writes something about *this device* — a settings key, the display size, GameCore's own
 permissions. A few reach further, and each is bounded to a form the test pins literally so
 that a second use cannot be added without it failing: `am kill --user current <package>`
 closes one game's background processes; `rm -rf /storage/emulated/<user>/Android/data/<package>/cache`
 clears one game's shared cache; `taskset -ap <mask> <pid>` pins one game's process to a set of
-cores; and the config editor's `ls`, `stat`, `cp`, `mv` and `rm -f` read and rewrite files inside
-one game's own `Android/data/<package>/files` — never its `cache`, never its `obb`, never the
-private storage a `shell`-uid process cannot reach, and never through a path a `..` could climb out
-of. Every argument that originates outside the app's own code is validated against a form before a
-command exists, and every command reaches `exec` as an argument vector, so there is no shell in the
-chain to expand a glob or split a word.
+cores; the charge-bypass toggle writes a single digit to one validated
+`/sys/class/power_supply/<supply>/<node>` — the one command in the app that runs `sh -c`, and it
+passes the value (`0` or `1`) and the path as positional arguments (`$1`, `$2`) rather than splicing
+either into the script text, after a `test -w` probe and a `cat` read of that same node; the GPU HUD
+reads one validated GPU-load node under `/sys` with `cat`; and the config editor's `ls`, `stat`,
+`cp`, `mv` and `rm -f` read and rewrite files inside one game's own `Android/data/<package>/files` —
+never its `cache`, never its `obb`, never the private storage a `shell`-uid process cannot reach, and
+never through a path a `..` could climb out of. Every argument that originates outside the app's own
+code is validated against a form before a command exists; every command but that one charge write
+reaches `exec` as an argument vector; and that write runs a fixed script whose only inputs are its
+two positional arguments, so there is nowhere a glob is expanded or a word is split.
 
 ---
 
@@ -373,7 +398,7 @@ draws over your game, so the two never disagree.
   X, chevron, corner brackets, box, or a PNG you import — and independent control of size,
   thickness, centre gap, rotation, opacity, colour and screen position. The drawn designs
   use Compose primitives, so they stay crisp at any size and ship no bitmaps.
-- A visual HUD builder: drag widgets onto a live preview, choose from 16 stats, set each
+- A visual HUD builder: drag widgets onto a live preview, choose from 18 stats, set each
   widget's text size, opacity, colour, label and background, and save layouts that a game
   profile can raise by name.
 
@@ -410,7 +435,8 @@ not measure, or that available memory did not rise.
 
 Per-core CPU usage and frequency from `/proc/stat` and `sysfs`, memory from `/proc/meminfo`
 and `ActivityManager`, battery level, charging source, health, temperature, voltage and
-instantaneous current, thermal status, display mode and rotation, network type, latency and
+instantaneous current, thermal status, GPU load where the device exposes a `/sys` node for it,
+display mode and rotation, network type, latency and
 throughput, and free storage — with live graphs, a configurable sampling interval, and
 sampling that stops the moment nothing is looking at it.
 
@@ -531,7 +557,7 @@ What the app can run with that authority is a closed, enumerated set:
 | Program | Used for |
 | --- | --- |
 | `id` | confirming the shell's own uid before trusting it |
-| `cat` | `/proc/stat`, `/proc/meminfo` |
+| `cat` | `/proc/stat`, `/proc/meminfo`, a battery charge-control node, and a GPU-load `/sys` node where the device exposes one |
 | `dumpsys` | `thermalservice`, `battery`, `display`, `SurfaceFlinger --latency`, `activity`, `gfxinfo` |
 | `settings get/put` | nineteen specific keys, each with its own value range |
 | `getprop` | three `ro.*` chipset properties |
@@ -544,8 +570,13 @@ What the app can run with that authority is a closed, enumerated set:
 | `ls` / `stat` | listing and sizing files inside one game's own config directory |
 | `cp` / `mv` | staging an edited config to a temp file and committing it over the original atomically |
 | `rm -f` | removing one staged temp, or one config file you deleted in the editor |
+| `test -w` | probing whether a device's battery charge-control node exists and is writable, before offering the toggle |
+| `sh -c` | writing a single digit (`0`/`1`) to that charge-control node — the one shell command in the app, with the value and path passed as positional arguments (`$1`, `$2`) rather than spliced into the script |
 
-There is no shell interpreter in that list, so there is no string to inject into. Every
+The one shell command in that list runs a fixed script and receives the value and the path as
+positional arguments (`$1`, `$2`), never spliced into the script text, so there is no place for a
+value or a path to break out of the `echo` or its redirection. Every other command reaches `exec`
+as an argument vector, with no shell at all. Every
 argument that originates outside the app's own code — a package name from a stored profile,
 a value from a slider — is validated against a form before a command is built, and a
 rejected argument produces no command at all rather than a malformed one. `pm grant` and
@@ -626,8 +657,8 @@ Nothing runs when it is not needed — each service stops itself.
 ## Architecture
 
 Kotlin only, Jetpack Compose with Material 3, MVVM, Hilt, Coroutines and `StateFlow`. No
-Java, no XML layouts — the only XML is Android resources and the manifest. 457 source files,
-about 117,000 lines.
+Java, no XML layouts — the only XML is Android resources and the manifest. 483 source files,
+about 122,000 lines.
 
 ```
 app/
@@ -692,8 +723,8 @@ signing key is not blocked — but an unsigned APK will not install on a device.
 
 The unit tests are deliberately written against the pure, Android-free seams: the geometry,
 the formatters, the sanitizer, the command builder, the aggregators, the state reducers, the
-per-session latency fold, and every word the shareable card is allowed to print. 125 suites,
-1,613 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
+per-session latency fold, and every word the shareable card is allowed to print. 127 suites,
+1,626 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
 
 ## Your data, and the network
 

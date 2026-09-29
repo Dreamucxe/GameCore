@@ -140,6 +140,17 @@ enum class OptimizationAction(
             "game, so a session GameCore does not get to finish leaves nothing behind.",
         requiredAccess = AccessLevel.SHIZUKU,
     ),
+
+    SET_CHARGE_BYPASS(
+        label = "Run the phone from the charger",
+        explanation = "Stops the battery charging while the game runs, so the phone draws its power " +
+            "from the charger rather than cycling a cell that is already full — the heat and the wear " +
+            "of charging while gaming both come off. It writes one charge-control node in sysfs, the " +
+            "same kind of node a vendor's own bypass toggle uses, and records the value the node held " +
+            "so charging goes back to normal when the game closes. Not every device exposes such a " +
+            "node; where none does, the action reports itself unsupported rather than pretending.",
+        requiredAccess = AccessLevel.SHIZUKU,
+    ),
     ;
 
     /** True for the actions a profile can request; the rest are undo steps. */
@@ -167,13 +178,20 @@ enum class OptimizationAction(
      * [SET_CPU_AFFINITY] touches no `settings` key either, and its subject is not the device: it
      * writes a mask onto one running process, which the manager has no pid for and no business
      * finding. `CpuAffinityController` records the mask that process was already on, keyed by the
-     * package it belongs to. All three profile steps therefore go through their own controller and
-     * the tiers decline all three actions.
+     * package it belongs to.
+     *
+     * [SET_CHARGE_BYPASS] touches no `settings` key: the charge-control node it writes lives in
+     * sysfs, not the settings provider, so there is nothing for the manager to capture through
+     * [com.gamecore.core.shizuku.WritableSetting]. `ChargeBypassController` records the node's
+     * previous value under the game's package, the same non-setting namespace the affinity mask uses.
+     * All four profile steps therefore go through their own controller and the tiers decline all four
+     * actions.
      */
     val isEngineAction: Boolean
         get() = this != APPLY_COLOR_CORRECTION &&
             this != SET_DISPLAY_SIZE &&
-            this != SET_CPU_AFFINITY
+            this != SET_CPU_AFFINITY &&
+            this != SET_CHARGE_BYPASS
 }
 
 /**

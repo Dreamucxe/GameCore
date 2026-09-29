@@ -33,6 +33,8 @@ data class PerformanceSnapshot(
     /** Only ever a value when [FrameRateCapability] said a real signal exists. */
     val frameRate: Observed<FrameRateSample>,
     val latency: Observed<LatencyProbe>,
+    /** Only ever a value when the device exposes a readable GPU-load counter. */
+    val gpu: Observed<GpuLoadSample>,
     val accessLevel: AccessLevel,
 ) {
 

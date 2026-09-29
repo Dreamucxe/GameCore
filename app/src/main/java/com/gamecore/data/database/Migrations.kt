@@ -525,6 +525,24 @@ internal object GameCoreMigrations {
         }
     }
 
+    /**
+     * Version 14 → 15: Charge bypass (§3.5 power). One additive column on `game_profiles` and nothing
+     * else touched — a single `ALTER TABLE … ADD COLUMN`, no table rebuilt, no row rewritten. Template is
+     * the `game_profiles` half of [MIGRATION_13_14]: a NOT-NULL toggle that carries its DEFAULT here in
+     * the migration only, so every profile written before this feature existed reads the feature off,
+     * which is also a new profile's default.
+     *
+     * The DEFAULT lives here and NOT as a `@ColumnInfo(defaultValue=)` on the entity field, or the
+     * exported `15.json` would disagree with what this migration wrote and fail Room's open check. The
+     * column name and type match [GameProfileEntity.chargeBypassEnabled] exactly, so schema validation
+     * against `15.json` passes without a rebuild.
+     */
+    val MIGRATION_14_15 = object : Migration(14, 15) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `charge_bypass_enabled` INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
     /** Every migration, in order, for [androidx.room.RoomDatabase.Builder.addMigrations]. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
@@ -540,5 +558,6 @@ internal object GameCoreMigrations {
         MIGRATION_11_12,
         MIGRATION_12_13,
         MIGRATION_13_14,
+        MIGRATION_14_15,
     )
 }

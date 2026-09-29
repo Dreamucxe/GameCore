@@ -30,11 +30,14 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.BrightnessMedium
+import androidx.compose.material.icons.rounded.CenterFocusStrong
 import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material.icons.rounded.Contrast
+import androidx.compose.material.icons.rounded.ControlCamera
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
 import androidx.compose.material.icons.rounded.FiberManualRecord
+import androidx.compose.material.icons.rounded.FilterVintage
 import androidx.compose.material.icons.rounded.FlashlightOn
 import androidx.compose.material.icons.rounded.GpsFixed
 import androidx.compose.material.icons.rounded.MusicNote
@@ -1898,6 +1901,12 @@ private fun OverlayAction.icon(): ImageVector = when (this) {
     OverlayAction.CROSSHAIR -> Icons.Rounded.GpsFixed
     OverlayAction.HUD -> Icons.Rounded.Dashboard
     OverlayAction.MAGNIFIER -> Icons.Rounded.ZoomIn
+    // A viewfinder closing on the centre — Scout crops and enlarges the middle of the screen.
+    OverlayAction.SCOUT -> Icons.Rounded.CenterFocusStrong
+    // A photographic filter petal, for the grade Hunt lays over the whole scene.
+    OverlayAction.HUNT -> Icons.Rounded.FilterVintage
+    // A four-way stick control, for the wheels guide's ring under a movement thumbstick.
+    OverlayAction.WHEEL -> Icons.Rounded.ControlCamera
     OverlayAction.SCREENSHOT -> Icons.Rounded.PhotoCamera
     OverlayAction.RECORD -> Icons.Rounded.FiberManualRecord
     // A single loop of the "replay" arrow: the buffer that keeps circling back over the last seconds.

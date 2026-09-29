@@ -22,6 +22,9 @@ data class OverlayConfig(
     val isVertical: Boolean = false,
     val showLabels: Boolean = true,
     val displayMode: PillDisplayMode = PillDisplayMode.DETAILED,
+    // The HUD overlay's density, the pill's [displayMode] equivalent (§3): a single global preference read
+    // back as [HudDisplayMode.EXPANDED] for an absent or legacy value, so an existing install is unchanged.
+    val hudDisplayMode: HudDisplayMode = HudDisplayMode.EXPANDED,
     // The quick sheet's pinned toggles (spec §4), as an ordered list of `QuickToggle` *names* rather than
     // the enum itself. `QuickToggle` lives in `com.gamecore.core.overlay`, which depends on this model and
     // not the reverse — holding the typed enum here would be the first back-edge in that dependency, the
@@ -474,6 +477,30 @@ data class OverlayRequest(
      * frame it magnifies is not part of the request either; it comes from the capture path the service owns.
      */
     val magnifier: Boolean = false,
+    /**
+     * Scout zoom (§Scout): the loupe's sibling. A centre-of-screen crop lifted and enlarged into a corner
+     * pane, with an adjustable factor and a dark-scene brightness lift the magnifier does not have. Like
+     * [magnifier] it draws from the capture feed and carries no id — its factor and lift are user prefs the
+     * service reads at draw time — so the request holds only whether it is up, and like the loupe it is a
+     * within-session control that [OverlayController.restoreManualState] does not rebuild.
+     */
+    val scout: Boolean = false,
+    /**
+     * The hunting filter (§Hunt): a full-screen grade laid over the game. Which grade is a user preference
+     * ([com.gamecore.core.model.HuntFilter], read by the service), not part of the request — the request
+     * carries only whether the filter is on. The capture-based grades draw from the same feed the loupe and
+     * Scout use; the capture-free one ([HuntFilter.MOVIE]) draws its tint and vignette without a projection,
+     * which is why only that one is restored across a process death.
+     */
+    val hunt: Boolean = false,
+    /**
+     * The high-sensitivity wheels guide (§Wheels): a feel-only ring drawn where an on-screen stick sits, in
+     * a `FLAG_NOT_TOUCHABLE` window that never intercepts a touch. A sticker on the glass like the crosshair,
+     * with no capture and nothing read from the game, so — unlike Scout and the capture filters — it is a
+     * plain persisted overlay [OverlayController.restoreManualState] brings back. The genuine input remap it
+     * pairs with lives inside GameCore's own Aim Lab surface, never in another app.
+     */
+    val wheel: Boolean = false,
     val crosshairPresetId: Long? = null,
     val hudLayoutId: Long? = null,
     /** The game the request came from, shown in the control panel's header. Empty when manual. */
@@ -481,7 +508,8 @@ data class OverlayRequest(
     /** True while a game profile is driving this, so clearing it can restore the manual state. */
     val fromProfile: Boolean = false,
 ) {
-    val anythingVisible: Boolean get() = button || pill || crosshair || hud || magnifier
+    val anythingVisible: Boolean
+        get() = button || pill || crosshair || hud || magnifier || scout || hunt || wheel
 
     /**
      * Switches the crosshair on or off, and settles which preset it draws.
@@ -511,6 +539,25 @@ data class OverlayRequest(
      * its call site, and so a future factor/corner id has one obvious place to be resolved.
      */
     fun withMagnifier(visible: Boolean): OverlayRequest = copy(magnifier = visible)
+
+    /**
+     * Scout on or off. A plain `copy` for the same reason as [withMagnifier]: the factor and the dark-scene
+     * lift are user prefs the renderer reads for itself, so a toggle only ever moves the flag. Named for the
+     * same call-site symmetry, and so a future corner id has one obvious place to be resolved.
+     */
+    fun withScout(visible: Boolean): OverlayRequest = copy(scout = visible)
+
+    /**
+     * The hunting filter on or off. A plain `copy`: which grade is a user pref the service reads, so the
+     * request only ever carries whether the filter is up, exactly as the loupe and Scout do.
+     */
+    fun withHunt(visible: Boolean): OverlayRequest = copy(hunt = visible)
+
+    /**
+     * The wheels guide on or off. A plain `copy`: the ring's placement and size are user prefs, so a toggle
+     * only moves the flag — the same shape as [withMagnifier], for a sticker-on-glass instead of a loupe.
+     */
+    fun withWheel(visible: Boolean): OverlayRequest = copy(wheel = visible)
 
     companion object {
         val NONE = OverlayRequest()

@@ -64,6 +64,10 @@ class ProfileTransferCodecTest {
             thermalDownshiftEnabled = true,
             thermalLimitDeciCelsius = 420,
             thermalFloorRateHz = 60f,
+            chargeBypassEnabled = true,
+            instantReplayEnabled = true,
+            instantReplayBufferSeconds = 60,
+            instantReplayIncludeAudio = true,
         )
         val decoded = ProfileTransferCodec.decodeEnvelope(
             ProfileTransferCodec.encodeEnvelope(listOf(profile), PresetBundle()),

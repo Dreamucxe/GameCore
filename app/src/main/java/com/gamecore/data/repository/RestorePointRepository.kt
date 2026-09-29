@@ -190,6 +190,20 @@ class RestorePointRepository @Inject constructor(
          * process is exactly as it was found.
          */
         const val KEY_CPU_AFFINITY = "cpu_affinity"
+
+        /**
+         * Whether GameCore stopped the battery charging so the phone runs from the charger, and the
+         * charge-control node it did it on, stored as the node's own pre-change value.
+         *
+         * Like [KEY_CPU_AFFINITY] this is a non-setting row rather than a [WritableSetting]: the
+         * charge-control node lives in sysfs, not the settings provider, so it cannot be a key an
+         * `settings put` writes. The previous value is the digit the node held before GameCore wrote
+         * its stop value — normal on nearly every device — and the restore writes that digit back, so
+         * a session that ends puts charging exactly as it found it. It is recorded under the game's
+         * package for the same reason every row is: session history can name the profile responsible
+         * for a phone still running off its charger.
+         */
+        const val KEY_CHARGE_BYPASS = "charge_bypass"
     }
 }
 

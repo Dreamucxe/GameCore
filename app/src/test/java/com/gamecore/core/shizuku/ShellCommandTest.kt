@@ -59,13 +59,17 @@ class ShellCommandTest {
         )
         add(ShellCommand.moveConfigFile("com.example.game", 0, "settings.ini.gc-tmp", "settings.ini")!!)
         add(ShellCommand.deleteConfigFile("com.example.game", 0, "settings.ini.gc-tmp")!!)
+        add(ShellCommand.probeChargeControlNode("/sys/class/power_supply/battery/charge_disable")!!)
+        add(ShellCommand.readChargeControlNode("/sys/class/power_supply/battery/charge_disable")!!)
+        add(ShellCommand.writeChargeControlNode("/sys/class/power_supply/battery/charge_disable", "1")!!)
+        add(ShellCommand.readGpuBusyNode("/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage")!!)
     }
 
     @Test
-    fun `the only programs GameCore can invoke are these fifteen`() {
+    fun `the only programs GameCore can invoke are these seventeen`() {
         val allowed = setOf(
             "id", "cat", "dumpsys", "settings", "getprop", "pm", "appops", "wm", "am", "rm",
-            "taskset", "ls", "stat", "cp", "mv",
+            "taskset", "ls", "stat", "cp", "mv", "test", "sh",
         )
         everyCommand().forEach { command ->
             assertTrue(
@@ -96,8 +100,15 @@ class ShellCommandTest {
         // reason. Pinning a game to a set of cores is a bounded change the user can be told the truth
         // about; raising its scheduling priority or its I/O class above the rest of the device is not the
         // same kind of thing, is not what was asked for, and has no argv in this app.
+        //
+        // `sh` is *not* on this list, and that is deliberate: the charge-bypass feature reaches `sh -c`
+        // exactly once, to redirect a single digit into a sysfs node, and does so with the value and the
+        // path as positional arguments rather than spliced into the script text. That one bounded form is
+        // asserted in its own test below the way `am kill` is, so the guarantee is "the only shell in this
+        // app is that one command", not "no shell exists" — a claim the code no longer supports and this
+        // test therefore does not pretend to. `test` is likewise reachable only as the charge probe.
         val forbidden = setOf(
-            "cmd", "su", "sh", "mount", "setprop", "reboot", "killall", "force-stop",
+            "cmd", "su", "mount", "setprop", "reboot", "killall", "force-stop",
             "stop-app", "trim-caches", "clear", "broadcast", "override-status", "compile", "install",
             "uninstall", "density", "dismiss-keyguard", "overscan",
             "chrt", "renice", "nice", "ionice",
@@ -230,20 +241,114 @@ class ShellCommandTest {
     }
 
     @Test
+    fun `the one command that runs a shell writes a single digit through positional arguments`() {
+        // `sh` came off the forbidden list when charge bypass was built, so the bound that made it
+        // admissible is asserted here in its place, the way `am kill` is. There is exactly one `sh`
+        // command in the app; its script is a fixed string this test pins verbatim; and the value and the
+        // target path arrive as positional arguments ($1, $2) rather than spliced into that script, so
+        // neither can break out of the `echo` or its redirection. The value is a boolean digit, nothing
+        // more.
+        val sh = everyCommand().filter { it.argv.first() == "sh" }
+        assertEquals(1, sh.size)
+        val write = ShellCommand.writeChargeControlNode("/sys/class/power_supply/battery/charge_disable", "1")!!
+        assertEquals(
+            listOf("sh", "-c", "echo \"\$1\" > \"\$2\"", "sh", "1", "/sys/class/power_supply/battery/charge_disable"),
+            write.argv,
+        )
+        assertEquals(ShellCommand.Effect.CHANGES_SETTING, write.effect)
+        assertFalse(write.isReadOnly)
+
+        // "Positional" means the script text is constant: the two things a caller controls are argv[4] and
+        // argv[5], and the code between them cannot be composed by the caller at all.
+        assertEquals("echo \"\$1\" > \"\$2\"", write.argv[2])
+        assertEquals("1", write.argv[4])
+        assertEquals("/sys/class/power_supply/battery/charge_disable", write.argv[5])
+
+        // A charge-control node is a boolean toggle: only "0" and "1" are admitted. Anything else — a
+        // larger number, a shell fragment, an empty string — yields null rather than a command.
+        assertNotNull(ShellCommand.writeChargeControlNode("/sys/class/power_supply/battery/charge_disable", "0"))
+        assertNull(ShellCommand.writeChargeControlNode("/sys/class/power_supply/battery/charge_disable", "2"))
+        assertNull(ShellCommand.writeChargeControlNode("/sys/class/power_supply/battery/charge_disable", "01"))
+        assertNull(ShellCommand.writeChargeControlNode("/sys/class/power_supply/battery/charge_disable", ""))
+        assertNull(ShellCommand.writeChargeControlNode("/sys/class/power_supply/battery/charge_disable", "1; reboot"))
+    }
+
+    @Test
+    fun `the charge-control commands cannot be pointed outside the power-supply tree`() {
+        // The probe, the read and the write share one path grammar — /sys/class/power_supply/<supply>/
+        // <node>, two plain-name segments and nothing else — so a path that climbs, that adds a segment,
+        // that names a different sysfs subtree, or that carries a shell metacharacter is not a path but
+        // null, and no command is built for any of the three.
+        val ok = "/sys/class/power_supply/battery/charge_disable"
+        assertEquals(listOf("test", "-w", ok), ShellCommand.probeChargeControlNode(ok)!!.argv)
+        assertTrue(ShellCommand.probeChargeControlNode(ok)!!.isReadOnly)
+        assertEquals(listOf("cat", ok), ShellCommand.readChargeControlNode(ok)!!.argv)
+        assertTrue(ShellCommand.readChargeControlNode(ok)!!.isReadOnly)
+        assertNotNull(ShellCommand.writeChargeControlNode(ok, "1"))
+
+        listOf(
+            "/sys/class/power_supply/../../../data/data",
+            "/sys/class/power_supply/battery/charge_disable/..",
+            "/sys/class/power_supply/battery",
+            "/sys/class/power_supply/battery/sub/node",
+            "/sys/devices/system/cpu/online",
+            "/sys/class/power_supply/battery/charge disable",
+            "/sys/class/power_supply/battery/charge;reboot",
+            "sys/class/power_supply/battery/charge_disable",
+            "",
+        ).forEach { bad ->
+            assertNull("probe accepted $bad", ShellCommand.probeChargeControlNode(bad))
+            assertNull("read accepted $bad", ShellCommand.readChargeControlNode(bad))
+            assertNull("write accepted $bad", ShellCommand.writeChargeControlNode(bad, "1"))
+        }
+    }
+
+    @Test
+    fun `the GPU-load command cats a validated sysfs node and nothing else`() {
+        // GPU utilisation lives in vendor-specific read-only counters under /sys. The reader `cat`s a path
+        // it validated: it must start /sys/, run no deeper than a handful of segments, and every segment
+        // must be a plain device name — never empty, never `.` or `..` — so a discovered node can be read
+        // while the argument can never climb out of /sys or name a file elsewhere.
+        val adreno = "/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage"
+        val gpu = ShellCommand.readGpuBusyNode(adreno)!!
+        assertEquals(listOf("cat", adreno), gpu.argv)
+        assertEquals(ShellCommand.Effect.READ_ONLY, gpu.effect)
+        assertTrue(gpu.isReadOnly)
+
+        // Real devfreq device names carry `-`, `.`, `,`, `:` and `@`, so those are admitted inside a
+        // segment; a Mali/devfreq load node validates the same way an Adreno one does.
+        assertNotNull(ShellCommand.readGpuBusyNode("/sys/devices/platform/gpu.0/gpu_load"))
+
+        listOf(
+            "/proc/stat",
+            "/data/local/tmp/x",
+            "/sys/../etc/passwd",
+            "/sys/class/kgsl/../../../etc/passwd",
+            "/sys/class/kgsl/kgsl-3d0/gpu busy",
+            "/sys/class/kgsl/kgsl-3d0/gpu;reboot",
+            "sys/class/kgsl/kgsl-3d0/gpu_busy_percentage",
+            "/sys/a/b/c/d/e/f/g/h/i/j",
+            "",
+        ).forEach { bad ->
+            assertNull("gpu read accepted $bad", ShellCommand.readGpuBusyNode(bad))
+        }
+    }
+
+    @Test
     fun `a read never changes anything and a write always says that it does`() {
         val readOnly = everyCommand().filter { it.isReadOnly }
         val writes = everyCommand().filterNot { it.isReadOnly }
         readOnly.forEach { assertEquals(ShellCommand.Effect.READ_ONLY, it.effect) }
         readOnly.forEach { assertFalse(it.argv.contains("put")) }
         // Nineteen settings keys, three self-grants, two self-appops, the two halves of a display size
-        // override, the one close, the one cache delete, the one affinity write, and the config editor's
-        // three file writes (copy, move, delete). Nothing else writes.
+        // override, the one close, the one cache delete, the one affinity write, the config editor's
+        // three file writes (copy, move, delete), and the one charge-control write. Nothing else writes.
         assertEquals(19, WritableSetting.entries.size)
-        assertEquals(32, writes.size)
+        assertEquals(33, writes.size)
         writes.forEach {
             assertTrue(
                 "unexpected write program: ${it.argv}",
-                it.argv.first() in setOf("settings", "pm", "appops", "wm", "am", "rm", "taskset", "cp", "mv"),
+                it.argv.first() in setOf("settings", "pm", "appops", "wm", "am", "rm", "taskset", "cp", "mv", "sh"),
             )
         }
     }

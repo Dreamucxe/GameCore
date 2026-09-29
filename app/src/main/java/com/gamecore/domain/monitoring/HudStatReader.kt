@@ -102,6 +102,7 @@ object HudStatReader {
             HudStat.CPU_TEMPERATURE -> from(stat, snapshot.thermal.cpuTemperatureDeciCelsius) {
                 degrees(it)
             }
+            HudStat.GPU_USAGE -> from(stat, snapshot.gpu) { whole(it.loadPercent) }
             HudStat.RAM_USAGE -> StatReading(stat, whole(snapshot.memory.usedPercent))
             HudStat.RAM_FREE -> StatReading(
                 stat = stat,

@@ -15,6 +15,7 @@ import com.gamecore.core.system.SettingsWriteOutcome
 import com.gamecore.core.system.SettingsWriter
 import com.gamecore.data.repository.PendingRestore
 import com.gamecore.data.repository.RestorePointRepository
+import com.gamecore.domain.charge.ChargeBypassController
 import com.gamecore.domain.cpu.CpuAffinityController
 import com.gamecore.domain.display.DisplaySizeController
 import javax.inject.Inject
@@ -66,6 +67,7 @@ class OptimizationManager @Inject constructor(
     private val audio: AudioControls,
     private val displaySize: DisplaySizeController,
     private val cpuAffinity: CpuAffinityController,
+    private val chargeBypass: ChargeBypassController,
     private val restorePoints: RestorePointRepository,
     private val writeLog: DeviceWriteLog,
 ) {
@@ -467,6 +469,13 @@ class OptimizationManager @Inject constructor(
         // is settings. `CpuAffinityController` records the mask under the game's package name and the
         // restore is dispatched by key below. Nothing routes this action through here either.
         OptimizationAction.SET_CPU_AFFINITY -> emptyList()
+
+        // Empty for the same pair of reasons as the affinity mask above: no `settings` key, and no
+        // device state this class owns. The charge-control node lives in sysfs and its previous value
+        // is recorded by `ChargeBypassController` under the game's package name; the restore is
+        // dispatched by key below. Nothing routes this action through here — `isEngineAction` is false
+        // for it and both tiers decline it — so this branch exists to keep the `when` exhaustive.
+        OptimizationAction.SET_CHARGE_BYPASS -> emptyList()
     }
 
     // -------------------------------------------------------------------- restoring
@@ -563,6 +572,18 @@ class OptimizationManager @Inject constructor(
                     "That game's core assignment is still changed: ${outcome.message}"
                 }
             }
+
+            // The one row whose obligation outlives the process that made it: a suspended charge
+            // persists until the node is written back or the device reboots, so unlike the affinity
+            // row above there is no "the game exited, nothing to do" success here. The controller
+            // re-probes the node and writes charging back; only a confirmed read-back clears the row,
+            // and a shell that is not answering keeps it pending for the next pass.
+            RestorePointRepository.KEY_CHARGE_BYPASS ->
+                when (val outcome = chargeBypass.restore(row.previousValue, row.packageName)) {
+                    is Observed.Value -> null
+                    is Observed.Restricted -> "Charging is still stopped: ${outcome.detail}"
+                    is Observed.Failed -> "Charging is still stopped: ${outcome.detail}"
+                }
 
             else -> "This version of GameCore does not know how to restore \"${row.key}\"."
         }

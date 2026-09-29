@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gamecore.core.model.HudDisplayMode
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HudWidget
@@ -48,6 +49,7 @@ import kotlin.math.roundToInt
 fun HudOverlay(
     layout: HudLayout,
     readings: Map<HudStat, StatReading>,
+    mode: HudDisplayMode,
     modifier: Modifier = Modifier,
 ) {
     val widgets = layout.widgets
@@ -58,7 +60,7 @@ fun HudOverlay(
         content = {
             widgets.forEach { widget ->
                 val reading = readings[widget.stat] ?: StatReading(widget.stat, value = null)
-                HudWidgetView(widget = widget, reading = reading)
+                HudWidgetView(widget = widget, reading = reading, mode = mode)
             }
         },
     ) { measurables, constraints ->
@@ -93,13 +95,19 @@ fun HudOverlay(
  * `internal` rather than private because the HUD builder's preview draws its widgets with this same
  * function. A preview that had its own copy of this rendering would drift from it, and a builder whose
  * preview does not match the overlay is a builder that lies about what it is building.
+ *
+ * [mode] is the one axis that overrides per-widget styling: [HudDisplayMode.COMPACT] draws the value and
+ * nothing else — no label whatever `showLabel` says, no plate whatever `showBackground` says, tighter
+ * spacing and a smaller figure, the densest reading for a crowded screen. [HudDisplayMode.EXPANDED] is
+ * the full appearance above and the default, so the builder preview and any legacy layout are unchanged.
  */
 @Composable
-internal fun HudWidgetView(widget: HudWidget, reading: StatReading) {
+internal fun HudWidgetView(widget: HudWidget, reading: StatReading, mode: HudDisplayMode = HudDisplayMode.EXPANDED) {
     val normalised = widget.normalised()
-    val size = normalised.textSizeSp.sp
+    val compact = mode == HudDisplayMode.COMPACT
+    val size = if (compact) (normalised.textSizeSp * 0.85f).sp else normalised.textSizeSp.sp
     val colour = Color(normalised.colorArgb)
-    val plate = if (normalised.showBackground) {
+    val plate = if (!compact && normalised.showBackground) {
         Modifier
             .background(OverlayPalette.Plate, RoundedCornerShape(6.dp))
             .padding(horizontal = 6.dp, vertical = 3.dp)
@@ -111,10 +119,10 @@ internal fun HudWidgetView(widget: HudWidget, reading: StatReading) {
         modifier = Modifier
             .alpha(normalised.opacityPercent / 100f)
             .then(plate),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (normalised.showLabel && normalised.stat.shortLabel.isNotEmpty()) {
+        if (!compact && normalised.showLabel && normalised.stat.shortLabel.isNotEmpty()) {
             BasicText(
                 text = normalised.stat.shortLabel,
                 style = TextStyle(

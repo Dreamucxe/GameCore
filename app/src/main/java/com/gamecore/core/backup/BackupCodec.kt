@@ -6,6 +6,7 @@ import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.ColorPreset
 import com.gamecore.core.model.CrosshairPreset
 import com.gamecore.core.model.FloatingButtonConfig
+import com.gamecore.core.model.HudDisplayMode
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HudWidget
@@ -219,6 +220,9 @@ object BackupCodec {
         put("aimLabEnabled", s.aimLabEnabled)
         put("aimLabOrientation", s.aimLabOrientation.name)
         put("aimLabHorizontalFovDegrees", s.aimLabHorizontalFovDegrees)
+        put("advancedHudEnabled", s.advancedHudEnabled)
+        put("networkStabilityEnabled", s.networkStabilityEnabled)
+        put("customModulesEnabled", s.customModulesEnabled)
     }
 
     private fun encodeQuickTrigger(q: QuickTriggerSettings): JSONObject = JSONObject().apply {
@@ -242,6 +246,7 @@ object BackupCodec {
         put("isVertical", c.isVertical)
         put("showLabels", c.showLabels)
         put("displayMode", c.displayMode.name)
+        put("hudDisplayMode", c.hudDisplayMode.name)
         put("quickPins", JSONArray(c.quickPins))
         put("quickAutoClose", c.quickAutoClose)
         // macrosJson is intentionally omitted: the macros travel in the envelope's top-level "macros" array,
@@ -438,6 +443,9 @@ object BackupCodec {
             aimLabEnabled = o.optBoolean("aimLabEnabled", d.aimLabEnabled),
             aimLabOrientation = enumByName(o.optString("aimLabOrientation"), d.aimLabOrientation),
             aimLabHorizontalFovDegrees = o.optInt("aimLabHorizontalFovDegrees", d.aimLabHorizontalFovDegrees),
+            advancedHudEnabled = o.optBoolean("advancedHudEnabled", d.advancedHudEnabled),
+            networkStabilityEnabled = o.optBoolean("networkStabilityEnabled", d.networkStabilityEnabled),
+            customModulesEnabled = o.optBoolean("customModulesEnabled", d.customModulesEnabled),
         ).normalised()
     }
 
@@ -467,6 +475,7 @@ object BackupCodec {
             isVertical = o.optBoolean("isVertical", d.isVertical),
             showLabels = o.optBoolean("showLabels", d.showLabels),
             displayMode = PillDisplayMode.of(o.optString("displayMode")),
+            hudDisplayMode = HudDisplayMode.of(o.optString("hudDisplayMode")),
             quickPins = readStrings(o.optJSONArray("quickPins")),
             quickAutoClose = o.optBoolean("quickAutoClose", d.quickAutoClose),
             // Macros live at the envelope's top level; this config carries none of its own.

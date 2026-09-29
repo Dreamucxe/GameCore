@@ -259,6 +259,7 @@ class ThermalClassificationTest {
         network = NetworkReading.DISCONNECTED,
         frameRate = Observed.notPresent("test"),
         latency = Observed.notPresent("test"),
+        gpu = Observed.notPresent("test"),
         accessLevel = AccessLevel.NORMAL,
     )
 }

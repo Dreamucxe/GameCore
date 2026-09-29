@@ -19,6 +19,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import com.gamecore.aimlab.TrainingFrame
 import com.gamecore.aimlab.TrainingLoop
 import com.gamecore.aimlab.engine.Vec2
+import com.gamecore.aimlab.engine.WheelDisplacementMath
 import kotlin.math.hypot
 
 /**
@@ -51,6 +52,15 @@ import kotlin.math.hypot
  * otherwise register as a shot into empty space and count as a miss against the player's accuracy. The
  * decision is made once, on the down, so a stick drag that wanders out of its own box does not suddenly
  * become an aim delta halfway through.
+ *
+ * [wheelSensitivityPercent] is the honest half of the high-sensitivity wheels feature (§Wheels): the input
+ * re-scale the feel-guide ring only hints at. GameCore cannot reach into another game and re-scale its
+ * virtual stick, so the ring overlay is feel-only and the real gain is delivered here, on this surface's own
+ * stick — every aim displacement is run through [WheelDisplacementMath.apply] before it reaches the loop,
+ * exactly as the loop then runs that look input through [com.gamecore.aimlab.engine.SensitivityMath]. The
+ * neutral [WHEEL_SENSITIVITY_NEUTRAL] (100) is a plain pass-through, guarded off the hot path so it allocates
+ * nothing and honours the per-event promise §21 makes; any other percent is clamped into
+ * [com.gamecore.core.model.AppSettings.WHEEL_SENSITIVITY_MIN]..MAX by the math before it scales anything.
  */
 @Composable
 fun TrainingSurface(
@@ -59,12 +69,17 @@ fun TrainingSurface(
     modifier: Modifier = Modifier,
     crosshairColour: Color = Color.White,
     excludeTouch: ((Vec2) -> Boolean)? = null,
+    wheelSensitivityPercent: Int = WHEEL_SENSITIVITY_NEUTRAL,
     drawArena: DrawScope.(size: Size) -> Unit,
 ) {
     // The screen may hand us a fresh loop when a run restarts; capture the latest without re-arming the
     // pointer filter, which would drop any finger currently down.
     val current by rememberUpdatedState(loop)
     val excluded by rememberUpdatedState(excludeTouch)
+    // The wheels gain can be changed mid-run from the settings surface; capture the latest the same way the
+    // loop and exclusion are captured, so a new value takes effect on the next frame without re-arming the
+    // pointer filter and dropping a finger currently down (§Wheels).
+    val wheelPercent by rememberUpdatedState(wheelSensitivityPercent)
 
     Box(
         modifier = modifier
@@ -118,7 +133,17 @@ fun TrainingSurface(
                                         lastAt[change.id] = change.position
                                         travelled[change.id] = (travelled[change.id] ?: 0f) + hypot(dx, dy)
                                         val look = TouchMath.deltaToLook(dx, dy, size.width, size.height)
-                                        current.onAimDelta(look.x, look.y, aiming = pressedCount > 1)
+                                        // Scale the stick displacement by the wheels gain before it moves the
+                                        // camera (§Wheels), leaving the loop's sensitivity curve to run on top.
+                                        // At the neutral 100 the multiplier is exactly 1.0, so pass `look`
+                                        // straight through rather than allocate a Vec2 per event for a no-op —
+                                        // this handler allocates nothing per event by design (§21).
+                                        val moved = if (wheelPercent == WHEEL_SENSITIVITY_NEUTRAL) {
+                                            look
+                                        } else {
+                                            WheelDisplacementMath.apply(look.x, look.y, wheelPercent)
+                                        }
+                                        current.onAimDelta(moved.x, moved.y, aiming = pressedCount > 1)
                                     }
                                 }
                             }
@@ -181,3 +206,11 @@ fun DrawScope.drawTarget(
 private const val ARM_FRACTION = 0.035f
 private const val GAP_FRACTION = 0.28f
 private const val STROKE = 3f
+
+/**
+ * The wheels remap gain at which [WheelDisplacementMath.multiplier] is exactly 1.0 — a plain pass-through.
+ * Named here so the aim handler can take the no-op fast path at neutral without a bare literal in the hot
+ * loop; it mirrors the "100 is neutral" contract
+ * [com.gamecore.core.model.AppSettings.wheelSensitivityPercent] documents (§Wheels).
+ */
+private const val WHEEL_SENSITIVITY_NEUTRAL = 100

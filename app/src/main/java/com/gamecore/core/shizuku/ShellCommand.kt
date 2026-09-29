@@ -604,6 +604,100 @@ sealed class ShellCommand(
         }
     }
 
+    // ---------------------------------------------------- charge-control node access
+
+    /**
+     * Tests whether a battery charge-control node exists and is writable, without touching it.
+     *
+     * `test -w` is the cheapest question the shell can ask of a sysfs node — 0 when the file is
+     * there and this uid may write it, non-zero otherwise — so the charge-bypass feature can probe a
+     * device's known node paths and offer the toggle only where one answers. The path is not
+     * accepted as a string: [of] runs it through [chargeControlPathOrNull], so nothing outside
+     * `/sys/class/power_supply/<supply>/<node>` can reach `test` at all.
+     */
+    class ProbeChargeControlNode private constructor(val path: String) : ShellCommand(
+        listOf("test", "-w", path),
+        "Check whether $path is a writable charge-control node",
+        Effect.READ_ONLY,
+    ) {
+        companion object {
+            /** Null unless [path] is a well-formed power-supply node path. */
+            fun of(path: String): ProbeChargeControlNode? =
+                chargeControlPathOrNull(path)?.let(::ProbeChargeControlNode)
+        }
+    }
+
+    /**
+     * Reads the current value of a battery charge-control node.
+     *
+     * `cat` on a sysfs node returns the value the driver holds — for charge bypass, the digit that
+     * says whether charging is stopped or normal — so the controller can record what the node held
+     * before it writes and read it back afterwards to confirm the change took. Read-only and
+     * path-validated for the same reason [ProbeChargeControlNode] is.
+     */
+    class ReadChargeControlNode private constructor(val path: String) : ShellCommand(
+        listOf("cat", path),
+        "Read the charge-control node $path",
+        Effect.READ_ONLY,
+    ) {
+        companion object {
+            /** Null unless [path] is a well-formed power-supply node path. */
+            fun of(path: String): ReadChargeControlNode? =
+                chargeControlPathOrNull(path)?.let(::ReadChargeControlNode)
+        }
+    }
+
+    /**
+     * Writes a single digit to a battery charge-control node.
+     *
+     * The one command in this file that runs `sh -c`, and it does so with the value and the path as
+     * positional arguments (`$1`, `$2`) rather than spliced into the script text, so a value or a
+     * path can never break out of the `echo` — the redirection target is a shell word the caller
+     * does not compose. [value] is admitted only when it is exactly `"0"` or `"1"`: a charge-control
+     * node is a boolean toggle, and anything else has no meaning to write to one. The path is
+     * validated exactly as the read and probe commands validate theirs.
+     */
+    class WriteChargeControlNode private constructor(
+        val path: String,
+        val value: String,
+    ) : ShellCommand(
+        listOf("sh", "-c", "echo \"\$1\" > \"\$2\"", "sh", value, path),
+        "Write $value to the charge-control node $path",
+        Effect.CHANGES_SETTING,
+    ) {
+        companion object {
+            /** Null unless [value] is `"0"` or `"1"` and [path] is a well-formed node path. */
+            fun of(path: String, value: String): WriteChargeControlNode? {
+                if (value != "0" && value != "1") return null
+                val validPath = chargeControlPathOrNull(path) ?: return null
+                return WriteChargeControlNode(validPath, value)
+            }
+        }
+    }
+
+    // ---------------------------------------------------- GPU load node access
+
+    /**
+     * Reads a GPU-load counter node, without interpreting it.
+     *
+     * `cat` on a GPU sysfs node returns whatever the driver exposes — Adreno's `gpu_busy_percentage`
+     * is a ready percentage, `gpubusy` a busy/total pair, a Mali/devfreq `gpu_load` a percentage — so
+     * the reader pulls the raw text and parses the one it found. Read-only and path-validated for the
+     * same reason [ReadChargeControlNode] is: [of] runs the path through [gpuBusyPathOrNull], so
+     * nothing outside `/sys` can be reached through `cat` by this command.
+     */
+    class ReadGpuBusyNode private constructor(val path: String) : ShellCommand(
+        listOf("cat", path),
+        "Read the GPU-load node $path",
+        Effect.READ_ONLY,
+    ) {
+        companion object {
+            /** Null unless [path] is a well-formed GPU-load sysfs node path. */
+            fun of(path: String): ReadGpuBusyNode? =
+                gpuBusyPathOrNull(path)?.let(::ReadGpuBusyNode)
+        }
+    }
+
     // ------------------------------------------------ config editor file access
 
     /**
@@ -791,6 +885,22 @@ sealed class ShellCommand(
          */
         fun setCpuAffinity(pid: Int, mask: Int): SetCpuAffinity? = SetCpuAffinity.of(pid, mask)
 
+        /** Null unless [path] is a writable power-supply charge-control node. */
+        fun probeChargeControlNode(path: String): ProbeChargeControlNode? =
+            ProbeChargeControlNode.of(path)
+
+        /** Null unless [path] is a well-formed power-supply charge-control node. */
+        fun readChargeControlNode(path: String): ReadChargeControlNode? =
+            ReadChargeControlNode.of(path)
+
+        /** Null unless [value] is `"0"`/`"1"` and [path] is a well-formed node path. */
+        fun writeChargeControlNode(path: String, value: String): WriteChargeControlNode? =
+            WriteChargeControlNode.of(path, value)
+
+        /** Null unless [path] is a well-formed GPU-load sysfs node. */
+        fun readGpuBusyNode(path: String): ReadGpuBusyNode? =
+            ReadGpuBusyNode.of(path)
+
         /** Null unless the directory is inside the named game's own external files. */
         fun listConfigDir(packageName: String, userId: Int, relativePath: String = ""): ListConfigDir? =
             ListConfigDir.of(packageName, userId, relativePath)
@@ -869,6 +979,51 @@ private fun validPidOrNull(pid: Int): Int? =
 
 /** 2^22, the largest value Linux will accept for `pid_max`. */
 private const val MAX_PID = 4_194_304
+
+/**
+ * A charge-control node path, or null if [path] is not one.
+ *
+ * The battery charge-bypass feature only ever touches nodes under `/sys/class/power_supply/`, one
+ * directory deep — `<supply>/<node>`, each segment word characters. Constraining the shape here,
+ * where the three charge commands' factories all reach it, is what lets those commands accept a
+ * path at all: a validated path can never name a file outside a power-supply directory, so `cat`,
+ * `test` and the `echo` redirect cannot be pointed at arbitrary sysfs.
+ */
+private fun chargeControlPathOrNull(path: String): String? =
+    if (CHARGE_CONTROL_NODE.matches(path)) path else null
+
+private val CHARGE_CONTROL_NODE = Regex("^/sys/class/power_supply/[A-Za-z0-9_]+/[A-Za-z0-9_]+$")
+
+/**
+ * A GPU-load sysfs node path, or null if [path] is not one.
+ *
+ * GPU utilisation lives in a handful of vendor-specific places under `/sys` — Adreno's
+ * `/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage`, a Mali/devfreq `gpu_load`, and their siblings — all
+ * read-only counters. This holds a path to that tree with the same shape-check discipline
+ * [chargeControlPathOrNull] applies to a power-supply node, widened only to the characters real
+ * devfreq device names carry (`.`, `,`, `:`, `@`, `-`): the path must start `/sys/`, run no deeper
+ * than [MAX_GPU_NODE_DEPTH] segments, and every segment must be a plain name — never empty, never
+ * `.` or `..`, so a validated path can climb nowhere and [ShellCommand.ReadGpuBusyNode] can `cat` a
+ * discovered node without the argument ever naming a file outside `/sys`.
+ */
+private fun gpuBusyPathOrNull(path: String): String? {
+    if (!path.startsWith("/sys/") || path.length > MAX_GPU_NODE_PATH_LENGTH) return null
+    val segments = path.removePrefix("/").split('/')
+    if (segments.size < 2 || segments.size > MAX_GPU_NODE_DEPTH) return null
+    for (segment in segments) {
+        if (segment.isEmpty() || segment == "." || segment == "..") return null
+        if (!GPU_NODE_SEGMENT.matches(segment)) return null
+    }
+    return path
+}
+
+private val GPU_NODE_SEGMENT = Regex("^[A-Za-z0-9_.,:@-]+$")
+
+/** A GPU node lives a few levels under `/sys`; deeper than this is not one of the known layouts. */
+private const val MAX_GPU_NODE_DEPTH = 8
+
+/** A generous cap on the whole path, well under a filesystem's `PATH_MAX`. */
+private const val MAX_GPU_NODE_PATH_LENGTH = 256
 
 /**
  * Builds an absolute path inside one app's external `files` directory from parts, or null

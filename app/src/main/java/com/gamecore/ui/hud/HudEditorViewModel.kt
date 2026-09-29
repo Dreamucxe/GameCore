@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.core.common.TextSanitizer
+import com.gamecore.core.model.HudDisplayMode
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HudWidget
@@ -16,9 +17,10 @@ import com.gamecore.ui.Destination
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
@@ -43,7 +45,7 @@ class HudEditorViewModel @Inject constructor(
     savedState: SavedStateHandle,
     private val layouts: HudLayoutRepository,
     private val monitor: PerformanceMonitor,
-    preferences: SecurePreferenceStore,
+    private val preferences: SecurePreferenceStore,
 ) : ViewModel() {
 
     /**
@@ -64,7 +66,21 @@ class HudEditorViewModel @Inject constructor(
         ),
     )
 
-    val state: StateFlow<HudEditorUiState> = editing.asStateFlow()
+    /**
+     * The draft, plus the two globals the builder reflects but does not own.
+     *
+     * [HudEditorUiState.displayMode] and [HudEditorUiState.customModulesEnabled] are folded in from
+     * [SecurePreferenceStore] rather than kept on [editing]: the density is one preference for every
+     * layout (mirrored on the pill) and whether custom modules are on is a Settings switch — neither is
+     * part of what Save persists, so a change to either updates the screen without marking the draft dirty.
+     */
+    val state: StateFlow<HudEditorUiState> =
+        combine(editing, preferences.overlay, preferences.settings) { draft, overlay, settings ->
+            draft.copy(
+                displayMode = overlay.hudDisplayMode,
+                customModulesEnabled = settings.customModulesEnabled,
+            )
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, editing.value)
 
     /**
      * What each widget on the draft currently reads, keyed by stat.
@@ -163,6 +179,19 @@ class HudEditorViewModel @Inject constructor(
         update(widgetId) { it.copy(colorArgb = argb) }
     }
 
+    /**
+     * Changes which stat a placed widget shows.
+     *
+     * Guarded by the same one-stat-per-layout rule [HudEditorUiState.addableStats] enforces: a stat already
+     * on *another* widget is refused, so the layout never holds two copies of one reading. Switching a
+     * widget to the stat it already shows is a no-op. The stat round-trips through storage already, so this
+     * needs no schema change — it is an [update] like [setColour].
+     */
+    fun setStat(widgetId: String, stat: HudStat) {
+        if (editing.value.widgets.any { it.id != widgetId && it.stat == stat }) return
+        update(widgetId) { it.copy(stat = stat) }
+    }
+
     fun remove(widgetId: String) {
         val current = editing.value
         editing.value = current.copy(
@@ -201,6 +230,17 @@ class HudEditorViewModel @Inject constructor(
 
     fun dismissMessage() {
         editing.value = editing.value.copy(message = null)
+    }
+
+    /**
+     * Sets the global HUD display density (§4).
+     *
+     * A one-tap preference like the pill's, written straight through [SecurePreferenceStore] rather than
+     * staged on the draft: it is not part of this layout and Save does not carry it, so it takes effect
+     * immediately. The combined [state] re-reads it, so the preview redraws in the new density at once.
+     */
+    fun setDisplayMode(mode: HudDisplayMode) {
+        preferences.updateOverlay { it.copy(hudDisplayMode = mode) }
     }
 
     // -------------------------------------------------------------------------------- internals

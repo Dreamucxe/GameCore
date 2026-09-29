@@ -67,6 +67,7 @@ import com.gamecore.ui.capability.CapabilityScreen
 import com.gamecore.ui.color.ColorScreen
 import com.gamecore.ui.components.ScreenPadding
 import com.gamecore.ui.config.ConfigBackupPickerDialog
+import com.gamecore.ui.charge.ChargeBypassScreen
 import com.gamecore.ui.config.ConfigBrowserNav
 import com.gamecore.ui.config.ConfigBrowserScreen
 import com.gamecore.ui.config.ConfigBrowserViewModel
@@ -83,13 +84,16 @@ import com.gamecore.ui.games.ProfileEditorScreen
 import com.gamecore.ui.home.HomeScreen
 import com.gamecore.ui.hud.HudEditorScreen
 import com.gamecore.ui.hud.HudScreen
+import com.gamecore.ui.hunt.HuntScreen
 import com.gamecore.ui.macros.MacroEditorScreen
 import com.gamecore.ui.media.MediaAccessScreen
 import com.gamecore.ui.motion.MotionScreen
+import com.gamecore.ui.network.NetworkStabilityScreen
 import com.gamecore.ui.overlay.OverlayScreen
 import com.gamecore.ui.performance.PerformanceScreen
 import com.gamecore.ui.permissions.PermissionsScreen
 import com.gamecore.ui.quickapps.QuickAppsScreen
+import com.gamecore.ui.scout.ScoutScreen
 import com.gamecore.ui.sessions.SessionReportScreen
 import com.gamecore.ui.sessions.SessionsScreen
 import com.gamecore.ui.settings.NeverCloseScreen
@@ -102,6 +106,7 @@ import com.gamecore.ui.theme.GameCoreTheme
 import com.gamecore.ui.tools.ToolsScreen
 import com.gamecore.ui.touch.TouchScreen
 import com.gamecore.ui.trigger.QuickTriggerScreen
+import com.gamecore.ui.wheels.WheelsScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -372,6 +377,32 @@ private fun GameCoreNav(
             CrosshairScreen(onBack = back, onNavigate = open)
         }
 
+        // Scout / Hunt / Wheels: the three overlay-feature settings screens, siblings of Crosshair. Each is
+        // a leaf that only needs a way back; their toggles reach the overlay through their own ViewModels.
+        composable(Destination.Scout.route) {
+            ScoutScreen(onBack = back)
+        }
+
+        composable(Destination.Hunt.route) {
+            HuntScreen(onBack = back)
+        }
+
+        composable(Destination.Wheels.route) {
+            WheelsScreen(onBack = back)
+        }
+
+        // Charge bypass's standalone control (§3.5 power). A leaf reached from Settings; the per-game switch
+        // lives in the profile editor.
+        composable(Destination.Charge.route) {
+            ChargeBypassScreen(onBack = back)
+        }
+
+        // Network stability's read-only diagnostics. A leaf reached from Settings; it composes the existing
+        // network readers and opens no connection of its own.
+        composable(Destination.NetworkStability.route) {
+            NetworkStabilityScreen(onBack = back)
+        }
+
         // Reached from the overlay panel's colour tile as well as from inside the app, which is why
         // `openUnguarded` exists — see [Destination.Colour].
         composable(Destination.Colour.route) {
@@ -514,22 +545,32 @@ private fun GameCoreNav(
         ) {
             val browserViewModel = hiltViewModel<ConfigBrowserViewModel>()
             val browserState by browserViewModel.state.collectAsStateWithLifecycle()
-            // The VM only names where a tap wants to go; this collects that and does the moving — a folder
-            // opens another browser one level down, a file opens the editor. Routing lives here rather than
-            // in the VM so a recomposition cannot re-fire a navigation already made (see [ConfigBrowserNav]).
-            LaunchedEffect(browserViewModel) {
-                browserViewModel.nav.collect { intent ->
-                    when (intent) {
-                        is ConfigBrowserNav.OpenDirectory -> navController.push(
+            val navIntent by browserViewModel.nav.collectAsStateWithLifecycle()
+            // The VM only names where a tap wants to go; this reads that and does the moving — a folder opens
+            // another browser one level down, a file opens the editor — then clears it through onNavHandled so
+            // the same intent cannot fire twice. Routing lives here, off a retained value read with the
+            // lifecycle rather than a one-shot flow the VM pushed: that is the launch-intent pattern up in
+            // GameCoreRoot, and it is what stops a tap from being lost in the gap before the host reads it.
+            // The move is [pushUnguarded] because the app is moving itself a step removed from the tap, so the
+            // settle guard [push] uses is the wrong tool here (§32) — the call the intent and wizard also make.
+            LaunchedEffect(navIntent) {
+                when (val intent = navIntent) {
+                    null -> Unit
+                    is ConfigBrowserNav.OpenDirectory -> {
+                        navController.pushUnguarded(
                             Destination.ConfigBrowser.routeFor(
                                 intent.packageName, intent.userId, intent.relativePath,
                             ),
                         )
-                        is ConfigBrowserNav.OpenFile -> navController.push(
+                        browserViewModel.onNavHandled()
+                    }
+                    is ConfigBrowserNav.OpenFile -> {
+                        navController.pushUnguarded(
                             Destination.ConfigEditor.routeFor(
                                 intent.packageName, intent.userId, intent.relativePath,
                             ),
                         )
+                        browserViewModel.onNavHandled()
                     }
                 }
             }
@@ -740,6 +781,21 @@ private fun NavHostController.open(destination: Destination) {
 /** Pushes one route, id and all, encoded by the [Destination] that owns the encoding. */
 private fun NavHostController.push(route: String) {
     if (!isSettled()) return
+    navigate(route) { launchSingleTop = true }
+}
+
+/**
+ * Pushes one route without the settle guard the taps use, for a move the app makes itself.
+ *
+ * The route-string sibling of [openUnguarded], for the same reason. The config browser holds a tapped row's
+ * destination as a retained value and the host navigates here when it reads one — a step removed from the tap,
+ * not the tap itself. [isSettled] is there to tell a second tap from a second destination, which this is not:
+ * the value is consumed the moment it is acted on, and `launchSingleTop` covers the only duplicate a fast
+ * double tap could produce. Going through the guarded [push] instead would let the guard drop the move on the
+ * same cold-start and graph-rebuild edges [openUnguarded] guards against, silently forgetting the screen the
+ * user asked for — the §32 failure.
+ */
+private fun NavHostController.pushUnguarded(route: String) {
     navigate(route) { launchSingleTop = true }
 }
 

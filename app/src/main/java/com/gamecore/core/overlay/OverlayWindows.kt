@@ -52,6 +52,29 @@ enum class OverlaySlot {
      * separate slot so showing or hiding it never disturbs a recording pill or the magnifier beside it.
      */
     REPLAY,
+
+    /**
+     * The §Scout zoom pane. Full screen, never takes touches — like the magnifier it is a decoration the
+     * player looks through, so every touch passes to the game. Its own slot so parking or hiding Scout never
+     * disturbs the loupe sharing the screen: the two are siblings, both centre-crops lifted into a corner,
+     * and either can be up without the other.
+     */
+    SCOUT,
+
+    /**
+     * The §Hunt grade. Full screen, never takes touches. The capture-free grade paints a translucent tint
+     * and vignette the player still sees the game through; the capture-based grades paint the re-graded
+     * frame back opaque. A separate slot so switching Hunt on or off never disturbs the crosshair, HUD,
+     * loupe or Scout pane it may share the screen with.
+     */
+    HUNT,
+
+    /**
+     * The §Wheels feel-guide ring. Full screen, never takes touches: a `FLAG_NOT_TOUCHABLE` sticker on the
+     * glass like the crosshair, marking where an on-screen stick sits. Its own slot so it can come up beside
+     * the crosshair without either hiding the other through a shared [hide].
+     */
+    WHEEL,
 }
 
 /**

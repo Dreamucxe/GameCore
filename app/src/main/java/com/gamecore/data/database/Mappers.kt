@@ -85,6 +85,8 @@ internal object Mappers {
         instantReplayEnabled = profile.instantReplayEnabled,
         instantReplayBufferSeconds = profile.instantReplayBufferSeconds,
         instantReplayIncludeAudio = profile.instantReplayIncludeAudio,
+        // Charge bypass (§3.5 power). Plain NOT-NULL Boolean, passed straight through.
+        chargeBypassEnabled = profile.chargeBypassEnabled,
         updatedAtMillis = nowMillis,
     )
 
@@ -154,6 +156,8 @@ internal object Mappers {
         instantReplayBufferSeconds = entity.instantReplayBufferSeconds
             .takeIf { it in GameProfile.INSTANT_REPLAY_BUFFER_CHOICES } ?: 30,
         instantReplayIncludeAudio = entity.instantReplayIncludeAudio,
+        // Charge bypass (§3.5 power). NOT-NULL Boolean, read straight through like the toggles above.
+        chargeBypassEnabled = entity.chargeBypassEnabled,
     )
 
     // ------------------------------------------------------------------------ hud

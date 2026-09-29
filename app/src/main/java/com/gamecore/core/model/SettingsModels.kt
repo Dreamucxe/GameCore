@@ -234,6 +234,79 @@ data class AppSettings(
      * orientations. Clamped to [AIMLAB_FOV_MIN]..[AIMLAB_FOV_MAX] in [normalised].
      */
     val aimLabHorizontalFovDegrees: Int = AIMLAB_FOV_DEFAULT,
+
+    /**
+     * The Scout zoom factor (§Scout), in tenths, so a whole-number preference maps to a 0.1× step: 25 is
+     * 2.5×, the loupe's own default. The zoom draws a centre crop into a corner pane, never touching the
+     * game. Clamped to [SCOUT_ZOOM_MIN_TENTHS]..[SCOUT_ZOOM_MAX_TENTHS] in [normalised].
+     */
+    val scoutZoomTenths: Int = SCOUT_ZOOM_DEFAULT_TENTHS,
+
+    /**
+     * The Scout dark-scene brightness lift (§Scout), 0–100 percent, applied to the zoomed crop only via a
+     * colour matrix — the magnifier has no such control. Zero is a faithful crop; higher values raise
+     * shadow detail in a dim scene. Clamped to 0..[SCOUT_LIFT_MAX] in [normalised].
+     */
+    val scoutLiftPercent: Int = 0,
+
+    /**
+     * Whether the hunting filter (§Hunt) was left on. The persisted record of the overlay's on/off, the
+     * same role [SecurePreferenceStore.showCrosshairOverlay] plays for the crosshair, read back by
+     * [com.gamecore.domain.overlay.OverlayController.restoreManualState] — which only restores it when the
+     * saved [huntFilter] needs no capture.
+     */
+    val huntEnabled: Boolean = false,
+
+    /** Which grade the hunting filter draws (§Hunt). Stored by name; falls to [HuntFilter.DEFAULT] on read. */
+    val huntFilter: HuntFilter = HuntFilter.DEFAULT,
+
+    /**
+     * Whether the high-sensitivity wheels feel-guide (§Wheels) was left on. The persisted on/off for the
+     * ring overlay, restored plainly on the next launch because — unlike Scout and the capture grades — it
+     * reads nothing and needs no projection.
+     */
+    val wheelGuideEnabled: Boolean = false,
+
+    /**
+     * The wheels guide ring's radius (§Wheels) as a percentage of the shorter screen edge, so it scales
+     * across displays. Clamped to [WHEEL_RADIUS_MIN]..[WHEEL_RADIUS_MAX] in [normalised].
+     */
+    val wheelGuideRadiusPercent: Int = WHEEL_RADIUS_DEFAULT,
+
+    /**
+     * The gain the wheels remap applies inside GameCore's own Aim Lab surface (§Wheels), as a percentage
+     * where 100 is neutral: a value above 100 makes a given stick displacement turn faster. It never
+     * touches another app — the guide overlay is feel-only and the remap is confined to GameCore's training
+     * surface. Clamped to [WHEEL_SENSITIVITY_MIN]..[WHEEL_SENSITIVITY_MAX] in [normalised].
+     */
+    val wheelSensitivityPercent: Int = WHEEL_SENSITIVITY_DEFAULT,
+
+    /**
+     * Whether the advanced HUD stats (GPU usage, §3) are on offer.
+     *
+     * On by default. When off, the advanced readouts are not offered in the HUD editor or the pill's stat
+     * picker — a genuine feature disable rather than a greyed control. A boolean, so [normalised] leaves it
+     * untouched.
+     */
+    val advancedHudEnabled: Boolean = true,
+
+    /**
+     * Whether the Network Stability feature is available.
+     *
+     * On by default. When off, Network Stability is hidden from navigation and its controller never composes
+     * the readers behind it, so nothing is sampled for it — the rest of GameCore is unaffected either way,
+     * exactly like [aimLabEnabled].
+     */
+    val networkStabilityEnabled: Boolean = true,
+
+    /**
+     * Whether the custom modules feature is available.
+     *
+     * On by default. When off, the custom modules are hidden and never initialised — a genuine feature
+     * disable, not a hidden UI, in the same shape as [aimLabEnabled]. A boolean, so [normalised] leaves it
+     * untouched.
+     */
+    val customModulesEnabled: Boolean = true,
 ) {
     /**
      * Clamps every numeric field into a range the rest of the app can rely on.
@@ -260,6 +333,11 @@ data class AppSettings(
             .toSet(),
         quickTrigger = quickTrigger.normalised(),
         aimLabHorizontalFovDegrees = aimLabHorizontalFovDegrees.coerceIn(AIMLAB_FOV_MIN, AIMLAB_FOV_MAX),
+        scoutZoomTenths = scoutZoomTenths.coerceIn(SCOUT_ZOOM_MIN_TENTHS, SCOUT_ZOOM_MAX_TENTHS),
+        scoutLiftPercent = scoutLiftPercent.coerceIn(0, SCOUT_LIFT_MAX),
+        wheelGuideRadiusPercent = wheelGuideRadiusPercent.coerceIn(WHEEL_RADIUS_MIN, WHEEL_RADIUS_MAX),
+        wheelSensitivityPercent = wheelSensitivityPercent
+            .coerceIn(WHEEL_SENSITIVITY_MIN, WHEEL_SENSITIVITY_MAX),
         // Force the custom accent opaque. A pick that arrived with a transparent (or partly transparent)
         // alpha byte — from a hand-edited file, or a picker that let alpha through — would make text drawn
         // on the accent unreadable; the accent is always a solid fill, so the alpha is not the user's to set.
@@ -306,6 +384,24 @@ data class AppSettings(
         const val AIMLAB_FOV_MIN = 60
         const val AIMLAB_FOV_MAX = 120
         const val AIMLAB_FOV_DEFAULT = 90
+
+        /** Scout zoom bounds and default, in tenths of a factor (§Scout): 2.0×–8.0×, default 2.5×. */
+        const val SCOUT_ZOOM_MIN_TENTHS = 20
+        const val SCOUT_ZOOM_MAX_TENTHS = 80
+        const val SCOUT_ZOOM_DEFAULT_TENTHS = 25
+
+        /** Ceiling on the Scout dark-scene lift, in percent (§Scout). Floor is a plain 0. */
+        const val SCOUT_LIFT_MAX = 100
+
+        /** Wheels guide ring radius bounds and default, as a percent of the shorter screen edge (§Wheels). */
+        const val WHEEL_RADIUS_MIN = 8
+        const val WHEEL_RADIUS_MAX = 40
+        const val WHEEL_RADIUS_DEFAULT = 22
+
+        /** Wheels remap gain bounds and default, in percent where 100 is neutral (§Wheels). */
+        const val WHEEL_SENSITIVITY_MIN = 50
+        const val WHEEL_SENSITIVITY_MAX = 300
+        const val WHEEL_SENSITIVITY_DEFAULT = 150
 
         /** OR-mask that forces an ARGB int fully opaque, used to keep the custom accent readable. */
         const val ALPHA_OPAQUE = 0xFF000000.toInt()

@@ -144,6 +144,10 @@ object ProfileTransferCodec {
         put("networkPreLaunchWarn", p.networkPreLaunchWarn)
         put("networkAlertsEnabled", p.networkAlertsEnabled)
         put("fullPerformanceEnabled", p.fullPerformanceEnabled)
+        put("chargeBypassEnabled", p.chargeBypassEnabled)
+        put("instantReplayEnabled", p.instantReplayEnabled)
+        put("instantReplayBufferSeconds", p.instantReplayBufferSeconds)
+        put("instantReplayIncludeAudio", p.instantReplayIncludeAudio)
     }
 
     private fun presetsToJson(bundle: PresetBundle): JSONObject = JSONObject().apply {
@@ -290,6 +294,14 @@ object ProfileTransferCodec {
             networkPreLaunchWarn = o.optBoolean("networkPreLaunchWarn", true),
             networkAlertsEnabled = o.optBoolean("networkAlertsEnabled", false),
             fullPerformanceEnabled = o.optBoolean("fullPerformanceEnabled", false),
+            chargeBypassEnabled = o.optBoolean("chargeBypassEnabled", false),
+            instantReplayEnabled = o.optBoolean("instantReplayEnabled", false),
+            // Accepted only when it is a window the picker could have produced; any other number —
+            // a newer build's choice, or a hand-edited value — degrades to the field's own default,
+            // the same older-file rule the enum fields above follow.
+            instantReplayBufferSeconds = intOrNull(o, "instantReplayBufferSeconds")
+                ?.takeIf { it in GameProfile.INSTANT_REPLAY_BUFFER_CHOICES } ?: 30,
+            instantReplayIncludeAudio = o.optBoolean("instantReplayIncludeAudio", false),
         )
     }
 

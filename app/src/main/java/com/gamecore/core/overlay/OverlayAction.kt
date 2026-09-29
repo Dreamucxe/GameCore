@@ -38,6 +38,34 @@ enum class OverlayAction(val label: String) {
      */
     MAGNIFIER("Magnifier"),
 
+    /**
+     * Scout zoom (§Scout): the magnifier's sibling — a centre-of-screen crop lifted and enlarged into a
+     * corner, with an adjustable factor and a dark-scene brightness lift. A toggle, grouped with the drawn
+     * overlays because that is what it is to the user, and — like [MAGNIFIER] — not [QuickToggle.isAlwaysAvailable]:
+     * its pixels come from the same `MediaProjection` frame feed, so it renders disabled with a reason on a
+     * build with no projection. Deliberately *not* macroable, for [MAGNIFIER]'s consent-prompt reason; see
+     * [macroBehavior].
+     */
+    SCOUT("Scout"),
+
+    /**
+     * The hunting filter (§Hunt): a full-screen colour grade — tint, inversion or a posterised look — that
+     * makes targets separate from the scene. A toggle. Its capture-free grade needs no projection, but the
+     * others re-grade the live screen from the shared frame feed, so the tile carries the capture path's one
+     * truth: it renders disabled with a reason on a build with no projection. Deliberately *not* macroable
+     * for the same reason as [MAGNIFIER]; see [macroBehavior].
+     */
+    HUNT("Hunt"),
+
+    /**
+     * The high-sensitivity wheels guide (§Wheels): a feel-only ring marking where an on-screen stick sits.
+     * A toggle, grouped with the drawn overlays and — unlike [MAGNIFIER], [SCOUT] and [HUNT] — always
+     * available, because it draws Compose primitives on GameCore's own glass and reads nothing, exactly like
+     * [CROSSHAIR]. Not macroable: it pairs with an input remap that lives in GameCore's own Aim Lab surface,
+     * not something a panel macro drives; see [macroBehavior].
+     */
+    WHEEL("Wheels"),
+
     SCREENSHOT("Screenshot"),
 
     /** Start or stop screen recording. Needs its own consent flow; see §24B. */
@@ -146,7 +174,8 @@ enum class OverlayAction(val label: String) {
         get() = this == PILL || this == CROSSHAIR || this == HUD || this == RECORD ||
             this == FLASHLIGHT || this == DO_NOT_DISTURB || this == ROTATION_LOCK ||
             this == COLOR || this == ASPECT || this == REFRESH_RATE || this == PANEL_LAYOUT ||
-            this == MAGNIFIER || this == REPLAY
+            this == MAGNIFIER || this == REPLAY ||
+            this == SCOUT || this == HUNT || this == WHEEL
 
     /**
      * Which second row a held press on this tile opens, or null for the tiles that have nothing behind one.
@@ -194,14 +223,17 @@ enum class OverlayAction(val label: String) {
      *    different reason: each does force a state, but arming it may raise the system's `MediaProjection`
      *    consent dialog, and a consent prompt cannot honestly appear in the middle of a silent one-tap
      *    replay — a macro that sometimes stops to ask permission is not the deterministic thing §14
-     *    promises. None belongs in a one-tap set.
+     *    promises. [SCOUT] and [HUNT] are barred for that same consent-prompt reason. [WHEEL] is barred for
+     *    a plainer one: its on/off is a feel guide the player positions, and the input remap it pairs with
+     *    lives in GameCore's Aim Lab surface, not on a panel a macro drives. None belongs in a one-tap set.
      */
     val macroBehavior: MacroBehavior?
         get() = when (this) {
             PILL, CROSSHAIR, HUD, RECORD, FLASHLIGHT, DO_NOT_DISTURB, ROTATION_LOCK ->
                 MacroBehavior.FORCE_ON
             SCREENSHOT -> MacroBehavior.FIRE_ONCE
-            COLOR, ASPECT, REFRESH_RATE, PANEL_LAYOUT, STOP_SESSION, OPEN_APP, MAGNIFIER, REPLAY -> null
+            COLOR, ASPECT, REFRESH_RATE, PANEL_LAYOUT, STOP_SESSION, OPEN_APP, MAGNIFIER, REPLAY,
+            SCOUT, HUNT, WHEEL -> null
         }
 
     /** True for the actions a macro may replay; see [macroBehavior] for why the rest are excluded. */

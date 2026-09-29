@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -154,7 +155,7 @@ fun SettingsScreen(
             )
         }
         item { BehaviorCard(state = state, onEdit = viewModel::update, modifier = padded) }
-        item { OverlaysCard(state = state, onNavigate = onNavigate, modifier = padded) }
+        item { OverlaysCard(state = state, onEdit = viewModel::update, onNavigate = onNavigate, modifier = padded) }
         item {
             GamesCard(
                 state = state,
@@ -452,6 +453,7 @@ private fun BehaviorCard(
 @Composable
 private fun OverlaysCard(
     state: SettingsUiState,
+    onEdit: ((AppSettings) -> AppSettings) -> Unit,
     onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -475,11 +477,49 @@ private fun OverlaysCard(
             icon = Icons.Filled.CenterFocusStrong,
         )
         NavRow(
+            title = "Scout magnifier",
+            onClick = { onNavigate(Destination.Scout) },
+            description = "A centre pixel-zoom pane that magnifies the middle of the screen. It draws the " +
+                "shared screen feed and reads no other player's state.",
+            icon = Icons.Filled.ZoomIn,
+        )
+        NavRow(
+            title = "Hunt colour grade",
+            onClick = { onNavigate(Destination.Hunt) },
+            description = "A full-screen colour filter — Movie, Instrument, Film or Sketch — to make " +
+                "shapes easier to pick out.",
+            icon = Icons.Filled.Palette,
+        )
+        NavRow(
+            title = "High-sensitivity Wheels",
+            onClick = { onNavigate(Destination.Wheels) },
+            description = "A feel-only guide ring, plus the sensitivity used inside GameCore's own Aim " +
+                "Lab. It cannot change another game's controls.",
+            icon = Icons.Filled.Speed,
+        )
+        NavRow(
             title = "HUD layouts",
             onClick = { onNavigate(Destination.Hud) },
             description = "Drag the readouts where you want them, then pick a layout per game.",
             icon = Icons.Filled.GridView,
             trailing = Formatters.count(state.layoutCount, "layout"),
+        )
+        RowDivider()
+        SwitchRow(
+            title = "Advanced HUD",
+            checked = state.settings.advancedHudEnabled,
+            onCheckedChange = { v -> onEdit { it.copy(advancedHudEnabled = v) } },
+            description = "Adds the extra readouts this release brings to the HUD — a GPU-usage figure " +
+                "among the stats, and a value-only compact layout that drops each widget's label and " +
+                "background plate. Off keeps the HUD to its standard readings and full labels; layouts " +
+                "you have already built are untouched.",
+        )
+        SwitchRow(
+            title = "Custom modules",
+            checked = state.settings.customModulesEnabled,
+            onCheckedChange = { v -> onEdit { it.copy(customModulesEnabled = v) } },
+            description = "Turns the custom modules feature on or off. Anything you have already built is " +
+                "kept either way, so switching it off and on again loses nothing.",
         )
     }
 }
@@ -723,6 +763,16 @@ private fun NetworkCard(
             ) { Text("Use default") }
         }
         KeyValueRow(label = "Measuring against", value = state.settings.latencyHost)
+        RowDivider()
+        SwitchRow(
+            title = "Network stability",
+            checked = state.settings.networkStabilityEnabled,
+            onCheckedChange = { v -> onEdit { it.copy(networkStabilityEnabled = v) } },
+            description = "Turns on the Network stability screen, which reads your live connection — the " +
+                "transport in use, the Wi-Fi band and signal, and the link speed Android estimates — beside " +
+                "the latency and jitter GameCore already measures. It opens no connection of its own, and " +
+                "needs \"Measure latency\" above switched on.",
+        )
     }
 }
 
@@ -796,6 +846,21 @@ private fun AccessCard(
             onClick = { onNavigate(Destination.Shizuku) },
             description = "Optional. What it adds, what it still cannot add, and how to set it up.",
             icon = Icons.Filled.Terminal,
+        )
+        NavRow(
+            title = "Charge bypass",
+            onClick = { onNavigate(Destination.Charge) },
+            description = "While plugged in, feed the phone from the charger instead of the battery so the " +
+                "pack runs cooler. Needs Shizuku, and does nothing off a charger.",
+            icon = Icons.Filled.Bolt,
+        )
+        NavRow(
+            title = "Network stability",
+            onClick = { onNavigate(Destination.NetworkStability) },
+            description = "The live connection GameCore can read — transport, signal and the link speed " +
+                "Android estimates — with latency and jitter, and an honest note on the switches it cannot " +
+                "flip. Needs \"Network stability\" and \"Measure latency\" switched on to fill in.",
+            icon = Icons.Filled.Speed,
         )
         NavRow(
             title = "Gaming tools",

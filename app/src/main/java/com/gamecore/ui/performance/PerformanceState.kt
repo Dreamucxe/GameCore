@@ -89,6 +89,11 @@ data class PerformanceUiState(
  * The core-affinity presets are excluded for a different reason again: they need a *game*. There is no
  * device-wide version of them — the thing they change is one running process — so a button on a screen
  * that is not about any particular game would have nothing to point at.
+ *
+ * Charge bypass is whole-device and would seem to fit here, but it is excluded for the plainest reason
+ * of all: this screen applies through the optimization tiers, and both tiers decline charge bypass —
+ * `ChargeBypassController` owns it, not the engine. A button here would report "unsupported" even on a
+ * phone that can do it. It has its own screen and a per-profile switch, which is where it belongs.
  */
 private val PROFILE_ONLY_ACTIONS = setOf(
     OptimizationAction.SET_BRIGHTNESS,
@@ -99,6 +104,7 @@ private val PROFILE_ONLY_ACTIONS = setOf(
     OptimizationAction.APPLY_COLOR_CORRECTION,
     OptimizationAction.SET_DISPLAY_SIZE,
     OptimizationAction.SET_CPU_AFFINITY,
+    OptimizationAction.SET_CHARGE_BYPASS,
 )
 
 /**

@@ -97,6 +97,7 @@ class HudStatReaderNetworkTest {
         frameRate = Observed.notPresent("test"),
         latency = latencyMillis?.let { Observed.of(LatencyProbe(millis = it, host = "1.1.1.1"), DataSource.TRAFFIC_STATS) }
             ?: Observed.notPresent("test"),
+        gpu = Observed.notPresent("test"),
         accessLevel = AccessLevel.NORMAL,
     )
 }

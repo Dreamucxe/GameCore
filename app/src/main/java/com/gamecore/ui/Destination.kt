@@ -82,6 +82,60 @@ sealed interface Destination {
         override val route = "crosshair"
     }
 
+    /**
+     * The Scout magnifier's own settings: the centre pixel-zoom pane's zoom factor and screen-lift.
+     *
+     * A sibling of [Crosshair] — an overlay feature with a small settings screen of its own, reached from
+     * the Overlays card. It draws the shared MediaProjection frame feed; nothing about it reads another
+     * player's state. Not in [external]: nothing outside the app has a reason to open it.
+     */
+    data object Scout : Destination {
+        override val route = "scout"
+    }
+
+    /**
+     * The Hunt colour-grade picker: choose a [com.gamecore.core.model.HuntFilter] preset and turn the
+     * full-screen grade on or off. A sibling of [Crosshair]/[Scout], reached from the Overlays card.
+     */
+    data object Hunt : Destination {
+        override val route = "hunt"
+    }
+
+    /**
+     * High-sensitivity Wheels: the feel-only guide-ring overlay and the sensitivity value the Aim Lab
+     * training surface remaps against. Reached from the Overlays card. It cannot touch another game's
+     * input — the remap lives only inside GameCore's own Aim Lab; see the screen's own copy.
+     */
+    data object Wheels : Destination {
+        override val route = "wheels"
+    }
+
+    /**
+     * Charge bypass: the standalone control for the kernel charge-control node (§3.5 power).
+     *
+     * Reached from Settings, not from a game's profile — the per-game switch lives in the profile editor,
+     * while this screen is the one place to probe support and toggle it by hand. It reaches the node
+     * through the elevated shell; see [com.gamecore.domain.charge.ChargeBypassController].
+     */
+    data object Charge : Destination {
+        override val route = "charge"
+    }
+
+    /**
+     * Network stability: the live connection GameCore can actually read — the transport in use, the
+     * Wi-Fi band and signal, the link speed Android estimates — beside the latency and jitter it already
+     * measures, and an honest list of the things it cannot do.
+     *
+     * A sibling of [Charge] in that it is a screen you go to rather than a control: it composes the network
+     * readers the app already has and opens no socket or connection of its own. The capabilities it cannot
+     * offer — pinning a route, locking Wi-Fi against mobile, throttling other apps, per-packet loss — say so
+     * on the screen rather than being left to look unfinished; jitter and the failed-probe count stand in
+     * for loss. Reached from Settings. Not in [external]: nothing outside the app has a reason to open it.
+     */
+    data object NetworkStability : Destination {
+        override val route = "network_stability"
+    }
+
     data object Shizuku : Destination {
         override val route = "shizuku"
     }

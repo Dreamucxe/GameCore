@@ -65,6 +65,10 @@ class ShizukuOptimizer @Inject constructor(
         // capture. CpuAffinityController finds the process, records the mask it was on, and reads every
         // thread back.
         OptimizationAction.SET_CPU_AFFINITY,
+        // Nor the charge bypass: it is a shell write too, but ChargeBypassController owns the probe, the
+        // node write and the restore, so — like colour, display size and affinity — this tier declines
+        // it. Unsupported is the truth about this tier, not about the device.
+        OptimizationAction.SET_CHARGE_BYPASS,
         -> CapabilityStatus.UNSUPPORTED
 
         // A 60 Hz-only panel is unsupported no matter who is asking; the shell cannot add a mode.
@@ -127,6 +131,14 @@ class ShizukuOptimizer @Inject constructor(
                     "finds the game's process, records the assignment it already had, and reads every " +
                     "thread back before saying it changed anything. This tier writes settings, and " +
                     "that is not a setting.",
+            )
+
+            OptimizationAction.SET_CHARGE_BYPASS -> action.blocked(
+                status = CapabilityStatus.UNSUPPORTED,
+                detail = "Running the phone from the charger is done by GameCore's charge controller, " +
+                    "which probes for a writable charge-control node, records what it held, writes the " +
+                    "stop value and reads it back. This tier writes settings, and a sysfs node is not " +
+                    "a setting.",
             )
 
             // Routed by the two helpers above. Enumerated rather than folded into an `else` so that

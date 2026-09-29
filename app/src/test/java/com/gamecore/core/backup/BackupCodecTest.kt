@@ -10,6 +10,7 @@ import com.gamecore.core.model.CrosshairDesign
 import com.gamecore.core.model.CrosshairPreset
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.GammaMode
+import com.gamecore.core.model.HudDisplayMode
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HudWidget
@@ -71,6 +72,9 @@ class BackupCodecTest {
             showInstantReplayNotice = false,
             neverKillPackages = listOf("com.example.game"),
             aimLabHorizontalFovDegrees = 100,
+            advancedHudEnabled = false,
+            networkStabilityEnabled = false,
+            customModulesEnabled = false,
         )
         val overlay = OverlayConfig(
             showPill = true,
@@ -84,6 +88,7 @@ class BackupCodecTest {
             isVertical = true,
             showLabels = false,
             displayMode = PillDisplayMode.COMPACT,
+            hudDisplayMode = HudDisplayMode.COMPACT,
             quickPins = listOf("FLASHLIGHT", "DND"),
             quickAutoClose = false,
         )

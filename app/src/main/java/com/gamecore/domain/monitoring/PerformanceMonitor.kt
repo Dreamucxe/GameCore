@@ -7,6 +7,7 @@ import com.gamecore.core.common.Precision
 import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.FrameRateCapability
 import com.gamecore.core.model.FrameRateSample
+import com.gamecore.core.model.GpuLoadSample
 import com.gamecore.core.model.HistoryPoint
 import com.gamecore.core.model.LatencyProbe
 import com.gamecore.core.model.MetricHistory
@@ -15,6 +16,7 @@ import com.gamecore.core.model.StorageReading
 import com.gamecore.core.system.CompositeMetricsReader
 import com.gamecore.core.system.DisplayReader
 import com.gamecore.core.system.FrameRateProbe
+import com.gamecore.core.system.GpuReader
 import com.gamecore.core.system.LatencyProber
 import com.gamecore.core.system.NetworkReader
 import com.gamecore.data.preferences.SecurePreferenceStore
@@ -72,6 +74,7 @@ class PerformanceMonitor @Inject constructor(
     private val networkReader: NetworkReader,
     private val frameRateProbe: FrameRateProbe,
     private val latencyProber: LatencyProber,
+    private val gpuReader: GpuReader,
     private val preferences: SecurePreferenceStore,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
@@ -126,6 +129,9 @@ class PerformanceMonitor @Inject constructor(
 
     @Volatile
     private var cachedStorage: StorageReading? = null
+
+    @Volatile
+    private var cachedGpu: Observed<GpuLoadSample>? = null
 
     @Volatile
     private var cachedLatency: Observed<LatencyProbe> =
@@ -221,6 +227,7 @@ class PerformanceMonitor @Inject constructor(
             network = network,
             frameRate = frameRateFor(),
             latency = latencyFor(tick, settings, network.isConnected),
+            gpu = gpuFor(tick),
             accessLevel = metrics.accessLevel,
         )
     }
@@ -229,6 +236,20 @@ class PerformanceMonitor @Inject constructor(
         val cached = cachedStorage
         if (cached != null && tick % STORAGE_EVERY_TICKS != 0L) return cached
         return metrics.readStorage().also { cachedStorage = it }
+    }
+
+    /**
+     * The GPU-load field, refreshed every [GPU_EVERY_TICKS] ticks the way [storageFor] refreshes storage.
+     *
+     * Reading a GPU counter is a sysfs — or, where the node is not world-readable, a shell — round trip,
+     * dearer than the `/proc` lines read every tick, and a load figure a fraction of a second stale is
+     * still honest for a bar that updates a few times a second. [GpuReader] returns the [Observed] honesty
+     * wrappers itself when the device exposes no readable counter, so nothing is invented here.
+     */
+    private suspend fun gpuFor(tick: Long): Observed<GpuLoadSample> {
+        val cached = cachedGpu
+        if (cached != null && tick % GPU_EVERY_TICKS != 0L) return cached
+        return gpuReader.read().also { cachedGpu = it }
     }
 
     /**
@@ -301,6 +322,8 @@ class PerformanceMonitor @Inject constructor(
      */
     private fun onLoopStopped() {
         cachedStorage = null
+        cachedGpu = null
+        gpuReader.resetSampling()
         cachedLatency = Observed.awaitingSample("Waiting for the first latency probe.")
     }
 
@@ -327,6 +350,9 @@ class PerformanceMonitor @Inject constructor(
 
         /** ~10 s at the default interval. */
         const val LATENCY_EVERY_TICKS = 5L
+
+        /** ~10 s at the default interval. A GPU counter costs more to read than a `/proc` line. */
+        const val GPU_EVERY_TICKS = 5L
 
         /** A tick value no modulo test matches, so [sampleOnce] reuses caches rather than refreshing. */
         const val FORCED_TICK = -1L

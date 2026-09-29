@@ -14,7 +14,9 @@ import com.gamecore.core.model.ColorVisionFilter
 import com.gamecore.core.model.CustomCrosshairColours
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.GammaMode
+import com.gamecore.core.model.HudDisplayMode
 import com.gamecore.core.model.HudStat
+import com.gamecore.core.model.HuntFilter
 import com.gamecore.core.model.OverlayConfig
 import com.gamecore.core.model.PanelLayoutStyle
 import com.gamecore.core.model.PillDisplayMode
@@ -238,6 +240,21 @@ class SecurePreferenceStore @Inject constructor(
                 defaults.aimLabOrientation,
             ),
             aimLabHorizontalFovDegrees = p.getInt(KEY_AIMLAB_FOV, defaults.aimLabHorizontalFovDegrees),
+            scoutZoomTenths = p.getInt(KEY_SCOUT_ZOOM, defaults.scoutZoomTenths),
+            scoutLiftPercent = p.getInt(KEY_SCOUT_LIFT, defaults.scoutLiftPercent),
+            huntEnabled = p.getBoolean(KEY_HUNT_ENABLED, defaults.huntEnabled),
+            huntFilter = enumOrDefault(
+                p.getString(KEY_HUNT_FILTER, null),
+                HuntFilter.entries,
+                defaults.huntFilter,
+            ),
+            wheelGuideEnabled = p.getBoolean(KEY_WHEEL_ENABLED, defaults.wheelGuideEnabled),
+            wheelGuideRadiusPercent = p.getInt(KEY_WHEEL_RADIUS, defaults.wheelGuideRadiusPercent),
+            wheelSensitivityPercent = p.getInt(KEY_WHEEL_SENSITIVITY, defaults.wheelSensitivityPercent),
+            advancedHudEnabled = p.getBoolean(KEY_ADVANCED_HUD_ENABLED, defaults.advancedHudEnabled),
+            networkStabilityEnabled =
+                p.getBoolean(KEY_NETWORK_STABILITY_ENABLED, defaults.networkStabilityEnabled),
+            customModulesEnabled = p.getBoolean(KEY_CUSTOM_MODULES_ENABLED, defaults.customModulesEnabled),
         ).normalised()
     }
 
@@ -308,6 +325,16 @@ class SecurePreferenceStore @Inject constructor(
             putBoolean(KEY_AIMLAB_ENABLED, value.aimLabEnabled)
             putString(KEY_AIMLAB_ORIENTATION, value.aimLabOrientation.name)
             putInt(KEY_AIMLAB_FOV, value.aimLabHorizontalFovDegrees)
+            putInt(KEY_SCOUT_ZOOM, value.scoutZoomTenths)
+            putInt(KEY_SCOUT_LIFT, value.scoutLiftPercent)
+            putBoolean(KEY_HUNT_ENABLED, value.huntEnabled)
+            putString(KEY_HUNT_FILTER, value.huntFilter.name)
+            putBoolean(KEY_WHEEL_ENABLED, value.wheelGuideEnabled)
+            putInt(KEY_WHEEL_RADIUS, value.wheelGuideRadiusPercent)
+            putInt(KEY_WHEEL_SENSITIVITY, value.wheelSensitivityPercent)
+            putBoolean(KEY_ADVANCED_HUD_ENABLED, value.advancedHudEnabled)
+            putBoolean(KEY_NETWORK_STABILITY_ENABLED, value.networkStabilityEnabled)
+            putBoolean(KEY_CUSTOM_MODULES_ENABLED, value.customModulesEnabled)
         }?.apply()
     }
 
@@ -373,6 +400,7 @@ class SecurePreferenceStore @Inject constructor(
             isVertical = p.getBoolean(KEY_PILL_VERTICAL, defaults.isVertical),
             showLabels = p.getBoolean(KEY_PILL_LABELS, defaults.showLabels),
             displayMode = PillDisplayMode.of(p.getString(KEY_PILL_DISPLAY_MODE, null)),
+            hudDisplayMode = HudDisplayMode.of(p.getString(KEY_HUD_DISPLAY_MODE, null)),
             quickPins = readQuickPins(p),
             quickAutoClose = p.getBoolean(KEY_QUICK_AUTO_CLOSE, defaults.quickAutoClose),
             // Opaque here (see [OverlayConfig.macrosJson]); `MacroCodec` gives it meaning at the service and
@@ -394,6 +422,7 @@ class SecurePreferenceStore @Inject constructor(
             putBoolean(KEY_PILL_VERTICAL, value.isVertical)
             putBoolean(KEY_PILL_LABELS, value.showLabels)
             putString(KEY_PILL_DISPLAY_MODE, value.displayMode.name)
+            putString(KEY_HUD_DISPLAY_MODE, value.hudDisplayMode.name)
             putString(KEY_QUICK_PINS, value.quickPins.joinToString(SEPARATOR))
             putBoolean(KEY_QUICK_AUTO_CLOSE, value.quickAutoClose)
             putString(KEY_MACROS, value.macrosJson)
@@ -846,6 +875,17 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_AIMLAB_ORIENTATION = "aimlab_orientation"
         const val KEY_AIMLAB_FOV = "aimlab_horizontal_fov"
 
+        const val KEY_SCOUT_ZOOM = "scout_zoom_tenths"
+        const val KEY_SCOUT_LIFT = "scout_lift_percent"
+        const val KEY_HUNT_ENABLED = "hunt_enabled"
+        const val KEY_HUNT_FILTER = "hunt_filter"
+        const val KEY_WHEEL_ENABLED = "wheel_guide_enabled"
+        const val KEY_WHEEL_RADIUS = "wheel_guide_radius_percent"
+        const val KEY_WHEEL_SENSITIVITY = "wheel_sensitivity_percent"
+        const val KEY_ADVANCED_HUD_ENABLED = "advanced_hud_enabled"
+        const val KEY_NETWORK_STABILITY_ENABLED = "network_stability_enabled"
+        const val KEY_CUSTOM_MODULES_ENABLED = "custom_modules_enabled"
+
         const val KEY_SHOW_PILL = "pill_show"
         const val KEY_PILL_X = "pill_x"
         const val KEY_PILL_Y = "pill_y"
@@ -857,6 +897,7 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_PILL_VERTICAL = "pill_vertical"
         const val KEY_PILL_LABELS = "pill_labels"
         const val KEY_PILL_DISPLAY_MODE = "pill_display_mode"
+        const val KEY_HUD_DISPLAY_MODE = "hud_display_mode"
         const val KEY_QUICK_PINS = "quick_pins"
         const val KEY_QUICK_AUTO_CLOSE = "quick_auto_close"
         const val KEY_MACROS = "quick_macros"

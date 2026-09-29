@@ -22,6 +22,7 @@ import com.gamecore.core.shizuku.ShizukuManager
 import com.gamecore.core.system.DisplayReader
 import com.gamecore.core.system.SettingsWriteOutcome
 import com.gamecore.data.repository.ColorPresetRepository
+import com.gamecore.domain.charge.ChargeBypassController
 import com.gamecore.domain.color.ColorApplyResult
 import com.gamecore.domain.color.ColorCorrectionController
 import com.gamecore.domain.cpu.CpuAffinityController
@@ -72,6 +73,7 @@ class ProfileApplier @Inject constructor(
     private val color: ColorCorrectionController,
     private val displaySize: DisplaySizeController,
     private val cpuAffinity: CpuAffinityController,
+    private val chargeBypass: ChargeBypassController,
 ) {
 
     /**
@@ -100,6 +102,7 @@ class ProfileApplier @Inject constructor(
                 is Step.Stretch -> applyDisplaySize(DisplayTarget.Stretch(step.size), profile)
                 is Step.Scale -> applyDisplaySize(DisplayTarget.Scale(step.scale), profile)
                 is Step.Affinity -> applyAffinity(step.preset, profile)
+                is Step.ChargeBypass -> applyChargeBypass(profile)
                 is Step.Skip -> step.result
             }
         }
@@ -180,13 +183,25 @@ class ProfileApplier @Inject constructor(
          * whether the layout can express the preset at all.
          */
         data class Affinity(val preset: CpuAffinityPreset) : Step
+
+        /**
+         * Stop charging so the phone runs from the charger for the session.
+         *
+         * The fourth variant that bypasses [OptimizationManager], and the only one with no payload:
+         * unlike a colour preset, a size or an affinity mask, there is nothing to carry — the node and
+         * its stop value are the device's, discovered by [com.gamecore.domain.charge.ChargeBypassController]
+         * at apply time, so a profile either wants charge bypass or it does not. A separate variant
+         * rather than an [Attempt] for the same reason the three above are: the controller owns the
+         * probe, the write, the read-back and the restore row — see `OptimizationAction.isEngineAction`.
+         */
+        data object ChargeBypass : Step
     }
 
     /**
      * The ordered plan for [profile], with no device writes and no suspension.
      *
      * Pure so §31 can assert the translation directly: that `BALANCED` with every field null plans
-     * eleven skips, that `PERFORMANCE` plans a peak pin even when the profile names no rate, that an
+     * twelve skips, that `PERFORMANCE` plans a peak pin even when the profile names no rate, that an
      * explicit rate outranks the mode's, and that a profile with the shell switched off skips the two
      * global-settings changes instead of failing them.
      *
@@ -208,6 +223,7 @@ class ProfileApplier @Inject constructor(
         doNotDisturbStep(profile),
         animationStep(profile, shellLive),
         batterySaverStep(profile, shellLive),
+        chargeBypassStep(profile),
         affinityStep(profile),
     )
 
@@ -477,6 +493,61 @@ class ProfileApplier @Inject constructor(
             )
 
             is CpuAffinityOutcome.Failed -> OptimizationResult.Failed(action, outcome.message)
+        }
+    }
+
+    // ---------------------------------------------------------------------------- charge bypass
+
+    /**
+     * The charge-bypass line: stop charging while the game runs, if the profile asked for it.
+     *
+     * No device read and no suspension here, like every other step builder — the profile's boolean is
+     * the whole decision, and whether this device even has a writable charge-control node is
+     * [com.gamecore.domain.charge.ChargeBypassController]'s question, answered at apply time. Off means
+     * "leave charging alone", not "force charging on": a profile that does not ask to run from the
+     * charger simply lets the battery charge as Android would.
+     */
+    private fun chargeBypassStep(profile: GameProfile): Step =
+        if (profile.chargeBypassEnabled) {
+            Step.ChargeBypass
+        } else {
+            skip(
+                OptimizationAction.SET_CHARGE_BYPASS,
+                "This profile lets the battery charge normally while the game runs.",
+            )
+        }
+
+    /**
+     * Hands the request to [ChargeBypassController] and reports what came back.
+     *
+     * The fourth step outside [OptimizationManager]. The controller probes for a writable node, records
+     * what it held before writing, writes the stop value and reads it back — and backs the change out on
+     * any error path, because an unmanaged suspended charge is the one outcome it must never leave. The
+     * three [Observed] cases map straight onto the report: a value is [OptimizationResult.Applied], a
+     * restriction is [OptimizationResult.Blocked] with the way to unlock it (Shizuku) or the plain truth
+     * that this device has no such node, and a failure is [OptimizationResult.Failed] with the
+     * controller's own sentence, which already says whether charging was left as it was found.
+     */
+    private suspend fun applyChargeBypass(profile: GameProfile): OptimizationResult {
+        val action = OptimizationAction.SET_CHARGE_BYPASS
+        return when (val outcome = chargeBypass.enable(profile.packageName)) {
+            is Observed.Value -> OptimizationResult.Applied(
+                action,
+                "Charging is stopped — the phone is running from the charger (${outcome.value.label}). " +
+                    "It goes back to normal when the game closes.",
+            )
+
+            is Observed.Restricted -> OptimizationResult.Blocked(
+                action = action,
+                status = if (outcome.unlockedBy == AccessLevel.SHIZUKU) {
+                    CapabilityStatus.REQUIRES_SHIZUKU
+                } else {
+                    CapabilityStatus.UNSUPPORTED
+                },
+                detail = outcome.detail,
+            )
+
+            is Observed.Failed -> OptimizationResult.Failed(action, outcome.detail)
         }
     }
 

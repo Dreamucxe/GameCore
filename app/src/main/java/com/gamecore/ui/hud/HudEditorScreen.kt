@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamecore.core.model.HudDisplayMode
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HudWidget
@@ -160,8 +161,22 @@ fun HudEditorScreen(
                 readings = readings,
                 onMove = viewModel::move,
                 onSelect = viewModel::select,
+                onSetDisplayMode = viewModel::setDisplayMode,
                 modifier = padded,
             )
+        }
+
+        if (!state.customModulesEnabled) {
+            item {
+                NoteBanner(
+                    text = "Custom overlay modules are turned off in Settings. This layout's widgets " +
+                        "can't be added, moved or restyled while they're off — the saved layout and the " +
+                        "live overlay still work, and turning modules back on lets you edit them again.",
+                    tone = Tone.Muted,
+                    icon = Icons.Filled.Info,
+                    modifier = padded,
+                )
+            }
         }
 
         item {
@@ -181,6 +196,9 @@ fun HudEditorScreen(
             SelectedWidgetCard(
                 widget = state.selected,
                 reading = state.selected?.let { readings[it.stat] },
+                statChoices = state.selected?.let { state.statChoicesFor(it) }.orEmpty(),
+                editable = state.customModulesEnabled,
+                onSetStat = viewModel::setStat,
                 onTextSize = viewModel::setTextSize,
                 onOpacity = viewModel::setOpacity,
                 onShowLabel = viewModel::setShowLabel,
@@ -228,6 +246,7 @@ private fun PreviewCard(
     readings: Map<HudStat, StatReading>,
     onMove: (String, Float, Float) -> Unit,
     onSelect: (String?) -> Unit,
+    onSetDisplayMode: (HudDisplayMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val absent = state.widgets
@@ -248,6 +267,26 @@ private fun PreviewCard(
         Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = "Drag a stat to move it. Tap one to change how it looks.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // Display density (§4): a single GLOBAL preference, the pill's twin, offered here beside the
+        // preview it changes. One tap, one write, and the preview above redraws in the new density —
+        // what-you-see-is-what-you-get. Left enabled even when custom modules are off, because it governs
+        // how every saved layout draws over the game, not this draft.
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(text = "Display density", style = MaterialTheme.typography.bodyLarge)
+        Spacer(modifier = Modifier.height(8.dp))
+        ChoiceRow(
+            options = HudDisplayMode.entries,
+            selected = state.displayMode,
+            onSelect = onSetDisplayMode,
+            label = { it.label },
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Applies to every HUD layout. Compact drops the labels and background plates for the " +
+                "densest form; Expanded keeps each stat's own size, colour and label.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -316,6 +355,8 @@ private fun LayoutPreview(
                         reading = readings[widget.stat] ?: StatReading(widget.stat, value = null),
                         isSelected = widget.id == state.selectedId,
                         canvas = canvas,
+                        mode = state.displayMode,
+                        editable = state.customModulesEnabled,
                         onSelect = { onSelect(widget.id) },
                         onMove = { x, y -> onMove(widget.id, x, y) },
                     )
@@ -358,6 +399,8 @@ private fun DraggableWidget(
     reading: StatReading,
     isSelected: Boolean,
     canvas: IntSize,
+    mode: HudDisplayMode,
+    editable: Boolean,
     onSelect: () -> Unit,
     onMove: (Float, Float) -> Unit,
 ) {
@@ -366,10 +409,11 @@ private fun DraggableWidget(
     Box(
         modifier = Modifier
             .border(1.dp, ring, RoundedCornerShape(6.dp))
-            .pointerInput(widget.id, canvas) {
+            .pointerInput(widget.id, canvas, editable) {
                 // Before the first measurement there is nothing to divide by, and a drag then would
-                // send the widget to an undefined fraction.
-                if (canvas.width <= 0 || canvas.height <= 0) return@pointerInput
+                // send the widget to an undefined fraction. With custom modules off the widgets can't be
+                // edited, so a move is refused for the same reason the controls below are disabled.
+                if (!editable || canvas.width <= 0 || canvas.height <= 0) return@pointerInput
                 detectDragGestures(
                     onDragStart = { onSelect() },
                     onDrag = { _, delta ->
@@ -383,7 +427,7 @@ private fun DraggableWidget(
             }
             .pointerInput(widget.id) { detectTapGestures { onSelect() } },
     ) {
-        HudWidgetView(widget = widget, reading = reading)
+        HudWidgetView(widget = widget, reading = reading, mode = mode)
     }
 }
 
@@ -401,6 +445,9 @@ private fun DraggableWidget(
 private fun SelectedWidgetCard(
     widget: HudWidget?,
     reading: StatReading?,
+    statChoices: List<HudStat>,
+    editable: Boolean,
+    onSetStat: (String, HudStat) -> Unit,
     onTextSize: (String, Int) -> Unit,
     onOpacity: (String, Int) -> Unit,
     onShowLabel: (String, Boolean) -> Unit,
@@ -435,12 +482,27 @@ private fun SelectedWidgetCard(
             )
         },
     ) {
+        // Change which stat this widget shows (§6d). The offered stats exclude those already on another
+        // widget, so one-stat-per-layout holds; the current stat stays selected. Nothing is stored
+        // differently — the stat already round-trips — so this is the same kind of edit as the styling below.
+        Text(text = "Stat", style = MaterialTheme.typography.bodyLarge)
+        Spacer(modifier = Modifier.height(8.dp))
+        ChoiceRow(
+            options = statChoices,
+            selected = widget.stat,
+            onSelect = { onSetStat(id, it) },
+            label = { it.label },
+            perRow = 2,
+            enabled = editable,
+        )
+        Spacer(modifier = Modifier.height(10.dp))
         SliderRow(
             title = "Text size",
             value = widget.textSizeSp,
             range = HudWidget.MIN_TEXT_SIZE_SP..HudWidget.MAX_TEXT_SIZE_SP,
             onValueChange = { onTextSize(id, it) },
             valueLabel = "${widget.textSizeSp} sp",
+            enabled = editable,
         )
         SliderRow(
             title = "Opacity",
@@ -449,12 +511,13 @@ private fun SelectedWidgetCard(
             onValueChange = { onOpacity(id, it) },
             valueLabel = "${widget.opacityPercent}%",
             description = "Stops short of invisible: a widget faded to nothing cannot be found again.",
+            enabled = editable,
         )
         SwitchRow(
             title = "Show the label",
             checked = widget.showLabel && hasLabel,
             onCheckedChange = { onShowLabel(id, it) },
-            enabled = hasLabel,
+            enabled = editable && hasLabel,
             description = if (hasLabel) {
                 "Draws \"${widget.stat.shortLabel}\" in front of the figure."
             } else {
@@ -466,6 +529,7 @@ private fun SelectedWidgetCard(
             checked = widget.showBackground,
             onCheckedChange = { onShowBackground(id, it) },
             description = "Keeps the figure readable over a bright scene.",
+            enabled = editable,
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(text = "Colour", style = MaterialTheme.typography.bodyLarge)
@@ -473,7 +537,9 @@ private fun SelectedWidgetCard(
         ColourSwatches(
             colours = WIDGET_COLOURS.map { Color(it) },
             selected = Color(widget.colorArgb),
-            onSelect = { onColour(id, it.toArgb()) },
+            // No `enabled` on the swatch row itself, so this gate lives on the callback: with custom
+            // modules off the tap is swallowed, matching the greyed controls around it.
+            onSelect = { if (editable) onColour(id, it.toArgb()) },
         )
         val note = widget.stat.conditionNote()
         if (note != null) {
@@ -483,7 +549,7 @@ private fun SelectedWidgetCard(
         RowDivider()
         ActionRow {
             Spacer(modifier = Modifier.weight(1f))
-            TextButton(onClick = { onRemove(id) }) {
+            TextButton(onClick = { onRemove(id) }, enabled = editable) {
                 Text(text = "Remove from layout", color = Tone.Danger.colour())
             }
         }
@@ -535,6 +601,7 @@ private fun AddStatCard(
             onSelect = onAdd,
             label = { if (it.isAlwaysAvailable) it.label else "${it.label} •" },
             perRow = 2,
+            enabled = state.customModulesEnabled,
         )
         if (state.addableStats.any { !it.isAlwaysAvailable }) {
             Spacer(modifier = Modifier.height(10.dp))

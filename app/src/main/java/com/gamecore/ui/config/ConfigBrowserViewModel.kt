@@ -7,11 +7,8 @@ import com.gamecore.core.config.ConfigDirEntry
 import com.gamecore.core.config.ConfigDirectoryLister
 import com.gamecore.core.config.ConfigListResult
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -113,15 +110,18 @@ class ConfigBrowserViewModel @Inject constructor(
     val state: StateFlow<ConfigBrowserUiState> = ui.asStateFlow()
 
     /**
-     * One-shot navigation intents, collected by the host.
+     * Where a tap wants to go, held until the host has acted on it, or null when nothing is pending.
      *
-     * A [SharedFlow], never a [StateFlow]: navigating is an event that happens once per tap, not a value the
-     * screen has a current one of. Backed by a buffer of one with no replay so [onOpen] can offer the intent
-     * without suspending and a late collector is not re-sent a tap the user already made. The host collects
-     * this and performs the actual navigation; see [ConfigBrowserNav] for why the VM only names the intent.
+     * A retained [StateFlow], the same shape [com.gamecore.ui.GameCoreRoot] already navigates from for a
+     * launch intent and the setup wizard: the host reads it with `collectAsStateWithLifecycle` and, on a
+     * non-null value, navigates and then clears it through [onNavHandled]. The retained value is what carries
+     * the tap across the gap between [onOpen] setting it and the host's collector next reading it — a one-shot
+     * flow with no replay can drop the intent into that gap and the tap does nothing, which is the failure this
+     * shape avoids. Clearing it once acted on is what stops a value that stayed set from reopening the screen
+     * on the next recomposition; see [ConfigBrowserNav] for why the VM only names the intent and the host moves.
      */
-    private val _nav = MutableSharedFlow<ConfigBrowserNav>(extraBufferCapacity = 1)
-    val nav: SharedFlow<ConfigBrowserNav> = _nav.asSharedFlow()
+    private val _nav = MutableStateFlow<ConfigBrowserNav?>(null)
+    val nav: StateFlow<ConfigBrowserNav?> = _nav.asStateFlow()
 
     init {
         load()
@@ -202,19 +202,23 @@ class ConfigBrowserViewModel @Inject constructor(
      *
      * The row hands back its [ConfigBrowserItem.relativePath]; whether that path is a directory is looked up
      * in [directoryPaths] — the fact the flat row model dropped — and an [ConfigBrowserNav.OpenDirectory] or
-     * [ConfigBrowserNav.OpenFile] is offered on [nav] accordingly. If the arguments were missing there are no
-     * rows to tap, so the guard here is belt-and-braces rather than a real path. `tryEmit` cannot fail on the
-     * single-slot buffer for a lone tap, which is the whole reason that buffer exists.
+     * [ConfigBrowserNav.OpenFile] is set on [nav] accordingly, for the host to act on and then clear through
+     * [onNavHandled]. If the arguments were missing there are no rows to tap, so the guard here is
+     * belt-and-braces rather than a real path.
      */
     fun onOpen(relativePath: String) {
         val pkg = packageName ?: return
         val user = userId ?: return
-        val intent = if (relativePath in directoryPaths) {
+        _nav.value = if (relativePath in directoryPaths) {
             ConfigBrowserNav.OpenDirectory(pkg, user, relativePath)
         } else {
             ConfigBrowserNav.OpenFile(pkg, user, relativePath)
         }
-        _nav.tryEmit(intent)
+    }
+
+    /** Clears the pending intent once the host has navigated, so a tap is acted on exactly once. */
+    fun onNavHandled() {
+        _nav.value = null
     }
 
     /**

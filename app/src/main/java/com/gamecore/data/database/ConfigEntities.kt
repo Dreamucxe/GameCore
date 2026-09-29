@@ -206,6 +206,21 @@ data class GameProfileEntity(
     @ColumnInfo(name = "instant_replay_include_audio")
     val instantReplayIncludeAudio: Boolean = false,
 
+    /**
+     * Charge bypass: while this game runs on a charger, feed the phone from the charger instead of the
+     * battery so the pack neither charges nor discharges and runs cooler. Off for every pre-feature
+     * profile and every new one. Added in schema version 15 as one NOT-NULL column, the same shape as
+     * the Instant Replay toggle above: the `DEFAULT 0` lives in `MIGRATION_14_15` only and the field
+     * carries a Kotlin default with NO `@ColumnInfo(defaultValue=)`, or the exported `15.json` would
+     * disagree with what the migration wrote and fail Room's open check.
+     *
+     * Unlike the §3.5 session-time toggles it sits beside in the editor, this one writes device state and
+     * records a restore row on apply (see [com.gamecore.domain.charge.ChargeBypassController]), so it is a
+     * counted change, not a no-op — the model's `changesNothing` treats it like `cpuAffinity`.
+     */
+    @ColumnInfo(name = "charge_bypass_enabled")
+    val chargeBypassEnabled: Boolean = false,
+
     @ColumnInfo(name = "updated_at")
     val updatedAtMillis: Long,
 )

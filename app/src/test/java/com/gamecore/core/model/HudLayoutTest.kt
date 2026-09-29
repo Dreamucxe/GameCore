@@ -170,6 +170,7 @@ class HudLayoutTest {
         assertEquals(
             setOf(
                 HudStat.CPU_TEMPERATURE,
+                HudStat.GPU_USAGE,
                 HudStat.BATTERY_CURRENT,
                 HudStat.FRAME_RATE,
                 HudStat.NETWORK_LATENCY,
@@ -184,7 +185,7 @@ class HudLayoutTest {
 
     @Test
     fun `every stat carries a label, and the clock is the one that draws its own`() {
-        assertEquals(17, HudStat.entries.size)
+        assertEquals(18, HudStat.entries.size)
         HudStat.entries.forEach { assertTrue(it.name, it.label.isNotBlank()) }
         // CLOCK renders a time, so a "Clock:" prefix and a unit would both be noise.
         assertEquals("", HudStat.CLOCK.shortLabel)

@@ -1,5 +1,6 @@
 package com.gamecore.ui.hud
 
+import com.gamecore.core.model.HudDisplayMode
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HudWidget
@@ -25,6 +26,18 @@ data class HudEditorUiState(
     val isFinished: Boolean = false,
     /** From settings: whether backing out of unsaved edits should ask first. */
     val confirmOnDiscard: Boolean = true,
+    /**
+     * The global HUD display density, folded in from [com.gamecore.core.model.OverlayConfig] rather than
+     * held on the draft: it is one preference for every layout (mirrored on the pill), so Save does not
+     * carry it. The preview honours it so the builder is what-you-see-is-what-you-get.
+     */
+    val displayMode: HudDisplayMode = HudDisplayMode.EXPANDED,
+    /**
+     * From settings: whether custom overlay modules are on. When false the builder's editing controls are
+     * disabled and a notice says why — the saved layouts and the live overlay are untouched, so a layout
+     * built earlier keeps drawing over the game.
+     */
+    val customModulesEnabled: Boolean = true,
     val message: String? = null,
 ) {
     val selected: HudWidget? get() = widgets.firstOrNull { it.id == selectedId }
@@ -36,6 +49,14 @@ data class HudEditorUiState(
     /** Stats not already on the layout. One widget per stat: two copies of "CPU" is a bug, not a layout. */
     val addableStats: List<HudStat>
         get() = HudStat.entries.filterNot { stat -> widgets.any { it.stat == stat } }
+
+    /**
+     * The stats [widget] can be switched to: every stat except those already on *another* widget, so the
+     * one-stat-per-layout rule [addableStats] enforces still holds while the widget keeps its own stat
+     * selectable. This is the list the change-stat picker offers.
+     */
+    fun statChoicesFor(widget: HudWidget): List<HudStat> =
+        HudStat.entries.filterNot { stat -> widgets.any { it.id != widget.id && it.stat == stat } }
 }
 
 /**

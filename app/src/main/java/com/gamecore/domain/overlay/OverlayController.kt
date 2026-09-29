@@ -71,6 +71,7 @@ class OverlayController @Inject constructor(
      * reading them back has a request that says "draw a crosshair" and cannot say which one.
      */
     fun restoreManualState() {
+        val settings = preferences.settings.value
         manual = manual.copy(
             button = preferences.floatingButton.value.show,
             pill = preferences.overlay.value.showPill,
@@ -82,6 +83,14 @@ class OverlayController @Inject constructor(
             // the next launch rebuilds. Its feed needs a live MediaProjection, and consent for one does not
             // survive the process — restoring the flag would put the loupe's switch on with an empty window
             // behind it and no feed to fill it. It comes back only when the user turns it on again.
+            //
+            // Scout is absent for exactly that reason — it draws from the same feed. Hunt is restored only
+            // when its saved grade needs no capture: MOVIE tints GameCore's own glass and can come straight
+            // back, but a capture grade would restore into an empty window with no projection behind it, the
+            // same trap as the loupe. The wheels guide has no feed at all — it is a sticker on the glass like
+            // the crosshair — so it is restored plainly whenever the user left it on.
+            hunt = settings.huntEnabled && !settings.huntFilter.needsCapture,
+            wheel = settings.wheelGuideEnabled,
         )
         if (!requested.value.fromProfile) publish(manual)
     }
@@ -119,6 +128,34 @@ class OverlayController @Inject constructor(
      * owns and this class deliberately knows nothing about.
      */
     fun setMagnifier(visible: Boolean) = update { it.withMagnifier(visible) }
+
+    /**
+     * Shows or hides the Scout zoom pane (§Scout).
+     *
+     * The magnifier's sibling and the same shape of call: no id, just the flag. Its factor and dark-scene
+     * lift are user preferences the service reads at draw time, not part of this request. Like the loupe it
+     * does not start its own capture feed — the service does that when it reconciles the request, because
+     * the feed needs the `MediaProjection` consent the service owns and this class knows nothing about.
+     */
+    fun setScout(visible: Boolean) = update { it.withScout(visible) }
+
+    /**
+     * Shows or hides the hunting filter (§Hunt).
+     *
+     * Which grade is drawn is a user preference the service reads; this carries only the flag. The
+     * capture-free grade needs nothing more, but a capture grade's feed is started by the service on
+     * reconcile, for the same consent reason the loupe's is.
+     */
+    fun setHunt(visible: Boolean) = update { it.withHunt(visible) }
+
+    /**
+     * Shows or hides the high-sensitivity wheels guide (§Wheels).
+     *
+     * The crosshair's sibling: a sticker on the glass with no capture and no id, so this takes only the
+     * flag. The genuine input remap the feature pairs with lives inside GameCore's own Aim Lab surface and
+     * is not this overlay's concern — this is the feel-only ring, nothing more.
+     */
+    fun setWheel(visible: Boolean) = update { it.withWheel(visible) }
 
     /** Hides everything, manual and profile alike. The panel's own "stop overlay" and Settings' switch. */
     fun hideAll() {
