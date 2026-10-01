@@ -221,6 +221,42 @@ data class GameProfileEntity(
     @ColumnInfo(name = "charge_bypass_enabled")
     val chargeBypassEnabled: Boolean = false,
 
+    /**
+     * Volume-button point trigger (§3.7), per game and per key. Added in schema version 16, flat: the
+     * config's nested [com.gamecore.core.model.VolumeTriggerConfig] shape is stored as nine columns rather
+     * than a blob, for the same reason the rest of this table is — a blob cannot be migrated field-by-field
+     * and would put a hand-parsed structure in the path between an imported profile and the dispatcher.
+     *
+     * `volume_trigger_enabled` is the per-game switch, one NOT-NULL column shaped exactly like the toggles
+     * above: its `DEFAULT 0` lives in `MIGRATION_15_16` only, the field carries a Kotlin default, and there
+     * is NO `@ColumnInfo(defaultValue=)`, or the exported `16.json` would disagree with what the migration
+     * wrote and fail Room's open check.
+     *
+     * Each key gets four nullable columns. `_mode` is the presence flag: a null mode means the key is
+     * unassigned in this game, and the mapper reads a binding only when it is non-null. The point is two
+     * fraction columns (0..1, clamped in the mapper on read — nothing is trusted out of storage), present
+     * only once the user has placed the marker, so both may be null while `_mode` is set. `_hold_ms` is
+     * stored for every mode, not only HOLD, so a value set on HOLD survives a switch away and back.
+     */
+    @ColumnInfo(name = "volume_trigger_enabled")
+    val volumeTriggerEnabled: Boolean = false,
+    @ColumnInfo(name = "volume_trigger_up_x")
+    val volumeTriggerUpX: Float? = null,
+    @ColumnInfo(name = "volume_trigger_up_y")
+    val volumeTriggerUpY: Float? = null,
+    @ColumnInfo(name = "volume_trigger_up_mode")
+    val volumeTriggerUpMode: String? = null,
+    @ColumnInfo(name = "volume_trigger_up_hold_ms")
+    val volumeTriggerUpHoldMs: Int? = null,
+    @ColumnInfo(name = "volume_trigger_down_x")
+    val volumeTriggerDownX: Float? = null,
+    @ColumnInfo(name = "volume_trigger_down_y")
+    val volumeTriggerDownY: Float? = null,
+    @ColumnInfo(name = "volume_trigger_down_mode")
+    val volumeTriggerDownMode: String? = null,
+    @ColumnInfo(name = "volume_trigger_down_hold_ms")
+    val volumeTriggerDownHoldMs: Int? = null,
+
     @ColumnInfo(name = "updated_at")
     val updatedAtMillis: Long,
 )

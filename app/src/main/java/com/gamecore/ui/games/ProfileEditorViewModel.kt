@@ -1,13 +1,20 @@
 package com.gamecore.ui.games
 
+import android.content.Intent
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.ColorVisionFilter
+import com.gamecore.core.model.FractionPoint
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.ResolutionScale
+import com.gamecore.core.model.VolumeTriggerBinding
+import com.gamecore.core.model.VolumeTriggerButton
+import com.gamecore.core.model.VolumeTriggerConfig
+import com.gamecore.core.model.VolumeTriggerPressMode
+import com.gamecore.core.shizuku.ShizukuManager
 import com.gamecore.core.system.AppLauncher
 import com.gamecore.core.system.InstalledAppLister
 import com.gamecore.data.preferences.SecurePreferenceStore
@@ -21,8 +28,14 @@ import com.gamecore.domain.display.DisplaySizeController
 import com.gamecore.domain.gaming.ProfileSuggester
 import com.gamecore.domain.network.PreLaunchNetworkCheck
 import com.gamecore.domain.optimization.DeviceCapabilityChecker
+import com.gamecore.domain.trigger.PointTapController
+import com.gamecore.domain.trigger.QuickTriggerCoordinator
+import com.gamecore.domain.trigger.ScreenRotation
+import com.gamecore.domain.trigger.TapCoordinateMapper
+import com.gamecore.domain.trigger.TapResult
 import com.gamecore.ui.Destination
 import com.gamecore.ui.components.PendingLaunch
+import com.gamecore.ui.trigger.VolumeTriggerAvailability
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -57,6 +70,9 @@ class ProfileEditorViewModel @Inject constructor(
     private val preLaunchCheck: PreLaunchNetworkCheck,
     private val sessions: SessionRepository,
     private val preferences: SecurePreferenceStore,
+    private val triggerCoordinator: QuickTriggerCoordinator,
+    private val shizuku: ShizukuManager,
+    private val pointTaps: PointTapController,
 ) : ViewModel() {
 
     /** The package this editor was opened for, or [Destination.NEW_PROFILE] for a new one. */
@@ -94,6 +110,7 @@ class ProfileEditorViewModel @Inject constructor(
         // first and was always overwritten by `wm size` answering later, and since nothing re-reads it the
         // section sat on "Measuring…" for the life of the screen.
         viewModelScope.launch { load() }
+        refreshVolumeTriggerAvailability()
         viewModelScope.launch {
             val capabilities = capabilityChecker.current()
             editing.value = editing.value.copy(capabilities = capabilities)
@@ -269,6 +286,93 @@ class ProfileEditorViewModel @Inject constructor(
     fun edit(transform: (GameProfile) -> GameProfile) {
         val current = editing.value.profile ?: return
         editing.value = editing.value.copy(profile = transform(current), isDirty = true)
+    }
+
+    // -------------------------------------------------------------------- the volume-button trigger
+
+    /**
+     * Re-reads whether the volume trigger can fire — GameCore's accessibility service being on and Shizuku
+     * being usable. Neither publishes a change back into the app, so this is called on load and on every
+     * resume rather than observed. Both reads are cheap and synchronous (a `Settings.Secure` read and a
+     * cached `StateFlow` value).
+     */
+    fun refreshVolumeTriggerAvailability() {
+        editing.value = editing.value.copy(
+            volumeTriggerAvailability = VolumeTriggerAvailability(
+                accessibilityEnabled = triggerCoordinator.isAccessibilityEnabled(),
+                shizukuGranted = shizuku.isConnected,
+            ),
+        )
+    }
+
+    /** The system accessibility screen, so the user can turn GameCore's service on. Reuses the coordinator. */
+    fun accessibilityIntent(): Intent = triggerCoordinator.accessibilitySettingsIntent()
+
+    /** Which volume button the card edits. A UI selection, not a profile field, so it does not mark dirty. */
+    fun setVolumeTriggerButton(button: VolumeTriggerButton) {
+        editing.value = editing.value.copy(selectedButton = button)
+    }
+
+    fun setVolumeTriggerEnabled(enabled: Boolean) = editTrigger { it.copy(enabled = enabled) }
+
+    fun setVolumeTriggerPoint(point: FractionPoint) = editBinding { it.copy(point = point) }
+
+    fun setVolumeTriggerPressMode(mode: VolumeTriggerPressMode) = editBinding { it.copy(pressMode = mode) }
+
+    fun setVolumeTriggerHoldMs(ms: Int) = editBinding { it.copy(holdMs = ms) }
+
+    /**
+     * Fires the selected button's binding once, as a real injected gesture through the same
+     * [PointTapController] the live trigger uses, so "Test" proves the whole path instead of miming it. The
+     * stored fraction is resolved against the panel size the editor already read; because the binding stores
+     * no capture rotation and this test runs from the (upright) editor, it maps straight through with no
+     * rotation. The outcome — success, or the honest reason it could not — is surfaced through the existing
+     * [ProfileEditorUiState.message] banner.
+     */
+    fun testVolumeTrigger() {
+        val current = editing.value
+        val binding = current.profile?.volumeTrigger?.binding(current.selectedButton) ?: return
+        val point = binding.point ?: return
+        val physical = current.physicalSize ?: return
+        viewModelScope.launch {
+            val pixel = TapCoordinateMapper.toCurrentPixels(
+                point = point,
+                captureRotation = ScreenRotation.ROTATION_0,
+                currentRotation = ScreenRotation.ROTATION_0,
+                currentWidthPx = physical.widthPixels,
+                currentHeightPx = physical.heightPixels,
+            )
+            val result = when (binding.pressMode) {
+                VolumeTriggerPressMode.SINGLE_TAP -> pointTaps.tap(pixel.x, pixel.y)
+                VolumeTriggerPressMode.DOUBLE_TAP -> pointTaps.doubleTap(pixel.x, pixel.y)
+                VolumeTriggerPressMode.HOLD -> pointTaps.hold(pixel.x, pixel.y, binding.holdMs)
+            }
+            val note = when (result) {
+                TapResult.Success -> "Test tap sent to x ${pixel.x}, y ${pixel.y}."
+                is TapResult.Unavailable -> result.reason
+                is TapResult.Failed -> result.reason
+            }
+            editing.value = editing.value.copy(message = note)
+        }
+    }
+
+    /** Writes through [edit], starting from [VolumeTriggerConfig.DEFAULT] when the profile has no trigger yet. */
+    private fun editTrigger(transform: (VolumeTriggerConfig) -> VolumeTriggerConfig) {
+        edit { profile ->
+            profile.copy(volumeTrigger = transform(profile.volumeTrigger ?: VolumeTriggerConfig.DEFAULT))
+        }
+    }
+
+    /** Edits the binding for the currently selected button, creating a default binding if none exists. */
+    private fun editBinding(transform: (VolumeTriggerBinding) -> VolumeTriggerBinding) {
+        val button = editing.value.selectedButton
+        editTrigger { config ->
+            val binding = transform(config.binding(button) ?: VolumeTriggerBinding())
+            when (button) {
+                VolumeTriggerButton.VOLUME_UP -> config.copy(up = binding)
+                VolumeTriggerButton.VOLUME_DOWN -> config.copy(down = binding)
+            }
+        }
     }
 
     /**

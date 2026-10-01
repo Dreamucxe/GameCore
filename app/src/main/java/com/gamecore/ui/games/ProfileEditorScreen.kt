@@ -46,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -62,6 +63,7 @@ import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.PerformanceMode
 import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.ScreenOrientationLock
+import com.gamecore.core.model.VolumeTriggerConfig
 import com.gamecore.ui.Destination
 import com.gamecore.ui.components.ActionRow
 import com.gamecore.ui.components.ChoiceRow
@@ -70,6 +72,7 @@ import com.gamecore.ui.components.ConfirmDialog
 import com.gamecore.ui.components.EmptyState
 import com.gamecore.ui.components.NavRow
 import com.gamecore.ui.components.NoteBanner
+import com.gamecore.ui.components.OnResume
 import com.gamecore.ui.components.PlainCard
 import com.gamecore.ui.components.PreLaunchWarningDialog
 import com.gamecore.ui.components.RowDivider
@@ -83,6 +86,8 @@ import com.gamecore.ui.components.SwitchRow
 import com.gamecore.ui.components.TextFieldRow
 import com.gamecore.ui.components.Tone
 import com.gamecore.ui.components.colour
+import com.gamecore.ui.components.startIntentSafely
+import com.gamecore.ui.trigger.VolumeTriggerSection
 
 /**
  * One game's profile, field by field.
@@ -107,8 +112,14 @@ fun ProfileEditorScreen(
     viewModel: ProfileEditorViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var askingToDiscard by remember { mutableStateOf(false) }
     var askingToDelete by remember { mutableStateOf(false) }
+
+    // The volume trigger needs GameCore's accessibility service on and Shizuku usable, neither of which
+    // reports a change back into the app, so re-read both whenever the editor returns to the foreground —
+    // the same resume-driven refresh QuickTriggerScreen uses.
+    OnResume { viewModel.refreshVolumeTriggerAvailability() }
 
     val leave: () -> Unit = {
         if (state.isDirty && state.confirmOnDiscard) askingToDiscard = true else onBack()
@@ -209,6 +220,23 @@ fun ProfileEditorScreen(
         }
         item { AudioSection(state, viewModel::edit, padded) }
         item { OverlaySection(state, viewModel::edit, onNavigate, padded) }
+        item {
+            VolumeTriggerSection(
+                config = profile.volumeTrigger ?: VolumeTriggerConfig.DEFAULT,
+                selectedButton = state.selectedButton,
+                availability = state.volumeTriggerAvailability,
+                onToggleEnabled = viewModel::setVolumeTriggerEnabled,
+                onSelectButton = viewModel::setVolumeTriggerButton,
+                onPointChange = viewModel::setVolumeTriggerPoint,
+                onCommitPoint = {},
+                onPressModeChange = viewModel::setVolumeTriggerPressMode,
+                onHoldMsChange = viewModel::setVolumeTriggerHoldMs,
+                onTestTrigger = viewModel::testVolumeTrigger,
+                onOpenAccessibilitySettings = { context.startIntentSafely(viewModel.accessibilityIntent()) },
+                onOpenShizuku = { onNavigate(Destination.Shizuku) },
+                modifier = padded,
+            )
+        }
         item { PerformanceSection(state, viewModel::edit, onNavigate, padded) }
         item { CpuSection(state, viewModel::edit, onNavigate, padded) }
         item { SmartFeaturesSection(state, viewModel::edit, onNavigate, padded) }

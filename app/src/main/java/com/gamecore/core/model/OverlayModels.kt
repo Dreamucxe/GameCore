@@ -501,6 +501,14 @@ data class OverlayRequest(
      * pairs with lives inside GameCore's own Aim Lab surface, never in another app.
      */
     val wheel: Boolean = false,
+    /**
+     * The floating dock (§Dock): a small draggable handle that expands into a compact control panel. A plain
+     * on/off like [wheel] and carrying no id — its size, opacity and snapped position are all [DockConfig]
+     * fields the service reads at draw time, and its expanded/collapsed state is owned by the service, not the
+     * request. Unlike the capture overlays it is a global control the user places once, not a per-game one, so
+     * a game profile never sets it and [OverlayController.restoreManualState] brings it back across a restart.
+     */
+    val dock: Boolean = false,
     val crosshairPresetId: Long? = null,
     val hudLayoutId: Long? = null,
     /** The game the request came from, shown in the control panel's header. Empty when manual. */
@@ -509,7 +517,7 @@ data class OverlayRequest(
     val fromProfile: Boolean = false,
 ) {
     val anythingVisible: Boolean
-        get() = button || pill || crosshair || hud || magnifier || scout || hunt || wheel
+        get() = button || pill || crosshair || hud || magnifier || scout || hunt || wheel || dock
 
     /**
      * Switches the crosshair on or off, and settles which preset it draws.
@@ -558,6 +566,13 @@ data class OverlayRequest(
      * only moves the flag — the same shape as [withMagnifier], for a sticker-on-glass instead of a loupe.
      */
     fun withWheel(visible: Boolean): OverlayRequest = copy(wheel = visible)
+
+    /**
+     * The dock on or off. A plain `copy` for the same reason as [withWheel]: the dock's size, opacity and
+     * placement are all [DockConfig] prefs the service reads for itself, so a toggle only ever moves the flag.
+     * Named for call-site symmetry with the other overlays.
+     */
+    fun withDock(visible: Boolean): OverlayRequest = copy(dock = visible)
 
     companion object {
         val NONE = OverlayRequest()

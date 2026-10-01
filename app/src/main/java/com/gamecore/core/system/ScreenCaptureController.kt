@@ -25,6 +25,8 @@ import com.gamecore.core.model.RecordingQuality
 import com.gamecore.core.model.RecordingSpec
 import com.gamecore.core.model.RecordingState
 import com.gamecore.core.model.SavedCapture
+import com.gamecore.core.system.capture.CropRect
+import com.gamecore.core.system.capture.ImageMediaStoreSaver
 import com.gamecore.core.system.replay.save.ReplayClipSaver
 import com.gamecore.core.system.replay.save.ReplaySaveResult
 import com.gamecore.domain.gaming.replay.ReplayClock
@@ -92,6 +94,7 @@ class ScreenCaptureController @Inject constructor(
     private val display: DisplayReader,
     @IoDispatcher private val io: CoroutineDispatcher,
     private val clipSaver: ReplayClipSaver,
+    private val imageSaver: ImageMediaStoreSaver,
     private val performanceMonitor: PerformanceMonitor,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
@@ -118,6 +121,23 @@ class ScreenCaptureController @Inject constructor(
      */
     private val magnifierFrameState = MutableStateFlow<Bitmap?>(null)
     val magnifierFrame: StateFlow<Bitmap?> = magnifierFrameState.asStateFlow()
+
+    /**
+     * The one frame the Screen Extraction feature (§Screen-Extraction) last grabbed into memory, or null
+     * before the first extraction and after [clearExtractedFrame].
+     *
+     * The channel between the capture — which can only happen inside the `mediaProjection` service, since
+     * Android 14 forbids `createVirtualDisplay` anywhere else — and [com.gamecore.ui.extraction.ScreenExtractionViewModel],
+     * which collects this flow and cannot itself hold a projection. A non-null emission is the view-model's
+     * proof that consent was granted and a frame arrived, which is exactly what ends its busy state.
+     *
+     * A whole `Bitmap` handed over rather than a reused buffer, and the previous frame left for the garbage
+     * collector rather than recycled, for the same reason as [magnifierFrame]: the cropper composable may
+     * still be mid-draw on the frame this replaces. Unlike the feed this is one frame taken on demand, so at
+     * most a single full-screen bitmap is ever retained here — [captureFrameToMemory] simply overwrites it.
+     */
+    private val lastExtractedFrameState = MutableStateFlow<Bitmap?>(null)
+    val lastExtractedFrame: StateFlow<Bitmap?> = lastExtractedFrameState.asStateFlow()
 
     /**
      * Whether the magnifier feed is live, so the panel's Magnifier toggle can light up from the real
@@ -426,6 +446,141 @@ class ScreenCaptureController @Inject constructor(
             bitmap.recycle()
             target.delete()
             CaptureOutcome.Failed("The screenshot could not be written to storage.")
+        }
+    }
+
+    // ---------------------------------------------------------- screen extraction
+
+    /**
+     * Grabs one frame of the screen into [lastExtractedFrame] for Screen Extraction (§Screen-Extraction),
+     * or reports why it could not.
+     *
+     * The capture mirrors [takeScreenshot] exactly — a virtual display at panel resolution, one image pulled
+     * from an `ImageReader`, both torn down immediately — but the frame is *not* written to disk: it is handed
+     * to the in-app cropper through [lastExtractedFrame], and only the region the user then chooses is written
+     * by [saveExtractedBitmap]. One-shot: nothing here keeps the projection alive, so a projection started only
+     * for an extraction does not outlive this call (the service stops once its last live capture is gone).
+     *
+     * Returns the screenshot path's [CaptureOutcome] vocabulary so the service can tell a revoked token
+     * ([CaptureOutcome.NeedsConsent]) from a real failure, but success is [CaptureOutcome.Extracted] and
+     * carries no file — the frame lands in the flow, which is the feedback, so the service does not toast it.
+     */
+    suspend fun captureFrameToMemory(): CaptureOutcome = captureLock.withLock {
+        withContext(io) {
+            val active = projection ?: return@withContext CaptureOutcome.NeedsConsent
+            val reading = display.read()
+            val width = reading.widthPixels
+            val height = reading.heightPixels
+            if (width <= 0 || height <= 0) {
+                return@withContext CaptureOutcome.Failed(
+                    "The screen size could not be read, so a frame could not be extracted.",
+                )
+            }
+            var reader: ImageReader? = null
+            var virtual: VirtualDisplay? = null
+            try {
+                reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+                virtual = active.createVirtualDisplay(
+                    "GameCore-extract",
+                    width,
+                    height,
+                    reading.densityDpi.coerceAtLeast(1),
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    reader.surface,
+                    null,
+                    mainHandler(),
+                ) ?: return@withContext CaptureOutcome.Failed(
+                    "This device would not create a capture surface.",
+                )
+                val image = awaitImage(reader)
+                    ?: return@withContext CaptureOutcome.Failed(
+                        "No frame arrived from the screen within a second.",
+                    )
+                val bitmap = try {
+                    bitmapFrom(image, width, height)
+                } finally {
+                    image.close()
+                }
+                // Published, not written: the cropper reads this and the user picks the region to save.
+                lastExtractedFrameState.value = bitmap
+                CaptureOutcome.Extracted
+            } catch (error: SecurityException) {
+                // The token expired between the liveness check and the call.
+                projection = null
+                CaptureOutcome.NeedsConsent
+            } catch (error: Throwable) {
+                CaptureOutcome.Failed("A frame could not be extracted on this device.")
+            } finally {
+                try {
+                    virtual?.release()
+                } catch (error: Throwable) {
+                    // Releasing twice is harmless; a failure here loses nothing.
+                }
+                try {
+                    reader?.close()
+                } catch (error: Throwable) {
+                    // Same.
+                }
+            }
+        }
+    }
+
+    /**
+     * Crops [bitmap] to [cropPx] and writes it to the gallery, handing back a shareable `content://` URI, or
+     * null on any failure (§Screen-Extraction).
+     *
+     * The view-model has already resolved the preview-space selection into bitmap pixels through
+     * [com.gamecore.core.system.capture.CropMath] and clamped it to the frame, so [cropPx] is trusted to be
+     * in-bounds; it is re-clamped here anyway, and a degenerate or whole-frame rect keeps the frame intact
+     * rather than saving nothing. The write itself — the MediaStore-or-FileProvider two-path, the never-a-
+     * fabricated-success contract — belongs to [ImageMediaStoreSaver]; this only applies the crop and delegates.
+     *
+     * The cropped bitmap is recycled once written, but only when it is a *distinct* object from [bitmap]:
+     * the whole-frame case returns the caller's own frame, which the cropper is still showing, so recycling
+     * it would blank the screen. Runs off the main thread so a large `createBitmap` copy never janks the UI.
+     */
+    suspend fun saveExtractedBitmap(bitmap: Bitmap, cropPx: CropRect): Uri? = withContext(io) {
+        val cropped = cropOrWhole(bitmap, cropPx)
+        try {
+            imageSaver.save(cropped, EXTRACTION_BASE_NAME)
+        } finally {
+            if (cropped !== bitmap) {
+                try {
+                    cropped.recycle()
+                } catch (error: Throwable) {
+                    // A failed recycle leaks one bitmap to the collector, no worse than not recycling.
+                }
+            }
+        }
+    }
+
+    /**
+     * Drops the held extraction frame so a large full-screen bitmap is not retained in this singleton after
+     * the cropper is gone. Left for the garbage collector rather than recycled: the composable that last drew
+     * it may still be tearing down. Idempotent and safe to call when nothing was captured.
+     */
+    fun clearExtractedFrame() {
+        lastExtractedFrameState.value = null
+    }
+
+    /**
+     * Applies [cropPx] to [bitmap], re-clamped to the frame. Returns the original frame unchanged for a
+     * degenerate rect or one that covers the whole frame, so a distinct cropped bitmap is created only when
+     * there is a real sub-region — which is exactly the case [saveExtractedBitmap] is safe to recycle.
+     */
+    private fun cropOrWhole(bitmap: Bitmap, cropPx: CropRect): Bitmap {
+        val left = cropPx.left.coerceIn(0, bitmap.width)
+        val top = cropPx.top.coerceIn(0, bitmap.height)
+        val right = cropPx.right.coerceIn(left, bitmap.width)
+        val bottom = cropPx.bottom.coerceIn(top, bitmap.height)
+        val cropWidth = right - left
+        val cropHeight = bottom - top
+        val wholeFrame = left == 0 && top == 0 &&
+            cropWidth == bitmap.width && cropHeight == bitmap.height
+        return if (cropWidth <= 0 || cropHeight <= 0 || wholeFrame) {
+            bitmap
+        } else {
+            Bitmap.createBitmap(bitmap, left, top, cropWidth, cropHeight)
         }
     }
 
@@ -964,6 +1119,12 @@ class ScreenCaptureController @Inject constructor(
         /** Long enough for the first composited frame on a slow device. */
         const val FRAME_WAIT_MILLIS = 1_000L
         const val FRAME_POLL_MILLIS = 40L
+
+        /**
+         * The preferred base name for a saved extraction. [ImageMediaStoreSaver] sanitizes it and appends its
+         * own timestamp, so this is only the human-readable stem the gallery file starts with.
+         */
+        const val EXTRACTION_BASE_NAME = "extract"
 
         /**
          * The window shown while no buffer is running — the idle placeholder for [replayWindowSeconds],

@@ -1,11 +1,16 @@
 package com.gamecore.data.database
 
+import com.gamecore.core.model.FractionPoint
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.NetworkTransport
 import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.ThermalClass
+import com.gamecore.core.model.VolumeTriggerBinding
+import com.gamecore.core.model.VolumeTriggerConfig
+import com.gamecore.core.model.VolumeTriggerPressMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -220,6 +225,58 @@ class ProfileSmartFeatureMapperTest {
 
         // A hand-edited negative clip count is clamped non-negative, never read back as a real total.
         assertEquals(0, Mappers.toModel(baseSessionEntity().copy(clipsSaved = -5)).clipsSaved)
+    }
+
+    @Test
+    fun `a defaulted pre-feature profile reads no volume trigger`() {
+        // A pre-v16 row leaves the nine volume_trigger_* columns at the DEFAULTs the ALTER TABLE set — the
+        // toggle off and every per-key column NULL — which reads back as no trigger at all, never an
+        // empty-but-present config, so a profile written before the feature existed round-trips as null.
+        assertNull(Mappers.toModel(legacyEntity()).volumeTrigger)
+    }
+
+    @Test
+    fun `a volume trigger round-trips through the entity`() {
+        val trigger = VolumeTriggerConfig(
+            enabled = true,
+            up = VolumeTriggerBinding(FractionPoint(0.5f, 0.8f), VolumeTriggerPressMode.HOLD, holdMs = 300),
+            down = VolumeTriggerBinding(FractionPoint(0.2f, 0.2f), VolumeTriggerPressMode.SINGLE_TAP, holdMs = 250),
+        )
+        val original = GameProfile.forGame("com.example.game", "Example").copy(volumeTrigger = trigger)
+        val back = Mappers.toModel(Mappers.toEntity(original, nowMillis = 1L))
+        assertEquals(trigger, back.volumeTrigger)
+    }
+
+    @Test
+    fun `a hand-edited volume-trigger row is clamped and an unknown mode falls back`() {
+        // The point's fractions and the hold are trusted no more than any other stored value: a marker
+        // placed off-screen is pulled back into 0..1, an absurd hold is clamped into range, and a press
+        // mode this build does not know degrades to SINGLE_TAP rather than throwing on load. The absent
+        // down key, which has no mode column, stays unassigned.
+        val junk = legacyEntity().copy(
+            volumeTriggerEnabled = true,
+            volumeTriggerUpX = 1.5f,          // off the right edge
+            volumeTriggerUpY = -0.2f,         // above the top edge
+            volumeTriggerUpMode = "NONSENSE", // a mode this build does not know
+            volumeTriggerUpHoldMs = 999_999,  // an absurd hold
+        )
+        val trigger = Mappers.toModel(junk).volumeTrigger
+        assertNotNull(trigger)
+        assertTrue(trigger!!.enabled)
+        assertEquals(FractionPoint(1f, 0f), trigger.up?.point)
+        assertEquals(VolumeTriggerPressMode.SINGLE_TAP, trigger.up?.pressMode)
+        assertEquals(VolumeTriggerBinding.MAX_HOLD_MS, trigger.up?.holdMs)
+        assertNull(trigger.down)
+    }
+
+    @Test
+    fun `a volume trigger does not count toward changesNothing`() {
+        // Session-time behaviour: applying a profile whose only setting is a volume trigger writes no device
+        // setting and records nothing to restore, so — like the thermal, network and instant-replay toggles —
+        // it must still read as "changes nothing", the honest thing for the editor to say.
+        val onlyTrigger = GameProfile.forGame("com.example.game", "Example")
+            .copy(volumeTrigger = VolumeTriggerConfig(enabled = true))
+        assertTrue(onlyTrigger.changesNothing)
     }
 
     private fun baseSessionEntity() = SessionEntity(

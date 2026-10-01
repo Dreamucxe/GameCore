@@ -11,6 +11,7 @@ import com.gamecore.core.model.homeStatuses
 import com.gamecore.core.model.homeSubtitle
 import com.gamecore.core.model.profileClaim
 import com.gamecore.core.model.watchState
+import com.gamecore.core.session.SettingsChangeRow
 import com.gamecore.domain.gaming.GamingState
 import com.gamecore.ui.components.ABSENT
 import com.gamecore.ui.components.PENDING
@@ -91,6 +92,18 @@ data class HomeUiState(
      */
     val suggestion: HomeSuggestion? = null,
     val message: String? = null,
+    /**
+     * The settings the active profile has changed this session, each one a revert the user can press
+     * (§3.7.1, feature 7).
+     *
+     * Empty is the resting state, and the one the screen checks: the "Changed this session" card is drawn
+     * only while [gaming] is tracking and only when this holds at least one row, so a session that changed
+     * nothing — or one whose only changes the ledger cannot put back — shows no card rather than an empty
+     * one. Already resolved to [com.gamecore.core.session.SettingsChangeRow]s in the ViewModel, the same
+     * discipline the rest of this state follows: the card draws a label and a value and never sees a
+     * restore-ledger row, and the rows that survive are the ones a revert can actually discharge.
+     */
+    val sessionChanges: List<SettingsChangeRow> = emptyList(),
 ) {
 
     val profileCount: Int get() = profiles.size

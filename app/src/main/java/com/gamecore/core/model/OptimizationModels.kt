@@ -384,3 +384,40 @@ data class RestoreReport(
     }
 }
 
+/**
+ * What came of putting one setting back from the mid-session settings-change card (§3.7.1, feature 7).
+ *
+ * The single-row counterpart to [RestoreReport], and it keeps the same three honest outcomes that the
+ * report collapses into counts — restored, kept-because-the-user-took-it-over, still-changed — rather
+ * than a boolean, for the reason [RestoreReport.keptByUser] gives: a row the user has moved by hand is
+ * cleared without being written, and calling that "restored" would claim GameCore put something back
+ * that it deliberately left alone. The card shows a different line for each, so the distinction has to
+ * survive the call.
+ *
+ * [NotPending] is the fourth, and it is not a failure. The card is built from a snapshot of the restore
+ * table, and a row can be cleared between the card being composed and the revert being tapped — by the
+ * session-end [com.gamecore.domain.optimization.OptimizationManager.restoreAll], or by a second tap on
+ * a row the first already put back. A revert that finds nothing to do says so, so the card drops the
+ * row quietly instead of showing an error for a setting that is already as it should be.
+ */
+sealed interface RowRestoreOutcome {
+
+    /** The recorded value went back and was confirmed; the row is cleared. */
+    data object Restored : RowRestoreOutcome
+
+    /**
+     * The user had taken this key over since GameCore wrote it, so it was left as they set it.
+     *
+     * The row is cleared — GameCore no longer owes it back — but nothing was written, so the card says
+     * "left as you set it" rather than "reverted". The claim stays, exactly as [RestoreReport.keptByUser]
+     * and `restoreAll` describe, so the next profile still leaves the key alone.
+     */
+    data object KeptByUser : RowRestoreOutcome
+
+    /** No pending row for this namespace and key — already cleared, or never recorded. Not an error. */
+    data object NotPending : RowRestoreOutcome
+
+    /** The device still holds GameCore's value; [detail] is the sentence to show, and the row stays to retry. */
+    data class Failed(val detail: String) : RowRestoreOutcome
+}
+

@@ -34,21 +34,40 @@ import com.gamecore.core.common.shortUnavailabilityText
 import com.gamecore.core.common.unavailabilityText
 import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.AccentChoice
+import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.AspectChoice
 import com.gamecore.core.model.CROSSHAIR_COLOURS
 import com.gamecore.core.model.CrosshairDesign
 import com.gamecore.core.model.CrosshairPreset
 import com.gamecore.core.model.DisplaySizeState
+import com.gamecore.core.model.DockActionId
+import com.gamecore.core.model.DockActionKind
+import com.gamecore.core.model.DockActions
+import com.gamecore.core.model.DockConfig
 import com.gamecore.core.model.FloatingButtonConfig
+import com.gamecore.core.model.FractionPoint
+import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HuntFilter
 import com.gamecore.core.model.OverlayConfig
+import com.gamecore.core.model.OverlayRequest
 import com.gamecore.core.model.OverlayStatus
 import com.gamecore.core.model.PanelLayoutStyle
 import com.gamecore.core.model.ThermalClassifier
+import com.gamecore.core.model.VolumeTriggerBinding
+import com.gamecore.core.model.VolumeTriggerButton
+import com.gamecore.core.model.VolumeTriggerConfig
 import com.gamecore.core.overlay.ApplyDiff
 import com.gamecore.core.overlay.CrosshairOverlay
+import com.gamecore.core.overlay.DockAction
+import com.gamecore.core.overlay.DockPanel
+import com.gamecore.core.overlay.DockRoute
+import com.gamecore.core.overlay.DockScreen
+import com.gamecore.core.overlay.DockSignals
+import com.gamecore.core.overlay.DockToggle
+import com.gamecore.core.overlay.DockUnavailableReason
+import com.gamecore.core.overlay.FloatingDock
 import com.gamecore.core.overlay.FloatingGameButton
 import com.gamecore.core.overlay.HeldRow
 import com.gamecore.core.overlay.HudOverlay
@@ -96,9 +115,15 @@ import com.gamecore.core.overlay.QuickSheetSide
 import com.gamecore.core.overlay.QuickToggle
 import com.gamecore.core.overlay.QuickToggleState
 import com.gamecore.core.overlay.ThermalDot
+import com.gamecore.core.overlay.TriggerPointMarker
+import com.gamecore.core.overlay.TriggerPointPlacement
+import com.gamecore.core.overlay.isGatedByQuickActions
+import com.gamecore.core.overlay.nextDockRate
+import com.gamecore.core.overlay.route
 import com.gamecore.core.overlay.toOverlayAction
 import com.gamecore.core.overlay.refreshRateFeedback
 import com.gamecore.core.overlay.thermalDot
+import com.gamecore.core.overlay.unavailableReason
 import com.gamecore.core.permissions.PermissionChecker
 import com.gamecore.core.system.AudioControls
 import com.gamecore.core.system.ControlOutcome
@@ -111,6 +136,7 @@ import com.gamecore.core.system.TorchControls
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.ColorPresetRepository
 import com.gamecore.data.repository.CrosshairRepository
+import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.data.repository.HudLayoutRepository
 import com.gamecore.domain.color.ColorApplyResult
 import com.gamecore.domain.color.ColorCorrectionController
@@ -187,6 +213,26 @@ class GamingOverlayService : GameCoreService() {
     @Inject lateinit var crosshairs: CrosshairRepository
 
     @Inject lateinit var hudLayouts: HudLayoutRepository
+
+    /**
+     * The profile table, read for one question only: does the game in front have a volume trigger on it
+     * (§3.7.1, feature 5)?
+     *
+     * The dock's TRIGGER POINT control places the point a profile's volume trigger fires at, so it has
+     * nothing to place until such a trigger exists — and the service has no other way to find out, because
+     * a trigger is a field on [GameProfile] rather than anything the overlay layer holds. One injection and
+     * not three: the obvious alternative is to ask [com.gamecore.domain.trigger.QuickTriggerCoordinator]
+     * whether the trigger is armed, but armed answers "can this fire right now", which also depends on the
+     * accessibility service and on GameCore being in front, and a dock chip dimmed for *those* reasons would
+     * be telling the user to go and grant something that has no bearing on placing a point. The honest gate
+     * is the configuration, not the readiness of the mechanism that consumes it.
+     *
+     * Also the writer for a placed point: [persistTriggerPoint] reads the profile back, copies the new point
+     * onto its trigger and saves, because no "save a placed point onto a profile" helper exists anywhere —
+     * the in-app editor drafts the whole profile in memory and persists it on save, which an overlay with no
+     * draft to hold cannot do.
+     */
+    @Inject lateinit var profiles: GameProfileRepository
 
     @Inject lateinit var audio: AudioControls
 
@@ -300,8 +346,16 @@ class GamingOverlayService : GameCoreService() {
      * [ControlOutcome] becomes a toast, and if the reason was structural — an access that is missing, or
      * hardware that is absent — it is remembered here and the button is greyed with it from then on.
      * Cleared whenever the panel is opened, because by then the user may have granted the access.
+     *
+     * A flow rather than the plain map it used to be, because §3.7.1's dock reads it from a composable
+     * ([DockPanelContent]) instead of through a probe. The full control panel folds this map into
+     * [panel]'s state inside [probePanel] and so recomposes on the probe's next tick; the dock has no
+     * probe — that is its whole premise, a handful of controls drawn over a running match without the
+     * panel's suspend round trips — so a `mutableMapOf` written by [onAction] would update the memory and
+     * leave the chip on screen undimmed until something unrelated recomposed it. The map inside stays
+     * immutable and is replaced wholesale, which is what makes the flow emit at all.
      */
-    private val denied = mutableMapOf<OverlayAction, String>()
+    private val denied = MutableStateFlow<Map<OverlayAction, String>>(emptyMap())
 
     /**
      * The same memory for the two sliders.
@@ -314,6 +368,76 @@ class GamingOverlayService : GameCoreService() {
     private val deniedLevels = mutableMapOf<OverlayLevel, String>()
 
     private val panelOpen = MutableStateFlow(false)
+
+    /**
+     * Whether the dock's control panel is expanded — the dock's equivalent of [panelOpen].
+     *
+     * Owned here, not by [com.gamecore.core.overlay.FloatingDock]: the handle only reports taps, and the
+     * service decides whether a tap opens or closes the panel window, exactly as the floating button's tap
+     * routes through [toggleQuickSheet]. Reset to false whenever the dock comes down, so a re-shown dock
+     * always starts collapsed.
+     */
+    private val dockOpen = MutableStateFlow(false)
+
+    /**
+     * The panel width, in dp, the open dock panel was added at — the dock's [panelLayoutShown] (§3.7.1,
+     * feature 4).
+     *
+     * Needed because [openDockPanel] latches the width into the window's own `LayoutParams`, and the plate
+     * inside fills that window rather than sizing itself. So the slider on the dock customisation screen
+     * writes a new width, [observe]'s `dock` collector reconciles, and nothing on screen moves: the panel is
+     * still the window it was added as. Remembering what it was added at is what lets [syncDockPanelWidth]
+     * tell a real change from a reconcile fired by one of the dozen other things in [DockConfig] — a drag of
+     * the handle rewrites its x and y on every frame the finger moves, and rebuilding the panel on each of
+     * those would be a window torn down and re-added dozens of times a second.
+     *
+     * Zero while the panel is closed, which is not a width any [DockConfig] can hold ([DockConfig.normalised]
+     * floors it at 144), so the first open after a close always counts as a change.
+     */
+    private var dockPanelWidthShown: Int = 0
+
+    /**
+     * The display's selectable refresh rates, read once, or null while nothing has looked (§3.7.1, feature 5).
+     *
+     * Three states, and the third is why this is a nullable [Observed] rather than an [Observed] seeded with
+     * a failure. `Observed` can say "here is the list" and "here is why there is no list"; it has no way to
+     * say "nobody has asked yet", and conflating that with a failure is precisely the lie the dock must not
+     * tell. [DisplayReader.supportedRates] is suspend, the dock draws without a probe, and so for the first
+     * moments of a dock panel's life the honest answer to "how many rates can I offer" is *I have not looked* —
+     * which maps to [DockUnavailableReason.RATES_NOT_READ_YET] and the "Checking refresh rates…" sentence, not
+     * to "this panel runs at one rate only".
+     *
+     * Filled by a one-shot read in [observe] rather than re-read per dock open: a display's mode list does not
+     * change while the device is awake, and [probePanel] already pays this cost on the full panel's schedule.
+     */
+    private val dockRates = MutableStateFlow<Observed<List<Float>>?>(null)
+
+    /**
+     * The profile of the game currently being tracked, or null when there is none (§3.7.1, feature 5).
+     *
+     * Kept as a field rather than collected inside the composable because the dock panel is a window that
+     * comes and goes dozens of times a session and a database observation per open would be a new query each
+     * time. Null covers both honest shapes of nothing — no game in front, and a game in front with no profile
+     * saved for it — which the dock's reason sentence then separates, because "no game is being tracked" and
+     * "this game has no trigger yet" send the user to two different places.
+     */
+    private val frontProfile = MutableStateFlow<GameProfile?>(null)
+
+    /**
+     * How many HUD layouts are saved, or null before the first emission (§3.7.1, feature 5).
+     *
+     * A count and not the layouts themselves, because the only question the dock asks is whether there is
+     * anything to show — and holding the list here would be a second copy of what [HudLayoutRepository]
+     * already owns.
+     *
+     * This exists rather than reusing [hudLayout], which looks like the obvious source and is the wrong one:
+     * [resolveHud] publishes null into it whenever the HUD is *not* currently requested, so a dock that read
+     * it would dim its HUD control in exactly the state the user is trying to leave — HUD off, about to switch
+     * it on. [probePanel] does not have this bug because it asks the repository directly
+     * (`hudLayouts.layouts.first().isEmpty()`); this field is that same question, pushed rather than pulled so
+     * a composable can see it. Null is treated permissively — an unknown count must not dim a control.
+     */
+    private val savedHudLayouts = MutableStateFlow<Int?>(null)
 
     /**
      * Whether the display is on — the third term of the sampling gate in [streamReadings].
@@ -422,6 +546,24 @@ class GamingOverlayService : GameCoreService() {
     private var draggingButton = false
 
     /**
+     * [draggingButton]'s twin for the floating dock: true between the dock's first drag frame and the finger
+     * lifting, so a preference write that lands mid-drag does not reconcile the dock back to its stored
+     * coordinate and snap it out from under the finger.
+     */
+    private var draggingDock = false
+
+    /**
+     * The gap between the finger and the dock window's top-left, latched on the first frame of a drag and
+     * cleared when it ends.
+     *
+     * [com.gamecore.core.overlay.FloatingDock] reports the raw screen coordinate and leaves the fold to the
+     * service (see its KDoc), so — unlike the button, which folds in the composable through its
+     * `positionProvider` — the service has to remember where on the handle the finger grabbed to keep it
+     * under the finger. `null` whenever no dock drag is in flight.
+     */
+    private var dockGrabOffset: IntOffset? = null
+
+    /**
      * The same guard for the panel's resize grip.
      *
      * The settings screen writes the panel's width to preferences, [reconcile] re-applies it to an open
@@ -484,6 +626,14 @@ class GamingOverlayService : GameCoreService() {
      * now in the left half. Rescaling from the old frame keeps the side the user chose.
      */
     private var lastButtonFrame: OverlayFrame? = null
+
+    /**
+     * The frame the stored dock coordinate was last placed in — [lastButtonFrame] for the dock, kept for the
+     * same reason: a rotation rescales the dock's parked position from the old frame through
+     * [OverlayFrame.rescaleFrom] rather than re-snapping a raw pixel, so the edge the user parked it against
+     * is the edge it returns to on a screen of a different width.
+     */
+    private var lastDockFrame: OverlayFrame? = null
 
     private var lastPillFrame: OverlayFrame? = null
 
@@ -589,6 +739,10 @@ class GamingOverlayService : GameCoreService() {
         lifecycleScope.launch { overlays.desired.collect { reconcile() } }
         lifecycleScope.launch { preferences.floatingButton.collect { reconcile() } }
         lifecycleScope.launch { preferences.overlay.collect { reconcile() } }
+        // The dock's config — its size, opacity, snapped position — changes from the settings screen while
+        // the dock is up, and none of that moves the desired request, so like the button's config it needs
+        // its own collector to re-place and redraw the live window.
+        lifecycleScope.launch { preferences.dock.collect { reconcile() } }
         // The Instant Replay save controls (§3.6) are up exactly while the rolling buffer runs, which is
         // capture state rather than a desired-overlay request — so their show/hide rides the buffer's own
         // running flag. The paused, saving and window flows are read inside the window's content with
@@ -653,6 +807,64 @@ class GamingOverlayService : GameCoreService() {
                     ApplyDiff.summarize(application.results)?.let { toast(it) }
                 }
             }
+        }
+        lifecycleScope.launch {
+            // §3.7.1's three dock signals, each for a reason the full panel does not have. The panel resolves
+            // all three inside probePanel(), which is suspend and runs on a tick; the dock draws from a
+            // composable and has no tick, so what it needs has to be pushed into a flow it can collect.
+            //
+            // The rate list once and not per open: a display's mode list does not change while the device is
+            // awake, and this read goes through the same suspend call probePanel() pays for. Deliberately not
+            // wrapped in a retry — Observed already carries why a read failed, and dockReasonText() shows that
+            // reason rather than inventing one.
+            dockRates.value = displayReader.supportedRates()
+        }
+        lifecycleScope.launch {
+            // A count, not the layouts: the only question is whether there is anything for the HUD control to
+            // show. See [savedHudLayouts] for why this is not read off `hudLayout`.
+            hudLayouts.layouts.collect { savedHudLayouts.value = it.size }
+        }
+        lifecycleScope.launch {
+            // The profile of whatever is in front, for the trigger-point control's gate and the §3.7.1 marker.
+            //
+            // Nested collectLatest rather than flatMapLatest, which is the obvious spelling and would drag
+            // @OptIn(ExperimentalCoroutinesApi::class) onto this class for one line; the nesting has identical
+            // semantics here because collectLatest cancels the inner collection the moment the game changes.
+            // distinctUntilChanged first, because `gaming` emits on every stat tick and re-observing the
+            // profile table on each of those would be a new query several times a second.
+            coordinator.gaming
+                .map { it.playing }
+                .distinctUntilChanged()
+                .collectLatest { playing ->
+                    if (playing == null) {
+                        frontProfile.value = null
+                        // Reconciled on the way out as well as the way in, and this is the branch that
+                        // matters: the marker is drawn for the *tracked game's* point, so a game closing
+                        // must take the mark down with it. Without this the mark would sit on the home
+                        // screen pointing at where a fire button used to be.
+                        reconcile()
+                    } else {
+                        profiles.observeProfileFor(playing).collect {
+                            frontProfile.value = it
+                            // Every emission, not only the first. The marker window is driven off this
+                            // profile's trigger config, so a point placed — by this service's own placement
+                            // overlay or by the profile editor on another screen — has to reach reconcile()
+                            // for the mark to appear, move or disappear. The repository emits on each write,
+                            // so the mark follows the stored point without any further plumbing.
+                            reconcile()
+                        }
+                    }
+                }
+        }
+        lifecycleScope.launch {
+            // The volume-trigger master switch (AppSettings.volumePointTriggerEnabled). Off, the §3.7.1 mark
+            // comes down and the dock's Trigger chip dims — both decided in reconcile() and in dockSignals()
+            // — so a change to the flag on its own has to reconcile, exactly as the Hunt grade and the
+            // advanced-HUD switch above do.
+            preferences.settings
+                .map { it.volumePointTriggerEnabled }
+                .distinctUntilChanged()
+                .collect { reconcile() }
         }
     }
 
@@ -852,6 +1064,11 @@ class GamingOverlayService : GameCoreService() {
         if (!request.anythingVisible || !manager.canDraw()) {
             closePanel()
             closeQuickSheet()
+            // The placement surface is full screen and takes touches, so it is the one window that must not
+            // be allowed to outlive the service even for the instant between hideAll() and stopSelf(). The
+            // explicit close also drops its in-progress state, which hideAll() alone would leave behind to be
+            // re-seeded if the service came back up.
+            closeTriggerPlacement()
             manager.hideAll()
             stopSelf()
             return
@@ -888,6 +1105,33 @@ class GamingOverlayService : GameCoreService() {
         if (request.scout) showScout() else manager.hide(OverlaySlot.SCOUT)
         if (request.hunt) showHunt() else manager.hide(OverlaySlot.HUNT)
         if (request.wheel) showWheel() else manager.hide(OverlaySlot.WHEEL)
+        // The dock is the button's sibling: a touchable handle drawn beside the game, not through it, and
+        // needing no capture feed. Its panel hangs off it exactly as the button's does, so dropping the dock
+        // closes the panel first — a panel left up with no handle to anchor it is the dock's version of the
+        // orphaned quick sheet the button branch guards against.
+        if (request.dock) {
+            val dock = preferences.dock.value.normalised()
+            showDock(dock)
+            syncDockPanelWidth(dock.panelWidthDp)
+        } else {
+            closeDockPanel()
+            manager.hide(OverlaySlot.DOCK)
+        }
+        // The §3.7.1 trigger mark. The one window here whose show/hide is not read off `request`, because
+        // there is no overlay toggle for it and there should not be: it is not a surface the user turns on,
+        // it is the visible half of a volume key that is already bound. So it tracks the three facts that
+        // make it true — the master switch, a game being tracked, and that game's profile carrying a placed
+        // point — and the collectors in observe() reconcile on each of them.
+        //
+        // It is drawn for the key [triggerKeyToPlace] would place, so the mark and the dock's Trigger chip
+        // always speak about the same binding, and a two-key setup never draws two marks the user cannot
+        // tell apart.
+        //
+        // Nothing to hide when the service is stopping: the early return above takes every window down, and
+        // a mark with no other overlay on screen is not a state the service stays alive for — it rides on a
+        // session that already has the pill, the button or the dock up.
+        val triggerPoint = markedTriggerPoint()
+        if (triggerPoint != null) showTriggerMarker() else manager.hide(OverlaySlot.TRIGGER_MARKER)
         // Who needs the frames: the loupe and Scout always, Hunt only for the grades that re-draw the live
         // screen — the capture-free MOVIE tints GameCore's own glass and needs none. The wheels ring reads
         // nothing at all, so it never appears here.
@@ -951,6 +1195,24 @@ class GamingOverlayService : GameCoreService() {
             manager.move(OverlaySlot.PILL, placed.x, placed.y)
             lastPillFrame = currentPill
             preferences.updatePillPosition(placed.x, placed.y)
+        }
+        val previousDock = lastDockFrame
+        val currentDock = dockFrame()
+        if (previousDock != null && currentDock != null && manager.isVisible(OverlaySlot.DOCK)) {
+            val config = preferences.dock.value.normalised()
+            // The dock carries its position across a rotation exactly as the button does: a fraction already
+            // remembered for the new orientation wins, otherwise the old screen's pixels are rescaled
+            // proportionally and where they land is remembered — so the edge the user parked it against is
+            // the edge it keeps on a screen of a different shape.
+            val stored = config.positionFraction(portrait = currentDock.isPortrait)
+            val placed = if (stored != null) {
+                currentDock.fromFraction(PositionFraction(stored.first, stored.second), config.snapToEdge)
+            } else {
+                currentDock.rescaleFrom(previousDock, config.x, config.y, config.snapToEdge)
+            }
+            manager.move(OverlaySlot.DOCK, placed.x, placed.y)
+            lastDockFrame = currentDock
+            persistDockPlacement(currentDock, placed)
         }
     }
 
@@ -1090,6 +1352,767 @@ class GamingOverlayService : GameCoreService() {
             xFraction = fraction.xFraction,
             yFraction = fraction.yFraction,
         )
+    }
+
+    // ------------------------------------------------------------------------------------- dock
+
+    /**
+     * Adds the dock, or moves the one that is up.
+     *
+     * The floating button's twin ([showButton]): the window is added once and the composable reads its own
+     * config from [SecurePreferenceStore.dock], so a size or opacity change recomposes rather than re-adds.
+     * The position is applied from outside because clamping and snapping need the screen the composable
+     * knows nothing about, and it is not re-applied under a finger — a preference write landing mid-drag
+     * would otherwise pull the dock back to its stored coordinate from under it.
+     */
+    private fun showDock(config: DockConfig) {
+        val manager = windows ?: return
+        val frame = dockFrame() ?: return
+        lastDockFrame = frame
+        val placement = resolveDockPlacement(frame, config)
+        if (manager.isVisible(OverlaySlot.DOCK)) {
+            if (!draggingDock) manager.move(OverlaySlot.DOCK, placement.x, placement.y)
+            return
+        }
+        manager.show(
+            slot = OverlaySlot.DOCK,
+            spec = OverlayWindowSpec(x = placement.x, y = placement.y, touchable = true),
+            host = host,
+        ) {
+            val live by preferences.dock.collectAsState()
+            val open by dockOpen.collectAsState()
+            FloatingDock(
+                config = live.normalised(),
+                expanded = open,
+                onTap = ::toggleDockPanel,
+                onDragTo = ::dragDockTo,
+                onDragFinished = ::finishDockDrag,
+            )
+        }
+    }
+
+    /**
+     * The screen as the dock sees it — measured from the live view when there is one, and from the
+     * configured size before it has been added.
+     *
+     * The estimate mirrors [FloatingDock]'s own geometry: a handle 1.6× as wide as it is tall (that file's
+     * private `WIDTH_FACTOR`). It shapes only the very first, pre-measured frame, so any drift from that
+     * constant costs at most one frame's clamp before the measured pass in [frameFor] corrects it.
+     */
+    private fun dockFrame(): OverlayFrame? {
+        val manager = windows ?: return null
+        val margin = px(EDGE_MARGIN_DP)
+        manager.frameFor(OverlaySlot.DOCK, margin)?.let { return it }
+        val height = px(preferences.dock.value.normalised().sizeDp)
+        val width = (height * DOCK_WIDTH_FACTOR).roundToInt()
+        return manager.frameFor(width, height, margin)
+    }
+
+    /**
+     * Where the dock belongs on [frame]: the fraction remembered for this orientation if there is one,
+     * otherwise the stored pixels — the same rotation-surviving rule the button follows
+     * ([resolveButtonPlacement]).
+     */
+    private fun resolveDockPlacement(frame: OverlayFrame, config: DockConfig): OverlayPlacement {
+        val fraction = config.positionFraction(portrait = frame.isPortrait)
+        return if (fraction != null) {
+            frame.fromFraction(PositionFraction(fraction.first, fraction.second), config.snapToEdge)
+        } else {
+            frame.place(config.x, config.y, config.snapToEdge)
+        }
+    }
+
+    /**
+     * One drag frame, folding [FloatingDock]'s raw screen coordinates into a window position.
+     *
+     * The button folds the drag inside its own composable and hands this service a finished window target;
+     * the dock deliberately does not (see [FloatingDock]), so the fold lives here. On the first frame of a
+     * gesture the grab offset — the gap between the finger and the window's top-left — is latched from where
+     * the window actually is, so the handle does not jump to meet the finger. Every later frame is
+     * `raw − offset`, clamped to the screen. Nothing is written and nothing snaps; both wait for
+     * [finishDockDrag], for the reason [dragButtonTo] gives.
+     */
+    private fun dragDockTo(rawX: Float, rawY: Float) {
+        val manager = windows ?: return
+        val frame = dockFrame() ?: return
+        val offset = dockGrabOffset ?: run {
+            draggingDock = true
+            // The expanded panel is anchored to where the handle was; dragging a stale anchor around is
+            // worse than closing it.
+            closeDockPanel()
+            val origin = manager.positionOf(OverlaySlot.DOCK)
+                ?: resolveDockPlacement(frame, preferences.dock.value.normalised())
+            IntOffset(rawX.roundToInt() - origin.x, rawY.roundToInt() - origin.y).also {
+                dockGrabOffset = it
+            }
+        }
+        val clamped = frame.clamp(rawX.roundToInt() - offset.x, rawY.roundToInt() - offset.y)
+        manager.move(OverlaySlot.DOCK, clamped.x, clamped.y)
+    }
+
+    /** The finger lifted: snap if the user wants snapping, then persist once, and drop the grab offset. */
+    private fun finishDockDrag() {
+        val manager = windows ?: return
+        draggingDock = false
+        dockGrabOffset = null
+        val config = preferences.dock.value.normalised()
+        val frame = dockFrame() ?: return
+        lastDockFrame = frame
+        val current = manager.positionOf(OverlaySlot.DOCK) ?: return
+        val placed = frame.place(current.x, current.y, config.snapToEdge)
+        manager.move(OverlaySlot.DOCK, placed.x, placed.y)
+        persistDockPlacement(frame, placed)
+    }
+
+    /**
+     * Stores where the dock ended up as both the pixels for this screen and the fraction for this
+     * orientation, from the placement actually applied so the two never disagree — the dock's copy of
+     * [persistButtonPlacement].
+     */
+    private fun persistDockPlacement(frame: OverlayFrame, placed: OverlayPlacement) {
+        val fraction = frame.fractionOf(placed.x, placed.y)
+        preferences.updateDockPlacement(
+            x = placed.x,
+            y = placed.y,
+            portrait = frame.isPortrait,
+            xFraction = fraction.xFraction,
+            yFraction = fraction.yFraction,
+        )
+    }
+
+    /** The handle was tapped: open the compact panel, or close it if it is already up. */
+    private fun toggleDockPanel() {
+        if (dockOpen.value) closeDockPanel() else openDockPanel()
+    }
+
+    /**
+     * Opens the dock's compact panel (feature 1): the [DockPanel] anchored to the handle the user tapped.
+     *
+     * The floating button's [openQuickSheet] pattern, trimmed to the dock's needs. The panel hugs the screen
+     * edge the handle's centre is nearer to and grows down from the handle's bottom when there is room, up
+     * from it when there is not, so a dock parked in any corner opens a panel that stays on screen — and
+     * neither the right-edge placement nor the upward growth needs the panel measured first, for the reasons
+     * [openQuickSheet] gives. No watch is started, unlike the sheet: the dock panel has no session clock and
+     * no §4 auto-close, and its toggles read their on-states live inside [DockPanelContent], so there is
+     * nothing to poll. It closes on an outside tap ([DockPanelContent]) or a second handle tap
+     * ([toggleDockPanel]).
+     */
+    private fun openDockPanel() {
+        val manager = windows ?: return
+        // The clear [startPanelWatch] makes, stated here because the dock has nowhere else to put it. A
+        // structural refusal is remembered in [denied] so the second tap is prevented rather than repeated,
+        // and an open is where that memory is dropped: by the time the user comes back to a surface they may
+        // have granted the access it was refused for. The full panel does this in its watch; the dock starts
+        // no watch at all (see below), so without this line a Magnifier refused once at the start of a
+        // session would stay dimmed in the dock for the rest of it, with no way back short of killing the
+        // service.
+        denied.value = emptyMap()
+        val config = preferences.dock.value.normalised()
+        val width = px(config.panelWidthDp)
+        val margin = px(EDGE_MARGIN_DP)
+        val gap = px(PANEL_GAP_DP)
+        val frame = manager.frameFor(width, 0, margin)
+        val placement = manager.positionOf(OverlaySlot.DOCK)
+        val handle = manager.frameFor(OverlaySlot.DOCK)
+        val handleTop = placement?.y ?: 0
+        val handleHeight = handle?.windowHeight ?: 0
+        val handleCentreX = (placement?.x ?: 0) + (handle?.windowWidth ?: 0) / 2
+
+        val onLeft = frame.isMeasured && handleCentreX < frame.screenWidth / 2
+        val x = if (onLeft) margin else maxOf(margin, frame.maxX)
+
+        val roomBelow = frame.screenHeight - (handleTop + handleHeight + gap) - margin
+        val roomAbove = handleTop - gap - margin
+        val below = !frame.isMeasured || roomBelow >= roomAbove
+        val y = if (below) {
+            (handleTop + handleHeight + gap).coerceAtLeast(margin)
+        } else {
+            (frame.screenHeight - (handleTop - gap)).coerceAtLeast(0)
+        }
+
+        val shown = manager.show(
+            slot = OverlaySlot.DOCK_PANEL,
+            spec = OverlayWindowSpec(
+                x = x,
+                y = y,
+                width = width,
+                touchable = true,
+                dismissOnOutsideTouch = true,
+                anchorBottom = !below,
+            ),
+            host = host,
+        ) {
+            DockPanelContent()
+        }
+        if (!shown) return
+        dockOpen.value = true
+        dockPanelWidthShown = config.panelWidthDp
+    }
+
+    /**
+     * The dock panel's contents (features 4–5), built from the arrangement the user saved.
+     *
+     * Split out of [openDockPanel] so the `@OptIn` for the outside-touch filter sits on a composable, as
+     * [QuickSheetContent] is split from [openQuickSheet]. What it draws is no longer a fixed five: §3.7.1
+     * made the dock's contents a setting, so the two grids come from [DockConfig.actionOrder] and
+     * [DockConfig.hiddenActions] through [DockActions.visibleOfKind], and each cell's behaviour comes from
+     * [DockActionId.route] — neither decided here. This function's whole job is to turn pure answers into
+     * [DockToggle]s and [DockAction]s.
+     *
+     * **Three gates, in this order, and the order is the design.**
+     *
+     * First, `dockCustomizationEnabled` off falls back to [DockActionId.DEFAULT_ORDER] rather than to
+     * whatever the user last arranged. The switch hides the customisation screen, so with it off there is no
+     * way to change the arrangement and no way to see what it is; drawing a saved one anyway would leave a
+     * user who switched the feature off looking at a panel they cannot explain or edit. The shipped five is
+     * the one arrangement that needs no screen to understand.
+     *
+     * Second, `quickActionsEnabled` off drops every [DockActionKind.ACTION] cell — [isGatedByQuickActions] —
+     * and draws no chip, no ✕ and no sentence for them. That property's KDoc argues why this is a hide and
+     * not a reason code, and the short of it is that seven greyed chips all carrying "switched off in
+     * settings" is noise over a game rather than an explanation.
+     *
+     * Third, what survives both is drawn *whether or not the device can do it*, dimmed and carrying its
+     * reason from [DockActionId.unavailableReason]. The quick sheet drops an unavailable pin; the dock keeps
+     * it, because the dock is the surface the user arranged by hand and a control that silently vanished
+     * would make the customisation screen and the live panel disagree about what is on it.
+     *
+     * On-states are read live from [OverlayController.desired] rather than from [panel], because the dock
+     * panel starts no probe watch (see [openDockPanel]); availability is read from the four flows
+     * [dockSignals] gathers for exactly that reason. Every cell routes through [onDockAction], so a tap here
+     * persists the preference and updates every other surface in lockstep.
+     *
+     * [denied] wins over the computed reason wherever it has an entry. A structural refusal — a projection
+     * the platform would not grant, a shell that is not there — is something that was *tried and refused*,
+     * and that beats anything derivable in advance: [DockSignals] can say a device has a projection, and the
+     * platform can still refuse this one.
+     */
+    @OptIn(ExperimentalComposeUiApi::class)
+    @Composable
+    private fun DockPanelContent() {
+        val request by overlays.desired.collectAsState()
+        val tint by accent.collectAsState()
+        val config by preferences.dock.collectAsState()
+        val settings by preferences.settings.collectAsState()
+        val rates by dockRates.collectAsState()
+        val layouts by savedHudLayouts.collectAsState()
+        val profile by frontProfile.collectAsState()
+        val gaming by coordinator.gaming.collectAsState()
+        val capturing by capture.recording.collectAsState()
+        val refused by denied.collectAsState()
+
+        val tracked = gaming.playing != null
+        val signals = dockSignals(
+            settings = settings,
+            rates = rates,
+            savedLayouts = layouts,
+            profile = profile,
+            gameTracked = tracked,
+            recording = capturing.isRecording,
+        )
+        // The arrangement, or the shipped one when the customisation screen is switched off — see the KDoc.
+        val order = if (settings.dockCustomizationEnabled) {
+            config.normalised().actionOrder
+        } else {
+            DockActionId.DEFAULT_ORDER
+        }
+        val hidden = if (settings.dockCustomizationEnabled) {
+            config.normalised().hiddenActions
+        } else {
+            DockActionId.DEFAULT_HIDDEN
+        }
+
+        // One closure for both grids, so a cell's reason cannot be worked out one way for a toggle and
+        // another way for a chip. Null means usable.
+        val reasonFor: (DockActionId) -> String? = { id ->
+            val route = id.route()
+            val action = (route as? DockRoute.Overlay)?.action
+            action?.let { refused[it] }
+                ?: id.unavailableReason(signals)?.let { reason ->
+                    dockReasonText(
+                        reason = reason,
+                        rates = rates,
+                        triggerSwitchOn = settings.volumePointTriggerEnabled,
+                        gameTracked = tracked,
+                    )
+                }
+        }
+
+        val toggles = DockActions.visibleOfKind(order, hidden, DockActionKind.TOGGLE).map { id ->
+            val reason = reasonFor(id)
+            DockToggle(
+                label = id.label,
+                // Read from the request rather than from the id, because a toggle cell's tick has to
+                // describe the overlay that is actually up — which another surface may have changed since
+                // this panel opened.
+                isOn = isOverlayOn(id, request),
+                onToggle = { onDockAction(id) },
+                enabled = reason == null,
+                reason = reason,
+            )
+        }
+        val actions = if (settings.quickActionsEnabled) {
+            DockActions.visibleOfKind(order, hidden, DockActionKind.ACTION).map { id ->
+                val reason = reasonFor(id)
+                DockAction(
+                    label = id.label,
+                    onRun = { onDockAction(id) },
+                    enabled = reason == null,
+                    reason = reason,
+                )
+            }
+        } else {
+            emptyList()
+        }
+
+        DockPanel(
+            toggles = toggles,
+            actions = actions,
+            onClose = ::closeDockPanel,
+            accent = tint,
+            // The §4 close-on-outside-tap, the mechanism [QuickSheetContent] documents: ACTION_OUTSIDE
+            // (from FLAG_WATCH_OUTSIDE_TOUCH) closes the panel and is consumed, while every other event
+            // returns false so the panel's own toggles still receive their taps.
+            modifier = Modifier.pointerInteropFilter { event ->
+                if (event.actionMasked == MotionEvent.ACTION_OUTSIDE) {
+                    closeDockPanel()
+                    true
+                } else {
+                    false
+                }
+            },
+        )
+    }
+
+    /**
+     * Whether the overlay behind one dock toggle is on right now (§3.7.1, feature 5).
+     *
+     * The seven toggle cells read their tick from [OverlayRequest], and this is the one place that
+     * correspondence is written. It leans on [DockActionId.route] for the mapping rather than repeating it —
+     * `DockActionRoutesTest` already pins that a toggle cell routes to a toggle action — so the only thing
+     * decided here is which field of the request each [OverlayAction] is stored in.
+     *
+     * The `when` over the action is exhaustive in the branches that matter and falls through to `false` for
+     * the rest, which is the one `else` in this cluster and is honest: the panel's vocabulary is far larger
+     * than the dock's, and the fall-through is only ever reached by an [OverlayAction] that is not an
+     * overlay the request can hold — a one-shot like Screenshot, whose cell is a momentary chip with no tick
+     * to draw. A toggle cell wired to one of those is already a compile-free mistake
+     * `DockActionRoutesTest.a toggle cell always routes to a toggle action` catches, so this does not need to
+     * catch it a second time.
+     */
+    private fun isOverlayOn(id: DockActionId, request: OverlayRequest): Boolean =
+        when ((id.route() as? DockRoute.Overlay)?.action) {
+            OverlayAction.CROSSHAIR -> request.crosshair
+            OverlayAction.PILL -> request.pill
+            OverlayAction.WHEEL -> request.wheel
+            OverlayAction.HUD -> request.hud
+            OverlayAction.MAGNIFIER -> request.magnifier
+            OverlayAction.SCOUT -> request.scout
+            OverlayAction.HUNT -> request.hunt
+            else -> false
+        }
+
+    /**
+     * The device-and-moment snapshot [DockActionId.unavailableReason] needs (§3.7.1, feature 5).
+     *
+     * Assembled from values already in hand and **nothing suspending**, which is the whole contract
+     * [DockSignals] exists to make possible: the dock panel is a composable recomposing over a live game, so
+     * every signal here is either a plain property read or a flow the service filled in [observe].
+     *
+     * Three of the eight fields are worth reading twice:
+     *
+     * - `hasHudLayout` comes from [savedHudLayouts] and not from [hudLayout], because that one is null
+     *   whenever the HUD is not currently requested — so reading it would dim the HUD control in exactly the
+     *   state the user is trying to leave.
+     * - `selectableRates` stays null while [dockRates] is null *or* unreadable, and the two mean different
+     *   things to the user; [dockReasonText] is where they are told apart.
+     * - `triggerReady` is the composite gate, and it is built from the three things that are actually
+     *   checkable here: the master preference, a game being tracked, and a profile carrying a
+     *   [VolumeTriggerConfig] with at least one key bound. It deliberately does **not** consult
+     *   [QuickTriggerCoordinator.armed] — that flag also depends on the accessibility service and on GameCore
+     *   being the app in front, neither of which has anything to do with *placing* a point, and a chip dimmed
+     *   because GameCore was in the background would be dimmed in the only state it is ever reached from.
+     */
+    private fun dockSignals(
+        settings: AppSettings,
+        rates: Observed<List<Float>>?,
+        savedLayouts: Int?,
+        profile: GameProfile?,
+        gameTracked: Boolean,
+        recording: Boolean,
+    ): DockSignals {
+        val trigger = profile?.volumeTrigger
+        return DockSignals(
+            captureSupported = capture.isSupported(),
+            recording = recording,
+            // Null — nothing has counted yet — is treated as "no layout", which is the permissive answer
+            // here only in the sense that it dims rather than claims: the HUD control carries "no HUD layout
+            // saved yet" for the instant before the first query lands, and the count arrives on the same
+            // frame Room first publishes the table.
+            hasHudLayout = (savedLayouts ?: 0) > 0,
+            huntNeedsCapture = settings.huntFilter.needsCapture,
+            selectableRates = rates?.valueOrNull?.size,
+            triggerReady = settings.volumePointTriggerEnabled &&
+                gameTracked &&
+                trigger != null &&
+                triggerKeyToPlace(trigger) != null,
+            screenExtractionOffered = settings.screenExtractionEnabled,
+            touchSamplingOffered = settings.touchSamplingEnabled,
+        )
+    }
+
+    /**
+     * One [DockUnavailableReason] turned into the sentence the cell shows (§3.7.1, feature 5).
+     *
+     * The service half of the split [DockUnavailableReason]'s own KDoc argues for: the pure layer names the
+     * absence, this names it in words, and four of the seven words are string resources the full control
+     * panel already shows for the same absence — so the dock and the panel cannot drift apart about what a
+     * greyed Screenshot means.
+     *
+     * Exhaustive with **no `else`**, so a reason code added to that enum fails to build here rather than
+     * reaching a cell as an empty sentence. Two branches narrow the code further than the code itself can,
+     * which is the whole reason this is a function and not a lookup table:
+     *
+     * - [DockUnavailableReason.RATES_NOT_READ_YET] covers two states the pure layer cannot tell apart,
+     *   because both leave the count null. A probe that has not run yet gets "Checking refresh rates…"; one
+     *   that ran and could not read the mode list carries its own reason through
+     *   [Observed.shortUnavailabilityText], exactly as `probePanel` does for the full panel's rate row.
+     * - [DockUnavailableReason.TRIGGER_NOT_READY] is a composite of three, and they send the user to three
+     *   different places: a switch in Settings, a wait for a game to be detected, or work to do in the
+     *   profile editor. The order matters — the preference is checked first, because a user who switched the
+     *   feature off is not waiting for a game.
+     */
+    private fun dockReasonText(
+        reason: DockUnavailableReason,
+        rates: Observed<List<Float>>?,
+        triggerSwitchOn: Boolean,
+        gameTracked: Boolean,
+    ): String = when (reason) {
+        DockUnavailableReason.CAPTURE_UNSUPPORTED -> getString(R.string.overlay_capture_unsupported)
+        DockUnavailableReason.RECORDING_IN_PROGRESS -> getString(R.string.overlay_recording_in_progress)
+        DockUnavailableReason.NO_HUD_LAYOUT -> getString(R.string.overlay_no_hud_layout)
+        DockUnavailableReason.SINGLE_REFRESH_RATE -> getString(R.string.overlay_refresh_single_rate)
+        DockUnavailableReason.RATES_NOT_READ_YET ->
+            rates?.shortUnavailabilityText() ?: getString(R.string.overlay_refresh_rates_unknown)
+        DockUnavailableReason.TRIGGER_NOT_READY -> when {
+            !triggerSwitchOn -> getString(R.string.overlay_feature_switched_off)
+            !gameTracked -> getString(R.string.overlay_trigger_no_game)
+            else -> getString(R.string.overlay_trigger_not_ready)
+        }
+        DockUnavailableReason.FEATURE_SWITCHED_OFF -> getString(R.string.overlay_feature_switched_off)
+    }
+
+    /**
+     * A press on one dock control, dispatched by [DockActionId.route] (§3.7.1, feature 5).
+     *
+     * The service end of the pure mapping, and the only place in this file that knows what a [DockRoute]
+     * costs to perform. The `when` is exhaustive over all five routes with **no `else`** — a sixth added to
+     * [DockRoute] fails to build here rather than becoming a chip that swallows the tap, which is the gate
+     * that file was written around.
+     *
+     * Three of the five close the panel first, and each for its own reason rather than for tidiness.
+     * [DockRoute.FullPanel] must, because both windows watch for an outside touch and the dock panel would
+     * close the control panel the user just asked for. [DockRoute.TriggerPoint] must, because the placement
+     * surface is full-screen and touchable and would otherwise be layered under a panel that is still taking
+     * taps. [DockRoute.Screen] must, because the game is about to be swapped out and a panel left up would
+     * come back on top of GameCore's own UI.
+     *
+     * The other two deliberately leave the panel open. An [DockRoute.Overlay] tap is the dock's bread and
+     * butter — toggling the crosshair and watching its cell fill is the whole point of a panel whose cells
+     * read their state live — and [DockRoute.NextRefreshRate] is a cycle the user steps through several taps
+     * at a time, so closing on the first would make the other rates unreachable without re-opening.
+     */
+    private fun onDockAction(id: DockActionId) {
+        when (val route = id.route()) {
+            // Straight to the panel's own handler, never past it: the preference is written once and every
+            // other surface follows, which is [DockRoute.Overlay]'s stated contract.
+            is DockRoute.Overlay -> onAction(route.action)
+
+            is DockRoute.FullPanel -> {
+                closeDockPanel()
+                openPanel()
+            }
+
+            // The pinned rate the controller last confirmed, stepped one mode up — or released past the top.
+            // [nextDockRate] does the choosing; this only supplies what is held and what is offered, and
+            // [onRate] does the rest exactly as the full panel's rate chips do.
+            is DockRoute.NextRefreshRate ->
+                onRate(nextDockRate(current = pinnedRate, offered = dockRates.value?.valueOrNull.orEmpty()))
+
+            is DockRoute.TriggerPoint -> {
+                closeDockPanel()
+                openTriggerPlacement()
+            }
+
+            is DockRoute.Screen -> {
+                closeDockPanel()
+                openApp(destinationFor(route.screen))
+            }
+        }
+    }
+
+    /**
+     * One [DockScreen] turned into the destination token [MainActivity] validates against (§3.7.1, feature 5).
+     *
+     * The second of the two compile-time gates [DockScreen]'s KDoc describes. That enum is pure and knows
+     * nothing of intents; this is where a member of it becomes one of `MainActivity`'s `EXTRA_DESTINATION`
+     * strings, and the `when` is exhaustive with **no `else`** so a screen added there is a build failure
+     * here rather than an unrecognised token that lands the user on the dashboard.
+     *
+     * Each token is read from [MainActivity]'s own constant rather than typed out, so the closed set the
+     * activity validates against and the set the dock can reach are the same set by construction.
+     */
+    private fun destinationFor(screen: DockScreen): String = when (screen) {
+        DockScreen.SYSTEM_STATS -> MainActivity.DESTINATION_PERFORMANCE
+        DockScreen.SCREEN_EXTRACTION -> MainActivity.DESTINATION_SCREEN_EXTRACTION
+        DockScreen.TOUCH_SAMPLING -> MainActivity.DESTINATION_SAMPLING_MONITOR
+    }
+
+    /** Collapses the dock panel back to its handle. The header ✕, an outside tap and a second handle tap all land here. */
+    private fun closeDockPanel() {
+        dockOpen.value = false
+        windows?.hide(OverlaySlot.DOCK_PANEL)
+    }
+
+    /**
+     * Rebuilds the open dock panel when the user changes the width it should be drawn at (§3.7.1, feature 4).
+     *
+     * [syncPanelLayout] for the dock, and a close-and-reopen for the same reason that one is: the width is
+     * not a property of the plate, it is a property of the *window*. [openDockPanel] hands it to
+     * [OverlayWindowSpec] and derives the x coordinate from it — a panel hugging the right edge is placed at
+     * `frame.maxX`, which is the screen width minus this one — so [OverlayWindows.resize], which moves a
+     * window without re-specifying it, would narrow a right-hand panel and leave it floating a gap away from
+     * the edge it is supposed to be against. Re-opening re-derives both.
+     *
+     * This is what makes the customisation screen's width slider a live preview rather than a number, exactly
+     * as [applyPanelWidth] does for the floating button's panel. Guarded on the panel being open and on the
+     * width having actually changed, and that second guard is the load-bearing one: this runs from
+     * [reconcile], which fires on every emission of [SecurePreferenceStore.dock] — including the x and y a
+     * drag of the handle rewrites on every frame the finger moves. Without it, dragging the dock would tear
+     * the panel down and re-add it dozens of times a second.
+     */
+    private fun syncDockPanelWidth(widthDp: Int) {
+        if (!dockOpen.value || dockPanelWidthShown == widthDp) return
+        closeDockPanel()
+        openDockPanel()
+    }
+
+    // --------------------------------------------------------------- in-game trigger-point placement
+
+    /**
+     * Which volume key the dock's Trigger control places a point for (§3.7.1).
+     *
+     * One key, chosen here, and the reason it is one key is worth stating because it is a limitation and not
+     * an oversight. The placement surface is an aiming layer whose whole design argument is that it carries
+     * as little chrome as possible — one plate, two buttons, nothing between the user and the thing they are
+     * trying to put a mark on. A key selector on it would add two more tap targets to the surface and a
+     * decision to a gesture that should be "point at the fire button, press Done".
+     *
+     * So the rule is the one that puts the user in front of the work that is actually outstanding: of the
+     * keys bound in this game, prefer the first that has **no point yet** — the half-finished binding
+     * [VolumeTriggerBinding.point]'s own KDoc describes, which is the state a user who just bound a key is
+     * in — and otherwise take the first bound key so the control re-places rather than doing nothing. Volume
+     * Up is asked about first, so the choice is stable rather than depending on which key was bound first.
+     *
+     * **The limitation, plainly:** a player who has already placed points for *both* keys can only re-place
+     * Volume Up from the dock. The profile editor remains the way to place or re-place either one, and the
+     * placement plate names the key it is placing ("Bound to Volume Up") so this is never silent — the user
+     * is told which binding they are editing before they commit to it.
+     *
+     * Null means there is nothing to place: no key is bound in this game, which is exactly the state
+     * [DockUnavailableReason.TRIGGER_NOT_READY] dims the control for and the profile editor is the cure for.
+     */
+    private fun triggerKeyToPlace(config: VolumeTriggerConfig): VolumeTriggerButton? {
+        val bound = listOf(VolumeTriggerButton.VOLUME_UP, VolumeTriggerButton.VOLUME_DOWN)
+            .filter { config.binding(it) != null }
+        return bound.firstOrNull { config.binding(it)?.point == null } ?: bound.firstOrNull()
+    }
+
+    /** The user-facing name of one volume key, for the placement plate and nothing else. */
+    private fun triggerKeyLabel(button: VolumeTriggerButton): String = when (button) {
+        VolumeTriggerButton.VOLUME_UP -> "Volume Up"
+        VolumeTriggerButton.VOLUME_DOWN -> "Volume Down"
+    }
+
+    /**
+     * The point the §3.7.1 mark should be drawn at, or null for the five reasons there is nothing to mark.
+     *
+     * All five nulls are ordinary states and none is an error: the master switch is off, no game is tracked,
+     * the tracked game has no profile, that profile carries no trigger config or has switched its own
+     * per-game trigger off, or the key the dock would place has no point placed yet.
+     *
+     * The per-game [VolumeTriggerConfig.enabled] is checked as well as the global one, because they mean
+     * different things — the global switch is "this feature exists on this phone", the per-game one is "this
+     * key does this in this game" — and a mark drawn over a game whose own trigger is off would point at a
+     * button that nothing is going to press.
+     *
+     * Takes its three facts as parameters rather than reading the flows itself, which is what lets the same
+     * answer be computed in two places that have to agree: [reconcile] reads the flows' current values to
+     * decide whether the window exists at all, while the composable inside it reads the same flows through
+     * `collectAsState` so that a point moved slides the mark. A composable that called a function reading
+     * `.value` would subscribe to nothing and the mark would freeze where it was first drawn.
+     */
+    private fun triggerPointFor(
+        settings: AppSettings,
+        playing: String?,
+        profile: GameProfile?,
+    ): FractionPoint? {
+        if (!settings.volumePointTriggerEnabled) return null
+        if (playing == null) return null
+        val config = profile?.volumeTrigger?.normalised() ?: return null
+        if (!config.enabled) return null
+        val key = triggerKeyToPlace(config) ?: return null
+        return config.binding(key)?.point
+    }
+
+    /** [triggerPointFor] against the flows as they stand, for [reconcile]'s window gate. */
+    private fun markedTriggerPoint(): FractionPoint? = triggerPointFor(
+        settings = preferences.settings.value,
+        playing = coordinator.gaming.value.playing,
+        profile = frontProfile.value,
+    )
+
+    /**
+     * Adds the mark showing where the bound volume key presses, once, and leaves it alone (§3.7.1).
+     *
+     * [showCrosshair]'s shape exactly, and for its reason: the window goes up once and the composable inside
+     * it reads the point from the flows, so a point moved — by the placement surface below, or by the profile
+     * editor on another screen — slides the mark across the glass instead of tearing a window down and
+     * putting another one up. The two are siblings in behaviour as well as in look; this is a sticker on the
+     * glass that never takes a touch, which is why [OverlaySlot.TRIGGER_MARKER] is declared
+     * `FLAG_NOT_TOUCHABLE` and why that flag is load-bearing here beyond the usual: the mark sits *exactly
+     * on* the thing the trigger presses, which in a game is a fire button.
+     *
+     * The point is re-derived inside the window through [triggerPointFor] — the same function [reconcile]
+     * gates on — so a mark can never be drawn at a point the gate would have refused to show, and the window
+     * surviving one frame longer than the point does draws nothing rather than drawing a stale mark.
+     */
+    private fun showTriggerMarker() {
+        val manager = windows ?: return
+        if (manager.isVisible(OverlaySlot.TRIGGER_MARKER)) return
+        manager.show(OverlaySlot.TRIGGER_MARKER, OverlayWindowSpec(fullScreen = true), host) {
+            val tint by accent.collectAsState()
+            val settings by preferences.settings.collectAsState()
+            val profile by frontProfile.collectAsState()
+            val gaming by coordinator.gaming.collectAsState()
+            val point = triggerPointFor(
+                settings = settings,
+                playing = gaming.playing,
+                profile = profile,
+            )
+            point?.let { TriggerPointMarker(point = it, accent = tint) }
+        }
+    }
+
+    /**
+     * Opens the full-screen surface the player aims through to place a trigger point (§3.7.1).
+     *
+     * The dock's Trigger chip lands here, and this is the whole of the "without entering the app" promise:
+     * the point is placed over the running game, on the thing it is meant to press, with the game still
+     * visible underneath. Placing it in the profile editor means placing it on a blank rectangle from memory,
+     * which is how a mark ends up two centimetres from the fire button.
+     *
+     * Three things are decided before the window goes up, and each is a refusal rather than a best effort:
+     *
+     * - The key, by [triggerKeyToPlace]. No key bound in this game means nothing to place, and the chip is
+     *   already dimmed for exactly that — this re-checks rather than trusting the chip, because the profile
+     *   can change between the panel drawing and the tap landing.
+     * - The seed point, which is the key's current point or null. Null makes the surface start at the centre
+     *   of the screen, which is [TriggerPointPlacement]'s own default and the only honest starting place for
+     *   a point that has never been placed.
+     * - Nothing else. No probe, no shell read, no capture. The surface is geometry over the game.
+     *
+     * **Why the fraction needs no rotation maths here.** The window is `fullScreen`, so it is the display in
+     * its *current* rotation, which is the same frame `QuickTriggerCoordinator.inject` resolves the stored
+     * fraction against — it passes the live rotation as both `captureRotation` and `currentRotation`, because
+     * a binding stores a fraction and no rotation. Placing in the frame the user is looking at and firing in
+     * the frame the user is looking at is what makes the point survive a turn of the phone: the fraction
+     * means the same corner of what is on screen either way. Pushing the committed fraction through
+     * [com.gamecore.domain.trigger.TapCoordinateMapper] on the way *in* would be converting a value into
+     * itself, and the honest version of that is this paragraph rather than a redundant call.
+     */
+    private fun openTriggerPlacement() {
+        val manager = windows ?: return
+        if (manager.isVisible(OverlaySlot.TRIGGER_PLACEMENT)) return
+        val config = frontProfile.value?.volumeTrigger?.normalised() ?: return
+        val key = triggerKeyToPlace(config) ?: return
+        val seed = config.binding(key)?.point
+        manager.show(
+            OverlaySlot.TRIGGER_PLACEMENT,
+            OverlayWindowSpec(fullScreen = true, touchable = true),
+            host,
+        ) {
+            val tint by accent.collectAsState()
+            TriggerPointPlacement(
+                initialPoint = seed,
+                accent = tint,
+                keyLabel = triggerKeyLabel(key),
+                onCommit = { point ->
+                    // Closed before the write, not after: the write is a suspend round-trip through Room and
+                    // leaving an aiming layer up over the game while it lands would have the user tapping at
+                    // a game they cannot reach. The point is already in hand, so nothing is lost by closing
+                    // first — and if the save fails the mark simply does not appear, which is the state the
+                    // user was in before they started.
+                    closeTriggerPlacement()
+                    persistTriggerPoint(key, point)
+                },
+                onCancel = ::closeTriggerPlacement,
+            )
+        }
+    }
+
+    /**
+     * Takes the placement surface down. Its own Done and Cancel, and [reconcile]'s stop branch, all land here.
+     *
+     * Hiding the window is the whole of it — there is no stored "placing" preference to clear, deliberately:
+     * a full-screen touchable layer that could be restored by a service restart is a layer that could come
+     * back up over a game the user is no longer placing anything in.
+     */
+    private fun closeTriggerPlacement() {
+        windows?.hide(OverlaySlot.TRIGGER_PLACEMENT)
+    }
+
+    /**
+     * Writes a placed point onto the tracked game's own profile (§3.7.1).
+     *
+     * Read–modify–write through [GameProfileRepository], and every part of that is deliberate. The profile is
+     * re-read inside the coroutine rather than taken from [frontProfile], because the user has been aiming at
+     * their game for a few seconds and anything could have written to that row in the meantime — a profile
+     * edited on another screen, a different game coming to the front. Re-reading and copying the one field
+     * this owns is what keeps a placement from reverting someone else's change.
+     *
+     * The game is resolved once, *before* the coroutine, from whatever was being tracked when Done was
+     * pressed, and the profile is then fetched for that package rather than for whatever is in front by the
+     * time the read lands. That ordering is what keeps a point from being written onto the wrong game when
+     * the player alt-tabs between the tap and the write.
+     *
+     * Only [VolumeTriggerBinding.point] is touched. The press mode and the hold length belong to the profile
+     * editor and are not asked about here, so an existing binding keeps its gesture and a key with no binding
+     * at all gets a default one — which is the only way the key could have been bound for this to be
+     * reachable, since [triggerKeyToPlace] returns null otherwise.
+     *
+     * The per-game [VolumeTriggerConfig.enabled] is switched **on** by a placement, and that is a judgement
+     * worth naming: a user who has just aimed at their fire button and pressed Done has said what they want
+     * as plainly as a switch could, and leaving the config off would store the point and then do nothing with
+     * it — the placement would look like it had failed. The global master switch is *not* touched; that one is
+     * the user's statement about the whole feature and no in-game gesture may flip it.
+     */
+    private fun persistTriggerPoint(button: VolumeTriggerButton, point: FractionPoint) {
+        val playing = coordinator.gaming.value.playing ?: return
+        lifecycleScope.launch {
+            val profile = profiles.profileFor(playing) ?: return@launch
+            val config = (profile.volumeTrigger ?: VolumeTriggerConfig.DEFAULT).normalised()
+            val binding = (config.binding(button) ?: VolumeTriggerBinding())
+                .copy(point = point.normalised())
+            val updated = when (button) {
+                VolumeTriggerButton.VOLUME_UP -> config.copy(enabled = true, up = binding)
+                VolumeTriggerButton.VOLUME_DOWN -> config.copy(enabled = true, down = binding)
+            }
+            profiles.save(profile.copy(volumeTrigger = updated.normalised()))
+            // No reconcile() here: saving emits on the repository's flow, the collector in observe() reconciles
+            // on that emission, and the mark appears from there. Reconciling here as well would do the work
+            // twice and — worse — would do it from the stale `frontProfile` this write has not reached yet.
+        }
     }
 
     /**
@@ -1722,7 +2745,7 @@ class GamingOverlayService : GameCoreService() {
     private fun startPanelWatch(layout: PanelLayoutStyle) {
         panelOpen.value = true
         panelLayoutShown = layout
-        denied.clear()
+        denied.value = emptyMap()
         deniedLevels.clear()
         panelJob?.cancel()
         panelJob = lifecycleScope.launch {
@@ -2037,7 +3060,7 @@ class GamingOverlayService : GameCoreService() {
      */
     private fun startQuickSheetWatch() {
         quickSheetOpen.value = true
-        denied.clear()
+        denied.value = emptyMap()
         deniedLevels.clear()
         markQuickInteraction()
         quickSheetJob?.cancel()
@@ -2335,7 +3358,7 @@ class GamingOverlayService : GameCoreService() {
             sessionElapsed = sessionElapsedLabel(),
             active = active,
             // What was tried and refused wins over what could be worked out in advance.
-            unavailable = unavailable + denied,
+            unavailable = unavailable + denied.value,
             levels = levelStates(),
             presets = colorPresets.all().map { OverlayPreset(it.id, it.name) },
             // Carried over rather than defaulted. This is the one field in the state that is the user's
@@ -2483,6 +3506,16 @@ class GamingOverlayService : GameCoreService() {
             execute(action)
             // Re-probe when either surface is up: the quick sheet draws the same [panel] the panel does,
             // so a toggle fired from the sheet has to refresh its own on-states too, not just the panel's.
+            //
+            // The dock is deliberately **not** in this condition. Its on-states come from
+            // [OverlayController.desired], which the execute above has already moved, so the tapped plate
+            // relights from the recomposition that request triggers; and its dimming comes from
+            // [dockSignals], which is arithmetic over values already in memory. Adding the dock here would
+            // buy nothing and cost a probe — a suspend pass with shell round trips in it — on every tap
+            // landing on a surface whose entire reason for existing is being the cheap one to open over a
+            // running match. [denied] is the one thing the dock cannot work out for itself, and it is read
+            // at composition rather than polled: a refusal recorded by [report] is on screen at the next
+            // recomposition, and certainly by the next [openDockPanel], which clears it to try again.
             if (panelOpen.value || quickSheetOpen.value) probePanel()
         }
     }
@@ -3012,8 +4045,12 @@ class GamingOverlayService : GameCoreService() {
     private suspend fun takeScreenshot() {
         closePanel()
         // A Screenshot pin can fire this from the sheet; the sheet has to leave the frame too, or the
-        // screenshot has GameCore's own strip in the corner of it.
+        // screenshot has GameCore's own strip in the corner of it. The dock panel is the third surface that
+        // can fire it (§3.7.1, feature 5) and the same sentence applies to it — it is a plate in the middle
+        // of the screen, so a dock-fired screenshot that left it up would capture the control the user
+        // pressed to take the screenshot.
         closeQuickSheet()
+        closeDockPanel()
         delay(CAPTURE_SETTLE_MILLIS)
         startCapture(CapturePurpose.SCREENSHOT)
     }
@@ -3025,6 +4062,10 @@ class GamingOverlayService : GameCoreService() {
         }
         closePanel()
         closeQuickSheet()
+        // Not reachable from the dock's vocabulary today — [DockActionId] has no recording control — but
+        // closed for [takeScreenshot]'s reason rather than left to whoever adds one: the first frame of the
+        // recording is as much a screenshot as the screenshot is.
+        closeDockPanel()
         delay(CAPTURE_SETTLE_MILLIS)
         startCapture(CapturePurpose.START_RECORDING)
     }
@@ -3083,12 +4124,12 @@ class GamingOverlayService : GameCoreService() {
      */
     private fun report(action: OverlayAction, outcome: ControlOutcome) {
         if (outcome.isApplied) {
-            denied.remove(action)
+            denied.value = denied.value - action
             return
         }
         when (outcome) {
             is ControlOutcome.RequiresAccess, is ControlOutcome.Unsupported ->
-                denied[action] = outcome.message
+                denied.value = denied.value + (action to outcome.message)
             else -> Unit
         }
         toast(outcome.message)
@@ -3144,6 +4185,14 @@ class GamingOverlayService : GameCoreService() {
 
         /** The gap between the floating button and the panel it opens. */
         const val PANEL_GAP_DP = 8
+
+        /**
+         * The dock handle's width as a multiple of its height, used only to shape the very first,
+         * pre-measured [dockFrame]. It mirrors [com.gamecore.core.overlay.FloatingDock]'s own private
+         * `WIDTH_FACTOR`; the two are read once at open, so a drift between them costs at most one frame's
+         * clamp before the measured pass corrects it — see [dockFrame].
+         */
+        const val DOCK_WIDTH_FACTOR = 1.6f
 
         /**
          * The width the quick sheet's window is laid out at, matching the top of the composable's own

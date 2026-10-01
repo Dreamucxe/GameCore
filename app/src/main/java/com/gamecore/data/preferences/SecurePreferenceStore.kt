@@ -12,6 +12,9 @@ import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.ColorVisionFilter
 import com.gamecore.core.model.CustomCrosshairColours
+import com.gamecore.core.model.DockActionId
+import com.gamecore.core.model.DockActions
+import com.gamecore.core.model.DockConfig
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.GammaMode
 import com.gamecore.core.model.HudDisplayMode
@@ -85,6 +88,9 @@ class SecurePreferenceStore @Inject constructor(
     private val buttonState: MutableStateFlow<FloatingButtonConfig> by lazy {
         MutableStateFlow(readButton())
     }
+    private val dockState: MutableStateFlow<DockConfig> by lazy {
+        MutableStateFlow(readDock())
+    }
     private val colorState: MutableStateFlow<ColorCorrection> by lazy {
         MutableStateFlow(readColor())
     }
@@ -92,6 +98,9 @@ class SecurePreferenceStore @Inject constructor(
     val settings: StateFlow<AppSettings> get() = settingsState.asStateFlow()
     val overlay: StateFlow<OverlayConfig> get() = overlayState.asStateFlow()
     val floatingButton: StateFlow<FloatingButtonConfig> get() = buttonState.asStateFlow()
+
+    /** The floating dock's config and remembered position (feature 1) — the button's sibling window. */
+    val dock: StateFlow<DockConfig> get() = dockState.asStateFlow()
 
     /**
      * Where the user left the colour sliders, preset or no preset.
@@ -117,6 +126,7 @@ class SecurePreferenceStore @Inject constructor(
         settingsState.value
         overlayState.value
         buttonState.value
+        dockState.value
         colorState.value
         Unit
     }
@@ -255,6 +265,17 @@ class SecurePreferenceStore @Inject constructor(
             networkStabilityEnabled =
                 p.getBoolean(KEY_NETWORK_STABILITY_ENABLED, defaults.networkStabilityEnabled),
             customModulesEnabled = p.getBoolean(KEY_CUSTOM_MODULES_ENABLED, defaults.customModulesEnabled),
+            screenExtractionEnabled =
+                p.getBoolean(KEY_SCREEN_EXTRACTION_ENABLED, defaults.screenExtractionEnabled),
+            touchSamplingEnabled =
+                p.getBoolean(KEY_TOUCH_SAMPLING_ENABLED, defaults.touchSamplingEnabled),
+            volumePointTriggerEnabled =
+                p.getBoolean(KEY_VOLUME_POINT_TRIGGER_ENABLED, defaults.volumePointTriggerEnabled),
+            dockCustomizationEnabled =
+                p.getBoolean(KEY_DOCK_CUSTOMIZATION_ENABLED, defaults.dockCustomizationEnabled),
+            quickActionsEnabled = p.getBoolean(KEY_QUICK_ACTIONS_ENABLED, defaults.quickActionsEnabled),
+            lastSeenWhatsNewVersionCode =
+                p.getInt(KEY_LAST_SEEN_WHATSNEW, defaults.lastSeenWhatsNewVersionCode),
         ).normalised()
     }
 
@@ -335,6 +356,12 @@ class SecurePreferenceStore @Inject constructor(
             putBoolean(KEY_ADVANCED_HUD_ENABLED, value.advancedHudEnabled)
             putBoolean(KEY_NETWORK_STABILITY_ENABLED, value.networkStabilityEnabled)
             putBoolean(KEY_CUSTOM_MODULES_ENABLED, value.customModulesEnabled)
+            putBoolean(KEY_SCREEN_EXTRACTION_ENABLED, value.screenExtractionEnabled)
+            putBoolean(KEY_TOUCH_SAMPLING_ENABLED, value.touchSamplingEnabled)
+            putBoolean(KEY_VOLUME_POINT_TRIGGER_ENABLED, value.volumePointTriggerEnabled)
+            putBoolean(KEY_DOCK_CUSTOMIZATION_ENABLED, value.dockCustomizationEnabled)
+            putBoolean(KEY_QUICK_ACTIONS_ENABLED, value.quickActionsEnabled)
+            putInt(KEY_LAST_SEEN_WHATSNEW, value.lastSeenWhatsNewVersionCode)
         }?.apply()
     }
 
@@ -643,6 +670,203 @@ class SecurePreferenceStore @Inject constructor(
         if (value != null) putFloat(key, value) else remove(key)
     }
 
+    // ------------------------------------------------------------------- dock
+
+    /** Whole-config write from the settings screen — opacity, size, snap, haptics, panel width, show. */
+    fun updateDock(transform: (DockConfig) -> DockConfig) {
+        val updated = transform(dockState.value).normalised()
+        dockState.value = updated
+        writeDock(updated)
+    }
+
+    /**
+     * Sends the dock back to a pixel default and forgets every remembered fraction — "reset position".
+     *
+     * Narrow like [updateButtonPosition] and for the same reason: a reset from the settings screen must
+     * not carry a stale x/y from a dock being dragged in a game at the same moment, and leaving the four
+     * fraction keys behind would let the next resolve re-place the dock from a fraction just discarded.
+     */
+    fun updateDockPosition(x: Int, y: Int) {
+        val updated = dockState.value.copy(x = x, y = y).clearedPositionFractions()
+        dockState.value = updated
+        prefs?.edit()
+            ?.putInt(KEY_DOCK_X, x)
+            ?.putInt(KEY_DOCK_Y, y)
+            ?.remove(KEY_DOCK_PORTRAIT_X)
+            ?.remove(KEY_DOCK_PORTRAIT_Y)
+            ?.remove(KEY_DOCK_LANDSCAPE_X)
+            ?.remove(KEY_DOCK_LANDSCAPE_Y)
+            ?.apply()
+    }
+
+    /**
+     * Drag-release and rotation-rescale from the overlay service: the pixel position for this screen plus
+     * the fraction it works out to in the orientation it happened in. Mirrors [updateButtonPlacement] —
+     * only the given orientation's pair is touched, and it is a write per gesture, not a whole-config round
+     * trip, so a drag in a game cannot carry a stale field from the settings screen back to disk.
+     */
+    fun updateDockPlacement(x: Int, y: Int, portrait: Boolean, xFraction: Float, yFraction: Float) {
+        val updated = dockState.value
+            .copy(x = x, y = y)
+            .withPositionFraction(portrait, xFraction, yFraction)
+        dockState.value = updated
+        val keyX = if (portrait) KEY_DOCK_PORTRAIT_X else KEY_DOCK_LANDSCAPE_X
+        val keyY = if (portrait) KEY_DOCK_PORTRAIT_Y else KEY_DOCK_LANDSCAPE_Y
+        prefs?.edit()
+            ?.putInt(KEY_DOCK_X, x)
+            ?.putInt(KEY_DOCK_Y, y)
+            ?.putFloat(keyX, xFraction)
+            ?.putFloat(keyY, yFraction)
+            ?.apply()
+    }
+
+    private fun readDock(): DockConfig {
+        val p = prefs ?: return DockConfig()
+        val defaults = DockConfig()
+        return DockConfig(
+            show = p.getBoolean(KEY_DOCK_SHOW, defaults.show),
+            actionOrder = readDockActionOrder(p),
+            hiddenActions = readDockHiddenActions(p),
+            sizeDp = p.getInt(KEY_DOCK_SIZE, defaults.sizeDp),
+            opacity = p.getFloat(KEY_DOCK_OPACITY, defaults.opacity),
+            snapToEdge = p.getBoolean(KEY_DOCK_SNAP, defaults.snapToEdge),
+            hapticFeedback = p.getBoolean(KEY_DOCK_HAPTIC, defaults.hapticFeedback),
+            panelWidthDp = p.getInt(KEY_DOCK_PANEL_WIDTH, defaults.panelWidthDp),
+            x = p.getInt(KEY_DOCK_X, defaults.x),
+            y = p.getInt(KEY_DOCK_Y, defaults.y),
+            portraitXFraction = p.getFloatOrNull(KEY_DOCK_PORTRAIT_X),
+            portraitYFraction = p.getFloatOrNull(KEY_DOCK_PORTRAIT_Y),
+            landscapeXFraction = p.getFloatOrNull(KEY_DOCK_LANDSCAPE_X),
+            landscapeYFraction = p.getFloatOrNull(KEY_DOCK_LANDSCAPE_Y),
+        ).normalised()
+    }
+
+    /**
+     * The dock's action order, as names joined by [SEPARATOR] (feature 4).
+     *
+     * A separated string and not a `StringSet` for the reason [readStats] and [readQuickApps] give: a set
+     * has no order, and here the order *is* the setting — these are grid positions under a thumb.
+     *
+     * The absent key is the load-bearing case. Null means "this user has never arranged the dock", which is
+     * every user upgrading from 3.7.0, and it falls back to [DockActionId.DEFAULT_ORDER] so their panel
+     * opens exactly as it did before the update. A *present* key is honoured even when it parses to
+     * nothing, because [DockActions.parseOrder] completes a short or junk-filled list rather than
+     * discarding it — a file hand-edited into nonsense produces the default arrangement, which is feature
+     * 6's "corrupted settings fall back to defaults", and it does so without losing the parts that parsed.
+     */
+    private fun readDockActionOrder(p: SharedPreferences): List<DockActionId> {
+        val raw = p.getString(KEY_DOCK_ACTION_ORDER, null) ?: return DockActionId.DEFAULT_ORDER
+        return DockActions.parseOrder(raw.split(SEPARATOR).filter { it.isNotBlank() })
+    }
+
+    /**
+     * The dock actions the user switched off, as names joined by [SEPARATOR] (feature 4).
+     *
+     * Absent falls back to [DockActionId.DEFAULT_HIDDEN] — everything outside the five controls the dock
+     * shipped with — for the same upgrade reason [readDockActionOrder] documents. Present-but-empty is a
+     * genuine state and is honoured: it is the user who switched everything on, and defaulting it would
+     * silently undo that on every launch.
+     */
+    private fun readDockHiddenActions(p: SharedPreferences): Set<DockActionId> {
+        val raw = p.getString(KEY_DOCK_HIDDEN_ACTIONS, null) ?: return DockActionId.DEFAULT_HIDDEN
+        return DockActions.parseHidden(raw.split(SEPARATOR).filter { it.isNotBlank() })
+    }
+
+    private fun writeDock(value: DockConfig) {
+        prefs?.edit()?.apply {
+            putBoolean(KEY_DOCK_SHOW, value.show)
+            putString(KEY_DOCK_ACTION_ORDER, value.actionOrder.joinToString(SEPARATOR) { it.name })
+            putString(KEY_DOCK_HIDDEN_ACTIONS, encodeHiddenActions(value.hiddenActions))
+            putInt(KEY_DOCK_SIZE, value.sizeDp)
+            putFloat(KEY_DOCK_OPACITY, value.opacity)
+            putBoolean(KEY_DOCK_SNAP, value.snapToEdge)
+            putBoolean(KEY_DOCK_HAPTIC, value.hapticFeedback)
+            putInt(KEY_DOCK_PANEL_WIDTH, value.panelWidthDp)
+            putInt(KEY_DOCK_X, value.x)
+            putInt(KEY_DOCK_Y, value.y)
+            putFloatOrRemove(KEY_DOCK_PORTRAIT_X, value.portraitXFraction)
+            putFloatOrRemove(KEY_DOCK_PORTRAIT_Y, value.portraitYFraction)
+            putFloatOrRemove(KEY_DOCK_LANDSCAPE_X, value.landscapeXFraction)
+            putFloatOrRemove(KEY_DOCK_LANDSCAPE_Y, value.landscapeYFraction)
+        }?.apply()
+    }
+
+    /**
+     * The hidden set as names, in enum order.
+     *
+     * Sorted rather than written in whatever order the set happens to iterate in, because the value is a
+     * set and the file is the thing a backup diffs: two identical arrangements that stringify differently
+     * would read as a change to anything comparing files, and an unstable string is also a nuisance to
+     * assert on in a test.
+     */
+    private fun encodeHiddenActions(hidden: Set<DockActionId>): String =
+        hidden.sortedBy { it.ordinal }.joinToString(SEPARATOR) { it.name }
+
+    /**
+     * Sets the dock panel's arrangement — which controls it offers and in what order (features 4–5).
+     *
+     * Narrow like [updateQuickApps] and for exactly its reason: the customisation screen can be open while
+     * a game is running, which means the overlay service may be dragging the dock at that same moment, and
+     * a whole-config write from this screen would carry a stale x and y back to disk over the position the
+     * finger just left. Only the two action keys are touched.
+     *
+     * Normalised through the model rather than trusted from the caller, so the complete-and-distinct rule
+     * applies to the write as well as to the read. A rule enforced only in the UI is a rule the next caller
+     * does not get.
+     */
+    fun updateDockActions(order: List<DockActionId>, hidden: Set<DockActionId>) {
+        val updated = dockState.value.copy(actionOrder = order, hiddenActions = hidden).normalised()
+        dockState.value = updated
+        prefs?.edit()
+            ?.putString(KEY_DOCK_ACTION_ORDER, updated.actionOrder.joinToString(SEPARATOR) { it.name })
+            ?.putString(KEY_DOCK_HIDDEN_ACTIONS, encodeHiddenActions(updated.hiddenActions))
+            ?.apply()
+    }
+
+    /**
+     * Puts the dock's appearance and position back to the shipped values — "Reset dock" (feature 6).
+     *
+     * Writes the appearance keys and clears the four remembered fractions, and touches **nothing else**:
+     * the action arrangement, the dock's on/off and every other preference in the file survive. That
+     * narrowness is the feature — the user asked for one thing to be reset, and a reset that reached into
+     * unrelated settings would be the bug this is written to avoid. The fraction keys are removed rather
+     * than zeroed for the reason [updateDockPosition] gives: a fraction left behind re-places the dock on
+     * the next resolve from a position the user just discarded.
+     */
+    fun resetDockAppearance() {
+        val updated = dockState.value.withDefaultAppearance().normalised()
+        dockState.value = updated
+        prefs?.edit()
+            ?.putInt(KEY_DOCK_SIZE, updated.sizeDp)
+            ?.putFloat(KEY_DOCK_OPACITY, updated.opacity)
+            ?.putBoolean(KEY_DOCK_SNAP, updated.snapToEdge)
+            ?.putBoolean(KEY_DOCK_HAPTIC, updated.hapticFeedback)
+            ?.putInt(KEY_DOCK_PANEL_WIDTH, updated.panelWidthDp)
+            ?.putInt(KEY_DOCK_X, updated.x)
+            ?.putInt(KEY_DOCK_Y, updated.y)
+            ?.remove(KEY_DOCK_PORTRAIT_X)
+            ?.remove(KEY_DOCK_PORTRAIT_Y)
+            ?.remove(KEY_DOCK_LANDSCAPE_X)
+            ?.remove(KEY_DOCK_LANDSCAPE_Y)
+            ?.apply()
+    }
+
+    /**
+     * Puts the dock panel's arrangement back to the shipped five — "Reset quick actions" (feature 6).
+     *
+     * The mirror of [resetDockAppearance], and narrow in the same way: two keys, nothing else. Size,
+     * opacity, snap, haptics, panel width and the remembered position all survive, because a user resetting
+     * which buttons are on the dock has not asked to have the dock moved or resized.
+     */
+    fun resetDockActions() {
+        val updated = dockState.value.withDefaultActions().normalised()
+        dockState.value = updated
+        prefs?.edit()
+            ?.putString(KEY_DOCK_ACTION_ORDER, updated.actionOrder.joinToString(SEPARATOR) { it.name })
+            ?.putString(KEY_DOCK_HIDDEN_ACTIONS, encodeHiddenActions(updated.hiddenActions))
+            ?.apply()
+    }
+
     // ----------------------------------------------------------------- colour
 
     /**
@@ -805,6 +1029,7 @@ class SecurePreferenceStore @Inject constructor(
         settingsState.value = AppSettings()
         overlayState.value = OverlayConfig()
         buttonState.value = FloatingButtonConfig()
+        dockState.value = DockConfig()
         colorState.value = ColorCorrection.NEUTRAL
     }
 
@@ -885,6 +1110,12 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_ADVANCED_HUD_ENABLED = "advanced_hud_enabled"
         const val KEY_NETWORK_STABILITY_ENABLED = "network_stability_enabled"
         const val KEY_CUSTOM_MODULES_ENABLED = "custom_modules_enabled"
+        const val KEY_SCREEN_EXTRACTION_ENABLED = "screen_extraction_enabled"
+        const val KEY_TOUCH_SAMPLING_ENABLED = "touch_sampling_enabled"
+        const val KEY_VOLUME_POINT_TRIGGER_ENABLED = "volume_point_trigger_enabled"
+        const val KEY_DOCK_CUSTOMIZATION_ENABLED = "dock_customization_enabled"
+        const val KEY_QUICK_ACTIONS_ENABLED = "quick_actions_enabled"
+        const val KEY_LAST_SEEN_WHATSNEW = "last_seen_whatsnew_version"
 
         const val KEY_SHOW_PILL = "pill_show"
         const val KEY_PILL_X = "pill_x"
@@ -919,6 +1150,21 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_BUTTON_PORTRAIT_Y = "button_portrait_y_fraction"
         const val KEY_BUTTON_LANDSCAPE_X = "button_landscape_x_fraction"
         const val KEY_BUTTON_LANDSCAPE_Y = "button_landscape_y_fraction"
+
+        const val KEY_DOCK_SHOW = "dock_show"
+        const val KEY_DOCK_ACTION_ORDER = "dock_action_order"
+        const val KEY_DOCK_HIDDEN_ACTIONS = "dock_hidden_actions"
+        const val KEY_DOCK_SIZE = "dock_size"
+        const val KEY_DOCK_OPACITY = "dock_opacity"
+        const val KEY_DOCK_SNAP = "dock_snap"
+        const val KEY_DOCK_HAPTIC = "dock_haptic"
+        const val KEY_DOCK_PANEL_WIDTH = "dock_panel_width"
+        const val KEY_DOCK_X = "dock_x"
+        const val KEY_DOCK_Y = "dock_y"
+        const val KEY_DOCK_PORTRAIT_X = "dock_portrait_x_fraction"
+        const val KEY_DOCK_PORTRAIT_Y = "dock_portrait_y_fraction"
+        const val KEY_DOCK_LANDSCAPE_X = "dock_landscape_x_fraction"
+        const val KEY_DOCK_LANDSCAPE_Y = "dock_landscape_y_fraction"
 
         const val KEY_ACTIVE_CROSSHAIR = "active_crosshair"
         const val KEY_ACTIVE_HUD = "active_hud"

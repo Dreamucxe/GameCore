@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Dock
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Layers
@@ -56,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.core.model.ButtonSizePreset
+import com.gamecore.core.model.DockConfig
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.INTERVAL_TENTHS
@@ -106,6 +108,7 @@ import com.gamecore.ui.components.colour
 import com.gamecore.ui.hud.conditionNote
 import com.gamecore.ui.theme.Density
 import com.gamecore.ui.theme.Spacing
+import kotlin.math.roundToInt
 
 /**
  * §7's overlay settings: the stats pill and the floating button, configured.
@@ -238,6 +241,16 @@ fun OverlayScreen(
                 onCommit = viewModel::commitButton,
                 onUpdate = viewModel::updateButton,
                 onResetPosition = viewModel::resetButtonPosition,
+                modifier = padded,
+            )
+        }
+
+        item {
+            DockCard(
+                state = state,
+                onShow = viewModel::setDockVisible,
+                onUpdate = viewModel::updateDock,
+                onResetPosition = viewModel::resetDockPosition,
                 modifier = padded,
             )
         }
@@ -1057,6 +1070,120 @@ private fun PreviewButton(button: FloatingButtonConfig, percent: Int, caption: S
             text = "$caption · $percent%",
             style = MaterialTheme.typography.labelSmall,
             color = OverlayPalette.Muted,
+        )
+    }
+}
+// -------------------------------------------------------------------------------------- the dock
+
+/**
+ * Feature 1's floating dock: the toggle and its description, then Size, Position and Feedback.
+ *
+ * The floating button's sibling — a second draggable handle that expands into a compact panel — so the
+ * card is the button's shape with the fields [DockConfig] actually has. There is no live preview and no
+ * status chip: the dock's on-screen state is not reported through [OverlayStatus], so the switch reflects
+ * the stored [DockConfig.show] intent rather than a service reading.
+ *
+ * The sliders write straight through [onUpdate] with no draft/commit dance, because the dock has no draft
+ * stage — [OverlayViewModel.updateDock] reads the current config for each transform, so a size or opacity
+ * change made while the dock is being dragged over this screen keeps its parked position.
+ */
+@Composable
+private fun DockCard(
+    state: OverlayUiState,
+    onShow: (Boolean) -> Unit,
+    onUpdate: ((DockConfig) -> DockConfig) -> Unit,
+    onResetPosition: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val dock = state.dock
+    val defaults = remember { DockConfig() }
+    // The dock's opacity is a 0f..1f alpha, not the button's integer percent, so the slider works in whole
+    // percent and the transform stores the fraction back. The percent range is the model's own float
+    // bounds turned into percent, never a retyped 30..100.
+    val opacityPercent = (dock.opacity * 100).roundToInt()
+    val opacityPercentRange =
+        (DockConfig.MIN_OPACITY * 100).roundToInt()..(DockConfig.MAX_OPACITY * 100).roundToInt()
+    SectionCard(
+        title = "Floating dock",
+        subtitle = "A second handle you drag over a game; tap it for a compact panel",
+        icon = Icons.Filled.Dock,
+        modifier = modifier,
+    ) {
+        SwitchRow(
+            title = "Show the floating dock",
+            checked = dock.show,
+            onCheckedChange = onShow,
+            enabled = state.hasPermission,
+            description = if (!state.hasPermission) {
+                "Needs permission to draw over other apps. Grant that above and this switch works."
+            } else {
+                "Stays put across app switches and comes back after a restart."
+            },
+        )
+
+        RowDivider()
+        GroupLabel("SIZE")
+        SliderRow(
+            title = "Size",
+            value = dock.sizeDp,
+            range = DockConfig.SIZE_RANGE,
+            onValueChange = { size -> onUpdate { it.copy(sizeDp = size) } },
+            valueLabel = "${dock.sizeDp} dp",
+            description = sliderDescription(
+                "How big a handle it is over the game.",
+                DockConfig.SIZE_RANGE,
+                "dp",
+            ),
+        )
+        SliderRow(
+            title = "Opacity",
+            value = opacityPercent,
+            range = opacityPercentRange,
+            onValueChange = { percent -> onUpdate { it.copy(opacity = percent / 100f) } },
+            valueLabel = "$opacityPercent%",
+            description = sliderDescription(
+                "How solid the parked handle is while a game has focus.",
+                opacityPercentRange,
+                "%",
+            ),
+        )
+        SliderRow(
+            title = "Panel width",
+            value = dock.panelWidthDp,
+            range = DockConfig.PANEL_WIDTH_RANGE,
+            onValueChange = { width -> onUpdate { it.copy(panelWidthDp = width) } },
+            valueLabel = "${dock.panelWidthDp} dp",
+            description = sliderDescription(
+                "How wide the compact panel opens when you tap the dock.",
+                DockConfig.PANEL_WIDTH_RANGE,
+                "dp",
+            ),
+        )
+
+        RowDivider()
+        GroupLabel("POSITION")
+        SwitchRow(
+            title = "Snap to the nearest edge",
+            checked = dock.snapToEdge,
+            onCheckedChange = { snap -> onUpdate { it.copy(snapToEdge = snap) } },
+            description = "Keeps it off the middle of the screen, where a thumb finds it by accident. " +
+                "Switching this off leaves it wherever you let go of it.",
+        )
+        PositionGroup(
+            summary = overlayPositionSummary(dock.x, dock.y, defaults.x, defaults.y),
+            isDefault = isAtDefaultPosition(dock.x, dock.y, defaults.x, defaults.y) &&
+                !dock.hasStoredPositionFraction(),
+            hint = "Dragged off the edge, or onto something you need to see? Put it back.",
+            onReset = onResetPosition,
+        )
+
+        RowDivider()
+        GroupLabel("FEEDBACK")
+        SwitchRow(
+            title = "Vibrate on drag",
+            checked = dock.hapticFeedback,
+            onCheckedChange = { haptic -> onUpdate { it.copy(hapticFeedback = haptic) } },
+            description = "A short tick the instant a touch becomes a drag.",
         )
     }
 }

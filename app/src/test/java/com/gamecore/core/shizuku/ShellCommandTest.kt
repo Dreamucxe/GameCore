@@ -49,6 +49,8 @@ class ShellCommandTest {
         add(ShellCommand.clearSharedCache("com.example.game", 0)!!)
         add(ShellCommand.readCpuAffinity(4021)!!)
         add(ShellCommand.setCpuAffinity(4021, 0xf0)!!)
+        add(ShellCommand.inputTap(960, 540)!!)
+        add(ShellCommand.inputSwipe(960, 540, 960, 540, 500)!!)
         add(ShellCommand.listConfigDir("com.example.game", 0)!!)
         add(ShellCommand.statConfigFile("com.example.game", 0, "settings.ini")!!)
         add(
@@ -66,10 +68,10 @@ class ShellCommandTest {
     }
 
     @Test
-    fun `the only programs GameCore can invoke are these seventeen`() {
+    fun `the only programs GameCore can invoke are these eighteen`() {
         val allowed = setOf(
             "id", "cat", "dumpsys", "settings", "getprop", "pm", "appops", "wm", "am", "rm",
-            "taskset", "ls", "stat", "cp", "mv", "test", "sh",
+            "taskset", "input", "ls", "stat", "cp", "mv", "test", "sh",
         )
         everyCommand().forEach { command ->
             assertTrue(
@@ -241,6 +243,49 @@ class ShellCommandTest {
     }
 
     @Test
+    fun `a point trigger taps one coordinate and names no other input subcommand`() {
+        // `input` is reachable only through the volume-button point trigger (§3.7.1, feature 4), and it
+        // crosses a line no other command here does: it injects into whatever app is on screen rather than
+        // reading or writing a setting on this device, so the bound is asserted in its place the way `am
+        // kill` and `sh -c` are. One `input` subcommand is a tap and one is a swipe, both reach exec as a
+        // fixed verb and plain integer coordinates, and neither `text`, `keyevent` nor any other `input`
+        // form is expressible from this file.
+        val tap = ShellCommand.inputTap(960, 540)!!
+        assertEquals(listOf("input", "tap", "960", "540"), tap.argv)
+        assertEquals(ShellCommand.Effect.CHANGES_SETTING, tap.effect)
+        assertFalse(tap.isReadOnly)
+
+        val swipe = ShellCommand.inputSwipe(960, 540, 960, 1200, 500)!!
+        assertEquals(listOf("input", "swipe", "960", "540", "960", "1200", "500"), swipe.argv)
+        assertEquals(ShellCommand.Effect.CHANGES_SETTING, swipe.effect)
+
+        // The press-and-hold the trigger actually sends is the same point held for a duration, so both
+        // endpoints are equal — the swipe is the only shape `input` offers for a hold.
+        val hold = ShellCommand.inputSwipe(300, 1800, 300, 1800, 250)!!
+        assertEquals(listOf("input", "swipe", "300", "1800", "300", "1800", "250"), hold.argv)
+    }
+
+    @Test
+    fun `a tap or swipe off any real panel, or a hold of no length, is refused before it is a command`() {
+        // A coordinate is a device pixel resolved from a stored fraction, so it is bounded like every other
+        // outside value: a negative is not a place on a screen, and nothing on a side exceeds the same
+        // ceiling a display size override refuses. A zero or negative hold is not a hold, and one longer
+        // than a minute is past anything a button press should map to.
+        assertNull(ShellCommand.inputTap(-1, 540))
+        assertNull(ShellCommand.inputTap(960, -1))
+        assertNull(ShellCommand.inputTap(16_385, 540))
+        assertNotNull(ShellCommand.inputTap(0, 0))
+        assertNotNull(ShellCommand.inputTap(16_384, 16_384))
+
+        assertNull(ShellCommand.inputSwipe(-1, 540, 960, 540, 500))
+        assertNull(ShellCommand.inputSwipe(960, 540, 960, 16_385, 500))
+        assertNull(ShellCommand.inputSwipe(960, 540, 960, 1200, 0))
+        assertNull(ShellCommand.inputSwipe(960, 540, 960, 1200, -1))
+        assertNull(ShellCommand.inputSwipe(960, 540, 960, 1200, 60_001))
+        assertNotNull(ShellCommand.inputSwipe(960, 540, 960, 1200, 60_000))
+    }
+
+    @Test
     fun `the one command that runs a shell writes a single digit through positional arguments`() {
         // `sh` came off the forbidden list when charge bypass was built, so the bound that made it
         // admissible is asserted here in its place, the way `am kill` is. There is exactly one `sh`
@@ -341,14 +386,15 @@ class ShellCommandTest {
         readOnly.forEach { assertEquals(ShellCommand.Effect.READ_ONLY, it.effect) }
         readOnly.forEach { assertFalse(it.argv.contains("put")) }
         // Nineteen settings keys, three self-grants, two self-appops, the two halves of a display size
-        // override, the one close, the one cache delete, the one affinity write, the config editor's
-        // three file writes (copy, move, delete), and the one charge-control write. Nothing else writes.
+        // override, the one close, the one cache delete, the one affinity write, the two synthetic-input
+        // commands, the config editor's three file writes (copy, move, delete), and the one charge-control
+        // write. Nothing else writes.
         assertEquals(19, WritableSetting.entries.size)
-        assertEquals(33, writes.size)
+        assertEquals(35, writes.size)
         writes.forEach {
             assertTrue(
                 "unexpected write program: ${it.argv}",
-                it.argv.first() in setOf("settings", "pm", "appops", "wm", "am", "rm", "taskset", "cp", "mv", "sh"),
+                it.argv.first() in setOf("settings", "pm", "appops", "wm", "am", "rm", "taskset", "input", "cp", "mv", "sh"),
             )
         }
     }

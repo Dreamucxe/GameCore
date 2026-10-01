@@ -74,8 +74,18 @@ sealed interface Destination {
         override val route = "hud"
     }
 
+    /**
+     * The performance screen: governor, CPU/GPU tuning and the thermal readout.
+     *
+     * Reachable from outside the app since §3.7.1, because the dock can carry a "System stats" control and
+     * the whole point of the dock is that it works without entering the app first — so the chip has to be
+     * able to open the one screen that *is* the full reading. The dock draws it as a one-shot rather than a
+     * toggle for exactly the reason a screen is not a state: see `DockActionId.opensAppScreen`.
+     */
     data object Performance : Destination {
         override val route = "performance"
+
+        const val EXTERNAL = "performance"
     }
 
     data object Crosshair : Destination {
@@ -250,6 +260,24 @@ sealed interface Destination {
     }
 
     /**
+     * Which controls the floating dock offers, in what order, and the two resets that put it back (§3.7.1,
+     * features 4–6).
+     *
+     * A sibling of [QuickApps] and [MacroEditor]: a screen that arranges one surface — here the dock's two
+     * grids — reached from the Overlays card in Settings and from nowhere else. It is a screen rather than a
+     * card on that list for the reason [com.gamecore.ui.dock.DockCustomizationScreen] gives in full: a
+     * fourteen-row arrangement folded between two sliders is a list nobody scrolls to the bottom of.
+     *
+     * Not in [external]. The dock itself is reachable without entering the app — that is the whole point of
+     * it — but *arranging* it is a deliberate sit-down task, and nothing outside the app has a reason to ask
+     * for the editor. The dock's quick actions that open a screen (feature 5) are what joined [external] in
+     * §3.7.1; the screen that configures them is not one of them.
+     */
+    data object DockCustomization : Destination {
+        override val route = "dock-customization"
+    }
+
+    /**
      * Who wrote this and where to find them. The last row of Settings.
      *
      * Not in [external], and it would be harmless there — the screen holds three of its own addresses and
@@ -268,6 +296,28 @@ sealed interface Destination {
      */
     data object BackupRestore : Destination {
         override val route = "backup-restore"
+    }
+
+    /**
+     * Screen extraction's own screen. In [external] since §3.7.1 for the dock's sake — see [Performance].
+     */
+    data object ScreenExtraction : Destination {
+        override val route = "screen-extraction"
+
+        const val EXTERNAL = "screen-extraction"
+    }
+
+    /**
+     * The touch-sampling monitor. In [external] since §3.7.1 for the dock's sake — see [Performance].
+     */
+    data object SamplingMonitor : Destination {
+        override val route = "sampling-monitor"
+
+        const val EXTERNAL = "sampling-monitor"
+    }
+
+    data object WhatsNew : Destination {
+        override val route = "whats-new"
     }
 
     /**
@@ -510,10 +560,19 @@ sealed interface Destination {
          *
          * A token rather than the route itself, so that a route can be renamed — or given an argument —
          * without changing what outside callers are allowed to ask for.
+         *
+         * The last three joined in §3.7.1 and all three arrived for one reason: the dock's quick actions
+         * (feature 5) are routed to existing functionality, never reimplemented, and a control that *is* a
+         * screen can only be honoured by opening that screen. A dock chip whose destination were missing
+         * from this map would land the user on Home and look like a bug, so adding a screen-opening
+         * `DockActionId` means adding its token here too.
          */
         private val external: Map<String, Destination> = mapOf(
             Colour.EXTERNAL to Colour,
             MediaAccess.EXTERNAL to MediaAccess,
+            Performance.EXTERNAL to Performance,
+            ScreenExtraction.EXTERNAL to ScreenExtraction,
+            SamplingMonitor.EXTERNAL to SamplingMonitor,
         )
 
         /** The destination an intent asked for, or null for anything unrecognised. */

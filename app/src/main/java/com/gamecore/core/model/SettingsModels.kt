@@ -307,6 +307,68 @@ data class AppSettings(
      * untouched.
      */
     val customModulesEnabled: Boolean = true,
+
+    /**
+     * Whether Screen Extraction is available (§3.7).
+     *
+     * On by default. When off, the feature is hidden from navigation and its ViewModel never asks for a
+     * `MediaProjection`, so nothing is captured — a genuine feature disable, not a greyed control, in the
+     * same shape as [aimLabEnabled]. A boolean, so [normalised] leaves it untouched. It is a preference,
+     * not a capability: it says nothing about whether this device can hold a projection.
+     */
+    val screenExtractionEnabled: Boolean = true,
+
+    /**
+     * Whether the Touch Sampling Monitor is available (§3.7).
+     *
+     * On by default. When off, the monitor screen is hidden and its capture pad is never attached, so no
+     * pointer stream is read. A preference, not a capability — it never claims the panel's true sampling
+     * rate, only whether the feature is offered. A boolean, so [normalised] leaves it untouched.
+     */
+    val touchSamplingEnabled: Boolean = true,
+
+    /**
+     * The global master switch for the §3.7 Volume Button Point Trigger.
+     *
+     * On by default, but inert until a per-game [com.gamecore.core.model.VolumeTriggerConfig] is assigned
+     * and both the accessibility service and Shizuku are available — this switch only says the feature is
+     * offered, never that the device can inject a tap. When off, the volume keys are never intercepted on
+     * the trigger path, so normal volume control is untouched. A boolean, so [normalised] leaves it alone.
+     */
+    val volumePointTriggerEnabled: Boolean = true,
+
+    /**
+     * Whether the §3.7.1 dock customisation screen is offered (feature 4).
+     *
+     * On by default. When off, the customisation screen is hidden from Settings and the dock draws its
+     * shipped arrangement — the saved order and hidden set are *kept*, not cleared, so switching it back on
+     * returns the user to the dock they built rather than to a default one. A preference, not a capability:
+     * it says nothing about whether the device can draw an overlay. A boolean, so [normalised] leaves it
+     * untouched, in the same shape as [aimLabEnabled].
+     */
+    val dockCustomizationEnabled: Boolean = true,
+
+    /**
+     * Whether the dock's quick actions are offered at all (feature 5).
+     *
+     * On by default. When off, the dock panel draws only its toggle grid and no action chips, and the
+     * customisation screen says why rather than showing an inert action list — a genuine feature disable,
+     * not a greyed control. Separate from [dockCustomizationEnabled] because they are different decisions:
+     * a user can want a rearranged dock without one-tap commands on it, or the commands without the
+     * rearranging. A boolean, so [normalised] leaves it untouched.
+     */
+    val quickActionsEnabled: Boolean = true,
+
+    /**
+     * The app [versionCode] whose What's New card the user has already seen, or 0 if none (§3.7 Updates).
+     *
+     * A version and not a boolean, for the same reason as [setupCompletedVersion]: the one-time startup
+     * card must show exactly once per feature-bearing update, so the gate compares this against the running
+     * [com.gamecore.BuildConfig.VERSION_CODE]. 0 rather than null so it round-trips through
+     * `SharedPreferences.getInt` without a separate "is set" key; a genuine fresh install seeds it to the
+     * current version so the card never appears retroactively on the very first launch.
+     */
+    val lastSeenWhatsNewVersionCode: Int = 0,
 ) {
     /**
      * Clamps every numeric field into a range the rest of the app can rely on.

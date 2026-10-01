@@ -5,6 +5,9 @@ import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.ColorPreset
 import com.gamecore.core.model.CrosshairPreset
+import com.gamecore.core.model.DockActionId
+import com.gamecore.core.model.DockActions
+import com.gamecore.core.model.DockConfig
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.HudDisplayMode
 import com.gamecore.core.model.HudLayout
@@ -21,7 +24,8 @@ import org.json.JSONObject
  * The §20 config backup's on-disk shape, and the one place it is written and read.
  *
  * A backup is *configuration*, never session history: appearance and settings, the overlay windows'
- * configs, the quick-sheet pins and macros, the HUD layouts, and — handed in already built by the profile
+ * configs (the floating button and, since §3.7.1, the dock with the user's own action arrangement), the
+ * quick-sheet pins and macros, the HUD layouts, and — handed in already built by the profile
  * layer — the game profiles and the presets they reference. The crosshair and colour presets a profile does
  * *not* reference (the standalone ones the user made but never assigned) travel in their own top-level
  * sections, so a preset is backed up whether or not a profile points at it, and each referenced one still
@@ -91,6 +95,13 @@ object BackupCodec {
         val settings: AppSettings?,
         val overlay: OverlayConfig?,
         val button: FloatingButtonConfig?,
+        /**
+         * The dock's own window state — placement, appearance, and the user's action arrangement (§3.7.1,
+         * features 4–6). Null for every file written before this release, which is why the orchestrator
+         * leaves the device's current dock alone rather than resetting it: a 3.7.0 backup is silent about
+         * the dock, and silence is not an instruction to clear it.
+         */
+        val dock: DockConfig?,
         val colour: ColorCorrection?,
         val layouts: List<HudLayout>?,
         val crosshairs: List<CrosshairPreset>?,
@@ -115,6 +126,7 @@ object BackupCodec {
         settings: AppSettings,
         overlay: OverlayConfig,
         button: FloatingButtonConfig,
+        dock: DockConfig,
         colour: ColorCorrection,
         layouts: List<HudLayout>,
         crosshairs: List<CrosshairPreset>,
@@ -130,6 +142,7 @@ object BackupCodec {
                 put("app", encodeSettings(settings))
                 put("overlay", encodeOverlay(overlay))
                 put("button", encodeButton(button))
+                put("dock", encodeDock(dock))
                 put("colour", encodeColour(colour))
             },
         )
@@ -223,6 +236,12 @@ object BackupCodec {
         put("advancedHudEnabled", s.advancedHudEnabled)
         put("networkStabilityEnabled", s.networkStabilityEnabled)
         put("customModulesEnabled", s.customModulesEnabled)
+        put("screenExtractionEnabled", s.screenExtractionEnabled)
+        put("touchSamplingEnabled", s.touchSamplingEnabled)
+        put("volumePointTriggerEnabled", s.volumePointTriggerEnabled)
+        put("dockCustomizationEnabled", s.dockCustomizationEnabled)
+        put("quickActionsEnabled", s.quickActionsEnabled)
+        put("lastSeenWhatsNewVersionCode", s.lastSeenWhatsNewVersionCode)
     }
 
     private fun encodeQuickTrigger(q: QuickTriggerSettings): JSONObject = JSONObject().apply {
@@ -272,6 +291,33 @@ object BackupCodec {
         b.portraitYFraction?.let { put("portraitYFraction", it.toDouble()) }
         b.landscapeXFraction?.let { put("landscapeXFraction", it.toDouble()) }
         b.landscapeYFraction?.let { put("landscapeYFraction", it.toDouble()) }
+    }
+
+    /**
+     * The dock, including the user's arrangement of its actions.
+     *
+     * The order and the hidden set travel as arrays of enum *names* — the same identity-by-name contract the
+     * preference store uses, so a build that has since renamed or removed an action drops the stale id on the
+     * way in instead of resolving it to whatever now sits at that ordinal. `hiddenActions` is written even
+     * when empty, because an empty array is a real state ("the user switched everything on") that has to be
+     * distinguishable from the key being absent, which means "this file predates dock customisation".
+     */
+    private fun encodeDock(dk: DockConfig): JSONObject = JSONObject().apply {
+        put("show", dk.show)
+        put("actionOrder", JSONArray(dk.actionOrder.map { it.name }))
+        put("hiddenActions", JSONArray(dk.hiddenActions.sortedBy { it.ordinal }.map { it.name }))
+        put("sizeDp", dk.sizeDp)
+        put("opacity", dk.opacity.toDouble())
+        put("snapToEdge", dk.snapToEdge)
+        put("hapticFeedback", dk.hapticFeedback)
+        put("panelWidthDp", dk.panelWidthDp)
+        put("x", dk.x)
+        put("y", dk.y)
+        // As with the button: only an orientation the dock has actually been placed in carries a pair.
+        dk.portraitXFraction?.let { put("portraitXFraction", it.toDouble()) }
+        dk.portraitYFraction?.let { put("portraitYFraction", it.toDouble()) }
+        dk.landscapeXFraction?.let { put("landscapeXFraction", it.toDouble()) }
+        dk.landscapeYFraction?.let { put("landscapeYFraction", it.toDouble()) }
     }
 
     private fun encodeColour(c: ColorCorrection): JSONObject = JSONObject().apply {
@@ -369,6 +415,7 @@ object BackupCodec {
             settings = settings?.optJSONObject("app")?.let(::readSettings),
             overlay = settings?.optJSONObject("overlay")?.let(::readOverlay),
             button = settings?.optJSONObject("button")?.let(::readButton),
+            dock = settings?.optJSONObject("dock")?.let(::readDock),
             colour = settings?.optJSONObject("colour")?.let(::readColour),
             layouts = root.optJSONArray("layouts")?.let(::readLayouts),
             crosshairs = root.optJSONArray("crosshairs")?.let(::readCrosshairs),
@@ -446,6 +493,13 @@ object BackupCodec {
             advancedHudEnabled = o.optBoolean("advancedHudEnabled", d.advancedHudEnabled),
             networkStabilityEnabled = o.optBoolean("networkStabilityEnabled", d.networkStabilityEnabled),
             customModulesEnabled = o.optBoolean("customModulesEnabled", d.customModulesEnabled),
+            screenExtractionEnabled = o.optBoolean("screenExtractionEnabled", d.screenExtractionEnabled),
+            touchSamplingEnabled = o.optBoolean("touchSamplingEnabled", d.touchSamplingEnabled),
+            volumePointTriggerEnabled = o.optBoolean("volumePointTriggerEnabled", d.volumePointTriggerEnabled),
+            dockCustomizationEnabled = o.optBoolean("dockCustomizationEnabled", d.dockCustomizationEnabled),
+            quickActionsEnabled = o.optBoolean("quickActionsEnabled", d.quickActionsEnabled),
+            lastSeenWhatsNewVersionCode =
+                o.optInt("lastSeenWhatsNewVersionCode", d.lastSeenWhatsNewVersionCode),
         ).normalised()
     }
 
@@ -499,6 +553,40 @@ object BackupCodec {
             panelLayout = enumByName(o.optString("panelLayout"), d.panelLayout),
             showQuickApps = o.optBoolean("showQuickApps", d.showQuickApps),
             quickAppPackages = readStrings(o.optJSONArray("quickAppPackages")),
+            portraitXFraction = readFractionOrNull(o, "portraitXFraction"),
+            portraitYFraction = readFractionOrNull(o, "portraitYFraction"),
+            landscapeXFraction = readFractionOrNull(o, "landscapeXFraction"),
+            landscapeYFraction = readFractionOrNull(o, "landscapeYFraction"),
+        ).normalised()
+    }
+
+    /**
+     * The dock, with the arrangement resolved by name and the rest clamped by the model.
+     *
+     * An absent `actionOrder` or `hiddenActions` falls back to the shipped defaults rather than to "nothing
+     * shown" — the same absent-versus-empty rule the preference store follows, so restoring a backup written
+     * by 3.7.0 (which had no dock section at all) or a hand-trimmed file leaves the user with the five
+     * controls the dock shipped with instead of an empty panel. Unknown names drop in
+     * [DockActions.parseOrder], which then re-appends every id the file was missing, so the order that comes
+     * out is always complete whatever went in.
+     */
+    private fun readDock(o: JSONObject): DockConfig {
+        val d = DockConfig()
+        return DockConfig(
+            show = o.optBoolean("show", d.show),
+            actionOrder = o.optJSONArray("actionOrder")
+                ?.let { DockActions.parseOrder(readStrings(it)) }
+                ?: DockActionId.DEFAULT_ORDER,
+            hiddenActions = o.optJSONArray("hiddenActions")
+                ?.let { DockActions.parseHidden(readStrings(it)) }
+                ?: DockActionId.DEFAULT_HIDDEN,
+            sizeDp = o.optInt("sizeDp", d.sizeDp),
+            opacity = o.optDouble("opacity", d.opacity.toDouble()).toFloat(),
+            snapToEdge = o.optBoolean("snapToEdge", d.snapToEdge),
+            hapticFeedback = o.optBoolean("hapticFeedback", d.hapticFeedback),
+            panelWidthDp = o.optInt("panelWidthDp", d.panelWidthDp),
+            x = o.optInt("x", d.x),
+            y = o.optInt("y", d.y),
             portraitXFraction = readFractionOrNull(o, "portraitXFraction"),
             portraitYFraction = readFractionOrNull(o, "portraitYFraction"),
             landscapeXFraction = readFractionOrNull(o, "landscapeXFraction"),

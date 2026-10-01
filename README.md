@@ -3,14 +3,58 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.6.1%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.7.2%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
 no backend, nothing you record leaves the device
 
 ---
 
-## New in 3.6.1
+## New in 3.7.2
+
+The floating dock's buttons become yours to arrange, the active profile can be put back one
+field at a time without ending play, and an in-game trigger can be placed by touch — plus the fix
+for a release-blocking bug where the trigger-placement overlay swallowed every touch except the
+game's own pill.
+
+- **Dock customisation.** Rearrange the floating dock's buttons and choose which of them appear,
+  saved per game — so the dock a game raises holds exactly the controls that game needs.
+- **Quick actions on the dock.** Put shortcuts to GameCore's existing controls onto the dock for
+  one-tap access without opening the full panel; a quick action runs through the same handler the
+  panel's own tile does and invents no new capability.
+- **Revert settings mid-session.** A card on Home lists exactly what the active profile changed on
+  your device and puts any of it back without ending play — the same reading-paired restore a
+  profile does on exit, offered one field at a time while the game runs.
+- **In-game point-trigger placement.** Place a volume-key tap target by touching the spot on
+  screen, from inside the game and without opening the app. It is saved per game, and the tap it
+  later fires is the one synthetic input the app can send (see below), gated on Shizuku.
+
+---
+
+## Version 3.7.0
+
+A second overlay surface and four stand-alone tools, each holding the app's one rule: what it
+cannot measure or do, it says plainly rather than faking.
+
+- **Floating Dock.** A small draggable dock over your game with its own quick control panel; it
+  snaps to the screen edge, is turned on from Settings, and sits alongside the existing floating
+  button rather than replacing it.
+- **Screen Extraction.** Capture the current screen, crop a region, then save or share the
+  result — drawn and cropped on the device and handed out through the same one-shot share grant
+  every other artefact uses.
+- **Touch Sampling Monitor.** A live read of the device's real touch input rate. Where the
+  hardware will not report it, it reads **Unavailable** rather than a plausible number — the rule
+  every reading in the app follows.
+- **Volume Button Point Trigger.** Map a volume key to tap a saved screen point for a game —
+  single, double or hold. It needs the optional accessibility service, so the key reaches GameCore
+  from inside another app, and Shizuku, so the tap can be injected; without either, the control
+  says so rather than pretending to work.
+- **What's New.** Shows the features a release introduced the first time you open the app after
+  updating, and lets you browse every past update any time from Settings.
+
+---
+
+## Version 3.6.1
 
 Three leaf screens, each turned on or off from Settings, and each holding the app's one rule: a
 figure it cannot measure is shown as "Unavailable", with the reason, never as a zero.
@@ -354,7 +398,9 @@ permissions. A few reach further, and each is bounded to a form the test pins li
 that a second use cannot be added without it failing: `am kill --user current <package>`
 closes one game's background processes; `rm -rf /storage/emulated/<user>/Android/data/<package>/cache`
 clears one game's shared cache; `taskset -ap <mask> <pid>` pins one game's process to a set of
-cores; the charge-bypass toggle writes a single digit to one validated
+cores; `input tap` and `input swipe` send one synthetic tap or press-and-hold to a per-game
+screen point the user placed, for the volume-button trigger — no text, no key event, and no other
+`input` subcommand is expressible; the charge-bypass toggle writes a single digit to one validated
 `/sys/class/power_supply/<supply>/<node>` — the one command in the app that runs `sh -c`, and it
 passes the value (`0` or `1`) and the path as positional arguments (`$1`, `$2`) rather than splicing
 either into the script text, after a `test -w` probe and a `cat` read of that same node; the GPU HUD
@@ -401,6 +447,9 @@ draws over your game, so the two never disagree.
 - A visual HUD builder: drag widgets onto a live preview, choose from 18 stats, set each
   widget's text size, opacity, colour, label and background, and save layouts that a game
   profile can raise by name.
+- A separate, lighter floating **dock**: a small draggable strip that snaps to a screen edge and
+  carries one-tap shortcuts to controls you already have. Which buttons it shows, and their order,
+  is yours to set and is saved per game, alongside the full panel rather than in place of it.
 
 ### Game profiles
 
@@ -436,7 +485,7 @@ not measure, or that available memory did not rise.
 Per-core CPU usage and frequency from `/proc/stat` and `sysfs`, memory from `/proc/meminfo`
 and `ActivityManager`, battery level, charging source, health, temperature, voltage and
 instantaneous current, thermal status, GPU load where the device exposes a `/sys` node for it,
-display mode and rotation, network type, latency and
+display mode and rotation, the touch sampling rate where the device will report it, network type, latency and
 throughput, and free storage — with live graphs, a configurable sampling interval, and
 sampling that stops the moment nothing is looking at it.
 
@@ -565,6 +614,7 @@ What the app can run with that authority is a closed, enumerated set:
 | `appops set` | two app-ops, **to this app only** |
 | `wm size` | reading the display's size, setting a per-game override, and clearing it |
 | `taskset -ap` | reading one game process's CPU affinity, and pinning it to chosen cores |
+| `input tap` / `input swipe` | tapping, or press-holding, one saved per-game screen point — the volume-button point trigger's one action |
 | `am kill` | closing one named background app, when a profile asks to free memory |
 | `rm -rf` | one game's shared-storage cache directory, on a tap in Game storage |
 | `ls` / `stat` | listing and sizing files inside one game's own config directory |
@@ -604,14 +654,14 @@ switched on.
 | `ACCESS_NETWORK_STATE`, `INTERNET` | network type, latency and throughput |
 | `POST_NOTIFICATIONS` | any foreground service, since each must post one |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | detection and tracking surviving Doze |
-| `FOREGROUND_SERVICE_*` | the four background services |
+| `FOREGROUND_SERVICE_*` | the app's foreground services |
 | Shizuku `API_V23` | the elevated capabilities, if you use Shizuku at all |
 
-The four services each declare their real Android 14 foreground-service type rather than one
+Each foreground service declares its real Android 14 foreground-service type rather than one
 generic value: `dataSync` for session tracking, `mediaProjection` for screen recording with
-its own separate consent flow, and `specialUse` with a manifest justification for the
-overlay, detection and monitoring services, which is the closest the platform offers.
-Nothing runs when it is not needed — each service stops itself.
+its own separate consent flow, and `specialUse` — with a manifest justification for each — for
+the overlay, game-detection, performance-monitoring and shake-shortcut services, which is the
+closest the platform offers. Nothing runs when it is not needed — each service stops itself.
 
 ---
 
@@ -624,13 +674,17 @@ Nothing runs when it is not needed — each service stops itself.
   `EncryptedSharedPreferences`.
 - **`android:allowBackup="false"`.** The session database and encrypted preferences never
   leave the device through a backup transport.
-- **One intent filter in the whole manifest**, the launcher activity's. No exported receivers
-  and no deep links, and every other activity and service is `exported="false"`. Two content
-  providers exist and neither is a way in: the AndroidX `FileProvider` that hands out
-  screenshots, recordings, exports and session cards is not exported and grants a read on one
-  URI at a time, and the Shizuku startup provider must be exported for Shizuku's own server
-  process to bind it, so it is guarded by `INTERACT_ACROSS_USERS_FULL` — a signature-level
-  permission no ordinary app holds.
+- **The only intent filter an app can invoke is the launcher activity's.** The three others in
+  the manifest are system-dispatcher actions on services the system binds, never another app: the
+  notification listener that reads the active media session, the Quick Settings tile, and the
+  optional accessibility service behind the in-game volume-key trigger. Each is guarded by a
+  `BIND_*` permission the system alone holds and no `<uses-permission>` requests, so being exported
+  makes it reachable by `system_server` and nothing else. No exported receivers and no deep links,
+  and every activity but the launcher is `exported="false"`. Two content providers exist and
+  neither is a way in: the AndroidX `FileProvider` that hands out screenshots, recordings, exports
+  and session cards is not exported and grants a read on one URI at a time, and the Shizuku startup
+  provider must be exported for Shizuku's own server process to bind it, so it is guarded by
+  `INTERACT_ACROSS_USERS_FULL` — a signature-level permission no ordinary app holds.
 - **The files that leave the device leave by your hand.** Screenshots, recordings, session
   exports and session cards are written inside the app's own storage and reach another app only
   through the share sheet, as a content URI with a one-shot read grant rather than a path, which
@@ -657,8 +711,8 @@ Nothing runs when it is not needed — each service stops itself.
 ## Architecture
 
 Kotlin only, Jetpack Compose with Material 3, MVVM, Hilt, Coroutines and `StateFlow`. No
-Java, no XML layouts — the only XML is Android resources and the manifest. 483 source files,
-about 122,000 lines.
+Java, no XML layouts — the only XML is Android resources and the manifest. 513 source files,
+about 132,000 lines.
 
 ```
 app/
@@ -682,7 +736,7 @@ app/
 │   ├── optimization/ OptimizationManager over Standard / Shizuku optimizers
 │   ├── overlay/      what is on screen and why
 │   └── storage/      per-game cache measurement, and the one delete it offers
-├── service/          the four foreground services + screen recording
+├── service/          the four foreground services, screen recording, media listener and quick-trigger services
 └── ui/               one package per screen, each a Screen + State + ViewModel
 ```
 
@@ -723,8 +777,8 @@ signing key is not blocked — but an unsigned APK will not install on a device.
 
 The unit tests are deliberately written against the pure, Android-free seams: the geometry,
 the formatters, the sanitizer, the command builder, the aggregators, the state reducers, the
-per-session latency fold, and every word the shareable card is allowed to print. 127 suites,
-1,626 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
+per-session latency fold, and every word the shareable card is allowed to print. 139 suites,
+1,819 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
 
 ## Your data, and the network
 

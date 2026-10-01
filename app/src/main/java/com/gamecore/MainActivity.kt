@@ -117,9 +117,11 @@ class MainActivity : ComponentActivity() {
      *  - [ControllerInputBus] first, because it only ever claims gamepad and joystick keys and only while
      *    the Controller Lab is on screen asking for them. A controller's A button pressed there should
      *    light up the tester rather than activating whatever Compose thinks is focused.
-     *  - [QuickTriggerCoordinator] second. It returns true only when the trigger fired *and* the user has
-     *    turned the key pass-through off, which is not the default: a volume key that stops changing the
-     *    volume is a bug from the user's side of the screen even when they configured it deliberately.
+     *  - [QuickTriggerCoordinator] second. For the Quick Trigger itself it returns true only when the trigger
+     *    fired *and* the user has turned the key pass-through off, which is not the default: a volume key
+     *    that stops changing the volume is a bug from the user's side of the screen even when they configured
+     *    it deliberately. §3.7's point trigger is the one thing that does claim its key outright, and only
+     *    while the game whose profile bound it is the one being tracked.
      *
      * This is also the honest limit of the whole trigger feature. Android delivers hardware keys to the
      * focused window, so this override is reached while GameCore is the app on screen and not otherwise —
@@ -205,5 +207,18 @@ class MainActivity : ComponentActivity() {
 
         /** The media access explanation, for the overlay panel's media strip. Same arrangement. */
         const val DESTINATION_MEDIA_ACCESS = Destination.MediaAccess.EXTERNAL
+
+        /**
+         * The three screens a dock quick action can open (§3.7.1, feature 5).
+         *
+         * Same arrangement as the two above — one literal, aliased from the destination so the token the
+         * dock sends and the token [Destination.fromExternal] accepts cannot drift apart. They exist because
+         * the dock's whole promise is that it works without entering the app first, and three of its
+         * fourteen controls *are* a screen; a chip whose token were missing from that closed map would land
+         * the user on Home, which reads as a broken chip rather than as a refused intent.
+         */
+        const val DESTINATION_PERFORMANCE = Destination.Performance.EXTERNAL
+        const val DESTINATION_SCREEN_EXTRACTION = Destination.ScreenExtraction.EXTERNAL
+        const val DESTINATION_SAMPLING_MONITOR = Destination.SamplingMonitor.EXTERNAL
     }
 }

@@ -75,6 +75,53 @@ enum class OverlaySlot {
      * the crosshair without either hiding the other through a shared [hide].
      */
     WHEEL,
+
+    /**
+     * The §Dock handle: a small draggable button the user parks against an edge, the same shape of window as
+     * [BUTTON]. Takes touches — it is dragged and tapped, not looked through — and it is the collapsed state
+     * of the dock, expanding into [DOCK_PANEL] on a tap. Its own slot so it can sit beside the game button
+     * without either hiding the other through a shared [hide].
+     */
+    DOCK,
+
+    /**
+     * What the dock expands into: a compact control panel, the dock's equivalent of the button's [PANEL].
+     * Takes touches and dismisses on an outside tap, so the player can close it by tapping the game behind
+     * it. A separate slot from [DOCK] so the panel and its handle never share a window — opening the panel
+     * must not tear down the handle that anchors it.
+     */
+    DOCK_PANEL,
+
+    /**
+     * The §3.7.1 in-game placement surface for a volume trigger point: a full-screen layer the player aims
+     * *through* to put the trigger's mark on something in the game.
+     *
+     * The one slot in this enum that is both full screen **and** touchable, which every other window here
+     * deliberately is not — a full-screen touchable window is a total dead zone in the game underneath, and
+     * that is precisely what this one is for. Every touch it swallows is a touch meant for it: the player is
+     * choosing a point, and a tap that fell through to the game would fire whatever it landed on instead of
+     * placing the mark. It is therefore up only while the user is placing, torn down by its own Done or
+     * Cancel, and never driven by a stored preference — there is no state in which GameCore leaves this
+     * window on screen.
+     *
+     * Its own slot rather than a mode of [DOCK_PANEL] because the two are opposite shapes of window and are
+     * up at different times: the dock panel closes on its way here, so sharing a slot would have the panel's
+     * teardown and this window's add race over one view.
+     */
+    TRIGGER_PLACEMENT,
+
+    /**
+     * The §3.7.1 persistent mark showing where a volume trigger presses. Full screen, never takes touches.
+     *
+     * [CROSSHAIR]'s kind of window and for [CROSSHAIR]'s reason: a sticker on the glass the player glances at
+     * and never aims at. `FLAG_NOT_TOUCHABLE` is load-bearing here beyond the usual — the mark sits exactly
+     * on the thing the trigger presses, which in a game is a fire button, so a window that took touches would
+     * turn the one spot the player most needs into the one spot they cannot reach.
+     *
+     * A separate slot from [TRIGGER_PLACEMENT] because the two are up at opposite times and have opposite
+     * touch behaviour, and a separate slot from [CROSSHAIR] because either can be up without the other.
+     */
+    TRIGGER_MARKER,
 }
 
 /**

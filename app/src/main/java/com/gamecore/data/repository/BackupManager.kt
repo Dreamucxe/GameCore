@@ -73,6 +73,7 @@ class BackupManager @Inject constructor(
             settings = preferences.settings.value,
             overlay = overlay,
             button = preferences.floatingButton.value,
+            dock = preferences.dock.value,
             colour = preferences.colorCorrection.value,
             layouts = BackupCodec.standaloneLayouts(layoutsWithWidgets(), profiles.referenced { it.hudLayoutId }),
             crosshairs = BackupCodec.standaloneCrosshairs(crosshairs.presets.first(), profiles.referenced { it.crosshairPresetId }),
@@ -130,6 +131,8 @@ class BackupManager @Inject constructor(
         data.settings?.let { restored -> preferences.updateSettings { restored } }
         applyOverlayAndMacros(data, policy)
         data.button?.let { restored -> preferences.updateFloatingButton { restored } }
+        // Absent for anything written before §3.7.1, and absence leaves the user's own dock alone.
+        data.dock?.let { restored -> preferences.updateDock { restored } }
         data.colour?.let { preferences.setColorCorrection(it) }
         val layoutCount = data.layouts?.let { importLayouts(it, policy) } ?: 0
         val crosshairCount = data.crosshairs?.let { importCrosshairs(it, policy) } ?: 0

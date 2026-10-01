@@ -543,6 +543,39 @@ internal object GameCoreMigrations {
         }
     }
 
+    /**
+     * Version 15 → 16: the per-game volume-button point trigger (§3.7). Nine additive columns on
+     * `game_profiles` and nothing else touched — every one an `ALTER TABLE … ADD COLUMN`, no table rebuilt,
+     * no row rewritten, no index changed. Template is the `game_profiles` half of [MIGRATION_13_14]: a
+     * NOT-NULL toggle carrying its DEFAULT here in the migration only, beside eight nullable columns that
+     * carry none.
+     *
+     * `volume_trigger_enabled` is the per-game switch, NOT-NULL with `DEFAULT 0`, so every profile written
+     * before this feature existed reads the trigger off — which is also a new profile's default. The eight
+     * per-key columns are nullable with no default: a key with no `_mode` is unassigned, a point whose two
+     * fraction columns are NULL was never placed, and a NULL hold falls back in the mapper. NULL is the
+     * honest value for all of them on a pre-feature row, exactly as `cpu_affinity` and `display_size` are
+     * NULL on the rows that predate them.
+     *
+     * The DEFAULT on the toggle lives here and NOT as a `@ColumnInfo(defaultValue=)` on the entity field, or
+     * the exported `16.json` would disagree with what this migration wrote and fail Room's open check. The
+     * column names and types match [GameProfileEntity] exactly, so schema validation against `16.json`
+     * passes without a rebuild.
+     */
+    val MIGRATION_15_16 = object : Migration(15, 16) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `volume_trigger_enabled` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `volume_trigger_up_x` REAL")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `volume_trigger_up_y` REAL")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `volume_trigger_up_mode` TEXT")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `volume_trigger_up_hold_ms` INTEGER")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `volume_trigger_down_x` REAL")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `volume_trigger_down_y` REAL")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `volume_trigger_down_mode` TEXT")
+            db.execSQL("ALTER TABLE `game_profiles` ADD COLUMN `volume_trigger_down_hold_ms` INTEGER")
+        }
+    }
+
     /** Every migration, in order, for [androidx.room.RoomDatabase.Builder.addMigrations]. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
@@ -559,5 +592,6 @@ internal object GameCoreMigrations {
         MIGRATION_12_13,
         MIGRATION_13_14,
         MIGRATION_14_15,
+        MIGRATION_15_16,
     )
 }

@@ -1,5 +1,6 @@
 package com.gamecore.ui.overlay
 
+import com.gamecore.core.model.DockConfig
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.OverlayConfig
@@ -37,6 +38,7 @@ data class OverlayUiState(
     val hasPermission: Boolean = false,
     val button: FloatingButtonConfig = FloatingButtonConfig(),
     val pill: OverlayConfig = OverlayConfig(),
+    val dock: DockConfig = DockConfig(),
     val isServiceRunning: Boolean = false,
     val isButtonVisible: Boolean = false,
     val isPillVisible: Boolean = false,

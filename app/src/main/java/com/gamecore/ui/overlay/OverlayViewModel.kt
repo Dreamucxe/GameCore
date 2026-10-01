@@ -2,6 +2,7 @@ package com.gamecore.ui.overlay
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gamecore.core.model.DockConfig
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.OverlayConfig
@@ -86,13 +87,15 @@ class OverlayViewModel @Inject constructor(
         stored,
         overlay.desired,
         overlay.status,
+        preferences.dock,
         local,
-    ) { (pill, button, settings), desired, status, own ->
+    ) { (pill, button, settings), desired, status, dock, own ->
         OverlayUiState(
             isLoaded = own.isLoaded,
             hasPermission = own.hasPermission,
             button = own.buttonDraft ?: button,
             pill = own.pillDraft ?: pill,
+            dock = dock,
             isServiceRunning = status.serviceRunning,
             isButtonVisible = status.buttonVisible,
             isPillVisible = status.pillVisible,
@@ -193,6 +196,45 @@ class OverlayViewModel @Inject constructor(
     fun resetPanelWidth() {
         preferences.updatePanelWidth(FloatingButtonConfig.DEFAULT_PANEL_WIDTH_DP)
         local.value = local.value.copy(buttonDraft = null, message = PANEL_WIDTH_RESET)
+    }
+
+    // ------------------------------------------------------------------------- the floating dock
+
+    /**
+     * Shows or hides the dock, and remembers which.
+     *
+     * The button's exact sibling ([setButtonVisible]): it refuses rather than pretends when the overlay
+     * permission is missing, because the controller would publish the request, find no permission, report
+     * nothing visible, and the switch would flick back on its own. The write and the live toggle are kept
+     * in step so a dock enabled here comes back on the next launch through
+     * [OverlayController.restoreManualState], which reads this same `show` flag.
+     */
+    fun setDockVisible(visible: Boolean) {
+        if (visible && !overlay.hasPermission()) {
+            local.value = local.value.copy(message = NEEDS_PERMISSION)
+            return
+        }
+        preferences.updateDock { it.copy(show = visible) }
+        overlay.setDock(visible)
+    }
+
+    /**
+     * A dock switch, choice or slider: one write, no draft.
+     *
+     * Unlike the button's sliders the dock has no draft stage — [SecurePreferenceStore.updateDock] reads
+     * the current config for each transform, so the dock's parked x and y survive a size or opacity change
+     * even while it is being dragged over this screen. Position is only ever written through the drag's own
+     * placement writer and [resetDockPosition], never here.
+     */
+    fun updateDock(transform: (DockConfig) -> DockConfig) {
+        preferences.updateDock(transform)
+    }
+
+    /** Sends the dock back to its default spot and forgets every remembered per-orientation fraction. */
+    fun resetDockPosition() {
+        val defaults = DockConfig()
+        preferences.updateDockPosition(defaults.x, defaults.y)
+        local.value = local.value.copy(message = DOCK_MOVED)
     }
 
     // ----------------------------------------------------------------------------------- the pill
@@ -382,6 +424,8 @@ class OverlayViewModel @Inject constructor(
         const val PILL_MOVED = "The pill is back at the left edge, a little below the top."
 
         const val BUTTON_MOVED = "The button is back at the left edge, about halfway down."
+
+        const val DOCK_MOVED = "The dock is back at its default spot near the left edge."
 
         const val PANEL_WIDTH_RESET =
             "The control panel is back to ${FloatingButtonConfig.DEFAULT_PANEL_WIDTH_DP} dp wide. It never " +

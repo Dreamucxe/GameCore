@@ -29,12 +29,17 @@ import javax.inject.Inject
  * [com.gamecore.core.model.QuickTriggerMethod] and hands them straight to [QuickTriggerCoordinator]; it
  * cannot read window contents, cannot read text the user types, and sends nothing anywhere.
  *
- * ### Why it does not consume the keys
+ * ### Which keys it consumes
  *
- * [QuickTriggerCoordinator.onKeyEvent] returns whether to swallow the event, and it says no unless the
- * user has deliberately turned the pass-through off. A volume key that stops changing the volume is a bug
- * from the user's side of the screen, and this service sits in front of *every* app's volume keys — the
- * cost of getting that wrong is much higher here than in the activity.
+ * [QuickTriggerCoordinator.onKeyEvent] returns whether to swallow the event, and for the Quick Trigger
+ * itself it says no unless the user has deliberately turned the pass-through off. A volume key that stops
+ * changing the volume is a bug from the user's side of the screen, and this service sits in front of *every*
+ * app's volume keys — the cost of getting that wrong is much higher here than in the activity.
+ *
+ * The one exception is §3.7's point trigger, which does swallow the key it owns: that is a single button the
+ * user bound to a single spot in a single game, so it is claimed only while that game is the one being
+ * tracked, and letting it through as well would put a volume bar over the game on every press. The decision
+ * still belongs entirely to the coordinator — there is no second copy of the rule here.
  */
 @AndroidEntryPoint
 class QuickTriggerAccessibilityService : AccessibilityService() {

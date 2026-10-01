@@ -9,6 +9,7 @@ import com.gamecore.core.model.CpuAffinityPreset
 import com.gamecore.core.model.CrosshairDesign
 import com.gamecore.core.model.CrosshairPreset
 import com.gamecore.core.model.DisplaySize
+import com.gamecore.core.model.FractionPoint
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.GameSession
 import com.gamecore.core.model.GammaMode
@@ -23,6 +24,9 @@ import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.ScreenOrientationLock
 import com.gamecore.core.model.SessionSample
 import com.gamecore.core.model.StopReason
+import com.gamecore.core.model.VolumeTriggerBinding
+import com.gamecore.core.model.VolumeTriggerConfig
+import com.gamecore.core.model.VolumeTriggerPressMode
 
 /**
  * Entity ↔ model conversion, and the one place enum names and user text cross the boundary.
@@ -87,6 +91,18 @@ internal object Mappers {
         instantReplayIncludeAudio = profile.instantReplayIncludeAudio,
         // Charge bypass (§3.5 power). Plain NOT-NULL Boolean, passed straight through.
         chargeBypassEnabled = profile.chargeBypassEnabled,
+        // Volume-button point trigger (§3.7). Stored raw across nine flat columns; the point's fractions
+        // and the hold are clamped on read in toModel, not here, matching this file's store-raw discipline.
+        // A null binding writes a null mode column, which is how toModel tells "unassigned" from "assigned".
+        volumeTriggerEnabled = profile.volumeTrigger?.enabled ?: false,
+        volumeTriggerUpX = profile.volumeTrigger?.up?.point?.x,
+        volumeTriggerUpY = profile.volumeTrigger?.up?.point?.y,
+        volumeTriggerUpMode = profile.volumeTrigger?.up?.pressMode?.name,
+        volumeTriggerUpHoldMs = profile.volumeTrigger?.up?.holdMs,
+        volumeTriggerDownX = profile.volumeTrigger?.down?.point?.x,
+        volumeTriggerDownY = profile.volumeTrigger?.down?.point?.y,
+        volumeTriggerDownMode = profile.volumeTrigger?.down?.pressMode?.name,
+        volumeTriggerDownHoldMs = profile.volumeTrigger?.down?.holdMs,
         updatedAtMillis = nowMillis,
     )
 
@@ -158,7 +174,57 @@ internal object Mappers {
         instantReplayIncludeAudio = entity.instantReplayIncludeAudio,
         // Charge bypass (§3.5 power). NOT-NULL Boolean, read straight through like the toggles above.
         chargeBypassEnabled = entity.chargeBypassEnabled,
+        // Volume-button point trigger (§3.7), rebuilt from the nine flat columns and normalised on read —
+        // the point's fractions clamped to 0..1 and the hold into range, nothing trusted out of storage.
+        // A config equal to the default (feature off, neither key assigned) reads back as null, so
+        // toModel(toEntity(p)) == p for a profile that never set one.
+        volumeTrigger = readVolumeTrigger(entity),
     )
+
+    /**
+     * The volume-trigger config rebuilt from a profile row, or null when the row carries none.
+     *
+     * Read defensively like every field above: each key's binding comes back only where its `_mode` column
+     * is set — a null mode is the row's own "this key is unassigned" — the point is rebuilt only when both
+     * fraction columns are present, and the whole config is [VolumeTriggerConfig.normalised] so a fraction
+     * or a hold a hand-edited row put out of range is clamped rather than trusted. A config that ends up
+     * equal to [VolumeTriggerConfig.DEFAULT] — the feature off with neither key bound — is read back as
+     * null, so a profile that never set one round-trips as null rather than as an empty config.
+     */
+    private fun readVolumeTrigger(entity: GameProfileEntity): VolumeTriggerConfig? {
+        val config = VolumeTriggerConfig(
+            enabled = entity.volumeTriggerEnabled,
+            up = readBinding(
+                x = entity.volumeTriggerUpX,
+                y = entity.volumeTriggerUpY,
+                mode = entity.volumeTriggerUpMode,
+                holdMs = entity.volumeTriggerUpHoldMs,
+            ),
+            down = readBinding(
+                x = entity.volumeTriggerDownX,
+                y = entity.volumeTriggerDownY,
+                mode = entity.volumeTriggerDownMode,
+                holdMs = entity.volumeTriggerDownHoldMs,
+            ),
+        ).normalised()
+        return config.takeUnless { it == VolumeTriggerConfig.DEFAULT }
+    }
+
+    /**
+     * One key's binding, or null when its `_mode` column is absent — the presence flag. The point is
+     * rebuilt only when both fraction columns are set (a half-placed marker stays null), the mode is parsed
+     * through [VolumeTriggerPressMode.of] so a name a newer build wrote falls back to the safe default, and
+     * a missing hold falls back to [VolumeTriggerBinding.DEFAULT_HOLD_MS] before normalisation clamps it.
+     */
+    private fun readBinding(x: Float?, y: Float?, mode: String?, holdMs: Int?): VolumeTriggerBinding? {
+        if (mode == null) return null
+        val point = if (x != null && y != null) FractionPoint(x, y) else null
+        return VolumeTriggerBinding(
+            point = point,
+            pressMode = VolumeTriggerPressMode.of(mode),
+            holdMs = holdMs ?: VolumeTriggerBinding.DEFAULT_HOLD_MS,
+        )
+    }
 
     // ------------------------------------------------------------------------ hud
 

@@ -42,6 +42,19 @@ enum class CapturePurpose {
     START_REPLAY_BUFFER,
     STOP_REPLAY_BUFFER,
     SAVE_REPLAY_CLIP,
+
+    /**
+     * Grab a single frame into memory for Screen Extraction (feature 2).
+     *
+     * Here for the same Android 14 reason screenshots are: one frame is a `createVirtualDisplay` call,
+     * only permitted while a `mediaProjection` foreground service runs, so it goes through that service.
+     * Unlike [SCREENSHOT] the frame is not written to the gallery — it is handed to the in-app cropper
+     * through [com.gamecore.core.system.ScreenCaptureController.lastExtractedFrame], and only a region the
+     * user then chooses is saved or shared. One-shot: the branch that serves it grabs a frame and adds no
+     * keep-alive of its own, so a projection started only for an extraction does not outlive the grab.
+     * Needs a live projection like the other starts — no projection routes through consent first.
+     */
+    EXTRACT_FRAME,
     ;
 
     companion object {

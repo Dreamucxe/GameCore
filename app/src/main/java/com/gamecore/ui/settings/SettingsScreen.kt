@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Dock
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.GridView
@@ -470,6 +471,19 @@ private fun OverlaysCard(
                 "pill shows.",
             icon = Icons.Filled.TouchApp,
         )
+        // Shown only while customisation is on, which is what [AppSettings.dockCustomizationEnabled] means by
+        // "the customisation screen is hidden from Settings": with the flag off the dock draws its shipped
+        // arrangement and there is nothing here to arrange. The screen itself still handles being open with
+        // the flag off — a backup restore can flip it under the user — but the ordinary way in is this row.
+        if (state.settings.dockCustomizationEnabled) {
+            NavRow(
+                title = "Dock controls",
+                onClick = { onNavigate(Destination.DockCustomization) },
+                description = "Choose which toggles and quick actions the floating dock offers, the order " +
+                    "they sit in, and reset either half on its own.",
+                icon = Icons.Filled.Dock,
+            )
+        }
         NavRow(
             title = "Crosshair",
             onClick = { onNavigate(Destination.Crosshair) },
@@ -520,6 +534,23 @@ private fun OverlaysCard(
             onCheckedChange = { v -> onEdit { it.copy(customModulesEnabled = v) } },
             description = "Turns the custom modules feature on or off. Anything you have already built is " +
                 "kept either way, so switching it off and on again loses nothing.",
+        )
+        SwitchRow(
+            title = "Dock customisation",
+            checked = state.settings.dockCustomizationEnabled,
+            onCheckedChange = { v -> onEdit { it.copy(dockCustomizationEnabled = v) } },
+            description = "Lets you rearrange the floating dock — which controls it carries and in what " +
+                "order — from the Dock controls screen above. Off makes the dock draw the arrangement it " +
+                "shipped with; the one you built is kept, not cleared, and comes back when you switch this " +
+                "on again.",
+        )
+        SwitchRow(
+            title = "Quick actions on the dock",
+            checked = state.settings.quickActionsEnabled,
+            onCheckedChange = { v -> onEdit { it.copy(quickActionsEnabled = v) } },
+            description = "Adds the one-tap action chips — next refresh rate, open a stats screen, place a " +
+                "trigger point — to the dock panel beside its toggles. Off draws the toggles alone and no " +
+                "chips at all; the actions are routed to features you already have, never new behaviour.",
         )
     }
 }
@@ -708,6 +739,31 @@ private fun MonitoringCard(
             description = "When Shizuku is connected, lets GameCore read the figures Android will not give " +
                 "an ordinary app. Turning this off does not disconnect Shizuku.",
         )
+        RowDivider()
+        SwitchRow(
+            title = "Screen extraction",
+            checked = state.settings.screenExtractionEnabled,
+            onCheckedChange = { enabled -> onEdit { it.copy(screenExtractionEnabled = enabled) } },
+            description = "Turns on Screen Extraction, which reads the shared screen feed to lift text and " +
+                "shapes off the frame. Off hides it from navigation and asks for no projection, so nothing " +
+                "is captured — a preference, not a claim that this device can hold one.",
+        )
+        SwitchRow(
+            title = "Touch sampling monitor",
+            checked = state.settings.touchSamplingEnabled,
+            onCheckedChange = { enabled -> onEdit { it.copy(touchSamplingEnabled = enabled) } },
+            description = "Turns on the Touch Sampling Monitor, which reads only the touches this app can " +
+                "legitimately see and reports how fast they arrive. Off hides it and attaches no capture " +
+                "pad, so no pointer stream is read. It never claims the panel's true sampling rate.",
+        )
+        SwitchRow(
+            title = "Volume-button point trigger",
+            checked = state.settings.volumePointTriggerEnabled,
+            onCheckedChange = { enabled -> onEdit { it.copy(volumePointTriggerEnabled = enabled) } },
+            description = "Lets the volume buttons fire a point tap while a game with a trigger set is in " +
+                "front. Off leaves the volume keys alone, so normal volume control is untouched. It needs " +
+                "the accessibility service and Shizuku to actually inject a tap.",
+        )
         NavRow(
             title = "Live performance",
             onClick = { onNavigate(Destination.Performance) },
@@ -868,6 +924,20 @@ private fun AccessCard(
             description = "Screenshot, recording, brightness, volume, Do Not Disturb, rotation and torch.",
             icon = Icons.Filled.Build,
         )
+        NavRow(
+            title = "Screen extraction",
+            onClick = { onNavigate(Destination.ScreenExtraction) },
+            description = "Reads the shared screen feed to lift text and shapes off the frame, on the " +
+                "device only. Needs \"Screen extraction\" switched on to open.",
+            icon = Icons.Filled.CenterFocusStrong,
+        )
+        NavRow(
+            title = "Touch sampling monitor",
+            onClick = { onNavigate(Destination.SamplingMonitor) },
+            description = "How fast the touches this app can legitimately see are arriving. Needs \"Touch " +
+                "sampling monitor\" switched on to open.",
+            icon = Icons.Filled.TouchApp,
+        )
     }
 }
 
@@ -1018,6 +1088,13 @@ private fun AboutCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        NavRow(
+            title = "What's new",
+            onClick = { onNavigate(Destination.WhatsNew) },
+            description = "The features each GameCore update brought, newest first — the same notes as the " +
+                "card shown once after an update.",
+            icon = Icons.Filled.Info,
+        )
         NavRow(
             title = "Developer",
             onClick = { onNavigate(Destination.Developer) },

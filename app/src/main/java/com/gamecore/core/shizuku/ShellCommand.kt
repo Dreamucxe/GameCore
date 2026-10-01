@@ -604,6 +604,71 @@ sealed class ShellCommand(
         }
     }
 
+    // ------------------------------------------------------ synthetic input
+
+    /**
+     * Sends one synthetic tap to whatever is on screen, for the volume-button point trigger (feature 4).
+     *
+     * The first command here that injects input into another app rather than reading or writing a setting
+     * on this device, so its bound is worth stating precisely. `input tap` is the AOSP shell's own tap
+     * injector — the same one `adb shell input tap` reaches — and it needs the ADB-level authority Shizuku
+     * provides; without a live shell [com.gamecore.domain.trigger.PointTapController] never builds this
+     * command at all and the trigger tile is drawn disabled with the reason on it, rather than pretending
+     * to work. What reaches it is one coordinate the user placed on a per-game trigger point and nothing
+     * else: no text, no keyevent, no other `input` subcommand is expressible here. Both coordinates are
+     * device pixels already resolved from a stored fraction, and are range-checked in [of] so a malformed
+     * point is a refused command rather than a tap sent to an arbitrary place.
+     */
+    class InputTap private constructor(val x: Int, val y: Int) : ShellCommand(
+        listOf("input", "tap", x.toString(), y.toString()),
+        "Tap the screen at ($x, $y)",
+        Effect.CHANGES_SETTING,
+    ) {
+        companion object {
+            /** Null unless both coordinates are non-negative device pixels within a real panel. */
+            fun of(x: Int, y: Int): InputTap? {
+                val vx = validInputCoordinateOrNull(x) ?: return null
+                val vy = validInputCoordinateOrNull(y) ?: return null
+                return InputTap(vx, vy)
+            }
+        }
+    }
+
+    /**
+     * Sends one synthetic swipe, which the point trigger uses only as a press-and-hold — the same point
+     * held for a duration, so [x1]/[y1] and [x2]/[y2] are equal in that use. `input swipe` is the AOSP
+     * shell's own gesture injector and needs the same Shizuku authority [InputTap] does, gated the same
+     * way in [com.gamecore.domain.trigger.PointTapController]. Both endpoints are range-checked device
+     * pixels and the duration is bounded in [of], so neither a bad point nor an absurd hold length reaches
+     * the device.
+     */
+    class InputSwipe private constructor(
+        val x1: Int,
+        val y1: Int,
+        val x2: Int,
+        val y2: Int,
+        val durationMillis: Int,
+    ) : ShellCommand(
+        listOf(
+            "input", "swipe",
+            x1.toString(), y1.toString(), x2.toString(), y2.toString(), durationMillis.toString(),
+        ),
+        "Swipe from ($x1, $y1) to ($x2, $y2) over ${durationMillis}ms",
+        Effect.CHANGES_SETTING,
+    ) {
+        companion object {
+            /** Null unless both endpoints are device pixels within a panel and the duration a plausible hold. */
+            fun of(x1: Int, y1: Int, x2: Int, y2: Int, durationMillis: Int): InputSwipe? {
+                val vx1 = validInputCoordinateOrNull(x1) ?: return null
+                val vy1 = validInputCoordinateOrNull(y1) ?: return null
+                val vx2 = validInputCoordinateOrNull(x2) ?: return null
+                val vy2 = validInputCoordinateOrNull(y2) ?: return null
+                val vms = validInputDurationOrNull(durationMillis) ?: return null
+                return InputSwipe(vx1, vy1, vx2, vy2, vms)
+            }
+        }
+    }
+
     // ---------------------------------------------------- charge-control node access
 
     /**
@@ -885,6 +950,16 @@ sealed class ShellCommand(
          */
         fun setCpuAffinity(pid: Int, mask: Int): SetCpuAffinity? = SetCpuAffinity.of(pid, mask)
 
+        /** Null unless both coordinates are plausible device pixels. See [InputTap]. */
+        fun inputTap(x: Int, y: Int): InputTap? = InputTap.of(x, y)
+
+        /**
+         * Null unless the endpoints are plausible device pixels and the duration a plausible hold. See
+         * [InputSwipe].
+         */
+        fun inputSwipe(x1: Int, y1: Int, x2: Int, y2: Int, durationMillis: Int): InputSwipe? =
+            InputSwipe.of(x1, y1, x2, y2, durationMillis)
+
         /** Null unless [path] is a writable power-supply charge-control node. */
         fun probeChargeControlNode(path: String): ProbeChargeControlNode? =
             ProbeChargeControlNode.of(path)
@@ -979,6 +1054,29 @@ private fun validPidOrNull(pid: Int): Int? =
 
 /** 2^22, the largest value Linux will accept for `pid_max`. */
 private const val MAX_PID = 4_194_304
+
+/**
+ * A synthetic-input coordinate, or null if it is not one. A device pixel is non-negative, and a panel
+ * larger than [MAX_INPUT_COORDINATE] on a side does not exist — the same ceiling
+ * [ShellCommand.SetDisplaySize] refuses a size above — so a value outside that is a malformed point, not
+ * a place on any screen. Bounding it here is what lets [ShellCommand.InputTap] and [ShellCommand.InputSwipe]
+ * accept a coordinate at all: the point trigger only ever asks the device to tap somewhere a finger could.
+ */
+private fun validInputCoordinateOrNull(v: Int): Int? =
+    if (v in 0..MAX_INPUT_COORDINATE) v else null
+
+private const val MAX_INPUT_COORDINATE = 16_384
+
+/**
+ * A hold duration in milliseconds, or null if it is not a plausible one. Zero or negative is not a hold,
+ * and a press longer than [MAX_INPUT_DURATION_MILLIS] is past anything a button press should map to — the
+ * binding's own range is far tighter, and this is the outer bound the command will not exceed whatever a
+ * caller passes.
+ */
+private fun validInputDurationOrNull(ms: Int): Int? =
+    if (ms in 1..MAX_INPUT_DURATION_MILLIS) ms else null
+
+private const val MAX_INPUT_DURATION_MILLIS = 60_000
 
 /**
  * A charge-control node path, or null if [path] is not one.

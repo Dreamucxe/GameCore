@@ -79,6 +79,8 @@ import com.gamecore.ui.config.ConfigEditorViewModel
 import com.gamecore.ui.controller.ControllerScreen
 import com.gamecore.ui.crosshair.CrosshairScreen
 import com.gamecore.ui.developer.DeveloperScreen
+import com.gamecore.ui.dock.DockCustomizationScreen
+import com.gamecore.ui.extraction.ScreenExtractionScreen
 import com.gamecore.ui.games.GamesScreen
 import com.gamecore.ui.games.ProfileEditorScreen
 import com.gamecore.ui.home.HomeScreen
@@ -104,8 +106,11 @@ import com.gamecore.ui.shizuku.ShizukuScreen
 import com.gamecore.ui.storage.GameStorageScreen
 import com.gamecore.ui.theme.GameCoreTheme
 import com.gamecore.ui.tools.ToolsScreen
+import com.gamecore.ui.touch.SamplingMonitorScreen
 import com.gamecore.ui.touch.TouchScreen
 import com.gamecore.ui.trigger.QuickTriggerScreen
+import com.gamecore.ui.whatsnew.WhatsNewCard
+import com.gamecore.ui.whatsnew.WhatsNewScreen
 import com.gamecore.ui.wheels.WheelsScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -145,6 +150,10 @@ fun GameCoreRoot(
     // §A1. How the setup wizard should present this launch, or null until the facts have loaded. The root
     // acts on exactly one value — a fresh install — and the Home card owns the rest.
     val launchEntry by viewModel.launchEntry.collectAsStateWithLifecycle()
+    // §3.7 Updates. The releases to announce on this launch, or empty when there is nothing new. Empty during
+    // first-run setup and while the launch decision is still loading (see [RootViewModel.whatsNewLaunch]), so
+    // the card below never fights the wizard latch.
+    val whatsNewEntries by viewModel.whatsNewLaunch.collectAsStateWithLifecycle()
     // The bar Aim Lab's own switch decides the shape of: five tabs while the section is on, four while it
     // is off, so the bar never offers a tab whose route is not in the graph (§9).
     val tabs = Destination.topFor(settings.aimLabEnabled)
@@ -179,6 +188,14 @@ fun GameCoreRoot(
             navController.openUnguarded(Destination.SetupWizard)
         }
     }
+
+    // §3.7 Updates. The once-per-launch latch for the What's New card, the sibling of [routedToWizard] above:
+    // it hides the card the instant either button is tapped and survives a rotation while it is up. The
+    // persisted seen-version that [RootViewModel.markWhatsNewSeen] writes is what stops the card returning on
+    // a later launch; this latch is only for the current one. It cannot collide with first-run setup —
+    // [RootViewModel.whatsNewLaunch] is empty on a fresh install (the FullWizard case), so on the launch the
+    // wizard takes over there is nothing for the card to draw.
+    var whatsNewSeen by rememberSaveable { mutableStateOf(false) }
 
     // Turning Aim Lab on or off changes which routes exist at all, and a NavHost whose graph changes drops
     // its back stack and returns to the start destination. The switch that does it lives on the Settings
@@ -221,6 +238,27 @@ fun GameCoreRoot(
                     ) {
                         FloatingNavBar(currentRoute = route, tabs = tabs, onSelect = open)
                     }
+                }
+
+                // §3.7 Updates. The one-time What's New card, over everything, on the launch after an update
+                // that added features. Latched like the wizard host above: [markWhatsNewSeen] persists the
+                // seen version so it never returns on a later launch, and [whatsNewSeen] hides it immediately
+                // on either tap. It cannot collide with first-run setup — its source is empty on a fresh
+                // install, so nothing draws while the wizard takes over. "See all" opens the full screen
+                // through the same guarded [open] the taps use, then marks it seen.
+                if (!whatsNewSeen && whatsNewEntries.isNotEmpty()) {
+                    WhatsNewCard(
+                        entries = whatsNewEntries,
+                        onDismiss = {
+                            whatsNewSeen = true
+                            viewModel.markWhatsNewSeen()
+                        },
+                        onViewAll = {
+                            whatsNewSeen = true
+                            open(Destination.WhatsNew)
+                            viewModel.markWhatsNewSeen()
+                        },
+                    )
                 }
             }
         }
@@ -403,6 +441,21 @@ private fun GameCoreNav(
             NetworkStabilityScreen(onBack = back)
         }
 
+        // §3.7 Screen Extraction / Touch Sampling Monitor / What's New: three leaves reached from Settings,
+        // each needing only a way back — wired exactly like the Touch route. Their feature switches live in
+        // Settings and gate whether the entry points appear, not whether the route exists.
+        composable(Destination.ScreenExtraction.route) {
+            ScreenExtractionScreen(onBack = back)
+        }
+
+        composable(Destination.SamplingMonitor.route) {
+            SamplingMonitorScreen(onBack = back)
+        }
+
+        composable(Destination.WhatsNew.route) {
+            WhatsNewScreen(onBack = back)
+        }
+
         // Reached from the overlay panel's colour tile as well as from inside the app, which is why
         // `openUnguarded` exists — see [Destination.Colour].
         composable(Destination.Colour.route) {
@@ -479,6 +532,10 @@ private fun GameCoreNav(
 
         composable(Destination.MacroEditor.route) {
             MacroEditorScreen(onBack = back)
+        }
+
+        composable(Destination.DockCustomization.route) {
+            DockCustomizationScreen(onBack = back)
         }
 
         composable(Destination.BackupRestore.route) {

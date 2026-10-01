@@ -14,7 +14,9 @@ import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.RefreshRateMechanism
 import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.ResolutionScaleChoice
+import com.gamecore.core.model.VolumeTriggerButton
 import com.gamecore.ui.components.PendingLaunch
+import com.gamecore.ui.trigger.VolumeTriggerAvailability
 
 /**
  * The profile editor's state.
@@ -119,6 +121,18 @@ data class ProfileEditorUiState(
     /** Set once the save has landed, so the screen knows to navigate back. */
     val isFinished: Boolean = false,
     val message: String? = null,
+    /** Which volume button the trigger card is editing. A UI selection, not part of the saved profile. */
+    val selectedButton: VolumeTriggerButton = VolumeTriggerButton.VOLUME_UP,
+    /**
+     * Whether the volume-button trigger can fire right now: GameCore's accessibility service on and Shizuku
+     * usable. Neither reports a change back into the app, so this is re-read on resume (see
+     * [ProfileEditorViewModel.refreshVolumeTriggerAvailability]) rather than held in a flow. Both default
+     * false so the card starts on the honest "unavailable" side until the first read.
+     */
+    val volumeTriggerAvailability: VolumeTriggerAvailability = VolumeTriggerAvailability(
+        accessibilityEnabled = false,
+        shizukuGranted = false,
+    ),
 ) {
     val canSave: Boolean get() = profile != null && !isSaving
 

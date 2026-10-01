@@ -7,6 +7,9 @@ import com.gamecore.core.model.ChangeOrigin
 import com.gamecore.core.model.OptimizationAction
 import com.gamecore.core.model.OptimizationResult
 import com.gamecore.core.model.RestoreReport
+import com.gamecore.core.model.RowRestoreOutcome
+import com.gamecore.core.session.SettingsChangeRow
+import com.gamecore.core.session.SettingsChangeRows
 import com.gamecore.core.shizuku.WritableSetting
 import com.gamecore.core.system.AudioControls
 import com.gamecore.core.system.ControlOutcome
@@ -148,6 +151,20 @@ class OptimizationManager @Inject constructor(
     suspend fun pendingRestoreCount(): Int = restorePoints.pendingCount()
 
     /**
+     * The settings this session's active profile changed, as the mid-session card draws them
+     * (§3.7.1, feature 7).
+     *
+     * The list behind the count at [pendingRestoreCount], mapped on this side of the §25 boundary so
+     * nothing above the domain layer ever handles a [PendingRestore]. [SettingsChangeRows.from] reads the
+     * same `restorePoints.pending()` the restore sweep reads, orders it the way [restoreAll] replays it,
+     * and drops the rows no revert could actually discharge — the no-fake-data rule the card rests on.
+     * Every row it returns is therefore one [restore] can honour, which is the contract the card's
+     * per-row button depends on.
+     */
+    suspend fun sessionChangeRows(): List<SettingsChangeRow> =
+        SettingsChangeRows.from(restorePoints.pending())
+
+    /**
      * Puts every recorded setting back, oldest first.
      *
      * Called when a session ends, when the user asks, and on launch — because a process killed
@@ -198,6 +215,50 @@ class OptimizationManager @Inject constructor(
             failures = failures,
             keptByUser = keptByUser,
         )
+    }
+
+    /**
+     * Puts one recorded setting back, named by the (namespace, key) a
+     * [com.gamecore.core.session.SettingsChangeRow] carries (§3.7.1, feature 7).
+     *
+     * The single-row path in front of [restoreAll]'s session-end sweep, and it makes exactly the three
+     * decisions that loop makes — otherwise a setting reverted from the mid-session card would behave
+     * differently from the same setting reverted when the session ends:
+     *
+     *  - A key the user has taken over since GameCore wrote it is cleared without being written and
+     *    reported [RowRestoreOutcome.KeptByUser]. The row goes and the claim stays — the same asymmetry
+     *    [restoreAll] documents — so the next profile still leaves the key alone.
+     *  - A key that genuinely goes back is cleared and its claim released, so GameCore is no longer the
+     *    last writer of a key now holding the user's own value, and reported [RowRestoreOutcome.Restored].
+     *  - A key that fails to go back is left in the table and reported [RowRestoreOutcome.Failed] with
+     *    the sentence to show — the same retry-later state the session-end pass leaves it in.
+     *
+     * [RestorePointRepository.pending] is read afresh rather than trusting a row handed in from the UI.
+     * The card is a snapshot: the session-end restore may have cleared the row since it was composed, a
+     * second tap may be arriving on a row the first already cleared, and acting on a stale
+     * [PendingRestore] would write back a value the table no longer owes. A (namespace, key) that is no
+     * longer pending is [RowRestoreOutcome.NotPending], not an error — the card simply drops the row.
+     */
+    suspend fun restore(namespace: String, key: String): RowRestoreOutcome {
+        val row = restorePoints.pending().firstOrNull { it.namespace == namespace && it.key == key }
+            ?: return RowRestoreOutcome.NotPending
+        val deviceKey = DeviceKey(row.namespace, row.key)
+        if (claimedByUser(row, deviceKey)) {
+            // The row goes and the claim stays, exactly as the keptByUser branch of restoreAll does.
+            restorePoints.clear(row.namespace, row.key)
+            return RowRestoreOutcome.KeptByUser
+        }
+        val failure = restoreOne(row)
+        return if (failure == null) {
+            restorePoints.clear(row.namespace, row.key)
+            // Back at the user's own value, so GameCore is no longer the last to have written this key;
+            // holding the claim would have every later apply refuse a setting the user never touched.
+            writeLog.release(deviceKey)
+            RowRestoreOutcome.Restored
+        } else {
+            // Kept on purpose: the device still holds GameCore's value and the row is the retry.
+            RowRestoreOutcome.Failed(failure)
+        }
     }
 
     /**

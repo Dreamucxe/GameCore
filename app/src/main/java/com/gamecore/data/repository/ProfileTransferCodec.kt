@@ -8,6 +8,7 @@ import com.gamecore.core.model.CpuAffinityPreset
 import com.gamecore.core.model.CrosshairDesign
 import com.gamecore.core.model.CrosshairPreset
 import com.gamecore.core.model.DisplaySize
+import com.gamecore.core.model.FractionPoint
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.GammaMode
 import com.gamecore.core.model.HudLayout
@@ -17,6 +18,9 @@ import com.gamecore.core.model.PerformanceMode
 import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.ScreenOrientationLock
 import com.gamecore.core.model.ThermalClass
+import com.gamecore.core.model.VolumeTriggerBinding
+import com.gamecore.core.model.VolumeTriggerConfig
+import com.gamecore.core.model.VolumeTriggerPressMode
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -148,6 +152,27 @@ object ProfileTransferCodec {
         put("instantReplayEnabled", p.instantReplayEnabled)
         put("instantReplayBufferSeconds", p.instantReplayBufferSeconds)
         put("instantReplayIncludeAudio", p.instantReplayIncludeAudio)
+        // Volume-button point trigger (§3.7). Written only when the profile carries one, so an export from a
+        // profile that never set it has no key and re-imports as null — the same absence rule the id fields
+        // and the §3.5 enum fields follow.
+        p.volumeTrigger?.let { put("volumeTrigger", volumeTriggerToJson(it)) }
+    }
+
+    private fun volumeTriggerToJson(config: VolumeTriggerConfig): JSONObject = JSONObject().apply {
+        put("enabled", config.enabled)
+        config.up?.let { put("up", bindingToJson(it)) }
+        config.down?.let { put("down", bindingToJson(it)) }
+    }
+
+    private fun bindingToJson(binding: VolumeTriggerBinding): JSONObject = JSONObject().apply {
+        // The point is written as two fractions only when it has been placed; an unplaced binding carries its
+        // mode and hold with no point, exactly as it is stored.
+        binding.point?.let {
+            put("x", it.x.toDouble())
+            put("y", it.y.toDouble())
+        }
+        put("pressMode", binding.pressMode.name)
+        put("holdMs", binding.holdMs)
     }
 
     private fun presetsToJson(bundle: PresetBundle): JSONObject = JSONObject().apply {
@@ -302,6 +327,37 @@ object ProfileTransferCodec {
             instantReplayBufferSeconds = intOrNull(o, "instantReplayBufferSeconds")
                 ?.takeIf { it in GameProfile.INSTANT_REPLAY_BUFFER_CHOICES } ?: 30,
             instantReplayIncludeAudio = o.optBoolean("instantReplayIncludeAudio", false),
+            volumeTrigger = decodeVolumeTrigger(o.optJSONObject("volumeTrigger")),
+        )
+    }
+
+    /**
+     * The volume-button point trigger (§3.7), or null when the file carries none — an older file has no such
+     * key and imports with the feature off, exactly as §5's older-file rule requires. Read defensively like
+     * every field above: a binding is read only where its object is present, its point only where both
+     * fractions are, the press mode through [VolumeTriggerPressMode.of] so a name a newer build wrote degrades
+     * to the safe default, and the fractions and hold are clamped by [VolumeTriggerConfig.normalised]. A
+     * config that comes back equal to the default is dropped to null so it round-trips as the absence it was.
+     */
+    private fun decodeVolumeTrigger(o: JSONObject?): VolumeTriggerConfig? {
+        if (o == null) return null
+        val config = VolumeTriggerConfig(
+            enabled = o.optBoolean("enabled", false),
+            up = decodeBinding(o.optJSONObject("up")),
+            down = decodeBinding(o.optJSONObject("down")),
+        ).normalised()
+        return config.takeUnless { it == VolumeTriggerConfig.DEFAULT }
+    }
+
+    private fun decodeBinding(o: JSONObject?): VolumeTriggerBinding? {
+        if (o == null) return null
+        val x = floatOrNull(o, "x")
+        val y = floatOrNull(o, "y")
+        val point = if (x != null && y != null) FractionPoint(x, y) else null
+        return VolumeTriggerBinding(
+            point = point,
+            pressMode = VolumeTriggerPressMode.of(o.optStringOrNull("pressMode")),
+            holdMs = intOrNull(o, "holdMs") ?: VolumeTriggerBinding.DEFAULT_HOLD_MS,
         )
     }
 

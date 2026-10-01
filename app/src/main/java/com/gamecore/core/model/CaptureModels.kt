@@ -20,6 +20,17 @@ sealed interface CaptureOutcome {
     /** Recording started and is running. */
     data class Recording(val startedAtMillis: Long) : CaptureOutcome
 
+    /**
+     * One frame was grabbed into memory for Screen Extraction (§Screen-Extraction) — nothing is on disk.
+     *
+     * Distinct from [Saved] precisely because there is no file: the frame lands in
+     * [com.gamecore.core.system.ScreenCaptureController.lastExtractedFrame] for the in-app cropper, and only
+     * the region the user then chooses is written. The capture service reads this to know a success needs no
+     * toast — the frame appearing in the cropper is the feedback — while still reporting [NeedsConsent] or
+     * [Failed] the way the screenshot path does.
+     */
+    data object Extracted : CaptureOutcome
+
     /** The user has not granted a projection session, or the last one was revoked. */
     data object NeedsConsent : CaptureOutcome
 
@@ -29,12 +40,13 @@ sealed interface CaptureOutcome {
     /** A genuine failure — no frame arrived, the encoder threw, the disk was full. */
     data class Failed(val detail: String) : CaptureOutcome
 
-    val isSuccess: Boolean get() = this is Saved || this is Recording
+    val isSuccess: Boolean get() = this is Saved || this is Recording || this is Extracted
 
     val message: String
         get() = when (this) {
             is Saved -> "Saved ${capture.fileName}"
             is Recording -> "Recording"
+            Extracted -> "Frame extracted"
             NeedsConsent -> "Screen capture needs your permission each time GameCore starts."
             is Unsupported -> detail
             is Failed -> detail

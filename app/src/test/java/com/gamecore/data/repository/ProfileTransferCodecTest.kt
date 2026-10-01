@@ -6,6 +6,7 @@ import com.gamecore.core.model.CpuAffinityPreset
 import com.gamecore.core.model.CrosshairDesign
 import com.gamecore.core.model.CrosshairPreset
 import com.gamecore.core.model.DisplaySize
+import com.gamecore.core.model.FractionPoint
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
@@ -13,6 +14,9 @@ import com.gamecore.core.model.HudWidget
 import com.gamecore.core.model.PerformanceMode
 import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.ScreenOrientationLock
+import com.gamecore.core.model.VolumeTriggerBinding
+import com.gamecore.core.model.VolumeTriggerConfig
+import com.gamecore.core.model.VolumeTriggerPressMode
 import com.gamecore.data.repository.ProfileTransferCodec.PresetBundle
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -311,5 +315,74 @@ class ProfileTransferCodecTest {
                 bodyWithProfile("""{"packageName":"com.example.g","label":"G","resolutionOverride":60}"""),
             ).profiles.single().resolutionOverride,
         )
+    }
+
+    // --- The volume-button point trigger (§G, schema v16) -----------------------------------------
+
+    @Test
+    fun `a volume trigger survives the round trip`() {
+        val profile = GameProfile(
+            packageName = "com.example.g",
+            label = "G",
+            volumeTrigger = VolumeTriggerConfig(
+                enabled = true,
+                up = VolumeTriggerBinding(FractionPoint(0.5f, 0.85f), VolumeTriggerPressMode.HOLD, holdMs = 400),
+                down = VolumeTriggerBinding(FractionPoint(0.1f, 0.2f), VolumeTriggerPressMode.DOUBLE_TAP, holdMs = 250),
+            ),
+        )
+        val decoded = ProfileTransferCodec.decodeEnvelope(
+            ProfileTransferCodec.encodeEnvelope(listOf(profile), PresetBundle()),
+        )
+        // Both bindings, their fractions, modes and holds come back byte-for-byte, and so does the profile.
+        assertEquals(profile.volumeTrigger, decoded.profiles.single().volumeTrigger)
+        assertEquals(profile, decoded.profiles.single())
+    }
+
+    @Test
+    fun `a file written before the volume trigger existed imports with it off`() {
+        // §5's older-file rule again: the key is simply absent, and absent must read as null — no trigger,
+        // never an empty-but-present config that would put an unwanted tap point on the screen.
+        val decoded = ProfileTransferCodec.decodeBody(
+            bodyWithProfile("""{"packageName":"com.example.g","label":"G"}"""),
+        )
+        assertNull(decoded.profiles.single().volumeTrigger)
+    }
+
+    @Test
+    fun `a volume trigger left unset is not written into the file at all`() {
+        val encoded = ProfileTransferCodec.encodeEnvelope(
+            listOf(GameProfile(packageName = "com.example.g", label = "G")),
+            PresetBundle(),
+        )
+        assertFalse(encoded, encoded.contains("volumeTrigger"))
+    }
+
+    @Test
+    fun `a hand-edited volume trigger is clamped and an unknown press mode degrades to single tap`() {
+        // The stored point and hold are trusted no more than any other imported value: a marker off the
+        // edge is pulled back into 0..1, an absurd hold clamped to the ceiling, and a press mode a newer
+        // build wrote degrades to SINGLE_TAP rather than throwing. A binding carrying a mode but no point
+        // stays present-without-a-point, so the importer can still surface it for the user to place.
+        val decoded = ProfileTransferCodec.decodeBody(
+            bodyWithProfile(
+                """{
+                    "packageName":"com.example.g","label":"G",
+                    "volumeTrigger":{
+                        "enabled":true,
+                        "up":{"x":1.4,"y":-0.3,"pressMode":"WARP_DRIVE","holdMs":999999},
+                        "down":{"pressMode":"HOLD","holdMs":300}
+                    }
+                }""",
+            ),
+        )
+        val trigger = decoded.profiles.single().volumeTrigger
+        assertNotNull(trigger)
+        assertTrue(trigger!!.enabled)
+        assertEquals(FractionPoint(1f, 0f), trigger.up?.point)
+        assertEquals(VolumeTriggerPressMode.SINGLE_TAP, trigger.up?.pressMode)
+        assertEquals(VolumeTriggerBinding.MAX_HOLD_MS, trigger.up?.holdMs)
+        assertNull(trigger.down?.point)
+        assertEquals(VolumeTriggerPressMode.HOLD, trigger.down?.pressMode)
+        assertEquals(300, trigger.down?.holdMs)
     }
 }

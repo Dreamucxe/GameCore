@@ -184,6 +184,19 @@ data class GameProfile(
     val instantReplayEnabled: Boolean = false,
     val instantReplayBufferSeconds: Int = 30,
     val instantReplayIncludeAudio: Boolean = false,
+
+    /**
+     * Volume-button point trigger (§3.7): a physical volume key wired to a synthetic tap on a point of the
+     * screen, per game and per key. Null for a new and every pre-feature profile — see [VolumeTriggerConfig].
+     *
+     * Deliberately NOT part of [changesNothing] below, for the same reason the §3.5 session-time toggles and
+     * Instant Replay are excluded: applying a profile that carries only this writes no device setting and
+     * records nothing to restore. It is behaviour that runs during the session — the accessibility detector
+     * reads the key and the dispatcher sends the tap — so a profile whose only setting is this one still
+     * "changes nothing" in the sense that property means. The global master that gates the whole feature is a
+     * single `AppSettings` preference; this per-profile config sits underneath it.
+     */
+    val volumeTrigger: VolumeTriggerConfig? = null,
 ) {
     /** True when applying this would write nothing, so the UI can say so plainly. */
     val changesNothing: Boolean

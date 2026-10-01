@@ -91,6 +91,10 @@ class OverlayController @Inject constructor(
             // the crosshair — so it is restored plainly whenever the user left it on.
             hunt = settings.huntEnabled && !settings.huntFilter.needsCapture,
             wheel = settings.wheelGuideEnabled,
+            // The dock is a sticker-on-glass control like the wheels guide: no feed, no consent, just a
+            // parked handle. So it is restored plainly whenever the user left it on, read from its own
+            // persisted config rather than from an AppSettings flag.
+            dock = preferences.dock.value.show,
         )
         if (!requested.value.fromProfile) publish(manual)
     }
@@ -156,6 +160,17 @@ class OverlayController @Inject constructor(
      * is not this overlay's concern — this is the feel-only ring, nothing more.
      */
     fun setWheel(visible: Boolean) = update { it.withWheel(visible) }
+
+    /**
+     * Shows or hides the floating dock (§Dock).
+     *
+     * The floating button's sibling: a global control the user places once, not a per-game one, so it is
+     * only ever set by hand and never by a profile. No id and no capture — the dock's size, opacity and
+     * snapped position are [com.gamecore.core.model.DockConfig] prefs the service reads at draw time — so
+     * this takes only the flag, and through [publish]'s `anythingVisible` check it is enough on its own to
+     * keep the service up. The panel it expands into is opened by the service, not from here.
+     */
+    fun setDock(visible: Boolean) = update { it.withDock(visible) }
 
     /** Hides everything, manual and profile alike. The panel's own "stop overlay" and Settings' switch. */
     fun hideAll() {

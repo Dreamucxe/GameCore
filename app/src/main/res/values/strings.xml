@@ -145,6 +145,33 @@
     <string name="overlay_refresh_single_rate">This panel runs at one rate only</string>
 
     <!--
+      The four reasons a dock quick action can be dimmed that the full control panel never has to give
+      (§3.7.1, feature 5).
+
+      The dock draws its controls without running the panel's probe — that probe is suspend and
+      shell-expensive, and the dock is a handful of controls opened over a running match — so these cover
+      the gaps that leaves.
+
+      The first is the honest state before the service's one-shot display probe lands, and it is
+      deliberately *not* overlay_refresh_single_rate: claiming a one-rate panel before having looked would
+      send the user off to find a setting that would change nothing.
+
+      The next two are the composite gate behind placing a trigger point — a game being tracked, and a
+      profile with a volume trigger on it — split in two because they send the user to different places. "No
+      game is being tracked" is a state that will pass on its own as soon as a configured game is in front;
+      "set up a volume trigger" is work the user has to go and do in the profile editor. One sentence covering
+      both would be wrong half the time it was shown, and the service knows which half it is in.
+
+      The last is a preference the user owns rather than a limit of the device, and it is worded exactly as
+      Observed.unavailabilityText() words SAMPLING_DISABLED, so that the same fact reads the same wherever it
+      is reported.
+    -->
+    <string name="overlay_refresh_rates_unknown">Checking refresh rates…</string>
+    <string name="overlay_trigger_no_game">No game is being tracked</string>
+    <string name="overlay_trigger_not_ready">Set up a volume trigger for this game first</string>
+    <string name="overlay_feature_switched_off">Switched off in GameCore\'s settings</string>
+
+    <!--
       Screen capture. The consent dialog is the system's, so these only cover what happens on either side
       of it: a permission the platform then refused to turn into a projection, and a device where the
       capture APIs are missing altogether.

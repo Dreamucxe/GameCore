@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Terminal
@@ -77,6 +78,7 @@ import com.gamecore.core.model.WatchState
 import com.gamecore.core.model.chipsSentence
 import com.gamecore.core.model.profileClaimNote
 import com.gamecore.core.model.shownChips
+import com.gamecore.core.session.SettingsChangeRow
 import com.gamecore.domain.gaming.GamingState
 import com.gamecore.ui.Destination
 import com.gamecore.ui.components.ABSENT
@@ -235,6 +237,21 @@ fun HomeScreen(
                 SessionCard(
                     gaming = state.gaming,
                     onStop = viewModel::stopSession,
+                    modifier = padded,
+                )
+            }
+        }
+
+        // §3.7.1 feature 7. The settings the running profile changed, each with a revert, and only while
+        // a game is tracked and at least one change can actually be put back. A sibling of the session
+        // card above rather than part of it: the two are a different question — "what is running" versus
+        // "what did it change" — and the list below is empty for a profile that changed nothing.
+        if (state.gaming.isTracking && state.sessionChanges.isNotEmpty()) {
+            item {
+                SessionSettingsChangeCard(
+                    rows = state.sessionChanges,
+                    onRevert = viewModel::revert,
+                    onRevertAll = viewModel::revertAll,
                     modifier = padded,
                 )
             }
@@ -943,6 +960,8 @@ private fun ToolsCard(
             add(Tool("Controller lab", Icons.Filled.SportsEsports, Destination.Controller))
             add(Tool("Touch heatmap", Icons.Filled.TouchApp, Destination.Touch))
             add(Tool("Gyro & aim", Icons.Filled.Sensors, Destination.Motion))
+            add(Tool("Screen Extraction", Icons.Filled.Layers, Destination.ScreenExtraction))
+            add(Tool("Touch sampling", Icons.Filled.DataUsage, Destination.SamplingMonitor))
             add(Tool("More tools", Icons.Filled.Build, Destination.Tools))
         }
         tools.chunked(2).forEach { row ->
@@ -1161,6 +1180,64 @@ private fun SessionCard(
         ActionRow {
             Spacer(modifier = Modifier.weight(1f))
             TextButton(onClick = onStop) { Text("Stop tracking") }
+        }
+    }
+}
+
+/**
+ * The settings this session's profile changed, each with a per-row revert (§3.7.1, feature 7).
+ *
+ * The manual, one-at-a-time path in front of the automatic session-end restore: a user who sees a
+ * profile dim the screen too far or silence a notification they wanted can put that one setting back
+ * without ending the game. Every row is one
+ * [com.gamecore.domain.optimization.OptimizationManager.restore] can genuinely put back —
+ * [com.gamecore.core.session.SettingsChangeRows] has already dropped the rows no revert could discharge,
+ * which is the no-fake-data rule this card rests on — so there is no button here that does nothing.
+ *
+ * The order is the recording order the ledger hands back, which is also the order the end-of-session
+ * sweep replays. Not re-sorted here: the card reads as a log of what the profile did, and the pairs stay
+ * legible in the sequence they were written (brightness level then mode, min then peak refresh rate).
+ *
+ * [SettingsChangeRow.previousValue] draws itself through its own [text] — a rendered unit where this
+ * build can state one, the raw string where it cannot, and an honest "Not stated" where it cannot say
+ * anything true — so this composable prints a string and never second-guesses what a stored value means.
+ */
+@Composable
+private fun SessionSettingsChangeCard(
+    rows: List<SettingsChangeRow>,
+    onRevert: (String, String) -> Unit,
+    onRevertAll: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Changed this session",
+        subtitle = "Settings the active profile changed. Put any of them back now.",
+        icon = Icons.Filled.SettingsBackupRestore,
+        modifier = modifier,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            rows.forEach { row ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = row.label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = row.previousValue.text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = { onRevert(row.namespace, row.key) }) { Text("Revert") }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        ActionRow {
+            Spacer(modifier = Modifier.weight(1f))
+            TextButton(onClick = onRevertAll) { Text("Revert all") }
         }
     }
 }

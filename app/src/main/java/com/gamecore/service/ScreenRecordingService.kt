@@ -135,6 +135,15 @@ class ScreenRecordingService : GameCoreService() {
                 }
             CapturePurpose.STOP_REPLAY_BUFFER -> capture.stopReplayBuffer(discard = replay.discard)
             CapturePurpose.SAVE_REPLAY_CLIP -> reportSave(capture.saveReplayClip(replay.displayName))
+            // One frame into memory for Screen Extraction, then straight down: nothing here keeps the
+            // projection alive, so a capture taken only for an extraction lets the service settle and stop
+            // (unless a recording, feed or buffer is also up). The frame surfaces in the extractor UI through
+            // ScreenCaptureController.lastExtractedFrame, so a success needs no toast — only a refused token
+            // or a genuine failure does, which is the one thing the user would otherwise never hear.
+            CapturePurpose.EXTRACT_FRAME -> {
+                val outcome = capture.captureFrameToMemory()
+                if (outcome !is CaptureOutcome.Extracted) report(outcome)
+            }
         }
         settle()
     }

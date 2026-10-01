@@ -4,6 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.BuildConfig
 import com.gamecore.core.model.AppSettings
+import com.gamecore.core.whatsnew.ReleaseNote
+import com.gamecore.core.whatsnew.WhatsNewRegistry
+import com.gamecore.core.whatsnew.entriesSince
+import com.gamecore.core.whatsnew.shouldShowCard
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.data.repository.SessionRepository
@@ -32,7 +36,7 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class RootViewModel @Inject constructor(
-    preferences: SecurePreferenceStore,
+    private val preferences: SecurePreferenceStore,
     profiles: GameProfileRepository,
     sessions: SessionRepository,
 ) : ViewModel() {
@@ -66,4 +70,38 @@ class RootViewModel @Inject constructor(
             ),
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
+     * The releases to announce on this launch, newest first, or empty when there is nothing to show — the
+     * one-time What's New card (spec §3.7 Updates) reads this and nothing else.
+     *
+     * First-install is not re-derived here: it is exactly [launchEntry]'s fresh-install verdict, so
+     * [shouldShowCard] is told `isFirstInstall = true` only when the wizard decision is
+     * [WizardEntry.FullWizard]. A fresh install has nothing to catch up on, so the card is suppressed — which
+     * is also what stops it firing over first-run setup. While the decision is still loading ([launchEntry]
+     * is null) this stays empty for the same reason the wizard waits: not-yet-decided is not first-install,
+     * and the card must not flash over an upgrader's Home before their profiles have been read.
+     */
+    val whatsNewLaunch: StateFlow<List<ReleaseNote>> = combine(
+        preferences.settings,
+        launchEntry,
+    ) { settings, entry ->
+        val lastSeen = settings.lastSeenWhatsNewVersionCode
+        val isFirstInstall = entry == WizardEntry.FullWizard
+        if (entry != null && shouldShowCard(lastSeen, BuildConfig.VERSION_CODE, isFirstInstall)) {
+            entriesSince(WhatsNewRegistry.releases, lastSeen)
+        } else {
+            emptyList()
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Records that the user has seen this version's What's New card, so it never returns (spec §3.7). Writes
+     * `lastSeenWhatsNewVersionCode = BuildConfig.VERSION_CODE`; that flips [whatsNewLaunch] to empty on the
+     * spot, because the store updates its `settings` flow synchronously, and keeps it empty on every later
+     * launch of this version.
+     */
+    fun markWhatsNewSeen() {
+        preferences.updateSettings { it.copy(lastSeenWhatsNewVersionCode = BuildConfig.VERSION_CODE) }
+    }
 }

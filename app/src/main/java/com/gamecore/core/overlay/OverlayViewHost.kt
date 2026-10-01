@@ -79,11 +79,16 @@ class OverlayViewHost : LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryO
     /**
      * Builds a `ComposeView` owned by this host, ready to hand to the `WindowManager`.
      *
-     * No inset padding is applied to overlay content anywhere, and that is a rule rather than an
-     * omission: an overlay window is positioned in raw screen coordinates by [OverlayFrame], so a
+     * No inset padding is applied to a *positioned* overlay's content, and that is a rule rather than an
+     * omission: such a window is placed in raw screen coordinates by [OverlayFrame], so a
      * `windowInsetsPadding` inside it would shift the content within its own window and put a pill the
      * user placed at the top edge visibly below where they put it. The window, not the content, is what
      * gets moved out of the status bar's way.
+     *
+     * The one exception is a window obliged to cover the whole display and so unable to move itself clear:
+     * [TriggerPointPlacement] insets its single interactive plate with `windowInsetsPadding` so its only
+     * way out cannot land under a system bar. That is the same rule in content form — the bars are still
+     * honoured, by the one means a full-screen window has.
      *
      * The default `ViewCompositionStrategy` is the right one here — it disposes the composition when the
      * view is detached, which is exactly what `WindowManager.removeView` does — so it is left alone.

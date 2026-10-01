@@ -8,6 +8,9 @@ import com.gamecore.core.model.ColorPreset
 import com.gamecore.core.model.ColorVisionFilter
 import com.gamecore.core.model.CrosshairDesign
 import com.gamecore.core.model.CrosshairPreset
+import com.gamecore.core.model.DockActionId
+import com.gamecore.core.model.DockActions
+import com.gamecore.core.model.DockConfig
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.GammaMode
 import com.gamecore.core.model.HudDisplayMode
@@ -75,6 +78,12 @@ class BackupCodecTest {
             advancedHudEnabled = false,
             networkStabilityEnabled = false,
             customModulesEnabled = false,
+            screenExtractionEnabled = false,
+            touchSamplingEnabled = false,
+            volumePointTriggerEnabled = false,
+            dockCustomizationEnabled = false,
+            quickActionsEnabled = false,
+            lastSeenWhatsNewVersionCode = 25,
         )
         val overlay = OverlayConfig(
             showPill = true,
@@ -106,6 +115,23 @@ class BackupCodecTest {
             quickAppPackages = listOf("com.example.app"),
             portraitXFraction = 0.25f,
             portraitYFraction = 0.5f,
+        )
+        // A deliberately rearranged dock: a non-default order, two controls switched off, and a landscape
+        // placement — so the assertion below would fail if any one of the three were dropped in transit.
+        val dockRearranged = listOf(DockActionId.SCREENSHOT, DockActionId.CROSSHAIR, DockActionId.MAGNIFIER)
+        val dock = DockConfig(
+            show = true,
+            actionOrder = dockRearranged + DockActionId.entries.filterNot { it in dockRearranged },
+            hiddenActions = setOf(DockActionId.WHEELS, DockActionId.HUNT),
+            sizeDp = 52,
+            opacity = 0.75f,
+            snapToEdge = false,
+            hapticFeedback = false,
+            panelWidthDp = 260,
+            x = 12,
+            y = 340,
+            landscapeXFraction = 0.8f,
+            landscapeYFraction = 0.35f,
         )
         val colour = ColorCorrection(
             redGain = 20,
@@ -143,7 +169,7 @@ class BackupCodecTest {
 
         val decoded = restored(
             BackupCodec.encode(
-                settings, overlay, button, colour, listOf(layout),
+                settings, overlay, button, dock, colour, listOf(layout),
                 emptyList(), emptyList(), macros, profiles,
             ),
         )
@@ -151,6 +177,7 @@ class BackupCodecTest {
         assertEquals(settings.normalised(), decoded.settings)
         assertEquals(overlay.normalised(), decoded.overlay)
         assertEquals(button.normalised(), decoded.button)
+        assertEquals(dock.normalised(), decoded.dock)
         assertEquals(colour.normalised(), decoded.colour)
         assertEquals(listOf(layout), decoded.layouts)
         assertEquals(1, decoded.macros!!.length())
@@ -175,7 +202,7 @@ class BackupCodecTest {
 
         val decoded = restored(
             BackupCodec.encode(
-                AppSettings(), OverlayConfig(), FloatingButtonConfig(), ColorCorrection(),
+                AppSettings(), OverlayConfig(), FloatingButtonConfig(), DockConfig(), ColorCorrection(),
                 top, emptyList(), emptyList(), JSONArray(), JSONObject(),
             ),
         )
@@ -225,7 +252,7 @@ class BackupCodecTest {
 
         val decoded = restored(
             BackupCodec.encode(
-                AppSettings(), OverlayConfig(), FloatingButtonConfig(), ColorCorrection(),
+                AppSettings(), OverlayConfig(), FloatingButtonConfig(), DockConfig(), ColorCorrection(),
                 emptyList(), listOf(crosshair), listOf(colour), JSONArray(), JSONObject(),
             ),
         )
@@ -320,6 +347,7 @@ class BackupCodecTest {
         assertNull(decoded.settings)
         assertNull(decoded.overlay)
         assertNull(decoded.button)
+        assertNull(decoded.dock)
         assertNull(decoded.colour)
         assertNull(decoded.layouts)
         assertNull(decoded.profiles)
@@ -333,6 +361,7 @@ class BackupCodecTest {
         assertEquals(ThemeChoice.LIGHT, decoded.settings!!.theme)
         assertNull(decoded.overlay)
         assertNull(decoded.button)
+        assertNull(decoded.dock)
         assertNull(decoded.colour)
     }
 
@@ -361,6 +390,56 @@ class BackupCodecTest {
         assertEquals(AppSettings.MAX_UI_SCALE, high.settings!!.uiScalePercent)
         val low = restored(envelope(""","settings":{"app":{"uiScalePercent":5}}"""))
         assertEquals(AppSettings.MIN_UI_SCALE, low.settings!!.uiScalePercent)
+    }
+
+    @Test
+    fun `a dock section with no arrangement keys falls back to the shipped default panel`() {
+        // What a hand-trimmed file looks like, and the shape every pre-3.7.1 backup has for the dock:
+        // placement without an arrangement. The user must end up with the five controls the dock shipped
+        // with, not an empty panel.
+        val decoded = restored(envelope(""","settings":{"dock":{"show":true,"sizeDp":50}}"""))
+        val dock = decoded.dock!!
+        assertEquals(DockActionId.DEFAULT_ORDER, dock.actionOrder)
+        assertEquals(DockActionId.DEFAULT_HIDDEN, dock.hiddenActions)
+        assertEquals(DockActionId.DEFAULT_VISIBLE, dock.visibleActions())
+        assertEquals(50, dock.sizeDp)
+    }
+
+    @Test
+    fun `an unknown dock action name is dropped and the order still comes out complete`() {
+        val decoded = restored(
+            envelope(
+                ""","settings":{"dock":{"actionOrder":["SCREENSHOT","TELEPORT","CROSSHAIR"],""" +
+                    """"hiddenActions":["WHEELS","TELEPORT"]}}""",
+            ),
+        )
+        val dock = decoded.dock!!
+        // The two it knows keep the position the file gave them; the junk one is gone; everything the file
+        // never mentioned is appended, so the stored order is a complete permutation either way.
+        assertEquals(listOf(DockActionId.SCREENSHOT, DockActionId.CROSSHAIR), dock.actionOrder.take(2))
+        assertEquals(DockActionId.entries.size, dock.actionOrder.size)
+        assertEquals(DockActionId.entries.toSet(), dock.actionOrder.toSet())
+        assertEquals(setOf(DockActionId.WHEELS), dock.hiddenActions)
+    }
+
+    @Test
+    fun `an empty hidden list is honoured as every action shown, unlike an absent one`() {
+        // The absent-versus-empty distinction: absent means "this file predates dock customisation" and
+        // falls back to the defaults, while an empty array is a real choice the user made.
+        val decoded = restored(envelope(""","settings":{"dock":{"hiddenActions":[]}}"""))
+        val dock = decoded.dock!!
+        assertTrue(dock.hiddenActions.isEmpty())
+        assertEquals(DockActions.MAX_VISIBLE, dock.visibleActions().size)
+    }
+
+    @Test
+    fun `a dock size and opacity outside the model's range are clamped`() {
+        val high = restored(envelope(""","settings":{"dock":{"sizeDp":9000,"opacity":4.0}}"""))
+        assertEquals(DockConfig.MAX_SIZE_DP, high.dock!!.sizeDp)
+        assertEquals(DockConfig.MAX_OPACITY, high.dock!!.opacity, DELTA)
+        val low = restored(envelope(""","settings":{"dock":{"sizeDp":1,"opacity":-1.0}}"""))
+        assertEquals(DockConfig.MIN_SIZE_DP, low.dock!!.sizeDp)
+        assertEquals(DockConfig.MIN_OPACITY, low.dock!!.opacity, DELTA)
     }
 
     @Test
@@ -415,6 +494,11 @@ class BackupCodecTest {
             .joinToString(",") { """{"id":"w$it","stat":"CPU_USAGE"}""" }
         val decoded = restored(envelope(""","layouts":[{"name":"L","widgets":[$widgets]}]"""))
         assertEquals(HudLayout.MAX_WIDGETS, decoded.layouts!!.single().widgets.size)
+    }
+
+    private companion object {
+        /** The dock's opacity comes off a coerceIn, so compare with a delta rather than bit-exactly. */
+        const val DELTA = 1e-6f
     }
 }
 

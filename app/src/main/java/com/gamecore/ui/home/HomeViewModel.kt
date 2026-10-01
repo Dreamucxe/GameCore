@@ -15,6 +15,7 @@ import com.gamecore.core.model.HeroCandidate
 import com.gamecore.core.model.HeroSelection
 import com.gamecore.core.model.PerformanceSnapshot
 import com.gamecore.core.model.PlayRecord
+import com.gamecore.core.model.RowRestoreOutcome
 import com.gamecore.core.model.StopReason
 import com.gamecore.core.model.ThermalClassifier
 import com.gamecore.core.model.ThermalSensorType
@@ -23,6 +24,7 @@ import com.gamecore.core.model.profileChips
 import com.gamecore.core.model.selectHero
 import com.gamecore.core.model.temperatureCaption
 import com.gamecore.core.overlay.ApplyDiff
+import com.gamecore.core.session.SettingsChangeRow
 import com.gamecore.core.shizuku.ShizukuManager
 import com.gamecore.core.system.AppLauncher
 import com.gamecore.core.system.InstalledAppLister
@@ -220,6 +222,7 @@ class HomeViewModel @Inject constructor(
             pendingLaunch = own.pendingLaunch,
             suggestion = own.suggestion,
             message = own.message,
+            sessionChanges = own.sessionChanges,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -277,6 +280,25 @@ class HomeViewModel @Inject constructor(
             // The §4 suggestion, kept in local state for the same reason the two settings above are: the
             // main combine is full. Recomputed by the flow, not here.
             suggestion.collect { suggested -> local.update { it.copy(suggestion = suggested) } }
+        }
+        viewModelScope.launch {
+            // The §3.7.1 feature-7 card, kept current while a session runs. Keyed on both whether a game
+            // is tracked and the applied profile, not tracking alone: the restore ledger fills a beat
+            // after tracking starts — `playing` goes non-null first and the rows land only once the
+            // profile has finished applying — so a single refresh on the tracking edge would read an
+            // empty ledger and never look again, and the card would stay blank for the whole session.
+            // Separate from the `outstandingRestores` collector above, which fires on the opposite edge
+            // (a session *ending*) and must not be disturbed.
+            coordinator.gaming
+                .map { it.isTracking to it.application }
+                .distinctUntilChanged()
+                .collect { (isTracking, _) ->
+                    if (isTracking) {
+                        refreshSessionChanges()
+                    } else {
+                        local.update { it.copy(sessionChanges = emptyList()) }
+                    }
+                }
         }
         refreshDetection()
     }
@@ -577,6 +599,63 @@ class HomeViewModel @Inject constructor(
      */
     fun dismissReclaim() = coordinator.dismissReclaim()
 
+    // ---------------------------------------------------------------------- mid-session changes (feature 7)
+
+    /**
+     * Puts one setting the active profile changed back, without ending the session (§3.7.1, feature 7).
+     *
+     * Named by the (namespace, key) the card's [SettingsChangeRow] carries rather than a whole row:
+     * [OptimizationManager.restore] re-reads the ledger afresh, so a tap arriving half a minute after the
+     * card was composed cannot write back a value the table no longer owes — the card is a snapshot and
+     * the restore path is the authority. The rows are refreshed straight after so a reverted setting
+     * leaves the card at once, and the outcome becomes the one-line message the banner already shows for
+     * everything else — including the honest "you changed that one yourself" and "already undone" cases,
+     * which are not failures.
+     */
+    fun revert(namespace: String, key: String) {
+        viewModelScope.launch {
+            val outcome = optimizations.restore(namespace, key)
+            refreshSessionChanges()
+            local.update { it.copy(message = revertMessage(outcome)) }
+        }
+    }
+
+    /**
+     * Puts every setting the active profile changed back at once, mid-session.
+     *
+     * The same [OptimizationManager.restoreAll] the session-end sweep runs, so a mid-session "revert all"
+     * and the automatic restore cannot disagree about what a profile changed or how it goes back. Guarded
+     * by [LocalState.isRestoring] like [restoreOutstanding], so a second tap on a slow restore cannot
+     * start it twice. The card empties itself once the rows are re-read, which is the feedback; the
+     * capability cache is invalidated for the reason [restoreOutstanding] gives.
+     */
+    fun revertAll() {
+        if (local.value.isRestoring) return
+        local.update { it.copy(isRestoring = true, message = null) }
+        viewModelScope.launch {
+            optimizations.restoreAll()
+            refreshSessionChanges()
+            local.update { it.copy(isRestoring = false) }
+            // A restore can change what is available — a refresh rate released back to the panel's
+            // default, battery saver switched back on — so the cached capability answer is now a guess.
+            capabilityChecker.invalidate()
+        }
+    }
+
+    /** Re-reads the ledger into [LocalState.sessionChanges]. Cheap: one query against the restore table. */
+    private suspend fun refreshSessionChanges() {
+        val rows = optimizations.sessionChangeRows()
+        local.update { it.copy(sessionChanges = rows) }
+    }
+
+    /** The one-line result of a single revert, in the user's terms. Exhaustive, no `else` (house style). */
+    private fun revertMessage(outcome: RowRestoreOutcome): String = when (outcome) {
+        RowRestoreOutcome.Restored -> "Put that setting back."
+        RowRestoreOutcome.KeptByUser -> "Left as you set it — you changed that one yourself."
+        RowRestoreOutcome.NotPending -> "That change was already undone."
+        is RowRestoreOutcome.Failed -> outcome.detail
+    }
+
     // ------------------------------------------------------------------------------------- readouts
 
     /**
@@ -725,6 +804,7 @@ private data class LocalState(
     val pendingLaunch: PendingLaunch? = null,
     val suggestion: HomeSuggestion? = null,
     val message: String? = null,
+    val sessionChanges: List<SettingsChangeRow> = emptyList(),
 )
 
 /** The profile rows and the hero rule's answer, emitted together so the two are never out of step. */
