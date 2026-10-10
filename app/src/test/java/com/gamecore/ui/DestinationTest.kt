@@ -146,10 +146,14 @@ class DestinationTest {
         Destination.Permissions, Destination.Tools, Destination.Overlay, Destination.Motion, Destination.Touch,
         Destination.Controller, Destination.Capability, Destination.QuickTrigger, Destination.NeverClose,
         Destination.GameStorage, Destination.QuickApps, Destination.MacroEditor,
-        Destination.DockCustomization, Destination.Developer,
+        Destination.DockCustomization, Destination.Developer, Destination.Plugins,
         Destination.Colour, Destination.MediaAccess, Destination.BackupRestore, Destination.NetworkStability,
+        Destination.Scout, Destination.Hunt, Destination.Wheels, Destination.Charge,
+        Destination.SetupWizard, Destination.SetupHealth, Destination.WhatsNew,
+        Destination.ScreenExtraction, Destination.SamplingMonitor,
         // argument-carrying
-        Destination.ProfileEditor, Destination.HudEditor, Destination.SessionReport,
+        Destination.ProfileEditor, Destination.HudEditor, Destination.SessionReport, Destination.PluginDetail,
+        Destination.ConfigBrowser, Destination.ConfigEditor,
         // Aim Lab (registered only while the section is on, but declared unconditionally)
         Destination.AimLabFlick, Destination.AimLabTracking, Destination.AimLabReaction, Destination.AimLabGyro,
         Destination.AimLabRecoil, Destination.AimLabMovement, Destination.AimLabPractice,

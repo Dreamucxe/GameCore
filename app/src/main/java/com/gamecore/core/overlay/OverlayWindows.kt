@@ -122,6 +122,47 @@ enum class OverlaySlot {
      * touch behaviour, and a separate slot from [CROSSHAIR] because either can be up without the other.
      */
     TRIGGER_MARKER,
+
+    /**
+     * The three windows a plugin's overlay module can occupy. Bounded — never full screen — and never
+     * touchable.
+     *
+     * These are the only slots in this enum whose *content* comes from outside GameCore, so they are also
+     * the only ones whose constraints are a security boundary rather than a design preference:
+     *
+     *  - **Never touchable.** The module is drawn from a tree of validated nodes, and the node types that
+     *    could want a touch (button, slider, switch, scroll) are rejected by the codec before a module is
+     *    ever built. So the window is `FLAG_NOT_TOUCHABLE` and the thing inside it has nothing to touch —
+     *    two independent reasons, which is what you want for the one window a third party supplies. A
+     *    plugin cannot be handed a dead zone over someone's game.
+     *  - **Never full screen.** The size is a closed enum of small, medium and large boxes, so a module
+     *    cannot grow into a surface that covers the game by arithmetic on a width.
+     *
+     * Three fixed slots rather than a map keyed by plugin id because [live] holds one view per slot and
+     * every call site here — [hide], [hideAll], [visible] — is built on that. A richer key would touch all
+     * of them to buy a fourth simultaneous module, so instead the registry caps what it hands over and the
+     * manager says when a module was dropped. Three is the cap, stated once, in the enum that enforces it.
+     *
+     * Modules **ride along** with a session that is already up, the rule [TRIGGER_MARKER] follows: they are
+     * drawn beside the pill, the button or the dock and go down with them. A plugin module is not a reason
+     * to keep the overlay service alive on its own — a background service running because a plugin would
+     * like to draw something is a battery cost the user never asked for.
+     */
+    PLUGIN_MODULE_1,
+    PLUGIN_MODULE_2,
+    PLUGIN_MODULE_3;
+
+    companion object {
+        /**
+         * The plugin-module slots, in the order the registry fills them.
+         *
+         * The size of this list *is* the cap on simultaneous plugin modules, so the cap lives in the same
+         * declaration as the windows that implement it instead of as a number written somewhere else that
+         * could drift away from how many slots actually exist. The plugin layer carries its own copy of
+         * the number — it cannot see this enum, by design — and a test asserts the two agree.
+         */
+        val PLUGIN_MODULES: List<OverlaySlot> = listOf(PLUGIN_MODULE_1, PLUGIN_MODULE_2, PLUGIN_MODULE_3)
+    }
 }
 
 /**

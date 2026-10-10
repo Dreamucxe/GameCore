@@ -1,0 +1,17 @@
+{
+  "format": "gamecore.plugin",
+  "id": "com.gamecore.plugin.minimal",
+  "name": "Minimal",
+  "version": 1,
+  "versionName": "1.0",
+  "api": 1,
+  "minHostVersion": 28,
+  "developer": "GameCore",
+  "description": "The smallest plugin that still does something: one theme, one permission, no content sections beyond it. Copy this folder as the starting point for a theme of your own - every key here is required, and nothing here is optional padding.",
+  "permissions": [
+    "change_ui"
+  ],
+  "declares": [
+    "theme"
+  ]
+}

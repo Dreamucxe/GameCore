@@ -1,0 +1,20 @@
+{
+  "format": "gamecore.plugin",
+  "id": "com.gamecore.plugin.pixel",
+  "name": "Pixel",
+  "version": 1,
+  "versionName": "1.0",
+  "api": 1,
+  "minHostVersion": 28,
+  "developer": "GameCore",
+  "description": "A phosphor-green terminal look: monospaced type, square corners, amber accents. Written with the long permission form so the two shapes a manifest accepts both ship in the box.",
+  "permissions": [
+    {
+      "id": "change_ui"
+    }
+  ],
+  "declares": [
+    "theme"
+  ],
+  "changelog": "First release."
+}

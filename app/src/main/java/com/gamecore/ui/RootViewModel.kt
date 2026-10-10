@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.BuildConfig
 import com.gamecore.core.model.AppSettings
+import com.gamecore.core.plugin.PluginRegistry
+import com.gamecore.core.plugin.theme.PluginTheme
 import com.gamecore.core.whatsnew.ReleaseNote
 import com.gamecore.core.whatsnew.WhatsNewRegistry
 import com.gamecore.core.whatsnew.entriesSince
@@ -18,6 +20,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
@@ -39,9 +42,27 @@ class RootViewModel @Inject constructor(
     private val preferences: SecurePreferenceStore,
     profiles: GameProfileRepository,
     sessions: SessionRepository,
+    plugins: PluginRegistry,
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = preferences.settings
+
+    /**
+     * The plugin theme in force, or null for GameCore's own — the shell's second appearance input.
+     *
+     * Passed straight through from the registry rather than resolved here, because the registry has
+     * already done the only hard part: a theme reaches this flow only from a plugin that is installed,
+     * enabled, not suspended, compatible, holds `change_ui` in its *granted* permissions, and whose
+     * `theme.json` parsed. Everything that fails any of those is null, and null is GameCore's own theme.
+     * So there is no failure case for this flow to represent and no state in which the app has no theme.
+     *
+     * Not folded into [settings]: the plugin theme is not a user preference and is not stored with them.
+     * Keeping it a separate input is what lets [GameCoreTheme][com.gamecore.ui.theme.GameCoreTheme] stay a
+     * pure function of both — and what makes "use GameCore's own theme" a change to one of them only.
+     */
+    val pluginTheme: StateFlow<PluginTheme?> = plugins.activeTheme
+        .map { it?.theme }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /**
      * How the setup wizard should present itself this launch (spec §A1), or null until the facts it reads

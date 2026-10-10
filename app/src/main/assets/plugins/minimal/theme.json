@@ -1,0 +1,13 @@
+{
+  "name": "Minimal",
+  "dark": true,
+  "primary": "#D7DBE0",
+  "onPrimary": "#14161A",
+  "background": "#0B0D10",
+  "surface": "#14171C",
+  "onSurface": "#E4E7EB",
+  "accent": "#9AA4B2",
+  "cornerRadiusDp": 12,
+  "font": "system",
+  "uiScale": 1.0
+}

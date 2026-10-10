@@ -1,0 +1,46 @@
+{
+  "rules": [
+    {
+      "id": "launch_boost",
+      "trigger": "game_launched",
+      "actions": [
+        "set_peak_refresh_rate",
+        "set_window_animation_scale",
+        "set_transition_animation_scale",
+        "set_animator_duration_scale"
+      ]
+    },
+    {
+      "id": "exit_restore",
+      "trigger": "game_closed",
+      "actions": [
+        "set_min_refresh_rate",
+        "set_window_animation_scale",
+        "set_transition_animation_scale",
+        "set_animator_duration_scale"
+      ]
+    },
+    {
+      "id": "thermal_backoff",
+      "trigger": "thermal_high",
+      "actions": [
+        "set_min_refresh_rate",
+        "set_low_power"
+      ]
+    },
+    {
+      "id": "battery_backoff",
+      "trigger": "battery_low",
+      "conditions": [
+        {
+          "variable": "battery",
+          "op": "lte",
+          "value": 15
+        }
+      ],
+      "actions": [
+        "set_low_power"
+      ]
+    }
+  ]
+}

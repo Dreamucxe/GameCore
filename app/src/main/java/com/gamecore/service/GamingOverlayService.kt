@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.unit.IntOffset
@@ -125,6 +126,9 @@ import com.gamecore.core.overlay.refreshRateFeedback
 import com.gamecore.core.overlay.thermalDot
 import com.gamecore.core.overlay.unavailableReason
 import com.gamecore.core.permissions.PermissionChecker
+import com.gamecore.core.plugin.ActiveOverlayModule
+import com.gamecore.core.plugin.PluginRegistry
+import com.gamecore.core.plugin.overlay.ModuleStat
 import com.gamecore.core.system.AudioControls
 import com.gamecore.core.system.ControlOutcome
 import com.gamecore.core.system.DisplayControls
@@ -156,6 +160,7 @@ import com.gamecore.domain.overlay.QuickAppLauncher
 import com.gamecore.domain.overlay.QuickLaunchOutcome
 import com.gamecore.ui.capture.CaptureConsentActivity
 import com.gamecore.ui.components.InstantReplayChip
+import com.gamecore.ui.plugins.render.PluginNodeTree
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -278,6 +283,22 @@ class GamingOverlayService : GameCoreService() {
      */
     @Inject lateinit var quickAppLauncher: QuickAppLauncher
 
+    /**
+     * The installed-plugin registry, read for one thing only: the list of overlay modules the user has
+     * allowed on screen right now.
+     *
+     * The *interface* is injected, not the implementation, and that is the security boundary rather than
+     * a style preference. Through this type the service can enumerate plugins and read their resolved
+     * content; it cannot obtain a plugin's raw bytes, write a grant, or reach an elevated shell. The
+     * registry has already applied every filter that could make a module not allowed — the kill switch,
+     * the plugin's own state, the overlay permission, the data scopes behind each figure — so there is no
+     * decision left here to get wrong, and no question this service asks a plugin. It reads a list.
+     *
+     * Nothing else in this file branches on a plugin id. [showPluginModules] draws whatever the list
+     * holds, which is what keeps a plugin from ever needing a line of code in a 4000-line service.
+     */
+    @Inject lateinit var pluginRegistry: PluginRegistry
+
     override val notificationId: Int = NotificationChannels.ID_OVERLAY
 
     override val serviceType: Int = TYPE_SPECIAL_USE
@@ -286,6 +307,27 @@ class GamingOverlayService : GameCoreService() {
     private val host = OverlayViewHost()
 
     private var windows: OverlayWindows? = null
+
+    /**
+     * Which plugin module is currently drawn in each plugin slot.
+     *
+     * Exists to keep [showPluginModules] from rebuilding a window that has not changed. `reconcile()`
+     * runs on every drag frame of the pill, and [OverlayWindows.show] replaces rather than refuses — so
+     * without this, dragging the pill would re-attach every plugin module once per frame, restarting
+     * each one's composition. That is the same flash the [OverlayWindows.move] KDoc warns about, and the
+     * reason [showPill] guards itself the same way.
+     *
+     * Compared with `==` rather than by id: [ActiveOverlayModule] is a data class over a tree of data
+     * classes, so a plugin whose content changed is a different value and is redrawn, while an unchanged
+     * one is merely moved. An id alone would hold a stale tree on screen after a plugin was updated in
+     * place.
+     *
+     * Not authoritative on its own, which is why the guard also asks [OverlayWindows.isVisible]. This map
+     * records what was *put* in a slot; the manager knows what is in one. A [OverlayWindows.hideAll] —
+     * the screen locking, a session ending — empties the manager without touching this, and the two
+     * together mean the next reconcile re-adds the window instead of moving one that is gone.
+     */
+    private val liveModules = mutableMapOf<OverlaySlot, ActiveOverlayModule>()
 
     private val pillReadings = MutableStateFlow<List<StatReading>>(emptyList())
 
@@ -748,6 +790,12 @@ class GamingOverlayService : GameCoreService() {
         // running flag. The paused, saving and window flows are read inside the window's content with
         // `collectAsState`, so they recompose it live without a reconcile; only start/stop adds or removes.
         lifecycleScope.launch { capture.replayRunning.collect { reconcile() } }
+        // Plugin overlay modules. Like the dock's config and the trigger mark, this moves without the
+        // desired request moving: a module appears or disappears when the user grants a permission,
+        // flips a plugin's switch, throws the kill switch or installs a package — none of which touch
+        // `overlays.desired`. The registry has already reduced all of that to one list, so this collector
+        // fires on the only thing the service cares about, which is the list changing.
+        lifecycleScope.launch { pluginRegistry.activeOverlayModules.collect { reconcile() } }
         lifecycleScope.launch {
             preferences.settings
                 .map { it.accent }
@@ -992,13 +1040,27 @@ class GamingOverlayService : GameCoreService() {
      * so a screen going off cancels the `delay` mid-wait rather than finishing one more round of work.
      * The readings are cleared on the way out so the pill has nothing stale to draw if the display comes
      * back before the first new sample lands.
+     *
+     * The fourth flow is the plugin modules, and it is here rather than in [reconcile] because a module
+     * displaying a reading is a request for sampling in exactly the way the pill is. The term is narrow
+     * twice over: only modules the registry has already allowed on screen reach this flow, and only those
+     * whose content actually holds a stat node count, so a plugin drawing a label starts nothing. A module
+     * added while the pill is already up does not change `needed` and therefore does not restart the loop
+     * — it does not need to, because [publishReadings] re-reads the module stats on every tick, so the new
+     * reading appears within one interval rather than after a teardown.
      */
     private suspend fun streamReadings() {
-        combine(overlays.desired, panelOpen, screenInteractive) { request, open, awake ->
+        combine(
+            overlays.desired,
+            panelOpen,
+            screenInteractive,
+            pluginRegistry.activeOverlayModules,
+        ) { request, open, awake, modules ->
             OverlaySamplingGate.shouldSample(
                 pillVisible = request.pill,
                 hudVisible = request.hud,
                 panelOpen = open,
+                pluginStatsVisible = modules.any { it.module.requiredStats.isNotEmpty() },
                 screenInteractive = awake,
             )
         }
@@ -1028,7 +1090,12 @@ class GamingOverlayService : GameCoreService() {
             snapshot = snapshot,
             sessionElapsedMillis = elapsed,
         )
-        val wanted = hudLayout.value?.widgets?.map { it.stat }?.distinct() ?: emptyList()
+        // One sampled map serves both surfaces. The HUD's widgets name the stats the user arranged; the
+        // plugin modules name the ones their content displays, and a module asking for a reading the HUD
+        // does not show has to get it — otherwise the feature would work only for users who happened to
+        // have built a HUD containing the same stat. Read fresh each tick rather than cached, so a module
+        // appearing mid-session is sampled on the next interval without restarting the loop.
+        val wanted = (hudLayout.value?.widgets?.map { it.stat }.orEmpty() + pluginModuleStats()).distinct()
         hudReadings.value = wanted.associateWith { HudStatReader.read(it, snapshot, elapsed) }
         // The button's dot rides the same sample. NONE until the first snapshot lands, and NONE for OK,
         // WARM and an unavailable temperature — only HOT and CRITICAL draw, so the button is silent unless
@@ -1132,6 +1199,22 @@ class GamingOverlayService : GameCoreService() {
         // session that already has the pill, the button or the dock up.
         val triggerPoint = markedTriggerPoint()
         if (triggerPoint != null) showTriggerMarker() else manager.hide(OverlaySlot.TRIGGER_MARKER)
+        // §3.8 plugin overlay modules — the one branch in this service that draws content GameCore did
+        // not author, and the only place in core that knows plugin modules exist at all.
+        //
+        // Generic by construction: it reads a list of validated node trees with positions and renders
+        // them. There is no plugin id here, no per-plugin branch, and adding a plugin adds no code to
+        // this file — which is the whole point of putting a registry between the two. A plugin system
+        // that needed a branch per plugin in a 4000-line service would be a maintenance bill disguised
+        // as a feature.
+        //
+        // It rides along exactly as the trigger mark above does: no term in `request`, no overlay toggle,
+        // no settings of its own, and nothing to hide on the stopping path because the early return takes
+        // every window down first. A plugin wanting to draw something is not a reason to keep this
+        // service alive — a background service running because a plugin would like to show a number is a
+        // battery cost the user never asked for — so a module only ever appears beside a session the pill,
+        // the button or the dock already holds open.
+        showPluginModules(manager)
         // Who needs the frames: the loupe and Scout always, Hunt only for the grades that re-draw the live
         // screen — the capture-free MOVIE tints GameCore's own glass and needs none. The wheels ring reads
         // nothing at all, so it never appears here.
@@ -2143,6 +2226,149 @@ class GamingOverlayService : GameCoreService() {
             PerformancePill(readings = readings, config = live.normalised(), thermalDot = dot)
         }
     }
+
+    /**
+     * Fills the plugin-module slots from the registry and clears the rest.
+     *
+     * The zip against [OverlaySlot.PLUGIN_MODULES] is the second of two independent caps on this feature.
+     * The registry already trims its list to `PluginOverlayModule.MAX_MODULES_ON_SCREEN`; this cannot
+     * draw past the end of the slot list whatever that constant happens to say. Both would have to be
+     * raised before a plugin could put a fourth window on screen, and a test pins the two equal so
+     * neither can drift away from the other.
+     *
+     * Leftover slots are hidden rather than left alone. A module that stops being allowed — its plugin
+     * disabled, its overlay permission revoked, its data scope withdrawn, the kill switch thrown — has to
+     * leave the screen on the same reconcile that noticed, and the registry expresses every one of those
+     * as a shorter list.
+     */
+    private fun showPluginModules(manager: OverlayWindows) {
+        val modules = pluginRegistry.activeOverlayModules.value
+        OverlaySlot.PLUGIN_MODULES.forEachIndexed { index, slot ->
+            val active = modules.getOrNull(index)
+            if (active == null) {
+                liveModules.remove(slot)
+                manager.hide(slot)
+            } else {
+                showPluginModule(manager, slot, active)
+            }
+        }
+    }
+
+    /**
+     * Draws one plugin module: a small, fixed-size, untouchable window at a fraction of the screen.
+     *
+     * Three things here are the plugin boundary rather than layout preferences:
+     *
+     *  - **`touchable = false`.** The window cannot take a touch from the game underneath it. The codec
+     *    has already refused every node type that could want one, so a plugin is stopped twice over —
+     *    which is the right number of times for the one window whose content a third party supplies. It
+     *    is also what keeps a plugin from creating a dead zone over someone's game.
+     *  - **An explicit width and height** out of [ModuleSize]'s closed set, where every other window in
+     *    this file uses `WRAP_CONTENT`. Wrapping lets the content decide the window's size, and the
+     *    content is the one part GameCore did not write — a long enough string would become a wide
+     *    enough window. Fixed dp from an enum cannot grow.
+     *  - **A fraction, not pixels.** [PositionFraction] means the same thing after a rotation and on a
+     *    tablet, which a pixel coordinate out of a plugin's JSON would not. `snapToEdge = false` because
+     *    a module is not draggable: there is no gesture for a snap to resolve, and snapping something the
+     *    user cannot move would quietly relocate it away from where its author put it.
+     *
+     * Opacity is applied to the content with [Modifier.alpha] rather than to the window, so the floor the
+     * codec clamps to is the floor that actually renders — a window alpha and a content alpha would
+     * compose and could land below it.
+     *
+     * The position is computed before the unchanged check so an already-live module can be moved: a
+     * rotation changes the frame without changing the module, and [OverlayWindows.move] re-places the
+     * window without restarting its composition.
+     */
+    private fun showPluginModule(manager: OverlayWindows, slot: OverlaySlot, active: ActiveOverlayModule) {
+        val module = active.module
+        val width = px(module.size.widthDp)
+        val height = px(module.size.heightDp)
+        val frame = manager.frameFor(width, height)
+        val placement = frame.fromFraction(
+            fraction = PositionFraction(module.anchor.xFraction, module.anchor.yFraction),
+            snapToEdge = false,
+        )
+        if (liveModules[slot] == active && manager.isVisible(slot)) {
+            manager.move(slot, placement.x, placement.y)
+            return
+        }
+        val content = module.content
+        val opacity = module.opacityPercent / 100f
+        val shown = manager.show(
+            slot = slot,
+            spec = OverlayWindowSpec(
+                x = placement.x,
+                y = placement.y,
+                width = width,
+                height = height,
+                touchable = false,
+            ),
+            host = host,
+        ) {
+            val readings by hudReadings.collectAsState()
+            PluginNodeTree(
+                node = content,
+                stats = { id -> pluginStatValue(id, readings) },
+                modifier = Modifier.alpha(opacity),
+            )
+        }
+        // Recorded only if the window actually attached. `show` returns false when the overlay permission
+        // is gone or the host is down, and claiming a module is live when it is not would leave the next
+        // reconcile moving a window that does not exist instead of trying to add it again.
+        if (shown) liveModules[slot] = active else liveModules.remove(slot)
+    }
+
+    /**
+     * One plugin module's stat, resolved against the host's own readings.
+     *
+     * Null means "no reading", and the renderer draws its own em dash for it — so an unavailable figure
+     * looks the same whether the device has no such sensor, the sampler has not ticked yet, or the id was
+     * not one GameCore knows. That is the honest rendering; the alternative is a zero, and a module
+     * reading `0°C` would be worse than one reading nothing at all.
+     *
+     * A plugin never names a [HudStat]. It names one of [ModuleStat]'s six ids and the translation lives
+     * here, in the service, at the boundary — which is what lets GameCore add, rename or re-source a
+     * [HudStat] without breaking a plugin somebody already installed.
+     */
+    private fun pluginStatValue(id: String, readings: Map<HudStat, StatReading>): String? {
+        val stat = ModuleStat.fromId(id) ?: return null
+        val reading = readings[stat.hudStat()] ?: return null
+        return if (reading.isAvailable) reading.display() else null
+    }
+
+    /**
+     * The host reading behind each of the six stats a plugin module may display.
+     *
+     * Exhaustive with no `else`, so adding a [ModuleStat] is a compile error here rather than a stat that
+     * silently never resolves.
+     */
+    private fun ModuleStat.hudStat(): HudStat = when (this) {
+        ModuleStat.FPS -> HudStat.FRAME_RATE
+        ModuleStat.CPU -> HudStat.CPU_USAGE
+        ModuleStat.GPU -> HudStat.GPU_USAGE
+        ModuleStat.RAM -> HudStat.RAM_USAGE
+        ModuleStat.BATTERY -> HudStat.BATTERY_LEVEL
+        // Battery temperature rather than CPU: `HudStat.CPU_TEMPERATURE.isAlwaysAvailable` is false
+        // because most devices expose no CPU thermal zone, and a module's single "temp" should be the
+        // reading that exists everywhere rather than the one that is missing on most phones. The plugin
+        // asked for a temperature, not for a particular sensor, and `thermals` is the scope whose own
+        // description is "Temperature and battery readings".
+        ModuleStat.TEMP -> HudStat.BATTERY_TEMPERATURE
+    }
+
+    /**
+     * The host stats the plugin modules on screen are displaying — what [publishReadings] samples for
+     * them and what [streamReadings]'s gate turns into a term.
+     *
+     * Derived from each module's content, never from its existence: `requiredStats` is empty for a module
+     * with no stat node, so a decorative one adds nothing to sample and cannot start the loop.
+     */
+    private fun pluginModuleStats(): List<HudStat> =
+        pluginRegistry.activeOverlayModules.value
+            .flatMap { it.module.requiredStats }
+            .map { it.hudStat() }
+            .distinct()
 
     /**
      * The Instant Replay save controls (§3.6): the status chip above the "Save last N" pill, up while the

@@ -35,6 +35,43 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 28,
+            versionName = "3.8",
+            date = "2026-10-08",
+            features = listOf(
+                FeatureNote(
+                    "Plugins",
+                    "Install a plugin from a file to restyle GameCore, see exactly what it asks for, and " +
+                        "turn it on. A plugin is data GameCore reads, not code — it never runs inside " +
+                        "GameCore and never gets a shell.",
+                ),
+                FeatureNote(
+                    "Permission by permission",
+                    "Every plugin lists exactly what it wants and you grant each item separately. A new " +
+                        "plugin arrives switched off with nothing granted, and device settings need a " +
+                        "second opt-in.",
+                ),
+                FeatureNote(
+                    "Plugin themes",
+                    "A plugin can supply colours, corner rounding and scale. Unreadable colour pairs are " +
+                        "replaced automatically, and the Plugins screen always draws in GameCore's own " +
+                        "theme — so the way back is never styled by the plugin you are turning off.",
+                ),
+                FeatureNote(
+                    "On-screen plugin modules",
+                    "A plugin can add a small readout that sits over your game beside the Game Pill — " +
+                        "frame rate, temperature and the like. It cannot cover the screen and cannot take " +
+                        "touches away from the game, and it only appears once you grant that plugin the " +
+                        "overlay permission. Up to three at a time.",
+                ),
+                FeatureNote(
+                    "One switch to stop them all",
+                    "A single toggle on the Plugins screen stops every plugin at once, whatever each " +
+                        "plugin's own switch says.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 27,
             versionName = "3.7.2",
             date = "2026-10-01",

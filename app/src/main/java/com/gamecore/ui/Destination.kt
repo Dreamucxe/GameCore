@@ -288,6 +288,28 @@ sealed interface Destination {
     }
 
     /**
+     * The plugin manager: installed plugins, enable/disable, the always-reachable "Reset to
+     * default", and the way in to the in-app marketplace. Reached from Settings. Not in
+     * [external] — a plugin is installed and managed deliberately from inside the app, and the
+     * manager is one of the safety screens a plugin can never theme, so nothing outside the app
+     * opens it.
+     */
+    data object Plugins : Destination {
+        override val route = "plugins"
+    }
+
+    /**
+     * One plugin's preview/install screen, reached from the manager or the marketplace with the
+     * plugin's id. Shows the permissions by risk tier, the compatibility verdict (and blocks
+     * install when unsupported), developer, version, changelog and hash before the user trusts
+     * it. A core safety screen: never themeable.
+     */
+    data object PluginDetail : Destination {
+        override val route = "plugin/{$ARG_PLUGIN_ID}"
+        fun routeFor(pluginId: String): String = "plugin/$pluginId"
+    }
+
+    /**
      * Back up all configuration to one file and restore it (§20). Reached from Settings' Data card.
      *
      * Config only — appearance, settings, profiles, presets, HUD layouts and macros — never session
@@ -504,6 +526,9 @@ sealed interface Destination {
         const val ARG_ID = "id"
         const val ARG_PACKAGE = "package"
         const val ARG_SEED = "seed"
+
+        /** A plugin's string id, carried by [PluginDetail]. Separate from [ARG_ID] (a Long). */
+        const val ARG_PLUGIN_ID = "plugin_id"
 
         /**
          * The three parts a [ConfigTarget][com.gamecore.core.config.ConfigTarget] travels as, one nav

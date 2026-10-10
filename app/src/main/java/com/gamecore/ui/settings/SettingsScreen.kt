@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Dock
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.GridView
@@ -902,6 +903,17 @@ private fun AccessCard(
             onClick = { onNavigate(Destination.Shizuku) },
             description = "Optional. What it adds, what it still cannot add, and how to set it up.",
             icon = Icons.Filled.Terminal,
+        )
+        // Directly under Shizuku because that row explains the thing a plugin's "advanced access" is
+        // asking for. A plugin never gets Shizuku itself — it names an action GameCore already knows how
+        // to perform and GameCore performs it — and putting the two rows together is what makes that
+        // distinction visible rather than something the detail screen has to argue from scratch.
+        NavRow(
+            title = "Plugins",
+            onClick = { onNavigate(Destination.Plugins) },
+            description = "Installed plugins, what each one asked for, and the switch that stops all of " +
+                "them. Plugins are data GameCore reads, not code it runs.",
+            icon = Icons.Filled.Extension,
         )
         NavRow(
             title = "Charge bypass",

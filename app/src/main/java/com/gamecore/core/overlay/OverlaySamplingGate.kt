@@ -33,12 +33,22 @@ object OverlaySamplingGate {
      * @param pillVisible the stats pill is up.
      * @param hudVisible the HUD is up.
      * @param panelOpen the full panel is open (it shows the same readings in its own layout).
+     * @param pluginStatsVisible a plugin's overlay module is on screen *and* displays at least one
+     *   reading. A module showing only text is not a term here, for the same reason the floating button
+     *   is not: it has nothing to say that a sample would change. The distinction is drawn from the
+     *   module's own content rather than from its existence, so a decorative module cannot start a
+     *   once-a-second read of `/proc` — see `PluginOverlayModule.requiredStats`.
+     *
+     *   This is deliberately not defaulted. Every parameter here is a battery cost the device pays, and
+     *   a new surface that forgot to declare itself would sample silently or not at all depending on
+     *   which way the default fell; making it explicit means the compiler asks.
      * @param screenInteractive the display is on. False means nothing drawn can be seen.
      */
     fun shouldSample(
         pillVisible: Boolean,
         hudVisible: Boolean,
         panelOpen: Boolean,
+        pluginStatsVisible: Boolean,
         screenInteractive: Boolean,
-    ): Boolean = screenInteractive && (pillVisible || hudVisible || panelOpen)
+    ): Boolean = screenInteractive && (pillVisible || hudVisible || panelOpen || pluginStatsVisible)
 }

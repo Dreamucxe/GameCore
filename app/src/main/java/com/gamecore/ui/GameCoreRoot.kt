@@ -94,6 +94,8 @@ import com.gamecore.ui.network.NetworkStabilityScreen
 import com.gamecore.ui.overlay.OverlayScreen
 import com.gamecore.ui.performance.PerformanceScreen
 import com.gamecore.ui.permissions.PermissionsScreen
+import com.gamecore.ui.plugins.PluginDetailScreen
+import com.gamecore.ui.plugins.PluginsScreen
 import com.gamecore.ui.quickapps.QuickAppsScreen
 import com.gamecore.ui.scout.ScoutScreen
 import com.gamecore.ui.sessions.SessionReportScreen
@@ -123,7 +125,8 @@ import kotlinx.coroutines.flow.StateFlow
  *
  *  - **The theme is the user's, observed.** [RootViewModel] carries the three appearance settings, and
  *    because the Settings screen sits inside this theme, a change to the accent or the UI scale lands on
- *    the screen doing the editing.
+ *    the screen doing the editing. An active plugin's theme is the second input and is observed the same
+ *    way, so turning a plugin off on the Plugins screen repaints the screen that turned it off.
  *  - **The window insets are applied here.** `ScreenHeader` applies none deliberately — a screen that
  *    inset itself would inset twice inside a dialog or a preview — so the one place that knows it is
  *    directly under the status bar is this one. The bottom inset is applied once, to the column that holds
@@ -143,6 +146,10 @@ fun GameCoreRoot(
     onOpened: () -> Unit = {},
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    // Null is GameCore's own theme, and null is also what this is for the first frames of a launch: the
+    // registry reads packages off the main thread, so a plugin-themed user sees the house theme settle
+    // into theirs. See [RootViewModel.pluginTheme] for why nothing is gated on that arriving.
+    val pluginTheme by viewModel.pluginTheme.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route
@@ -209,7 +216,7 @@ fun GameCoreRoot(
         navController.openUnguarded(Destination.Settings)
     }
 
-    GameCoreTheme(settings) {
+    GameCoreTheme(settings, pluginTheme) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(modifier = Modifier.fillMaxSize()) {
                 GameCoreNav(
@@ -217,6 +224,11 @@ fun GameCoreRoot(
                     open = open,
                     aimLabEnabled = settings.aimLabEnabled,
                     aimLabOrientation = settings.aimLabOrientation,
+                    // Re-applies GameCore's own theme to a subtree inside the themed shell. Built here
+                    // rather than inside the graph because this is the only scope that holds both inputs
+                    // and can therefore guarantee the house theme is the house theme — the same
+                    // `settings`, with the plugin argument simply absent.
+                    houseTheme = { content -> GameCoreTheme(settings) { content() } },
                     modifier = Modifier
                         .fillMaxSize()
                         .systemBarsPadding()
@@ -348,6 +360,10 @@ private fun FloatingNavBar(
  *
  * [aimLabEnabled] is the one thing here that changes the *shape* of the graph rather than what a route
  * resolves to. See the section at the bottom for why the switch is applied here and nowhere else.
+ *
+ * [houseTheme] wraps a subtree back into GameCore's own appearance from inside the themed shell. Only
+ * the two plugin screens use it, and the reason is at their registration: a plugin must not paint the
+ * screens that turn it off.
  */
 @Composable
 private fun GameCoreNav(
@@ -355,6 +371,7 @@ private fun GameCoreNav(
     open: (Destination) -> Unit,
     aimLabEnabled: Boolean,
     aimLabOrientation: com.gamecore.core.model.AimLabOrientation,
+    houseTheme: @Composable (@Composable () -> Unit) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val back: () -> Unit = remember(navController) { { navController.back() } }
@@ -500,6 +517,37 @@ private fun GameCoreNav(
 
         composable(Destination.Developer.route) {
             DeveloperScreen(onBack = back)
+        }
+
+        // The two plugin screens are deliberately wrapped back into GameCore's OWN theme, re-applied
+        // inside the themed shell. A plugin must not paint the screens that exist to inspect and stop
+        // it: the kill switch, the enable toggle and the remove button are the user's escape hatch, and
+        // an escape hatch styled by the thing it escapes is not one. The bridge already substitutes
+        // illegible ink, so this is not about unreadable text — it is about a theme that is perfectly
+        // readable and still makes the "off" affordance look inert, or makes a suspended plugin look
+        // healthy. Nesting is cheap and total: `GameCoreTheme` is a pure function of its inputs, so
+        // calling it again with no plugin theme rebuilds the house colours, shapes, type and the user's
+        // own UI scale for this subtree, and restores the status-bar icons to match on the way in.
+        composable(Destination.Plugins.route) {
+            houseTheme {
+                PluginsScreen(
+                    onBack = back,
+                    onOpenPlugin = { id -> navController.push(Destination.PluginDetail.routeFor(id)) },
+                )
+            }
+        }
+
+        // `StringType` with no default, and no encoding in `routeFor`: a plugin id is validated against
+        // the package grammar at install time (`TextSanitizer.validatePackageName`), so it cannot carry a
+        // slash or a query character into the path. The screen handles an id that resolves to nothing,
+        // which is what a stale back stack after an uninstall leaves behind.
+        composable(
+            route = Destination.PluginDetail.route,
+            arguments = listOf(navArgument(Destination.ARG_PLUGIN_ID) { type = NavType.StringType }),
+        ) {
+            houseTheme {
+                PluginDetailScreen(onBack = back)
+            }
         }
 
         composable(Destination.Overlay.route) {

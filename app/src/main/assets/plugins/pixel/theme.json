@@ -1,0 +1,13 @@
+{
+  "name": "Pixel",
+  "dark": true,
+  "primary": "#35E07A",
+  "onPrimary": "#04130A",
+  "background": "#05070A",
+  "surface": "#0C1210",
+  "onSurface": "#C9F7D8",
+  "accent": "#F2D14B",
+  "cornerRadiusDp": 0,
+  "font": "mono",
+  "uiScale": 1.0
+}

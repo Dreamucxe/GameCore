@@ -1,0 +1,606 @@
+package com.gamecore.ui.plugins
+
+import android.content.Context
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamecore.core.plugin.PluginPackageLoader
+import com.gamecore.core.plugin.RiskTier
+import com.gamecore.ui.components.ActionRow
+import com.gamecore.ui.components.ClickableCard
+import com.gamecore.ui.components.ConfirmDialog
+import com.gamecore.ui.components.EmptyState
+import com.gamecore.ui.components.NoteBanner
+import com.gamecore.ui.components.PlainCard
+import com.gamecore.ui.components.RowDivider
+import com.gamecore.ui.components.ScreenBottomPadding
+import com.gamecore.ui.components.ScreenHeader
+import com.gamecore.ui.components.ScreenPadding
+import com.gamecore.ui.components.SectionCard
+import com.gamecore.ui.components.StatusChip
+import com.gamecore.ui.components.SwitchRow
+import com.gamecore.ui.components.Tone
+import com.gamecore.ui.theme.Spacing
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
+
+/**
+ * The plugin manager: everything installed, what each one is allowed to do, and the way out.
+ *
+ * This screen is the user's only general-purpose control over plugins, which shapes almost every
+ * decision in it:
+ *
+ *  - **It is deliberately a screen a plugin can never restyle.** The safety card is drawn with
+ *    GameCore's own [MaterialTheme] and nothing on it is conditioned on a plugin parsing, loading or
+ *    behaving. A plugin that supplies a theme can make every other screen hard to read — black on
+ *    black, a one-pixel font — and the escape hatch has to stay legible exactly when the rest of the
+ *    app does not. That is also why "Use GameCore's own theme" has no `enabled` argument: it is always
+ *    tappable, and `resetToDefaultTheme` is defined as clearing a selection rather than writing
+ *    anything that could fail.
+ *  - **The safety card comes first, above the list.** A user who arrives here because something is
+ *    wrong should not have to scroll past the plugins to find the switch that stops them.
+ *  - **The picked file is capped while it is read, not after.** A content URI can be served by any app
+ *    on the device, including one that streams forever. [readPicked] copies in chunks and abandons the
+ *    read the instant it passes [PluginPackageLoader.MAX_PACKAGE_BYTES], so a hostile or broken
+ *    provider costs the cap and not the heap. It runs on [Dispatchers.IO] inside a [LaunchedEffect], so
+ *    leaving the screen cancels it.
+ *  - **Plugin text is only ever a `Text`.** Names, developers, summaries and suspension details arrive
+ *    sanitised from [rowFor] and go straight into [Text]. Nothing here builds an `AnnotatedString`
+ *    from plugin input, resolves a plugin-named URL, or makes plugin text clickable.
+ *  - **Nothing is dressed up as a success (§24).** The row's switch reflects the registry, not the tap;
+ *    "still reading the plugin folder" and "no plugins installed" are drawn differently; and an
+ *    incompatible plugin keeps a visible, disabled switch with the reason printed beside it rather than
+ *    a hidden control the user is left to wonder about (§32).
+ */
+
+/** [StatusChip] takes no modifier, so badges are boxed into fixed columns — see `BadgeRow`. */
+private const val CHIPS_PER_ROW = 2
+
+/** Matches `BackupManager.READ_CHUNK_BYTES`: large enough to be cheap, small enough to stop early. */
+private const val READ_CHUNK_BYTES = 8 * 1024
+
+/** Rows cap their description, so a long one is trimmed here rather than allowed to own the list. */
+private const val SUMMARY_MAX_LINES = 3
+
+/**
+ * A `.gcplugin` is a zip, and providers disagree about what to call one.
+ *
+ * Three types rather than one: a file manager that knows the extension reports `application/zip`, one
+ * that does not reports `application/octet-stream`, and some providers report nothing useful at all —
+ * hence the wildcard, without which the file the user is looking at would be greyed out in the picker
+ * with no way to select it. Nothing is trusted on the strength of this filter: the bytes still go
+ * through [PluginPackageLoader], which decides what the file actually is.
+ */
+private val PLUGIN_MIME_TYPES = arrayOf("application/zip", "application/octet-stream", "*/*")
+
+private const val SCREEN_SUBTITLE =
+    "What is installed, what each one may do, and the one switch that stops all of it"
+
+private const val SAFETY_SUBTITLE = "Both controls here work without reading a single plugin"
+
+private const val KILL_SWITCH_DESCRIPTION =
+    "Nothing a plugin asked for runs while this is on, whatever each plugin's own switch says. Your " +
+        "choices below are kept, not erased."
+
+private const val THEME_RESET_DESCRIPTION =
+    "A plugin can change how GameCore looks. This button puts GameCore's own theme back and does not " +
+        "need that plugin to be working — it is here, on this screen, for exactly that reason."
+
+private const val INSTALL_DESCRIPTION =
+    "A plugin is data, not a program: GameCore reads a .gcplugin file and draws what it describes. It " +
+        "runs no code of its own, so it cannot reach the internet, start other apps, or see anything " +
+        "you have not granted it. Installing one grants it nothing — it arrives switched off."
+
+private const val TOO_LARGE_NOTE =
+    "That file is larger than a plugin package is allowed to be, so GameCore stopped reading part way " +
+        "through instead of loading it. Nothing was installed."
+
+private const val UNREADABLE_NOTE =
+    "That file could not be read. The app it came from may have withdrawn access, or the file may have " +
+        "been moved since you picked it. Nothing was installed."
+
+private const val STILL_READING_TITLE = "Reading the plugin folder"
+
+private const val STILL_READING_MESSAGE =
+    "This takes a moment on the first open. Whatever is installed will appear here — an empty list " +
+        "would be a guess until the read finishes."
+
+private const val NO_PLUGINS_TITLE = "No plugins installed"
+
+private const val NO_PLUGINS_MESSAGE =
+    "A plugin adds a theme, a Pill module or an automation rule, and only what you grant it. Nothing " +
+        "is installed yet, so nothing extra is running."
+
+private const val SUSPENDED_GENERIC =
+    "GameCore stopped this plugin during this run after it repeatedly failed. Your settings for it are " +
+        "untouched."
+
+/**
+ * What came back from reading the file the user picked.
+ *
+ * Three outcomes rather than a nullable [ByteArray], because "too large" and "could not be read" need
+ * different sentences: one is the user's file being wrong, the other is the device or the source app
+ * being unavailable, and a single "could not install that" would leave them guessing which.
+ *
+ * [Read] is a plain class and not a `data class` on purpose — a generated `equals` over a [ByteArray]
+ * compares references, which is a trap waiting for whoever first compares two of these.
+ */
+private sealed interface PickedPackage {
+    class Read(val bytes: ByteArray) : PickedPackage
+
+    data object TooLarge : PickedPackage
+
+    data object Unreadable : PickedPackage
+}
+
+@Composable
+fun PluginsScreen(
+    onBack: () -> Unit,
+    onOpenPlugin: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: PluginsViewModel = hiltViewModel(),
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val padded = Modifier.padding(horizontal = ScreenPadding)
+    var picked by remember { mutableStateOf<Uri?>(null) }
+    var pickNote by remember { mutableStateOf<String?>(null) }
+
+    // The picker callback runs on the main thread, so it only records the URI. A cancelled pick returns
+    // null and simply does nothing.
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        pickNote = null
+        picked = uri
+    }
+
+    LaunchedEffect(picked) {
+        val uri = picked ?: return@LaunchedEffect
+        when (val result = withContext(Dispatchers.IO) { readPicked(context, uri) }) {
+            is PickedPackage.Read -> viewModel.installFromBytes(result.bytes)
+            PickedPackage.TooLarge -> pickNote = TOO_LARGE_NOTE
+            PickedPackage.Unreadable -> pickNote = UNREADABLE_NOTE
+        }
+        // Cleared last so picking the same file twice reads it twice, and so the bytes are not held by
+        // the composition after the registry has them.
+        picked = null
+    }
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = 4.dp, bottom = ScreenBottomPadding),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        item {
+            ScreenHeader(
+                title = "Plugins",
+                subtitle = SCREEN_SUBTITLE,
+                onBack = onBack,
+                action = {
+                    IconButton(onClick = viewModel::refresh) {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = "Read the plugin folder again",
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                },
+            )
+        }
+
+        item {
+            SafetyCard(
+                killSwitchOn = state.killSwitchOn,
+                activeThemeName = state.activeThemeName,
+                hasAnyActive = state.hasAnyActive,
+                onSetKillSwitch = viewModel::setKillSwitch,
+                onResetTheme = viewModel::resetToDefaultTheme,
+                modifier = padded,
+            )
+        }
+
+        val message = state.message
+        if (message != null) {
+            item {
+                NoteBanner(
+                    text = message,
+                    tone = Tone.Accent,
+                    icon = Icons.Filled.Info,
+                    modifier = padded,
+                    action = {
+                        TextButton(onClick = viewModel::dismissMessage) { Text("Dismiss") }
+                    },
+                )
+            }
+        }
+
+        item {
+            InstallCard(
+                note = pickNote,
+                onPick = { picker.launch(PLUGIN_MIME_TYPES) },
+                modifier = padded,
+            )
+        }
+
+        when {
+            // "Not read yet" and "nothing installed" look identical as an empty list, and only one of
+            // them is a fact — §24.
+            !state.isLoaded -> item {
+                PlainCard(modifier = padded) {
+                    EmptyState(
+                        icon = Icons.Filled.Refresh,
+                        title = STILL_READING_TITLE,
+                        message = STILL_READING_MESSAGE,
+                    )
+                }
+            }
+
+            !state.hasPlugins -> item {
+                PlainCard(modifier = padded) {
+                    EmptyState(
+                        icon = Icons.Filled.Extension,
+                        title = NO_PLUGINS_TITLE,
+                        message = NO_PLUGINS_MESSAGE,
+                    )
+                }
+            }
+
+            else -> items(state.rows, key = { it.id }) { row ->
+                PluginCard(
+                    row = row,
+                    killSwitchOn = state.killSwitchOn,
+                    onOpen = { onOpenPlugin(row.id) },
+                    onSetEnabled = { enabled -> viewModel.setEnabled(row.id, enabled) },
+                    onClearSuspension = { viewModel.clearSuspension(row.id) },
+                    onAskRemove = { viewModel.askRemove(row) },
+                    modifier = padded,
+                )
+            }
+        }
+    }
+
+    val pending = state.pendingRemoval
+    if (pending != null) {
+        ConfirmDialog(
+            title = "Remove ${pending.name}?",
+            message = "This deletes the plugin's file from this device along with everything it had " +
+                "stored — its permissions, its settings and any data it kept. None of that can be " +
+                "brought back by installing it again.",
+            confirmLabel = "Remove",
+            onConfirm = viewModel::confirmRemove,
+            onDismiss = viewModel::cancelRemove,
+        )
+    }
+}
+
+/**
+ * The two controls that have to keep working when a plugin has made the rest of the app unusable.
+ *
+ * Neither reads a plugin, parses a manifest or depends on one loading, and the card is drawn in
+ * GameCore's own colours. A plugin theme that turns every other screen unreadable cannot touch this one,
+ * which is the whole reason the theming feature is safe to offer at all.
+ *
+ * The chip states what is true now rather than what the switches say: with the kill switch on the
+ * permission gate denies every plugin call, so "All off" is the honest reading even though each
+ * plugin's own switch is still wherever the user left it.
+ */
+@Composable
+private fun SafetyCard(
+    killSwitchOn: Boolean,
+    activeThemeName: String?,
+    hasAnyActive: Boolean,
+    onSetKillSwitch: (Boolean) -> Unit,
+    onResetTheme: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Safety",
+        modifier = modifier,
+        subtitle = SAFETY_SUBTITLE,
+        icon = Icons.Filled.Shield,
+        action = {
+            StatusChip(
+                text = when {
+                    killSwitchOn -> "All off"
+                    hasAnyActive -> "Running"
+                    else -> "None running"
+                },
+                tone = when {
+                    killSwitchOn -> Tone.Danger
+                    hasAnyActive -> Tone.Good
+                    else -> Tone.Muted
+                },
+            )
+        },
+    ) {
+        SwitchRow(
+            title = "Turn all plugins off",
+            checked = killSwitchOn,
+            onCheckedChange = onSetKillSwitch,
+            description = KILL_SWITCH_DESCRIPTION,
+        )
+        RowDivider()
+        NoteBanner(
+            text = if (activeThemeName == null) {
+                "GameCore's own theme is in force."
+            } else {
+                "$activeThemeName is supplying the theme the app is wearing."
+            },
+            tone = if (activeThemeName == null) Tone.Muted else Tone.Accent,
+            icon = Icons.Filled.Palette,
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Text(
+            text = THEME_RESET_DESCRIPTION,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        ActionRow {
+            // No `enabled` argument, deliberately. Offering this only when a theme is active would make
+            // it unavailable in the one case it is needed — a plugin theme the app can no longer read
+            // back — and resetting to the built-in theme is a no-op when it is already in force.
+            Button(onClick = onResetTheme) { Text("Use GameCore's own theme") }
+        }
+    }
+}
+
+/**
+ * Install from a file, with the trust boundary stated before the button rather than after it.
+ *
+ * [note] is this card's own, separate from the screen's message banner: a file that was too large or
+ * unreadable never reached the registry, so saying so next to the button that produced it is more use
+ * than a banner at the top of a screen the user may have scrolled past.
+ */
+@Composable
+private fun InstallCard(
+    note: String?,
+    onPick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Install a plugin",
+        modifier = modifier,
+        subtitle = "From a .gcplugin file on this device",
+        icon = Icons.Filled.Download,
+    ) {
+        Text(
+            text = INSTALL_DESCRIPTION,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (note != null) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            NoteBanner(text = note, tone = Tone.Warning, icon = Icons.Filled.Warning)
+        }
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        ActionRow {
+            Button(onClick = onPick) { Text("Choose a file") }
+        }
+    }
+}
+
+/**
+ * One plugin.
+ *
+ * The switch is [Switch] rather than a [SwitchRow] because the row carries a name, a developer, a
+ * version, a description and badges, and the whole card is a tap target for the detail screen.
+ *
+ * Incompatible plugins keep their switch, disabled, with the reason printed below it. Hiding it would
+ * leave the user with a row that looks like every other except that nothing can be done to it; §32's
+ * point is that a control must never be tapped and do nothing, and a visibly disabled one beside its
+ * reason is the honest version of that.
+ */
+@Composable
+private fun PluginCard(
+    row: PluginRow,
+    killSwitchOn: Boolean,
+    onOpen: () -> Unit,
+    onSetEnabled: (Boolean) -> Unit,
+    onClearSuspension: () -> Unit,
+    onAskRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ClickableCard(onClick = onOpen, modifier = modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = row.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = attributionOf(row),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Switch(
+                checked = row.enabled,
+                onCheckedChange = onSetEnabled,
+                enabled = row.compatibility.isRunnable,
+            )
+        }
+
+        if (row.summary.isNotBlank()) {
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Text(
+                text = row.summary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = SUMMARY_MAX_LINES,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        BadgeRow(row = row, killSwitchOn = killSwitchOn)
+
+        if (!row.compatibility.isRunnable) {
+            NoteBanner(
+                text = row.compatibility.reason,
+                tone = Tone.Danger,
+                icon = Icons.Filled.Warning,
+            )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+        }
+
+        if (row.suspended) {
+            NoteBanner(
+                text = row.suspensionDetail ?: SUSPENDED_GENERIC,
+                tone = Tone.Warning,
+                icon = Icons.Filled.Block,
+            )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+        }
+
+        ActionRow {
+            if (row.suspended) {
+                TextButton(onClick = onClearSuspension) { Text("Let it try again") }
+            }
+            // Disabled rather than absent for a bundled plugin, with its origin badge directly above
+            // saying why: the rows stay the same shape down the list, and a disabled button is not a
+            // tap that did nothing.
+            TextButton(onClick = onAskRemove, enabled = row.canBeRemoved) { Text("Remove") }
+        }
+    }
+}
+
+/**
+ * The row's badges, in the order a worried user needs them.
+ *
+ * Compatibility and suspension come before anything cosmetic, because they are the two reasons a plugin
+ * the user switched on is not doing anything. Chunked into fixed columns rather than flowed: `FlowRow`
+ * is still experimental in the pinned Compose version, which is the same call made in
+ * `CapabilityScreen` and `OverlayControlPanel`.
+ */
+@Composable
+private fun BadgeRow(row: PluginRow, killSwitchOn: Boolean) {
+    val badges: List<Pair<String, Tone>> = buildList {
+        if (!row.compatibility.isRunnable) add("Incompatible" to Tone.Danger)
+        if (row.suspended) add("Stopped this run" to Tone.Warning)
+        // Only worth saying on a plugin the user switched on: on an already-off row it would be a
+        // second badge for a state the switch already shows.
+        if (killSwitchOn && row.enabled) add("Held off" to Tone.Muted)
+        if (row.isThemeSource) add("Supplies the current theme" to Tone.Accent)
+        row.highestTier?.let { add(it.label to toneOf(it)) }
+        add(row.origin.label to Tone.Muted)
+    }
+    badges.chunked(CHIPS_PER_ROW).forEach { line ->
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xs),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            line.forEach { (text, tone) ->
+                Box(modifier = Modifier.weight(1f)) { StatusChip(text = text, tone = tone) }
+            }
+            repeat(CHIPS_PER_ROW - line.size) { Spacer(modifier = Modifier.weight(1f)) }
+        }
+    }
+}
+
+/**
+ * "Who made this, and which build of it is installed", on one line.
+ *
+ * A package may legitimately omit either, and the row says so rather than printing a bare separator —
+ * an unattributed plugin is a thing the user should notice, not a gap in the layout.
+ */
+private fun attributionOf(row: PluginRow): String {
+    val developer = row.developer.ifBlank { "No developer named" }
+    return if (row.versionName.isBlank()) developer else "$developer · ${row.versionName}"
+}
+
+/** The tier's own colour, so the badge matches the consent friction the detail screen will apply. */
+private fun toneOf(tier: RiskTier): Tone = when (tier) {
+    RiskTier.LOW -> Tone.Muted
+    RiskTier.MEDIUM -> Tone.Accent
+    RiskTier.HIGH -> Tone.Warning
+}
+
+/**
+ * Reads the picked document, or decides it cannot be read.
+ *
+ * A content URI is served by another app, so none of the usual assumptions hold: the stream may be
+ * shorter than advertised, longer than any plugin should be, or endless. Everything is a
+ * [PickedPackage] rather than an exception, and the broad `catch` is deliberate — a provider can throw
+ * anything from `SecurityException` to its own unchecked type, and every one of them means the same
+ * thing to the user.
+ *
+ * Nothing about the failure is logged. The URI names a file on the user's device and the bytes are
+ * untrusted content, neither of which belongs in a log.
+ */
+private fun readPicked(context: Context, uri: Uri): PickedPackage = try {
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        val bytes = readCapped(input, PluginPackageLoader.MAX_PACKAGE_BYTES)
+        if (bytes == null) PickedPackage.TooLarge else PickedPackage.Read(bytes)
+    } ?: PickedPackage.Unreadable
+} catch (_: Throwable) {
+    PickedPackage.Unreadable
+}
+
+/**
+ * Streams up to [maxBytes], returning null the moment it is exceeded so an outsized file is not held.
+ *
+ * The cap is checked before the chunk is written, which is what makes this a real limit rather than a
+ * check after the fact: a stream that never ends cannot grow the buffer past one chunk beyond the cap.
+ * Same shape as `BackupManager.readCapped`, for the same reason.
+ */
+private fun readCapped(input: InputStream, maxBytes: Int): ByteArray? {
+    val out = ByteArrayOutputStream()
+    val chunk = ByteArray(READ_CHUNK_BYTES)
+    var total = 0
+    while (true) {
+        val read = input.read(chunk)
+        if (read < 0) break
+        total += read
+        if (total > maxBytes) return null
+        out.write(chunk, 0, read)
+    }
+    return out.toByteArray()
+}

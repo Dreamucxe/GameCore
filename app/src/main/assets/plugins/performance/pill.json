@@ -1,0 +1,51 @@
+{
+  "format": "gamecore.plugin.pill",
+  "version": 1,
+  "id": "perf.readout",
+  "title": "Performance readout",
+  "anchor": {
+    "x": 0.5,
+    "y": 0.06
+  },
+  "size": "medium",
+  "opacity": 85,
+  "content": {
+    "type": "card",
+    "props": {
+      "padding": 8,
+      "gap": 2
+    },
+    "children": [
+      {
+        "type": "row",
+        "props": {
+          "gap": 12,
+          "align": "center"
+        },
+        "children": [
+          {
+            "type": "stat",
+            "props": {
+              "stat": "fps",
+              "label": "FPS"
+            }
+          },
+          {
+            "type": "stat",
+            "props": {
+              "stat": "cpu",
+              "label": "CPU"
+            }
+          },
+          {
+            "type": "stat",
+            "props": {
+              "stat": "temp",
+              "label": "TEMP"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

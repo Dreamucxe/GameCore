@@ -43,6 +43,7 @@ class OverlaySamplingGateTest {
                 pillVisible = true,
                 hudVisible = true,
                 panelOpen = true,
+                pluginStatsVisible = true,
                 screenInteractive = false,
             ),
         )
@@ -63,6 +64,28 @@ class OverlaySamplingGateTest {
         assertTrue(shouldSample(pill = true))
         assertTrue(shouldSample(hud = true))
         assertTrue(shouldSample(panel = true))
+        assertTrue(shouldSample(pluginStats = true))
+    }
+
+    @Test
+    fun `a plugin module that displays a reading samples, on a dark screen does not`() {
+        // A plugin module earns a term where the floating button below does not, and the difference is
+        // what each is defined to show without a sample. The button's thermal dot is specified to be
+        // absent until one lands, so it loses nothing. A module's stat node has a figure in it or an em
+        // dash, and the user granted two separate permissions — the overlay and the data scope — to see
+        // the figure. A gate that refused to sample for it would leave the feature permanently showing
+        // the em dash whenever the pill happened to be off.
+        assertTrue(shouldSample(pluginStats = true))
+        assertFalse(shouldSample(pluginStats = true, screenOn = false))
+    }
+
+    @Test
+    fun `a plugin module with no readings in it costs nothing`() {
+        // The narrow half of the term, and the one that keeps it honest: `pluginStatsVisible` is false for
+        // a module whose tree holds no stat node, so a plugin drawing a label in the corner of the screen
+        // cannot start the loop merely by being on screen. The caller derives the flag from the module's
+        // content (`PluginOverlayModule.requiredStats`), never from its presence.
+        assertFalse(shouldSample(pluginStats = false))
     }
 
     @Test
@@ -88,11 +111,13 @@ class OverlaySamplingGateTest {
         pill: Boolean = false,
         hud: Boolean = false,
         panel: Boolean = false,
+        pluginStats: Boolean = false,
         screenOn: Boolean = true,
     ): Boolean = OverlaySamplingGate.shouldSample(
         pillVisible = pill,
         hudVisible = hud,
         panelOpen = panel,
+        pluginStatsVisible = pluginStats,
         screenInteractive = screenOn,
     )
 }

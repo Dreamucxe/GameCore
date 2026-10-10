@@ -2,6 +2,7 @@ package com.gamecore.domain
 
 import com.gamecore.core.common.ApplicationScope
 import com.gamecore.core.model.DeviceCapabilities
+import com.gamecore.core.plugin.PluginRegistry
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.CrosshairRepository
 import com.gamecore.data.repository.RestorePointRepository
@@ -76,6 +77,7 @@ class StartupCoordinator @Inject constructor(
     private val crosshairs: CrosshairRepository,
     private val restorePoints: RestorePointRepository,
     private val capabilities: DeviceCapabilityChecker,
+    private val plugins: PluginRegistry,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
 
@@ -90,7 +92,7 @@ class StartupCoordinator @Inject constructor(
     /**
      * Runs the startup pass, or returns the findings of the pass that already ran.
      *
-     * The five pieces are independent, so they run concurrently and the slowest — the capability
+     * The six pieces are independent, so they run concurrently and the slowest — the capability
      * check, a set of shell round trips — does not sit behind the encrypted database opening. They are
      * launched on [scope] rather than the caller's, so an Activity finishing mid-check abandons the
      * *result* rather than a half-finished repair pass.
@@ -103,6 +105,16 @@ class StartupCoordinator @Inject constructor(
         val seeded = attempt(false) { crosshairs.seedDefaultsIfEmpty() }
         val pending = attempt(0) { restorePoints.pendingCount() }
         val probed = attempt(DeviceCapabilities.UNKNOWN) { capabilities.refresh() }
+
+        // Reading plugins is startup work for the same reason preloading settings is: the plugin list and
+        // the active plugin theme are read by the first screen that draws. It is deliberately *not*
+        // awaited below, unlike `prefs`. The registry publishes its result through its own flows and the
+        // theme follows when it arrives, so waiting here would buy nothing visible — `MainActivity` calls
+        // `setContent` without waiting for this pass at all — while making every launch pay for parsing
+        // every installed package before the pass could report anything. A plugin-themed user may
+        // therefore see GameCore's own theme for the first frames; that settle is the honest cost of not
+        // holding the launch open on third-party data.
+        attempt(Unit) { plugins.refresh() }
 
         // Awaited even though its value is Unit: the point of preloading is that the keystore unwrap
         // has happened by the time the first screen reads a setting, and returning before it finished
