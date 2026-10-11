@@ -1,0 +1,17 @@
+{
+  "minHostVersion": 28,
+  "declares": [
+    "theme",
+    "screens"
+  ],
+  "permissions": [{"id": "change_ui"}],
+  "format": "gamecore.plugin",
+  "name": "Anime Interface Pack",
+  "description": "Vivid anime-inspired theme (pink, cyan, violet on plum) with two reference screens.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.anime",
+  "api": 3,
+  "versionName": "1.0.0",
+  "version": 1
+}

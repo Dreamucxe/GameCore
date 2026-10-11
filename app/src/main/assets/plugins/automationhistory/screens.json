@@ -1,0 +1,233 @@
+{
+  "screens": [
+    {
+      "icon": "timeline",
+      "id": "overview",
+      "title": "Automation History",
+      "content": {
+        "children": [
+          {
+            "type": "image",
+            "props": {
+              "size": 40,
+              "icon": "timeline"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 22,
+              "text": "Automation History",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 15,
+              "text": "A running record of which of your automation rules have fired on this device, and when."
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "GameCore keeps this trail for you. This plugin only opens a read-only window onto it \u2014 it can never add, change or remove an entry."
+            }
+          }
+        ],
+        "type": "card",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "insights",
+      "id": "how-it-fills",
+      "title": "How It Fills",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "How the trail fills",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 15,
+              "text": "The history starts empty. It fills only when an automation rule actually runs \u2014 nothing is recorded until a rule's trigger and conditions are met."
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 28,
+                      "icon": "bolt"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "size": 13,
+                      "text": "The rule that ran",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 28,
+                      "icon": "game"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "size": 13,
+                      "text": "What triggered it",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 28,
+                      "icon": "timer"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "size": 13,
+                      "text": "When it happened",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "gap": 6
+                }
+              }
+            ],
+            "type": "grid",
+            "props": {
+              "columns": 3,
+              "gap": 8
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "Until that first rule fires the trail stays empty \u2014 that is expected, not a fault."
+            }
+          }
+        ],
+        "type": "card",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "info",
+      "id": "about",
+      "title": "About This Plugin",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "About this plugin",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 15,
+              "text": "Automation History is a data-only plugin. These screens are static text \u2014 the live trail is owned and stored by GameCore, not by this plugin, and the plugin can only read it, never write to it."
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "size": 24,
+                  "icon": "shield"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "What it can see",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 13,
+                  "text": "With your permission it reads your automation history, and nothing else. It holds no other data access and cannot change anything."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 12,
+              "gap": 8
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 13,
+              "text": "It needs a current build of GameCore. An older build correctly turns it away as too new to run."
+            }
+          }
+        ],
+        "type": "card",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    }
+  ],
+  "format": "gamecore.plugin.screens",
+  "version": 1
+}

@@ -3,11 +3,17 @@ package com.gamecore.data.plugin
 import android.content.Context
 import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.common.TextSanitizer
+import com.gamecore.core.plugin.ActiveDashboardWidget
 import com.gamecore.core.plugin.ActiveOverlayModule
+import com.gamecore.core.plugin.ActivePluginAutomation
 import com.gamecore.core.plugin.ActiveTheme
+import com.gamecore.core.plugin.ApiResult
+import com.gamecore.core.plugin.AutomationHistoryRecord
+import com.gamecore.core.plugin.DataScope
 import com.gamecore.core.plugin.InstallOutcome
 import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.LoadedPlugin
+import com.gamecore.core.plugin.PluginAutomationHistoryStore
 import com.gamecore.core.plugin.PluginGrant
 import com.gamecore.core.plugin.PluginManifest
 import com.gamecore.core.plugin.PluginManifestCodec
@@ -19,12 +25,21 @@ import com.gamecore.core.plugin.PluginRegistry
 import com.gamecore.core.plugin.PluginRuntimeState
 import com.gamecore.core.plugin.PluginSection
 import com.gamecore.core.plugin.PluginSections
+import com.gamecore.core.plugin.content.AutomationEngine
 import com.gamecore.core.plugin.content.AutomationRule
 import com.gamecore.core.plugin.content.RulesCodec
+import com.gamecore.core.plugin.dashboard.PluginDashboardCodec
+import com.gamecore.core.plugin.dashboard.PluginDashboardWidget
 import com.gamecore.core.plugin.overlay.PluginOverlayCodec
 import com.gamecore.core.plugin.overlay.PluginOverlayModule
+import com.gamecore.core.plugin.settings.PluginSettings
+import com.gamecore.core.plugin.settings.PluginSettingsCodec
+import com.gamecore.core.plugin.settings.PluginSettingsSchema
+import com.gamecore.core.plugin.settings.SettingValue
 import com.gamecore.core.plugin.theme.PluginTheme
 import com.gamecore.core.plugin.theme.PluginThemeCodec
+import com.gamecore.core.plugin.ui.PluginScreen
+import com.gamecore.core.plugin.ui.PluginScreensCodec
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -80,6 +95,8 @@ class PluginRegistryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val store: SecurePluginGrantStore,
     @IoDispatcher private val io: CoroutineDispatcher,
+    private val settings: PluginSettings,
+    private val history: PluginAutomationHistoryStore,
 ) : PluginRegistry {
 
     private val installedState = MutableStateFlow<List<InstalledPlugin>>(emptyList())
@@ -90,6 +107,14 @@ class PluginRegistryImpl @Inject constructor(
 
     private val overlayModulesState = MutableStateFlow<List<ActiveOverlayModule>>(emptyList())
     override val activeOverlayModules: StateFlow<List<ActiveOverlayModule>> = overlayModulesState.asStateFlow()
+
+    private val dashboardWidgetsState = MutableStateFlow<List<ActiveDashboardWidget>>(emptyList())
+    override val activeDashboardWidgets: StateFlow<List<ActiveDashboardWidget>> =
+        dashboardWidgetsState.asStateFlow()
+
+    private val automationsState = MutableStateFlow<List<ActivePluginAutomation>>(emptyList())
+    override val activeAutomations: StateFlow<List<ActivePluginAutomation>> =
+        automationsState.asStateFlow()
 
     /**
      * Starts **on**, before the first read.
@@ -113,6 +138,13 @@ class PluginRegistryImpl @Inject constructor(
      * wrong.
      */
     private val gate = PluginPermissionGate()
+
+    /**
+     * Pure decision logic, no state and no Android, so it is constructed here like [gate]. Used only
+     * to drop a plugin's malformed rules at resolve time; the host still re-validates nothing it did
+     * not, because every fired action goes back through [gate] at the broker.
+     */
+    private val automationEngine = AutomationEngine()
 
     /** Serialises the read-modify-publish sequences; without it two toggles can publish out of order. */
     private val lock = Mutex()
@@ -139,6 +171,17 @@ class PluginRegistryImpl @Inject constructor(
      * reason: a plugin whose bytes changed is re-parsed rather than served from memory.
      */
     private var moduleCache: Map<String, PluginOverlayModule> = emptyMap()
+
+    /**
+     * Parsed widgets, keyed by plugin id and the digest they came from.
+     *
+     * [moduleCache]'s reasoning exactly, as a map of lists because a plugin may declare several
+     * widgets and [publish] re-resolves all of them on every state change — without this a user
+     * flipping an unrelated switch would pay an unzip per widget-bearing plugin. Keyed on the digest
+     * so a plugin whose bytes changed is re-parsed rather than served stale, and cleared when the
+     * kill switch goes on, for the same reason [resolveOverlayModules] clears [moduleCache].
+     */
+    private var widgetCache: Map<String, List<PluginDashboardWidget>> = emptyMap()
 
     // ------------------------------------------------------------------------------------ reading
 
@@ -179,6 +222,8 @@ class PluginRegistryImpl @Inject constructor(
         installedState.value = plugins
         activeThemeState.value = resolveActiveTheme(plugins, killSwitch)
         overlayModulesState.value = resolveOverlayModules(plugins, killSwitch)
+        dashboardWidgetsState.value = resolveDashboardWidgets(plugins, killSwitch)
+        automationsState.value = resolveAutomations(plugins, killSwitch)
     }
 
     private fun PluginRecord.toInstalledPlugin(): InstalledPlugin {
@@ -535,7 +580,53 @@ class PluginRegistryImpl @Inject constructor(
             rules = if (PluginSection.RULES in record.manifest.declares) readRules(record) else emptyList(),
             overlayModule =
                 if (PluginSection.PILL in record.manifest.declares) readOverlayModule(record) else null,
+            settings = if (PluginSection.SETTINGS in record.manifest.declares) readSettings(record) else null,
+            screens =
+                if (PluginSection.SCREENS in record.manifest.declares) readScreens(record) else emptyList(),
         )
+    }
+
+    /**
+     * Reads one of a plugin's own settings through the typed surface, under its live runtime state.
+     *
+     * The schema is the caller's — the ViewModel parsed it from [sectionsOf] and passes it back — so no
+     * settings state is held here; this supplies the one thing the ViewModel must not have, the
+     * [com.gamecore.core.plugin.PluginRuntimeState] built from the store's own enabled/suspended/kill
+     * switch truth, and lets [PluginSettings] be the single funnel (gate, rate limit, clamp, audit). The
+     * record is taken under [lock] because [records] is, and the facade call is made outside it, the
+     * same rule as [sectionsOf]: the surface does a Keystore-backed read, and holding the lock across it
+     * would make a plugin's own storage the thing that delays the next switch flip. An id that names
+     * nothing installed is an [ApiResult.Error], the shape an unknown setting id already carries.
+     */
+    override suspend fun readPluginSetting(
+        pluginId: String,
+        schema: PluginSettingsSchema,
+        id: String,
+    ): ApiResult<SettingValue> = withContext(io) {
+        val record = lock.withLock { records[pluginId] }
+            ?: return@withContext ApiResult.Error("no plugin is installed with id \"$pluginId\"")
+        val state = record.toInstalledPlugin().runtimeState(store.isSystemKillSwitchOn())
+        settings.get(state, schema, id)
+    }
+
+    /**
+     * Stores one of a plugin's own settings through the typed surface, under its live runtime state.
+     *
+     * [readPluginSetting]'s shape for a write: the same take-record-under-lock then delegate-outside-it,
+     * so the facade's clamp and audit happen in one place, and the coerced value [PluginSettings.set]
+     * returns is handed straight back so the control can reflect what was actually stored rather than
+     * what was typed.
+     */
+    override suspend fun setPluginSetting(
+        pluginId: String,
+        schema: PluginSettingsSchema,
+        id: String,
+        value: SettingValue,
+    ): ApiResult<SettingValue> = withContext(io) {
+        val record = lock.withLock { records[pluginId] }
+            ?: return@withContext ApiResult.Error("no plugin is installed with id \"$pluginId\"")
+        val state = record.toInstalledPlugin().runtimeState(store.isSystemKillSwitchOn())
+        settings.set(state, schema, id, value)
     }
 
     /**
@@ -574,6 +665,22 @@ class PluginRegistryImpl @Inject constructor(
         return when (val decoded = PluginThemeCodec.decode(raw.toString(Charsets.UTF_8))) {
             is PluginThemeCodec.Result.Parsed -> decoded.theme
             is PluginThemeCodec.Result.Rejected -> null
+        }
+    }
+
+    /**
+     * The plugin's settings schema, or null.
+     *
+     * [readTheme]'s shape exactly: one file, parsed through its codec, and an unparseable file degrades
+     * to null — the plugin simply offers no settings rather than failing the whole section. Settings is
+     * a single `settings.json`, so there is no aggregate to cap the way [readScreens] and [readRules]
+     * must; the codec owns every bound on the one file.
+     */
+    private fun readSettings(record: PluginRecord): PluginSettingsSchema? {
+        val raw = sectionEntries(record, PluginSection.SETTINGS).firstOrNull() ?: return null
+        return when (val decoded = PluginSettingsCodec.decode(raw.toString(Charsets.UTF_8))) {
+            is PluginSettingsCodec.Result.Parsed -> decoded.schema
+            is PluginSettingsCodec.Result.Rejected -> null
         }
     }
 
@@ -625,6 +732,89 @@ class PluginRegistryImpl @Inject constructor(
     }
 
     /**
+     * Every dashboard widget allowed to draw right now, in registry order, capped in aggregate at
+     * [PluginDashboardCodec.MAX_WIDGETS] across every plugin.
+     *
+     * [resolveOverlayModules] for the home surface, with the one structural difference that a plugin
+     * may contribute more than one widget: the dashboard is a scrolling grid, not three fixed slots,
+     * so this flattens each plugin's widgets into one list and stops when the list is full rather
+     * than capping per plugin. The cap is read from the codec, which the codec's own KDoc asks for,
+     * so the dashboard, the SDK and this resolver share one number. Stopping the loop rather than
+     * taking a prefix means a widget past the limit is never scope-checked and a plugin past it is
+     * never unzipped. With the kill switch on the cache is dropped, not kept warm, for the reason
+     * [resolveOverlayModules] gives.
+     */
+    private fun resolveDashboardWidgets(
+        plugins: List<InstalledPlugin>,
+        killSwitch: Boolean,
+    ): List<ActiveDashboardWidget> {
+        if (killSwitch) {
+            widgetCache = emptyMap()
+            return emptyList()
+        }
+        val cap = PluginDashboardCodec.MAX_WIDGETS
+        val out = ArrayList<ActiveDashboardWidget>(cap)
+        val cache = HashMap<String, List<PluginDashboardWidget>>()
+        for (plugin in plugins) {
+            if (out.size >= cap) break
+            if (!plugin.isActive) continue
+            val record = records[plugin.id] ?: continue
+            if (PluginSection.WIDGETS !in record.manifest.declares) continue
+            val state = plugin.runtimeState(killSwitch)
+            if (!gate.isAllowed(state, PluginPermission.ADD_DASHBOARD_WIDGETS)) continue
+            val key = "${plugin.id}@${record.sha256}"
+            val widgets = widgetCache[key] ?: readWidgets(record)
+            cache[key] = widgets
+            for (widget in widgets) {
+                if (out.size >= cap) break
+                if (!scopesGranted(state, widget)) continue
+                out += ActiveDashboardWidget(pluginId = plugin.id, pluginName = plugin.name, widget = widget)
+            }
+        }
+        widgetCache = cache
+        return out
+    }
+
+    /**
+     * Every plugin automation allowed to run right now, grouped by plugin, in registry order.
+     *
+     * [resolveOverlayModules]' filter chain over the `rules` section instead of `pill`, and the one
+     * that is not a drawable surface: there is no screen cap because there is no screen — each entry
+     * is a plugin's background rule set, and the number of entries is bounded by how many installed,
+     * active, granted plugins declare rules. The per-plugin rule count is already capped in aggregate
+     * by [readRules] ([MAX_RULES_PER_PLUGIN]); the rules are then filtered to those that pass
+     * [AutomationEngine] validation, so a malformed rule drops out here rather than reaching a
+     * runner. A plugin with no valid rule is omitted entirely — an entry carrying an empty list is a
+     * dead row for the runner to skip. No scope check: an automation's data appetite is re-checked
+     * by the broker when it actually fires an action, which is also where [state] is spent.
+     */
+    private fun resolveAutomations(
+        plugins: List<InstalledPlugin>,
+        killSwitch: Boolean,
+    ): List<ActivePluginAutomation> {
+        if (killSwitch) return emptyList()
+        val out = ArrayList<ActivePluginAutomation>()
+        for (plugin in plugins) {
+            if (!plugin.isActive) continue
+            val record = records[plugin.id] ?: continue
+            if (PluginSection.RULES !in record.manifest.declares) continue
+            val state = plugin.runtimeState(killSwitch)
+            if (!gate.isAllowed(state, PluginPermission.RUN_AUTOMATIONS)) continue
+            val rules = readRules(record).filter {
+                automationEngine.validate(it) is AutomationEngine.Validation.Valid
+            }
+            if (rules.isEmpty()) continue
+            out += ActivePluginAutomation(
+                pluginId = plugin.id,
+                pluginName = plugin.name,
+                state = state,
+                rules = rules,
+            )
+        }
+        return out
+    }
+
+    /**
      * True when the user has approved every data scope the module's figures come from.
      *
      * [PluginOverlayModule.requiredScopes] is empty for a module that shows no figures, so a decorative
@@ -642,6 +832,82 @@ class PluginRegistryImpl @Inject constructor(
         module.requiredScopes.all { scope ->
             gate.isAllowed(state, PluginPermission.READ_APPROVED_DATA, scope)
         }
+
+    /**
+     * True when the user has approved every data scope this widget's figures come from.
+     *
+     * The [scopesGranted] module overload for the dashboard: a widget's `stat` nodes ride behind the
+     * same per-scope [PluginPermission.READ_APPROVED_DATA] grants, derived by
+     * [PluginDashboardWidget.requiredScopes] from the content tree so a declared appetite can never
+     * disagree with the drawn one. A decorative widget has no required scopes and passes without the
+     * loop running; one missing scope drops the whole widget rather than blanking a figure inside it,
+     * for the reason the module overload gives.
+     */
+    private fun scopesGranted(state: PluginRuntimeState, widget: PluginDashboardWidget): Boolean =
+        widget.requiredScopes.all { scope ->
+            gate.isAllowed(state, PluginPermission.READ_APPROVED_DATA, scope)
+        }
+
+    /**
+     * The data scopes a plugin currently holds, decided by the same gate the [scopesGranted] overloads
+     * use rather than by reading the stored grant.
+     *
+     * One pass over [DataScope], asking the gate whether each is allowed for the plugin's live runtime
+     * state. Routing it through [PluginPermissionGate.isAllowed] is what folds in the kill switch and a
+     * disabled or suspended plugin for free: an inactive plugin is denied every scope and so yields the
+     * empty set, exactly as an unknown id does. The screen route turns this into a per-id prefilter on
+     * live `stat`/`series` nodes, the backstop that keeps a figure off a surface whose scope the user
+     * never approved.
+     */
+    override fun grantedScopesFor(pluginId: String): Set<DataScope> {
+        val plugin = installedState.value.firstOrNull { it.id == pluginId } ?: return emptySet()
+        val state = plugin.runtimeState(killSwitchState.value)
+        return DataScope.entries.filterTo(LinkedHashSet()) { scope ->
+            gate.isAllowed(state, PluginPermission.READ_APPROVED_DATA, scope.id)
+        }
+    }
+
+    /**
+     * The automation trail a plugin holding the automation-history scope may have the host show.
+     *
+     * [grantedScopesFor] is the gate: the scope is read from it, not from the stored grant, so the kill
+     * switch and a disabled, suspended, or never-granted plugin all fall through to the denial, and the
+     * entry point the user tapped and this data door can never disagree about the same plugin. A plugin
+     * that names nothing installed yields the empty scope set and so the same denial. Only once the scope
+     * is allowed does the read touch the store, on [io] because it is a database read; the store already
+     * returns the trail newest-first and sanitised, so there is nothing to re-check here. The read is
+     * across every plugin (`pluginId = null`) because the screen reviews the user's whole trail — the
+     * records are host-rendered and never returned to plugin code, which is what keeps that from exposing
+     * one plugin's line to another.
+     */
+    override suspend fun automationHistory(
+        pluginId: String,
+        limit: Int,
+    ): ApiResult<List<AutomationHistoryRecord>> {
+        if (!isAutomationHistoryAllowed(pluginId)) {
+            return ApiResult.Error("plugin \"$pluginId\" may not read automation history")
+        }
+        return withContext(io) { ApiResult.Ok(history.recent(pluginId = null, limit = limit)) }
+    }
+
+    /**
+     * Clears the user's whole automation trail, gated identically to [automationHistory]. The clear is
+     * the user's own, reached only through the host screen's confirmed control; a denied or unknown
+     * plugin gets the error and the log is left untouched.
+     */
+    override suspend fun clearAutomationHistory(pluginId: String): ApiResult<Unit> {
+        if (!isAutomationHistoryAllowed(pluginId)) {
+            return ApiResult.Error("plugin \"$pluginId\" may not clear automation history")
+        }
+        return withContext(io) {
+            history.clear(pluginId = null)
+            ApiResult.Ok(Unit)
+        }
+    }
+
+    /** Whether [pluginId] holds [DataScope.AUTOMATION_HISTORY] right now, read through the one gate. */
+    private fun isAutomationHistoryAllowed(pluginId: String): Boolean =
+        DataScope.AUTOMATION_HISTORY in grantedScopesFor(pluginId)
 
     /**
      * The module a plugin declares, or null when it has none or `pill.json` no longer parses.
@@ -676,6 +942,56 @@ class PluginRegistryImpl @Inject constructor(
             if (out.size >= MAX_RULES_PER_PLUGIN) break
         }
         return out.take(MAX_RULES_PER_PLUGIN)
+    }
+
+    /**
+     * Every screen the plugin carries, de-duplicated by id across files and capped in aggregate.
+     *
+     * [readRules]' shape, with one addition that follows from a screen being addressable where a rule
+     * is not: the route opens a screen by its id, so two files each declaring a `"home"` screen have no
+     * defined winner, and the loader keeps the first it reads. First-wins is the same rule [reload] uses
+     * to resolve two plugins claiming one id, and it is stable across refreshes in a way last-wins —
+     * which depends on file-enumeration order — is not. The cap is across the whole section, not per
+     * file, so a plugin cannot ship forty files of one screen each to get past a thirty-two screen
+     * limit; a file that fails to parse is skipped so one bad screen file does not silence the rest.
+     */
+    private fun readScreens(record: PluginRecord): List<PluginScreen> {
+        val byId = LinkedHashMap<String, PluginScreen>()
+        for (raw in sectionEntries(record, PluginSection.SCREENS)) {
+            when (val decoded = PluginScreensCodec.decode(raw.toString(Charsets.UTF_8))) {
+                is PluginScreensCodec.Result.Parsed ->
+                    for (screen in decoded.screens) {
+                        if (byId.size >= MAX_SCREENS_PER_PLUGIN) break
+                        byId.putIfAbsent(screen.id, screen)
+                    }
+                is PluginScreensCodec.Result.Rejected -> Unit
+            }
+            if (byId.size >= MAX_SCREENS_PER_PLUGIN) break
+        }
+        return byId.values.toList()
+    }
+
+    /**
+     * Every widget a plugin declares, de-duplicated by id across files and capped per plugin.
+     *
+     * [readScreens]' shape — a plugin's `widgets/` section is a directory and
+     * [PluginDashboardCodec] parses one widget per file, so this reads them all and keeps the first
+     * of any duplicated id, which is stable across refreshes where last-wins (file-enumeration
+     * order) is not. A file that no longer parses is skipped rather than failing the section: one
+     * bad widget file must not blank the rest. The per-plugin bound is [PluginDashboardCodec.MAX_WIDGETS]
+     * so a plugin cannot make the resolver parse an unbounded directory; the dashboard-wide aggregate
+     * cap is applied again in [resolveDashboardWidgets].
+     */
+    private fun readWidgets(record: PluginRecord): List<PluginDashboardWidget> {
+        val byId = LinkedHashMap<String, PluginDashboardWidget>()
+        for (raw in sectionEntries(record, PluginSection.WIDGETS)) {
+            if (byId.size >= PluginDashboardCodec.MAX_WIDGETS) break
+            when (val decoded = PluginDashboardCodec.decode(raw.toString(Charsets.UTF_8))) {
+                is PluginDashboardCodec.Result.Parsed -> byId.putIfAbsent(decoded.widget.id, decoded.widget)
+                is PluginDashboardCodec.Result.Rejected -> Unit
+            }
+        }
+        return byId.values.toList()
     }
 
     /** The raw bytes of a section, from the APK or from the stored package. Empty on any failure. */
@@ -748,6 +1064,9 @@ class PluginRegistryImpl @Inject constructor(
 
         /** Across the whole `rules/` section, not per file. */
         const val MAX_RULES_PER_PLUGIN = 32
+
+        /** Across the whole `screens/` section, not per file. Matches [PluginScreensCodec.MAX_SCREENS]. */
+        const val MAX_SCREENS_PER_PLUGIN = 32
 
         private val HEX = "0123456789abcdef".toCharArray()
 

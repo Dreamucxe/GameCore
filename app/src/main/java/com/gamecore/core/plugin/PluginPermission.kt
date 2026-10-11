@@ -99,6 +99,30 @@ enum class PluginPermission(
     ),
 
     /**
+     * Keep the plugin's own small store of settings and saved state in an isolated,
+     * host-encrypted namespace. The store is the plugin's alone — it cannot read another
+     * plugin's keys or GameCore's own, and the host caps how many keys and how much it may
+     * keep. It touches no device setting and reads no GameCore data; it only remembers what
+     * the plugin itself wrote.
+     */
+    STORE_DATA(
+        id = "store_data",
+        tier = RiskTier.LOW,
+        title = "Save its own settings",
+        rationale = "Lets the plugin remember your choices and its own saved state.",
+        whatItTouches = "Only the plugin's own isolated store — never another plugin's data or GameCore's.",
+    ),
+
+    /** Add bounded, read-only widgets to GameCore's home dashboard. */
+    ADD_DASHBOARD_WIDGETS(
+        id = "add_dashboard_widgets",
+        tier = RiskTier.LOW,
+        title = "Add dashboard widgets",
+        rationale = "Lets the plugin add small readouts to your home dashboard.",
+        whatItTouches = "The dashboard only — bounded, read-only cards that take no touches.",
+    ),
+
+    /**
      * Request named, device-affecting actions through the Shizuku Action Broker —
      * refresh rate, performance mode, and the rest of the enumerated set. The
      * highest tier: this is the only permission that can change something outside

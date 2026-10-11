@@ -10,6 +10,7 @@ import com.gamecore.domain.BackgroundServiceGate
 import com.gamecore.domain.gaming.GameDetector
 import com.gamecore.domain.gaming.GamingCoordinator
 import com.gamecore.domain.gaming.GamingState
+import com.gamecore.domain.plugin.PluginAutomationRuntime
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -30,13 +31,16 @@ import javax.inject.Inject
  * asks for. None of the defined types describes watching for a game launch: it is not a data transfer,
  * not media, not location, and calling it `dataSync` to get past review would be a false declaration.
  *
- * Two things it does that are not detection, both because it is the component that knows:
+ * Three things it does that are not detection, each because it is the component that knows:
  *
  *  - **It starts and stops the session service.** A session is opened inside this service's scope, so the
  *    `dataSync` service that legitimises those writes must live and die with it rather than be started
  *    from a screen the user may never open.
  *  - **It starts the background sampler while a session runs**, so thermal and battery warnings have
  *    something watching them during the game rather than only while a screen is open.
+ *  - **It runs the plugin automation runtime for as long as the service lives**, because a rule that
+ *    reacts to a game starting or the device heating up reads the same lifecycle and sample feeds this
+ *    service already hosts, and the gated broker it drives must stop when detection does.
  */
 @AndroidEntryPoint
 class GameDetectionService : GameCoreService() {
@@ -46,6 +50,8 @@ class GameDetectionService : GameCoreService() {
     @Inject lateinit var detector: GameDetector
 
     @Inject lateinit var services: BackgroundServiceGate
+
+    @Inject lateinit var automationRuntime: PluginAutomationRuntime
 
     override val notificationId: Int = NotificationChannels.ID_DETECTION
 
@@ -94,6 +100,7 @@ class GameDetectionService : GameCoreService() {
         lifecycleScope.launch { describe() }
         lifecycleScope.launch { followSession() }
         lifecycleScope.launch { networkAlerts() }
+        lifecycleScope.launch { automationRuntime.run(this) }
     }
 
     /**

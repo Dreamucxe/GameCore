@@ -1,0 +1,305 @@
+{
+  "screens": [
+    {
+      "icon": "speed",
+      "id": "presets",
+      "title": "Sensitivity presets",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 22,
+              "text": "Sensitivity presets",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#B0FFFFFF",
+              "size": 13,
+              "text": "Reference values to copy into each game's own settings. GameCore cannot apply them for you."
+            }
+          },
+          {
+            "children": [{
+              "children": [
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "Preset",
+                    "bold": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "Multiplier",
+                    "bold": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "DPI",
+                    "bold": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "eDPI",
+                    "bold": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "Low"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "1.0x"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "400"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "400"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "Medium"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "1.0x"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "800"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "800"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "High"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "1.5x"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "800"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "1200"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "Pro"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "2.0x"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "1600"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 13,
+                    "text": "3200"
+                  }
+                }
+              ],
+              "type": "grid",
+              "props": {
+                "columns": 4,
+                "gap": 10
+              }
+            }],
+            "type": "card",
+            "props": {
+              "padding": 12,
+              "color": "#141821"
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 16
+        }
+      }
+    },
+    {
+      "icon": "info",
+      "id": "guide",
+      "title": "How it works",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "How Sensitivity Lab works",
+              "bold": true
+            }
+          },
+          {
+            "children": [{
+              "children": [
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 15,
+                    "text": "Live overlay",
+                    "bold": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "color": "#B0FFFFFF",
+                    "size": 13,
+                    "text": "The pill reads your device's rotation rate and movement while a game is in the foreground, so you can compare how a change feels."
+                  }
+                }
+              ],
+              "type": "column",
+              "props": {"gap": 6}
+            }],
+            "type": "card",
+            "props": {
+              "padding": 12,
+              "color": "#141821"
+            }
+          },
+          {
+            "children": [{
+              "children": [
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 15,
+                    "text": "Saved preferences",
+                    "bold": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "color": "#B0FFFFFF",
+                    "size": 13,
+                    "text": "Your preset, DPI and multipliers are kept in the plugin's own store, so you can refer back to the numbers you settled on."
+                  }
+                }
+              ],
+              "type": "column",
+              "props": {"gap": 6}
+            }],
+            "type": "card",
+            "props": {
+              "padding": 12,
+              "color": "#141821"
+            }
+          },
+          {
+            "children": [{
+              "children": [
+                {
+                  "type": "text",
+                  "props": {
+                    "size": 15,
+                    "text": "Honest limits",
+                    "bold": true
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "color": "#B0FFFFFF",
+                    "size": 13,
+                    "text": "This is a measurement and reference aid. It cannot change the sensitivity of any game \u2014 GameCore plugins are data only, so you still enter these values in each game yourself."
+                  }
+                }
+              ],
+              "type": "column",
+              "props": {"gap": 6}
+            }],
+            "type": "card",
+            "props": {
+              "padding": 12,
+              "color": "#141821"
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 14
+        }
+      }
+    }
+  ],
+  "format": "gamecore.plugin.screens",
+  "version": 1
+}

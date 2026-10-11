@@ -245,9 +245,10 @@ private val PLACEHOLDER_ICON: ImageVector = Icons.Filled.RadioButtonUnchecked
 fun PluginNodeTree(
     node: ComponentNode,
     stats: (String) -> String?,
+    series: (String) -> List<Float>? = { null },
     modifier: Modifier = Modifier,
 ) {
-    RenderNode(node = node, stats = stats, depth = 0, modifier = modifier)
+    RenderNode(node = node, stats = stats, series = series, depth = 0, modifier = modifier)
 }
 
 /**
@@ -260,16 +261,17 @@ fun PluginNodeTree(
 private fun RenderNode(
     node: ComponentNode,
     stats: (String) -> String?,
+    series: (String) -> List<Float>?,
     depth: Int,
     modifier: Modifier = Modifier,
 ) {
     if (depth > MAX_RENDER_DEPTH) return
     when (node.type) {
-        ComponentType.COLUMN -> NodeColumn(node, stats, depth, modifier)
-        ComponentType.ROW -> NodeRow(node, stats, depth, modifier)
-        ComponentType.GRID -> NodeGrid(node, stats, depth, modifier)
-        ComponentType.SCROLL -> NodeScroll(node, stats, depth, modifier)
-        ComponentType.CARD -> NodeCard(node, stats, depth, modifier)
+        ComponentType.COLUMN -> NodeColumn(node, stats, series, depth, modifier)
+        ComponentType.ROW -> NodeRow(node, stats, series, depth, modifier)
+        ComponentType.GRID -> NodeGrid(node, stats, series, depth, modifier)
+        ComponentType.SCROLL -> NodeScroll(node, stats, series, depth, modifier)
+        ComponentType.CARD -> NodeCard(node, stats, series, depth, modifier)
         ComponentType.TEXT -> NodeText(node.props, modifier)
         ComponentType.BUTTON -> NodeButtonLabel(node.props, modifier)
         ComponentType.SLIDER -> NodeSlider(node.props, modifier)
@@ -277,14 +279,20 @@ private fun RenderNode(
         ComponentType.STAT -> NodeStat(node.props, stats, modifier)
         ComponentType.SPACER -> NodeSpacer(node.props, modifier)
         ComponentType.IMAGE -> NodeImage(node.props, modifier)
+        ComponentType.CHART -> NodeChart(node, series, modifier)
     }
 }
 
 /** Children, capped and one level deeper. Containers all go through this rather than iterating. */
 @Composable
-private fun NodeChildren(node: ComponentNode, stats: (String) -> String?, depth: Int) {
+private fun NodeChildren(
+    node: ComponentNode,
+    stats: (String) -> String?,
+    series: (String) -> List<Float>?,
+    depth: Int,
+) {
     node.children.take(MAX_CHILDREN_RENDERED).forEach { child ->
-        RenderNode(node = child, stats = stats, depth = depth + 1)
+        RenderNode(node = child, stats = stats, series = series, depth = depth + 1)
     }
 }
 
@@ -292,6 +300,7 @@ private fun NodeChildren(node: ComponentNode, stats: (String) -> String?, depth:
 private fun NodeColumn(
     node: ComponentNode,
     stats: (String) -> String?,
+    series: (String) -> List<Float>?,
     depth: Int,
     modifier: Modifier,
 ) {
@@ -301,7 +310,7 @@ private fun NodeColumn(
         verticalArrangement = Arrangement.spacedBy(props.gap()),
         horizontalAlignment = props.horizontalAlignment(),
     ) {
-        NodeChildren(node, stats, depth)
+        NodeChildren(node, stats, series, depth)
     }
 }
 
@@ -309,6 +318,7 @@ private fun NodeColumn(
 private fun NodeRow(
     node: ComponentNode,
     stats: (String) -> String?,
+    series: (String) -> List<Float>?,
     depth: Int,
     modifier: Modifier,
 ) {
@@ -320,7 +330,7 @@ private fun NodeRow(
         horizontalArrangement = Arrangement.spacedBy(props.gap()),
         verticalAlignment = props.verticalAlignment(),
     ) {
-        NodeChildren(node, stats, depth)
+        NodeChildren(node, stats, series, depth)
     }
 }
 
@@ -339,6 +349,7 @@ private fun NodeRow(
 private fun NodeGrid(
     node: ComponentNode,
     stats: (String) -> String?,
+    series: (String) -> List<Float>?,
     depth: Int,
     modifier: Modifier,
 ) {
@@ -361,6 +372,7 @@ private fun NodeGrid(
                     RenderNode(
                         node = cell,
                         stats = stats,
+                        series = series,
                         depth = depth + 1,
                         modifier = Modifier.weight(1f),
                     )
@@ -384,6 +396,7 @@ private fun NodeGrid(
 private fun NodeScroll(
     node: ComponentNode,
     stats: (String) -> String?,
+    series: (String) -> List<Float>?,
     depth: Int,
     modifier: Modifier,
 ) {
@@ -393,7 +406,7 @@ private fun NodeScroll(
         verticalArrangement = Arrangement.spacedBy(props.gap()),
         horizontalAlignment = props.horizontalAlignment(),
     ) {
-        NodeChildren(node, stats, depth)
+        NodeChildren(node, stats, series, depth)
     }
 }
 
@@ -414,6 +427,7 @@ private fun NodeScroll(
 private fun NodeCard(
     node: ComponentNode,
     stats: (String) -> String?,
+    series: (String) -> List<Float>?,
     depth: Int,
     modifier: Modifier,
 ) {
@@ -432,7 +446,7 @@ private fun NodeCard(
             verticalArrangement = Arrangement.spacedBy(props.gap()),
             horizontalAlignment = props.horizontalAlignment(),
         ) {
-            NodeChildren(node, stats, depth)
+            NodeChildren(node, stats, series, depth)
         }
     }
 }

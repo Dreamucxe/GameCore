@@ -1,0 +1,104 @@
+{
+  "size": "full",
+  "format": "gamecore.plugin.widget",
+  "id": "vitals",
+  "title": "System vitals",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "size": 14,
+          "text": "System vitals"
+        }
+      },
+      {
+        "children": [
+          {
+            "children": [{
+              "children": [
+                {
+                  "type": "text",
+                  "props": {"text": "FPS"}
+                },
+                {
+                  "type": "stat",
+                  "props": {"stat": "fps"}
+                }
+              ],
+              "type": "row",
+              "props": {"gap": 8}
+            }],
+            "type": "card",
+            "props": {"padding": 10}
+          },
+          {
+            "children": [{
+              "children": [
+                {
+                  "type": "text",
+                  "props": {"text": "CPU"}
+                },
+                {
+                  "type": "stat",
+                  "props": {"stat": "cpu"}
+                }
+              ],
+              "type": "row",
+              "props": {"gap": 8}
+            }],
+            "type": "card",
+            "props": {"padding": 10}
+          },
+          {
+            "children": [{
+              "children": [
+                {
+                  "type": "text",
+                  "props": {"text": "RAM"}
+                },
+                {
+                  "type": "stat",
+                  "props": {"stat": "ram"}
+                }
+              ],
+              "type": "row",
+              "props": {"gap": 8}
+            }],
+            "type": "card",
+            "props": {"padding": 10}
+          },
+          {
+            "children": [{
+              "children": [
+                {
+                  "type": "text",
+                  "props": {"text": "Temp"}
+                },
+                {
+                  "type": "stat",
+                  "props": {"stat": "temp"}
+                }
+              ],
+              "type": "row",
+              "props": {"gap": 8}
+            }],
+            "type": "card",
+            "props": {"padding": 10}
+          }
+        ],
+        "type": "grid",
+        "props": {
+          "columns": 2,
+          "gap": 8
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 10
+    }
+  }
+}

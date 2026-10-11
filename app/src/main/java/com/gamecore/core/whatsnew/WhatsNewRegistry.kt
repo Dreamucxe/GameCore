@@ -35,6 +35,36 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 29,
+            versionName = "3.8.1",
+            date = "2026-10-11",
+            features = listOf(
+                FeatureNote(
+                    "Eight official plugins",
+                    "A first set of GameCore-made plugins you can install from a file: a Nothing-OS-style " +
+                        "theme, an anime-inspired pack, a sensitivity workspace, an automation-history view, " +
+                        "a personal dashboard, a local advisor, a benchmark readout and a dashboard composer. " +
+                        "Each is data GameCore reads — none runs code.",
+                ),
+                FeatureNote(
+                    "Plugin settings you can change",
+                    "A plugin can offer its own options — switches, choices and numbers — and GameCore stores " +
+                        "and applies them for you. The controls live in GameCore; the plugin still runs nothing.",
+                ),
+                FeatureNote(
+                    "Your automation history, shown by a plugin",
+                    "A plugin you allow can display the record of automations GameCore has already run for you. " +
+                        "It reads that history only to show it — it is handed none of your other data and runs " +
+                        "no code of its own.",
+                ),
+                FeatureNote(
+                    "Live readouts on plugin screens",
+                    "Plugin screens and dashboard widgets can show figures GameCore already measures — frame " +
+                        "rate, temperature and the like — each drawn by GameCore from data you have allowed.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 28,
             versionName = "3.8",
             date = "2026-10-08",

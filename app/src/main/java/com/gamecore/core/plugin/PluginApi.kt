@@ -6,7 +6,7 @@ package com.gamecore.core.plugin
  * A `.gcplugin` is **data, not code** — it carries no classes, no scripts and no
  * binders, only JSON and assets that this build interprets. That makes the API
  * version the single thing that decides whether a given package can be trusted to
- * mean what it says: a plugin written against API 2 may use keys this build has
+ * mean what it says: a plugin written against API 3 may use keys this build has
  * never heard of, and a plugin written against API 1 may omit keys this build now
  * requires. Neither is a crash; both are a *compatibility* answer, computed here
  * before the loader ever opens an entry.
@@ -31,8 +31,14 @@ object PluginApi {
      * notice — a new component, a new permission, a changed clamp. A new optional
      * key that older builds safely ignore does not need a bump; a key whose absence
      * older builds would misread does.
+     *
+     * 4 added the `automation_history` read scope ([DataScope.AUTOMATION_HISTORY]):
+     * a plugin that declares it does not load on a build that predates the scope, so
+     * it is a meaning a plugin can notice — the "new permission" case above — and the
+     * number moves. Raising this did not raise [MINIMUM_SUPPORTED]: an API-3 plugin
+     * still means on 4 exactly what it meant on 3, so every older plugin keeps running.
      */
-    const val CURRENT = 1
+    const val CURRENT = 4
 
     /**
      * The oldest API a plugin may declare and still load.
@@ -50,13 +56,13 @@ object PluginApi {
      * on an older build is told the plugin is too new rather than shown a screen the
      * build cannot draw.
      *
-     * This build is versionCode 28 (versionName 3.8). The constant is duplicated
+     * This build is versionCode 29 (versionName 3.8.1). The constant is duplicated
      * here rather than read from `BuildConfig` so this object stays Android-free and
      * unit-testable; `PluginHostVersionTest` asserts the two agree, so a release that
      * bumps one and forgets the other fails the gate rather than shipping a host that
      * lies to every plugin about which build it is.
      */
-    const val HOST_VERSION_CODE = 28
+    const val HOST_VERSION_CODE = 29
 
     /**
      * The verdict for a plugin that declares API [pluginApi] and a minimum host

@@ -70,8 +70,11 @@ import androidx.room.RoomDatabase
         AimLabControlEntity::class,
         AimLabRecordEntity::class,
         ConfigBackupEntity::class,
+        PluginAutomationEventEntity::class,
+        DashboardLayoutEntity::class,
+        DashboardItemEntity::class,
     ],
-    version = 16,
+    version = 18,
     exportSchema = true,
 )
 abstract class GameCoreDatabase : RoomDatabase() {
@@ -97,6 +100,10 @@ abstract class GameCoreDatabase : RoomDatabase() {
     abstract fun aimLabLayouts(): AimLabLayoutDao
 
     abstract fun configBackups(): ConfigBackupDao
+
+    abstract fun pluginAutomationEvents(): PluginAutomationEventDao
+
+    abstract fun dashboardLayouts(): DashboardDao
 
     companion object {
         /**

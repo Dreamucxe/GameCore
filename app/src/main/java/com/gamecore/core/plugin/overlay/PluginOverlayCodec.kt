@@ -81,6 +81,9 @@ object PluginOverlayCodec {
      */
     private val MODULE_ID = Regex("^[a-z0-9][a-z0-9._-]{0,63}$")
 
+    /** The props by which a chart would name a live host feed; forbidden on an overlay chart. */
+    private val CHART_LIVE_SERIES_PROPS = listOf("stat", "stat2")
+
     // ------------------------------------------------------------------------------------ result
 
     /** Why a `pill.json` was refused. Each maps to a line the install screen and SDK can show. */
@@ -313,6 +316,21 @@ object PluginOverlayCodec {
                         "unknown stat \"$raw\"; one of " + ModuleStat.entries.joinToString(", ") { it.id },
                     ),
                 )
+            }
+        }
+
+        if (node.type == ComponentType.CHART) {
+            for (key in CHART_LIVE_SERIES_PROPS) {
+                if (props[key] is PropValue.Str) {
+                    return Audit.Err(
+                        Result.Rejected(
+                            Reason.BAD_STAT,
+                            "an overlay chart names a live series in \"$key\"; an overlay chart is " +
+                                "literal-only, because a module's data appetite is walked from its " +
+                                "stat nodes and a live chart series would ride behind no granted scope",
+                        ),
+                    )
+                }
             }
         }
 

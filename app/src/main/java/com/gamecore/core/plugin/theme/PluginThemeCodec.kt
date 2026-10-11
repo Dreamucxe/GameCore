@@ -25,17 +25,35 @@ import org.json.JSONObject
  */
 object PluginThemeCodec {
 
-    enum class Reason { EMPTY, MALFORMED, MISSING_FIELD, BAD_COLOR, BAD_FONT, UNKNOWN_KEY }
+    enum class Reason { EMPTY, MALFORMED, MISSING_FIELD, BAD_COLOR, BAD_FONT, UNKNOWN_KEY, BAD_SCHEMA, BAD_TYPOGRAPHY }
 
     sealed interface Result {
         data class Parsed(val theme: PluginTheme) : Result
         data class Rejected(val reason: Reason, val detail: String = "") : Result
     }
 
-    private val KNOWN_KEYS = setOf(
+    private val KNOWN_KEYS_V1 = setOf(
         "name", "dark", "primary", "onPrimary", "background", "surface",
         "onSurface", "accent", "cornerRadiusDp", "font", "uiScale",
     )
+
+    /**
+     * A v1 theme may carry the `schema` tag (declaring itself v1) and nothing else new. A theme
+     * that omits `schema`, or sets it to 1, is still held to exactly the v1 surface — so a v1
+     * theme that reaches for a v2 key is an UNKNOWN_KEY rejection, not a silently-ignored field.
+     */
+    private val KNOWN_KEYS_V1_AND_SCHEMA = KNOWN_KEYS_V1 + "schema"
+
+    /** The v2 surface: the v1 keys, the schema tag, and the three v2 extras. */
+    private val KNOWN_KEYS_V2 = KNOWN_KEYS_V1_AND_SCHEMA + setOf("amoled", "roles", "typography")
+
+    /** The seven semantic roles a v2 `roles` object may name; any other key rejects the theme. */
+    private val ROLE_KEYS = setOf(
+        "secondary", "tertiary", "surfaceVariant", "onSurfaceVariant", "outline", "error", "onError",
+    )
+
+    /** The two keys a v2 `typography` object may name. */
+    private val TYPO_KEYS = setOf("scale", "weight")
 
     private val REQUIRED_COLORS = listOf("primary", "onPrimary", "background", "surface", "onSurface", "accent")
 
@@ -47,7 +65,19 @@ object PluginThemeCodec {
             return Result.Rejected(Reason.MALFORMED, e.message.orEmpty())
         }
 
-        root.keys().asSequence().toList().firstOrNull { it !in KNOWN_KEYS }?.let {
+        val schema = root.optInt("schema", PluginTheme.SCHEMA_V1)
+        if (schema < PluginTheme.SCHEMA_V1 || schema > PluginTheme.SCHEMA_CURRENT) {
+            return Result.Rejected(
+                Reason.BAD_SCHEMA,
+                "schema $schema is outside ${PluginTheme.SCHEMA_V1}..${PluginTheme.SCHEMA_CURRENT}",
+            )
+        }
+
+        // A v1 theme is held to the v1 surface plus the schema tag itself, so a theme that reaches
+        // for a v2 key without declaring v2 is rejected rather than quietly ignored. Only a theme
+        // that declares schema >= 2 opens up the v2 keys.
+        val knownKeys = if (schema >= PluginTheme.SCHEMA_V2) KNOWN_KEYS_V2 else KNOWN_KEYS_V1_AND_SCHEMA
+        root.keys().asSequence().toList().firstOrNull { it !in knownKeys }?.let {
             return Result.Rejected(Reason.UNKNOWN_KEY, "unknown key \"$it\"")
         }
 
@@ -72,6 +102,51 @@ object PluginThemeCodec {
         val scale = root.optDouble("uiScale", 1.0).toFloat()
             .coerceIn(PluginTheme.MIN_UI_SCALE, PluginTheme.MAX_UI_SCALE)
 
+        // The v2 extras are parsed only when the theme declared schema >= 2, so a v1 theme is
+        // byte-for-byte the value it was before these fields existed. Each one rejects the whole
+        // theme on a bad value rather than defaulting it — the same contract the v1 fields hold to.
+        var amoled = false
+        var roles: PluginThemeRoles? = null
+        var typography: PluginThemeTypography? = null
+        if (schema >= PluginTheme.SCHEMA_V2) {
+            amoled = root.optBoolean("amoled", false)
+
+            if (root.has("roles")) {
+                val obj = root.optJSONObject("roles")
+                    ?: return Result.Rejected(Reason.MALFORMED, "\"roles\" is not an object")
+                obj.keys().asSequence().toList().firstOrNull { it !in ROLE_KEYS }?.let {
+                    return Result.Rejected(Reason.UNKNOWN_KEY, "unknown role \"$it\"")
+                }
+                val fill = HashMap<String, Int>()
+                for (key in ROLE_KEYS) {
+                    if (!obj.has(key)) continue
+                    fill[key] = parseColor(obj.optString(key))
+                        ?: return Result.Rejected(Reason.BAD_COLOR, "role \"$key\" is not a #RRGGBB or #AARRGGBB colour")
+                }
+                roles = PluginThemeRoles(
+                    secondary = fill["secondary"], tertiary = fill["tertiary"],
+                    surfaceVariant = fill["surfaceVariant"], onSurfaceVariant = fill["onSurfaceVariant"],
+                    outline = fill["outline"], error = fill["error"], onError = fill["onError"],
+                )
+            }
+
+            if (root.has("typography")) {
+                val obj = root.optJSONObject("typography")
+                    ?: return Result.Rejected(Reason.MALFORMED, "\"typography\" is not an object")
+                obj.keys().asSequence().toList().firstOrNull { it !in TYPO_KEYS }?.let {
+                    return Result.Rejected(Reason.UNKNOWN_KEY, "unknown typography key \"$it\"")
+                }
+                val typeScale = obj.optDouble("scale", PluginThemeTypography.DEFAULT_SCALE.toDouble()).toFloat()
+                    .coerceIn(PluginThemeTypography.MIN_SCALE, PluginThemeTypography.MAX_SCALE)
+                val weight = if (obj.has("weight")) {
+                    PluginThemeTypography.Weight.fromId(obj.optString("weight"))
+                        ?: return Result.Rejected(Reason.BAD_TYPOGRAPHY, "\"${obj.optString("weight")}\" is not a known weight")
+                } else {
+                    null
+                }
+                typography = PluginThemeTypography(scale = typeScale, weight = weight)
+            }
+        }
         return Result.Parsed(
             PluginTheme(
                 name = name,
@@ -85,6 +160,10 @@ object PluginThemeCodec {
                 cornerRadiusDp = corner,
                 font = font,
                 uiScale = scale,
+                schema = schema,
+                amoled = amoled,
+                roles = roles,
+                typography = typography,
             ),
         )
     }

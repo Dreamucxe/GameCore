@@ -163,6 +163,14 @@ fun HomeScreen(
     val setupViewModel: SetupCardViewModel = hiltViewModel()
     val setupState by setupViewModel.state.collectAsStateWithLifecycle()
 
+    // Dashboard widgets contributed by installed plugins. Hoisted here, like the setup card above, so
+    // the list can leave the section out altogether when no plugin draws one: the section composable
+    // returns early on an empty list, but a bare `item {}` would still spend a `spacedBy` gap on a
+    // zero-height row. The same back-stack-scoped ViewModel is handed down so the section renders the
+    // instance this collector is already watching.
+    val pluginWidgetsViewModel: PluginWidgetsSectionViewModel = hiltViewModel()
+    val pluginWidgets by pluginWidgetsViewModel.widgets.collectAsStateWithLifecycle()
+
     val padded = Modifier.padding(horizontal = ScreenPadding)
     // The one gap value the whole app shares, tightened by the same factor when the user has asked for
     // compact density (§3). Home reading a different spacing from Games would be a visible seam.
@@ -354,6 +362,14 @@ fun HomeScreen(
                     repeat(TILES_PER_ROW - row.size) { Spacer(modifier = Modifier.weight(1f)) }
                 }
             }
+        }
+
+        // Plugin dashboard widgets, below the host's own live tiles and above the device card. The
+        // `item` is emitted only when at least one widget is allowed on screen, for the same
+        // zero-height-gap reason as the cards above — PluginWidgetsSection returns early on an empty
+        // list, but an emitted slot would still take a `spacedBy` gap on both sides.
+        if (pluginWidgets.isNotEmpty()) {
+            item { PluginWidgetsSection(modifier = padded, viewModel = pluginWidgetsViewModel) }
         }
 
         item { DeviceCard(device = readouts.device, onNavigate = onNavigate, modifier = padded) }

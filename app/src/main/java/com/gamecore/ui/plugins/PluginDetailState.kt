@@ -5,7 +5,10 @@ import com.gamecore.core.plugin.PluginGrant
 import com.gamecore.core.plugin.PluginInstallPlan
 import com.gamecore.core.plugin.PluginPermission
 import com.gamecore.core.plugin.RiskTier
+import com.gamecore.core.plugin.settings.PluginSettingsSchema
+import com.gamecore.core.plugin.settings.SettingValue
 import com.gamecore.core.plugin.theme.PluginTheme
+import com.gamecore.core.plugin.ui.PluginScreen
 
 /**
  * What the plugin detail screen shows, and the four rules that decide what the user is allowed to do
@@ -47,8 +50,30 @@ data class PluginDetailUiState(
     val suspensionDetail: String? = null,
     /** True when this plugin is the one currently supplying the app's theme. */
     val isThemeSource: Boolean = false,
+    /**
+     * True when this plugin holds the automation-history read scope in its *live* granted set — the
+     * same gate [com.gamecore.core.plugin.PluginRegistry.automationHistory] applies at the call. The
+     * detail screen offers its entry point to the host's automation-history screen only when this is
+     * set, so the row never promises a screen the host would answer with "not allowed", and it drops
+     * the moment the plugin is disabled, suspended or caught by the kill switch.
+     */
+    val hasAutomationHistoryAccess: Boolean = false,
     val themePreview: PluginTheme? = null,
     val ruleCount: Int = 0,
+    /** Declarative screens this plugin declares, parsed on demand; empty until the sections load. */
+    val screens: List<PluginScreen> = emptyList(),
+    /**
+     * The plugin's declared settings schema, parsed on demand. Null until the sections load, and null
+     * for a plugin that declares no settings or whose settings.json no longer parses — the one guard the
+     * screen uses to decide whether to draw the settings card at all.
+     */
+    val settingsSchema: PluginSettingsSchema? = null,
+    /**
+     * The current value of each declared setting, by id. Populated once the schema loads; a setting the
+     * gate refuses to read (no Storage grant) falls back to its schema default here, so a control always
+     * has an honest value to show rather than a blank.
+     */
+    val settingValues: Map<String, SettingValue> = emptyMap(),
     val message: String? = null,
     val pendingRemoval: Boolean = false,
 ) {
@@ -122,6 +147,19 @@ data class PluginDetailUiState(
             if (draft == null) return false
             return currentPlan.canInstall && !requiresAdvancedAccess
         }
+
+    /**
+     * May the user actually change these settings, or are the controls shown read-only?
+     *
+     * Every settings write is funnelled through [PluginPermission.STORE_DATA] at the gate, so without
+     * that permission in the *saved* grant every set is denied, and the honest thing is to render the
+     * controls disabled over the schema's defaults with a note saying what to grant — not to hide them,
+     * and not to let a tap look like it stuck. The draft is pointedly not consulted: a permission the
+     * user toggled on but has not stored is not what the gate checks, so a control it would still refuse
+     * must not look live. A null saved grant means nothing has loaded yet, which is not a yes.
+     */
+    val settingsEditable: Boolean
+        get() = saved?.has(PluginPermission.STORE_DATA) == true
 }
 
 /**

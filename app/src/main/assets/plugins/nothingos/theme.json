@@ -1,0 +1,25 @@
+{
+  "onPrimary": "#0A0A0A",
+  "schema": 2,
+  "onSurface": "#F2F2F2",
+  "typography": {"weight": "medium"},
+  "surface": "#0A0A0A",
+  "roles": {
+    "secondary": "#C8C8C8",
+    "outline": "#2A2A2A",
+    "onError": "#FFFFFF",
+    "onSurfaceVariant": "#B5B5B5",
+    "tertiary": "#8A8A8A",
+    "error": "#D71921",
+    "surfaceVariant": "#141414"
+  },
+  "accent": "#D71921",
+  "uiScale": 1,
+  "amoled": true,
+  "background": "#000000",
+  "name": "Nothing OS Gaming",
+  "dark": true,
+  "cornerRadiusDp": 4,
+  "primary": "#EDEDED",
+  "font": "mono"
+}

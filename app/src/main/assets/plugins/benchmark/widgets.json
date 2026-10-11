@@ -1,0 +1,20 @@
+{
+  "size": "full",
+  "format": "gamecore.plugin.widget",
+  "id": "bench_trend",
+  "title": "Frame-rate trend",
+  "version": 1,
+  "content": {
+    "type": "chart",
+    "props": {
+      "note": "Live frame rate when Device stats is granted; sample values until then.",
+      "stat": "fps",
+      "min": 0,
+      "color": "#00E5FF",
+      "max": 120,
+      "kind": "line",
+      "values": "58,60,59,61,60,62,59,60,61,59",
+      "label": "FPS"
+    }
+  }
+}

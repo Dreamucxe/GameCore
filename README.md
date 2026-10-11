@@ -3,14 +3,59 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.7.2%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.8.1%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
 no backend, nothing you record leaves the device
 
 ---
 
-## New in 3.7.2
+## New in 3.8.1
+
+Eight plugins GameCore built itself — and the host features that let them do real work, all
+still under the rule that a plugin is data GameCore reads, never code it runs.
+
+- **Eight official plugins.** A first set you can install from a file: a Nothing-OS-style theme,
+  an anime-inspired pack, a sensitivity workspace, an automation-history view, a personal
+  dashboard, a local advisor, a benchmark readout and a dashboard composer. Each ships bundled and
+  can also be sideloaded as a `.gcplugin` file.
+- **Plugin settings you can change.** A plugin can offer its own options — switches, choices and
+  numbers — and GameCore stores and applies them for you. The controls live in GameCore; the
+  plugin still runs nothing.
+- **Your automation history, shown by a plugin.** A plugin you allow can display the record of
+  automations GameCore has already run for you. It reads that history only to show it — it is
+  handed none of your other data and runs no code of its own.
+- **Live readouts on plugin screens.** Plugin screens and dashboard widgets can show figures
+  GameCore already measures — frame rate, temperature and the like — each drawn by GameCore from
+  data you have allowed.
+
+---
+
+## Version 3.8
+
+Plugins arrive — and arrive as data, not code. A plugin is a file GameCore reads to restyle
+itself and add small readouts; it never runs inside GameCore and never gets a shell, so the
+directory can grow without widening what any one install can do.
+
+- **Install a plugin from a file.** Add a plugin from a `.gcplugin` package, see exactly what it
+  asks for before anything is on, and turn it on yourself. A plugin is data GameCore interprets
+  with code it already ships — it carries no scripts, no WebView and no native libraries.
+- **Permission by permission.** Every plugin lists exactly what it wants and you grant each item
+  separately; a new plugin arrives switched off with nothing granted, and anything that touches a
+  device setting needs a second opt-in.
+- **Plugin themes.** A plugin can supply colours, corner rounding and UI scale. Unreadable colour
+  pairs are replaced automatically, and the Plugins screen always draws in GameCore's own theme —
+  so the way back is never styled by the plugin you are turning off.
+- **On-screen plugin modules.** A plugin can add a small readout that sits over your game beside
+  the Game Pill — frame rate, temperature and the like. It cannot cover the screen, cannot take
+  touches from the game, and appears only once you grant that plugin the overlay permission; up to
+  three at a time.
+- **One switch to stop them all.** A single toggle on the Plugins screen stops every plugin at
+  once, whatever each plugin's own switch says.
+
+---
+
+## Version 3.7.2
 
 The floating dock's buttons become yours to arrange, the active profile can be put back one
 field at a time without ending play, and an in-game trigger can be placed by touch — plus the fix
@@ -711,8 +756,8 @@ closest the platform offers. Nothing runs when it is not needed — each service
 ## Architecture
 
 Kotlin only, Jetpack Compose with Material 3, MVVM, Hilt, Coroutines and `StateFlow`. No
-Java, no XML layouts — the only XML is Android resources and the manifest. 513 source files,
-about 132,000 lines.
+Java, no XML layouts — the only XML is Android resources and the manifest. 593 source files,
+about 150,000 lines.
 
 ```
 app/
@@ -777,8 +822,8 @@ signing key is not blocked — but an unsigned APK will not install on a device.
 
 The unit tests are deliberately written against the pure, Android-free seams: the geometry,
 the formatters, the sanitizer, the command builder, the aggregators, the state reducers, the
-per-session latency fold, and every word the shareable card is allowed to print. 139 suites,
-1,819 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
+per-session latency fold, and every word the shareable card is allowed to print. 202 suites,
+2,475 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
 
 ## Your data, and the network
 

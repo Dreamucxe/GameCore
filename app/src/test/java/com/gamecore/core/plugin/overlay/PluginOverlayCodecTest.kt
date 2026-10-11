@@ -209,14 +209,15 @@ class PluginOverlayCodecTest {
     }
 
     @Test
-    fun `the allowed set is the eight non-interactive types`() {
-        assertEquals(8, PluginOverlayModule.ALLOWED_TYPES.size)
+    fun `the allowed set is the nine non-interactive types`() {
+        assertEquals(9, PluginOverlayModule.ALLOWED_TYPES.size)
         listOf(
             ComponentType.BUTTON, ComponentType.SLIDER, ComponentType.SWITCH, ComponentType.SCROLL,
         ).forEach { assertFalse(it.id, it in PluginOverlayModule.ALLOWED_TYPES) }
         listOf(
             ComponentType.COLUMN, ComponentType.ROW, ComponentType.GRID, ComponentType.CARD,
             ComponentType.TEXT, ComponentType.STAT, ComponentType.SPACER, ComponentType.IMAGE,
+            ComponentType.CHART,
         ).forEach { assertTrue(it.id, it in PluginOverlayModule.ALLOWED_TYPES) }
     }
 
@@ -288,7 +289,7 @@ class PluginOverlayCodecTest {
         assertNull(ModuleStat.fromId("screen_text"))
         assertNull(ModuleStat.fromId(""))
         assertEquals(ModuleStat.FPS, ModuleStat.fromId(" FPS "))
-        assertEquals(6, ModuleStat.entries.size)
+        assertEquals(8, ModuleStat.entries.size)
     }
 
     // ------------------------------------------------------------------------------ clamping

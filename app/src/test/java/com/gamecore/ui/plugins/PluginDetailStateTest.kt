@@ -8,6 +8,7 @@ import com.gamecore.core.plugin.PluginPermission
 import com.gamecore.core.plugin.RequestedPermission
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -327,5 +328,37 @@ class PluginDetailStateTest {
         assertFalse(state.canEnable)
         assertFalse(state.canTurnOn)
         assertFalse(state.requiresAdvancedAccess)
+    }
+
+    // ---------------------------------------------------------------- settings
+
+    @Test
+    fun `settings schema and values default to absent`() {
+        val state = PluginDetailUiState()
+        assertNull(state.settingsSchema)
+        assertTrue(state.settingValues.isEmpty())
+        assertFalse(state.settingsEditable)
+    }
+
+    @Test
+    fun `settings are editable only when the saved grant holds Storage`() {
+        val withStorage = PluginDetailUiState(
+            saved = grant(granted = mapOf(PluginPermission.STORE_DATA to emptySet())),
+        )
+        assertTrue(withStorage.settingsEditable)
+
+        val without = PluginDetailUiState(saved = grant())
+        assertFalse(without.settingsEditable)
+    }
+
+    @Test
+    fun `settings editability reads the saved grant not the draft`() {
+        // A permission toggled on but not saved is not what the gate checks, so the controls must not
+        // look live on the strength of it — otherwise a tap would be refused while appearing to work.
+        val state = PluginDetailUiState(
+            draft = grant(granted = mapOf(PluginPermission.STORE_DATA to emptySet())),
+            saved = grant(),
+        )
+        assertFalse(state.settingsEditable)
     }
 }

@@ -1,0 +1,44 @@
+{"settings": [
+  {
+    "default": "grid",
+    "options": [
+      "grid",
+      "list",
+      "compact"
+    ],
+    "id": "home_layout",
+    "type": "enum"
+  },
+  {
+    "default": true,
+    "id": "show_vitals",
+    "type": "bool"
+  },
+  {
+    "default": true,
+    "id": "show_thermals",
+    "type": "bool"
+  },
+  {
+    "default": 2,
+    "min": 1,
+    "max": 4,
+    "id": "widget_columns",
+    "type": "int"
+  },
+  {
+    "default": "celsius",
+    "options": [
+      "celsius",
+      "fahrenheit"
+    ],
+    "id": "temperature_units",
+    "type": "enum"
+  },
+  {
+    "default": "Welcome back",
+    "id": "greeting",
+    "type": "string",
+    "maxLength": 48
+  }
+]}

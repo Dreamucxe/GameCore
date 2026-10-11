@@ -3,12 +3,16 @@ package com.gamecore.ui.plugins
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gamecore.core.plugin.ApiResult
+import com.gamecore.core.plugin.DataScope
 import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.PluginGrant
 import com.gamecore.core.plugin.PluginInstallPlan
 import com.gamecore.core.plugin.PluginPermission
 import com.gamecore.core.plugin.PluginRegistry
 import com.gamecore.core.plugin.PluginSection
+import com.gamecore.core.plugin.settings.PluginSettingsSchema
+import com.gamecore.core.plugin.settings.SettingValue
 import com.gamecore.ui.Destination
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -133,6 +137,7 @@ class PluginDetailViewModel @Inject constructor(
             suspended = plugin.suspended,
             suspensionDetail = plugin.suspensionDetail,
             isThemeSource = isThemeSource,
+            hasAutomationHistoryAccess = DataScope.AUTOMATION_HISTORY in registry.grantedScopesFor(pluginId),
             message = noteForStoredGrant(previous, plugin.grant) ?: previous.message,
         )
         if (sectionsFor != plugin.sha256) {
@@ -175,13 +180,56 @@ class PluginDetailViewModel @Inject constructor(
         }
     }
 
-    /** Reads the declared sections for the theme preview and the rule count. Absent is zero, not an error. */
+    /** Reads the declared sections for the theme preview, the rule count and the settings schema. Absent is zero, not an error. */
     private suspend fun loadSections() {
         val sections = registry.sectionsOf(pluginId)
         editing.value = editing.value.copy(
             themePreview = sections?.theme,
             ruleCount = sections?.rules?.size ?: 0,
+            screens = sections?.screens.orEmpty(),
+            settingsSchema = sections?.settings,
         )
+        sections?.settings?.let { loadSettingValues(it) }
+    }
+
+    /**
+     * Reads the current value of every declared setting, defaulting any the gate refuses.
+     *
+     * Each read goes through [PluginRegistry.readPluginSetting], the one narrow door the registry opens
+     * for settings, which funnels it past the same Storage gate every settings call uses. An Ok carries
+     * the stored-or-default value; a denial (no Storage grant), a rate-limit or an error all fall back
+     * to the definition's own default, so a control renders an honest default the user cannot change
+     * rather than a blank. The ids come from the schema itself, so an unknown id never arises here.
+     */
+    private suspend fun loadSettingValues(schema: PluginSettingsSchema) {
+        val values = LinkedHashMap<String, SettingValue>(schema.definitions.size)
+        for (def in schema.definitions) {
+            val result = registry.readPluginSetting(pluginId, schema, def.id)
+            values[def.id] = (result as? ApiResult.Ok)?.value ?: def.default
+        }
+        editing.value = editing.value.copy(settingValues = values)
+    }
+
+    /**
+     * Writes one setting and reflects what the store actually kept.
+     *
+     * The value a control sends is coerced behind the registry — a number clamped to the setting's
+     * bounds, a string truncated to its length — and the [ApiResult.Ok] carries that coerced value,
+     * which is what lands back in [PluginDetailUiState.settingValues] so a control that asked for 9999
+     * settles on the 240 that was stored. A denied, rate-limited or errored write changes nothing: the
+     * map keeps the value it had, so a control never shows a figure the store rejected. A call made
+     * before the schema has loaded is a no-op, the guard every settings path shares.
+     */
+    fun onSetSetting(id: String, value: SettingValue) {
+        val schema = editing.value.settingsSchema ?: return
+        viewModelScope.launch {
+            val result = registry.setPluginSetting(pluginId, schema, id, value)
+            if (result is ApiResult.Ok) {
+                editing.value = editing.value.copy(
+                    settingValues = editing.value.settingValues + (id to result.value),
+                )
+            }
+        }
     }
 
     // ------------------------------------------------------------------------------- the grant

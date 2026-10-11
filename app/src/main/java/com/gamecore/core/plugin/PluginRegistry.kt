@@ -1,8 +1,12 @@
 package com.gamecore.core.plugin
 
 import com.gamecore.core.plugin.content.AutomationRule
+import com.gamecore.core.plugin.dashboard.PluginDashboardWidget
 import com.gamecore.core.plugin.overlay.PluginOverlayModule
+import com.gamecore.core.plugin.settings.PluginSettingsSchema
+import com.gamecore.core.plugin.settings.SettingValue
 import com.gamecore.core.plugin.theme.PluginTheme
+import com.gamecore.core.plugin.ui.PluginScreen
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -96,7 +100,7 @@ sealed interface InstallOutcome {
  * layer is allowed to do to a plugin is one of the methods below, which is also the list a reviewer has
  * to check rather than the whole surface of a concrete class.
  *
- * All four flows are hot and survive the screens that read them: the active theme has to outlive the
+ * All six flows are hot and survive the screens that read them: the active theme has to outlive the
  * manager screen that selected it, and the broker reads [installed] from a service with no UI at all.
  *
  * The suspending methods do their own I/O off the main thread. None of them throw: a failure comes back
@@ -137,6 +141,40 @@ interface PluginRegistry {
      * that plugin modules exist.
      */
     val activeOverlayModules: StateFlow<List<ActiveOverlayModule>>
+
+    /**
+     * Every dashboard widget the running plugins may draw on the home surface right now, in registry
+     * order and already capped at the dashboard's `PluginDashboardCodec.MAX_WIDGETS`.
+     *
+     * [activeOverlayModules] for the home screen rather than the in-game one, filtered by the same
+     * chain for the same reasons: the kill switch, the plugin being disabled, suspended or
+     * incompatible, the absence of a declared `widgets` section, a missing
+     * [PluginPermission.ADD_DASHBOARD_WIDGETS] in the *grant* rather than the manifest, a widget
+     * whose `stat` nodes need a data scope the user did not approve, and a `widget.json` that no
+     * longer parses. Every one of those degrades to the widget simply not being in this list — the
+     * dashboard never asks a plugin anything; it reads this.
+     *
+     * A flat list of (plugin, widget) pairs in which one plugin may appear more than once, because
+     * the dashboard is a scrolling grid rather than the overlay's three fixed slots: widgets compose
+     * the way modules do, and the cap is this list's length across every plugin, not a per-plugin
+     * count. Extras past the cap are dropped in registry order and never parsed.
+     */
+    val activeDashboardWidgets: StateFlow<List<ActiveDashboardWidget>>
+
+    /**
+     * Every plugin automation currently allowed to run, grouped by the plugin that declared it.
+     *
+     * Unlike [activeOverlayModules] and [activeDashboardWidgets] this is not a surface the user looks
+     * at — it is what an automation runner reads to know which rules to weigh against the host's
+     * trigger/stat feed. One entry per plugin, not per rule, because every rule a plugin ships
+     * dispatches through that plugin's own grant: [ActivePluginAutomation.state] travels with the
+     * rules so the runner hands each fired action to the broker under the right runtime state, and
+     * the broker re-checks permission on every one. A plugin is here only when it is active, declares
+     * a `rules` section, holds [PluginPermission.RUN_AUTOMATIONS] in its *grant*, and has at least
+     * one rule that passes `AutomationEngine` validation. Nothing here runs anything — deciding is
+     * the engine's job and dispatching is the broker's; this flow only says who is allowed to.
+     */
+    val activeAutomations: StateFlow<List<ActivePluginAutomation>>
 
     /**
      * The global off switch. True means no plugin runs, whatever its own state says.
@@ -196,6 +234,87 @@ interface PluginRegistry {
 
     /** The parsed sections of one installed plugin, re-read from its stored package. Null when absent. */
     suspend fun sectionsOf(pluginId: String): PluginSections?
+
+    /**
+     * Reads one of [pluginId]'s own settings, named [id], decoded against the caller's [schema].
+     *
+     * The ViewModel holds the parsed [PluginSettingsSchema] (it got it from [sectionsOf]) and passes it
+     * back in; the registry never hands the ViewModel the settings store or the typed surface directly,
+     * because a screen that could reach either could write a plugin's own namespace without the funnel
+     * that gates, rate-limits, clamps and audits every such call. This is the one narrow door instead:
+     * the registry owns the surface and builds the runtime state, and the ViewModel gets back only a
+     * typed [ApiResult].
+     *
+     * The outcomes are the typed surface's own: an [ApiResult.Ok] carrying the stored value or the
+     * definition's default, an [ApiResult.Error] for an unknown [id], and the matching [ApiResult] for a
+     * denied (Storage withheld) or rate-limited call. A [pluginId] that names nothing installed is an
+     * [ApiResult.Error] — the same shape an unknown setting already has, so a stale screen degrades to a
+     * value rather than a throw.
+     */
+    suspend fun readPluginSetting(
+        pluginId: String,
+        schema: PluginSettingsSchema,
+        id: String,
+    ): ApiResult<SettingValue>
+
+    /**
+     * Stores [value] for [pluginId]'s setting [id], coerced against [schema], returning the value that
+     * was actually stored — a clamped number, a truncated string — rather than the one that was asked
+     * for.
+     *
+     * [readPluginSetting]'s narrow door for writes, with the typed surface's write outcomes: an
+     * [ApiResult.Ok] carrying the coerced value, an [ApiResult.Error] for a wrong-typed value or an
+     * unknown [id], and the matching [ApiResult] for a denied or rate-limited call. An unknown [pluginId]
+     * is an [ApiResult.Error].
+     */
+    suspend fun setPluginSetting(
+        pluginId: String,
+        schema: PluginSettingsSchema,
+        id: String,
+        value: SettingValue,
+    ): ApiResult<SettingValue>
+
+    /**
+     * The data scopes [pluginId] has actually been granted right now, as the gate sees them.
+     *
+     * The registry-level scope backstop for surfaces that resolve a plugin's live figures per id — the
+     * plugin screen route resolves each `stat`/`series` only when the [DataScope] it sits under is in
+     * this set, which is the same per-id prefilter [activeOverlayModules] and [activeDashboardWidgets]
+     * already apply to whole modules and widgets. Derived from the stored grant through
+     * [PluginPermissionGate] rather than read off the grant directly, so the kill switch, a disabled or
+     * suspended plugin, and a scope the user never approved all collapse to that scope's absence here —
+     * the one place the gate lives. An unknown, removed, or inactive plugin yields the empty set, which
+     * resolves every live figure to absent rather than to a real reading.
+     */
+    fun grantedScopesFor(pluginId: String): Set<DataScope>
+
+    /**
+     * The user's automation history, newest first, at most [limit] lines, surfaced to the host screen a
+     * plugin holding the [DataScope.AUTOMATION_HISTORY] read scope is permitted to have GameCore show.
+     *
+     * The records are the production automation trail ([PluginAutomationHistoryStore]) — the real runs,
+     * not a fixture — and they are GameCore's own record of what ran on the device, already sanitised at
+     * the audit boundary so no secret, token, or payload reaches here. They are *host-owned and
+     * host-rendered*: this returns them to GameCore's own screen, never to plugin code, which is what
+     * keeps a plugin from reading, keeping, or forwarding another plugin's line even as the user reviews
+     * the whole trail through it. The scope is a lens the user pointed, not a copy handed over.
+     *
+     * Gated through [PluginPermissionGate] exactly as [grantedScopesFor] is, so the kill switch and a
+     * disabled, suspended, or never-granted plugin all land on [ApiResult.Error] rather than an empty
+     * list — the screen can tell "nothing has run yet" from "not allowed to look". An unknown [pluginId]
+     * is the same [ApiResult.Error].
+     */
+    suspend fun automationHistory(pluginId: String, limit: Int = 100): ApiResult<List<AutomationHistoryRecord>>
+
+    /**
+     * Erase the user's whole automation history, as the "clear" control on that same host screen invokes
+     * it — a user action, confirmed on screen, gated by the identical [DataScope.AUTOMATION_HISTORY]
+     * check so a plugin without the granted scope cannot reach it. It clears every line, not only the
+     * requesting plugin's, because the screen reviews the whole trail; a plugin cannot clear history
+     * silently, since it has no way to drive this without the user's on-screen confirmation. Returns
+     * [ApiResult.Ok] once the log is cleared, or [ApiResult.Error] for a denied call or unknown [pluginId].
+     */
+    suspend fun clearAutomationHistory(pluginId: String): ApiResult<Unit>
 }
 
 /**
@@ -221,6 +340,39 @@ data class ActiveOverlayModule(
 )
 
 /**
+ * One dashboard widget in force, with the plugin that supplied it.
+ *
+ * [ActiveOverlayModule] for the home surface: the id and name travel with the widget for the same
+ * reason they travel with a module — the first thing a user needs when an unexpected tile appears on
+ * their dashboard is which plugin put it there, and it is what the dashboard host attributes a
+ * misbehaving widget to rather than to "the dashboard". A plugin appears in more than one of these
+ * when it ships more than one widget; each pairing stands on its own.
+ */
+data class ActiveDashboardWidget(
+    val pluginId: String,
+    val pluginName: String,
+    val widget: PluginDashboardWidget,
+)
+
+/**
+ * The automations one plugin is allowed to run, with the runtime state they dispatch under.
+ *
+ * Where [ActiveOverlayModule] and [ActiveDashboardWidget] each carry one drawable thing, this
+ * carries a plugin's whole validated rule set, because automations are weighed as a group against
+ * the same trigger and the actions they fire all go through one grant. [state] is held rather than
+ * re-derived at dispatch time so a runner cannot evaluate a rule under one plugin's state and fire
+ * its action under another's: the state, the name and the rules are one indivisible record of "this
+ * plugin, these rules, this authority". [rules] has already been filtered to those that validate, so
+ * a consumer never has to decide whether a rule is well-formed — only whether its trigger fired.
+ */
+data class ActivePluginAutomation(
+    val pluginId: String,
+    val pluginName: String,
+    val state: PluginRuntimeState,
+    val rules: List<AutomationRule>,
+)
+
+/**
  * The declared content of one plugin, already validated.
  *
  * Parsed on demand rather than held in [InstalledPlugin], because the manager screen needs a name and a
@@ -232,4 +384,6 @@ data class PluginSections(
     val theme: PluginTheme? = null,
     val rules: List<AutomationRule> = emptyList(),
     val overlayModule: PluginOverlayModule? = null,
+    val settings: PluginSettingsSchema? = null,
+    val screens: List<PluginScreen> = emptyList(),
 )

@@ -1,0 +1,587 @@
+{
+  "screens": [
+    {
+      "icon": "insights",
+      "id": "showcase",
+      "title": "Interface Showcase",
+      "content": {
+        "children": [
+          {
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "size": 28,
+                  "icon": "extension"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#FF4FA3",
+                  "size": 24,
+                  "text": "Anime Interface Pack",
+                  "bold": true
+                }
+              }
+            ],
+            "type": "row",
+            "props": {
+              "gap": 12,
+              "align": "center"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#FFE6F3",
+              "text": "A vivid, anime-inspired reskin: hot pink, electric cyan and violet on deep plum."
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#38F0E0",
+              "size": 18,
+              "text": "Palette",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [{
+                  "type": "text",
+                  "props": {
+                    "color": "#1A0A14",
+                    "text": "Primary",
+                    "bold": true
+                  }
+                }],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#FF4FA3"
+                }
+              },
+              {
+                "children": [{
+                  "type": "text",
+                  "props": {
+                    "color": "#0E0A12",
+                    "text": "Accent",
+                    "bold": true
+                  }
+                }],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#38F0E0"
+                }
+              },
+              {
+                "children": [{
+                  "type": "text",
+                  "props": {
+                    "color": "#140A1F",
+                    "text": "Tertiary",
+                    "bold": true
+                  }
+                }],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#B16CFF"
+                }
+              },
+              {
+                "children": [{
+                  "type": "text",
+                  "props": {
+                    "color": "#FFE6F3",
+                    "text": "Surface",
+                    "bold": true
+                  }
+                }],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#241026"
+                }
+              }
+            ],
+            "type": "grid",
+            "props": {
+              "columns": 2,
+              "gap": 12
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#38F0E0",
+              "size": 18,
+              "text": "Type",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#FFE6F3",
+                  "size": 24,
+                  "text": "Display",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#FFE6F3",
+                  "size": 20,
+                  "text": "Title",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#FFE6F3",
+                  "size": 15,
+                  "text": "Body text \u2014 rounded face, medium weight."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#241026",
+              "gap": 6
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "size": 20,
+                  "icon": "game"
+                }
+              },
+              {
+                "type": "image",
+                "props": {
+                  "size": 20,
+                  "icon": "bolt"
+                }
+              },
+              {
+                "type": "image",
+                "props": {
+                  "size": 20,
+                  "icon": "shield"
+                }
+              },
+              {
+                "type": "image",
+                "props": {
+                  "size": 20,
+                  "icon": "insights"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#FFE6F3",
+                  "text": "Built-in icons only"
+                }
+              }
+            ],
+            "type": "row",
+            "props": {
+              "gap": 10,
+              "align": "center"
+            }
+          }
+        ],
+        "type": "scroll",
+        "props": {
+          "padding": 20,
+          "gap": 16
+        }
+      }
+    },
+    {
+      "icon": "game",
+      "id": "profile",
+      "title": "Status Panel",
+      "content": {
+        "children": [
+          {
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "size": 28,
+                  "icon": "game"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#FF4FA3",
+                  "size": 24,
+                  "text": "Status Panel",
+                  "bold": true
+                }
+              }
+            ],
+            "type": "row",
+            "props": {
+              "gap": 12,
+              "align": "center"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#FFE6F3",
+              "text": "A character-sheet-style HUD, laid out in the Anime Interface Pack look."
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#38F0E0",
+                  "size": 18,
+                  "text": "Vitals",
+                  "bold": true
+                }
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "type": "image",
+                            "props": {
+                              "size": 18,
+                              "icon": "speed"
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "props": {
+                              "color": "#D9A6C6",
+                              "size": 13,
+                              "text": "Frame Rate"
+                            }
+                          }
+                        ],
+                        "type": "row",
+                        "props": {
+                          "gap": 8,
+                          "align": "center"
+                        }
+                      },
+                      {
+                        "type": "stat",
+                        "props": {
+                          "stat": "fps",
+                          "size": 22,
+                          "color": "#FFE6F3"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 12,
+                      "color": "#2E1530",
+                      "gap": 6
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "type": "image",
+                            "props": {
+                              "size": 18,
+                              "icon": "data"
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "props": {
+                              "color": "#D9A6C6",
+                              "size": 13,
+                              "text": "CPU Load"
+                            }
+                          }
+                        ],
+                        "type": "row",
+                        "props": {
+                          "gap": 8,
+                          "align": "center"
+                        }
+                      },
+                      {
+                        "type": "stat",
+                        "props": {
+                          "stat": "cpu",
+                          "size": 22,
+                          "color": "#FFE6F3"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 12,
+                      "color": "#2E1530",
+                      "gap": 6
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "type": "image",
+                            "props": {
+                              "size": 18,
+                              "icon": "bolt"
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "props": {
+                              "color": "#D9A6C6",
+                              "size": 13,
+                              "text": "GPU Load"
+                            }
+                          }
+                        ],
+                        "type": "row",
+                        "props": {
+                          "gap": 8,
+                          "align": "center"
+                        }
+                      },
+                      {
+                        "type": "stat",
+                        "props": {
+                          "stat": "gpu",
+                          "size": 22,
+                          "color": "#FFE6F3"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 12,
+                      "color": "#2E1530",
+                      "gap": 6
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "type": "image",
+                            "props": {
+                              "size": 18,
+                              "icon": "memory"
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "props": {
+                              "color": "#D9A6C6",
+                              "size": 13,
+                              "text": "Memory"
+                            }
+                          }
+                        ],
+                        "type": "row",
+                        "props": {
+                          "gap": 8,
+                          "align": "center"
+                        }
+                      },
+                      {
+                        "type": "stat",
+                        "props": {
+                          "stat": "ram",
+                          "size": 22,
+                          "color": "#FFE6F3"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 12,
+                      "color": "#2E1530",
+                      "gap": 6
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "type": "image",
+                            "props": {
+                              "size": 18,
+                              "icon": "battery"
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "props": {
+                              "color": "#D9A6C6",
+                              "size": 13,
+                              "text": "Battery"
+                            }
+                          }
+                        ],
+                        "type": "row",
+                        "props": {
+                          "gap": 8,
+                          "align": "center"
+                        }
+                      },
+                      {
+                        "type": "stat",
+                        "props": {
+                          "stat": "battery",
+                          "size": 22,
+                          "color": "#FFE6F3"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 12,
+                      "color": "#2E1530",
+                      "gap": 6
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "type": "image",
+                            "props": {
+                              "size": 18,
+                              "icon": "thermostat"
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "props": {
+                              "color": "#D9A6C6",
+                              "size": 13,
+                              "text": "Temp"
+                            }
+                          }
+                        ],
+                        "type": "row",
+                        "props": {
+                          "gap": 8,
+                          "align": "center"
+                        }
+                      },
+                      {
+                        "type": "stat",
+                        "props": {
+                          "stat": "temp",
+                          "size": 22,
+                          "color": "#FFE6F3"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 12,
+                      "color": "#2E1530",
+                      "gap": 6
+                    }
+                  }
+                ],
+                "type": "grid",
+                "props": {
+                  "columns": 2,
+                  "gap": 12
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#241026",
+              "gap": 12
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "info"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#38F0E0",
+                      "text": "Live values",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#FFE6F3",
+                  "size": 13,
+                  "text": "Readings show as a dash for now. GameCore feeds screen stats in a later update, and this pack requests appearance only (no data access), so the grid is a layout reference rather than a live readout."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "color": "#241026",
+              "gap": 4
+            }
+          }
+        ],
+        "type": "scroll",
+        "props": {
+          "padding": 20,
+          "gap": 16
+        }
+      }
+    }
+  ],
+  "format": "gamecore.plugin.screens",
+  "version": 1
+}

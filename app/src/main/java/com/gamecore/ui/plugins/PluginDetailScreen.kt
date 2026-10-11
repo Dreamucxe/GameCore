@@ -17,8 +17,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
@@ -49,10 +51,12 @@ import com.gamecore.core.plugin.PluginPermission
 import com.gamecore.core.plugin.PluginSection
 import com.gamecore.core.plugin.RiskTier
 import com.gamecore.core.plugin.theme.PluginTheme
+import com.gamecore.core.plugin.ui.PluginScreen
 import com.gamecore.ui.components.ActionRow
 import com.gamecore.ui.components.ConfirmDialog
 import com.gamecore.ui.components.EmptyState
 import com.gamecore.ui.components.KeyValueRow
+import com.gamecore.ui.components.NavRow
 import com.gamecore.ui.components.NoteBanner
 import com.gamecore.ui.components.PlainCard
 import com.gamecore.ui.components.RowDivider
@@ -106,6 +110,8 @@ import com.gamecore.ui.components.colour
 fun PluginDetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenScreen: (pluginId: String, screenId: String) -> Unit = { _, _ -> },
+    onOpenAutomationHistory: (pluginId: String) -> Unit = {},
     viewModel: PluginDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -261,6 +267,57 @@ fun PluginDetailScreen(
 
         if (state.ruleCount > 0) {
             item { RulesCard(ruleCount = state.ruleCount, modifier = padded) }
+        }
+
+        // Guarded on the parsed schema, not the manifest's claim: a plugin that declares the section but
+        // ships a settings.json that no longer parses has no schema here, and an empty card would invite
+        // the user to hunt for controls that cannot exist. The controls are disabled over the schema's
+        // own defaults unless Storage is in the *saved* grant — the permission every settings write is
+        // funnelled through — so a tap can never look like it stuck when the gate would refuse it.
+        state.settingsSchema?.let { schema ->
+            item {
+                SettingsCard(
+                    schema = schema,
+                    values = state.settingValues,
+                    editable = state.settingsEditable,
+                    onSet = viewModel::onSetSetting,
+                    modifier = padded,
+                )
+            }
+        }
+
+        // Shown only when the plugin could actually open a screen: it declares at least one, it is
+        // active (enabled and not suspended), and change_ui is in the *saved* grant — the same live
+        // conditions resolvePluginScreen applies at the route, so the Open affordance never promises a
+        // screen the destination would then refuse to draw. `plugin` and `saved` are the non-null
+        // locals the early guard established.
+        if (state.screens.isNotEmpty() &&
+            state.enabled &&
+            !state.suspended &&
+            saved.has(PluginPermission.CHANGE_UI)
+        ) {
+            item {
+                ScreensCard(
+                    screens = state.screens,
+                    onOpenScreen = { screenId -> onOpenScreen(plugin.id, screenId) },
+                    modifier = padded,
+                )
+            }
+        }
+
+        // The automation-history entry point appears only while this plugin holds the automation-history
+        // read scope in its live granted set — the same gate the registry applies when the screen then
+        // asks for the records, so the row never offers a page the host would answer with "not allowed",
+        // and it drops the instant the plugin is disabled, suspended or caught by the kill switch. The
+        // screen it opens is GameCore's own: the plugin is handed none of the entries, it only asked that
+        // the user be shown them.
+        if (state.hasAutomationHistoryAccess) {
+            item {
+                AutomationHistoryCard(
+                    onOpen = { onOpenAutomationHistory(plugin.id) },
+                    modifier = padded,
+                )
+            }
         }
 
         item { RemovalCard(plugin = plugin, onAskRemove = viewModel::askRemove, modifier = padded) }
@@ -831,6 +888,78 @@ private fun ThemeSwatch(label: String, colour: Color) {
  * The count is here because it tells the user that granting "run automations" is granting a known
  * quantity, not an open-ended one.
  */
+/**
+ * The screens this plugin adds, each a row that opens a real navigation destination.
+ *
+ * Only ever shown while the plugin is active and change_ui is granted (the caller gates it), so this
+ * card does not re-check — it lists what the registry parsed and lets the user open one. Each screen is
+ * drawn by GameCore itself from declared data: the note says so, because a page that looked like the
+ * plugin's own could otherwise be mistaken for code the plugin is running.
+ */
+@Composable
+private fun ScreensCard(
+    screens: List<PluginScreen>,
+    onOpenScreen: (screenId: String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Screens",
+        subtitle = "Pages this plugin adds to GameCore",
+        icon = Icons.Filled.Dashboard,
+        modifier = modifier,
+    ) {
+        screens.forEach { screen ->
+            NavRow(
+                title = screen.title,
+                onClick = { onOpenScreen(screen.id) },
+                icon = pluginScreenIcon(screen.icon),
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "GameCore draws these pages itself from data the plugin declared. They are " +
+                "read-only — opening one cannot run plugin code or change anything.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * The way in to GameCore's own record of automations that have run on the device.
+ *
+ * Shown only while this plugin holds the automation-history read scope (the caller gates it), and it
+ * opens a screen GameCore draws itself: the plugin receives none of the records, it asked only that the
+ * user be shown them. The note says as much, because a row reading "automation history" beside a
+ * plugin's name could otherwise be taken for the plugin's own log rather than the device's — and this
+ * plugin can neither read nor change what that screen shows.
+ */
+@Composable
+private fun AutomationHistoryCard(
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Automation history",
+        subtitle = "GameCore's record of automations that have run on your device",
+        icon = Icons.Filled.History,
+        modifier = modifier,
+    ) {
+        NavRow(
+            title = "View automation history",
+            onClick = onOpen,
+            icon = Icons.Filled.History,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "GameCore draws this screen itself from its own records. This plugin is allowed to " +
+                "show it to you — it never receives the entries, and it cannot change or clear them.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 private fun RulesCard(ruleCount: Int, modifier: Modifier = Modifier) {
     SectionCard(
@@ -977,6 +1106,8 @@ private fun sectionLabel(section: PluginSection): String = when (section) {
     PluginSection.RULES -> "Automation rules"
     PluginSection.AIMLAB -> "Aim Lab content"
     PluginSection.STATS -> "Stat readouts"
+    PluginSection.SETTINGS -> "Settings"
+    PluginSection.WIDGETS -> "Dashboard widgets"
 }
 
 /**

@@ -4,7 +4,7 @@ package com.gamecore.core.plugin
  * The one slice of GameCore's own data a [PluginPermission.READ_APPROVED_DATA]
  * grant opens.
  *
- * Reading "your data" is not one permission but four apertures, declared
+ * Reading "your data" is not one permission but several apertures, declared
  * individually so a plugin that only draws a session summary never gains sight of
  * the device's thermal sensors. Each is a *read* of GameCore's own records — there
  * is no scope for another app's data because no such read exists anywhere in the
@@ -17,7 +17,13 @@ enum class DataScope(val id: String, val label: String, val description: String)
     SESSIONS("sessions", "Sessions", "Your recorded play and training sessions."),
     GAMES("games", "Games", "The games you've added and their profiles."),
     DEVICE_STATS("device_stats", "Device stats", "Live performance figures like frame rate and CPU load."),
-    THERMALS("thermals", "Thermals", "Temperature and battery readings.");
+    THERMALS("thermals", "Thermals", "Temperature and battery readings."),
+    MOTION("motion", "Motion", "Device motion from the gyroscope and accelerometer."),
+    AUTOMATION_HISTORY(
+        "automation_history",
+        "Automation history",
+        "The record of automations that have run on your device.",
+    );
 
     companion object {
         private val byId = entries.associateBy { it.id }
@@ -92,7 +98,9 @@ enum class PluginSection(val id: String, val entryPrefix: String) {
     PROFILES("profiles", "profiles/"),
     RULES("rules", "rules/"),
     AIMLAB("aimlab", "aimlab/"),
-    STATS("stats", "stats/");
+    STATS("stats", "stats/"),
+    SETTINGS("settings", "settings.json"),
+    WIDGETS("widgets", "widgets/");
 
     companion object {
         private val byId = entries.associateBy { it.id }

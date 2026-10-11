@@ -3,6 +3,9 @@ package com.gamecore.plugin.sdk
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** The `type` the host reads a chart node by (`ComponentType.CHART.id`). */
+private const val CHART_NODE_TYPE = "chart"
+
 /**
  * The Kotlin DSL for defining a plugin. A `plugin { }` block builds an in-memory description
  * that [PluginPackager] turns into a `.gcplugin` zip.
@@ -39,9 +42,14 @@ class PluginBuilder(private val id: String, private val name: String) {
 
     /** Attach a theme section built with [ThemeBuilder]. */
     fun theme(block: ThemeBuilder.() -> Unit) {
-        val json = ThemeBuilder().apply(block).toJson()
-        sections["theme.json"] = json.toString(2).toByteArray()
+        val builder = ThemeBuilder().apply(block)
+        sections["theme.json"] = builder.toJson().toString(2).toByteArray()
         declared += "theme"
+        // Per-use api bump: a theme that touched a schema-2 feature needs a host that understands
+        // it, so raise the manifest api to match. A pure v1 theme leaves api at Sdk.API (1).
+        if (builder.schemaVersion() >= ThemeSchema.V2) {
+            api = maxOf(api, ThemeSchema.V2)
+        }
     }
 
     /** Attach automation rules built with [RulesBuilder]. */
@@ -49,6 +57,22 @@ class PluginBuilder(private val id: String, private val name: String) {
         val json = RulesBuilder().apply(block).toJson()
         sections["rules/rules.json"] = json.toString(2).toByteArray()
         declared += "rules"
+    }
+
+    /**
+     * Attach a typed settings section built with [SettingsBuilder].
+     *
+     * Like [theme], this writes `settings.json` and declares the `settings` section in one act,
+     * so the manifest's `declares` and the package contents can never disagree. Settings are an
+     * API-3 feature, so declaring any raises the manifest `api` to [Sdk.API_V3]; a plugin that
+     * declares none leaves `api` at [Sdk.API] and is byte-for-byte the file it was before this
+     * existed.
+     */
+    fun settings(block: SettingsBuilder.() -> Unit) {
+        val json = SettingsBuilder().apply(block).toJson()
+        sections["settings.json"] = json.toString(2).toByteArray()
+        declared += "settings"
+        api = maxOf(api, Sdk.API_V3)
     }
 
     /**
@@ -67,12 +91,72 @@ class PluginBuilder(private val id: String, private val name: String) {
         val json = PillBuilder().apply(block).toJson()
         sections["pill.json"] = json.toString(2).toByteArray()
         declared += "pill"
+        // Per-use api bump, mirroring the schema-2 theme bump: a chart node and a motion stat are
+        // each API-3 features, so a module that draws either needs a host that understands it. A
+        // module with neither leaves api at Sdk.API, so its pill.json and manifest stay
+        // byte-identical to a build that predates both.
+        if (pillUsesChart(json) || pillUsesMotionReading(json)) {
+            api = maxOf(api, Sdk.API_V3)
+        }
+    }
+
+    /**
+     * Attach one or more declarative screens built with [ScreensBuilder].
+     *
+     * Like [rules], declaring the section and writing the file are one act, so the host never sees a
+     * manifest whose `declares` and screen files disagree. Declarative screens are a 3.x host feature,
+     * so a package that ships one raises its manifest `api` to [Sdk.API_V3] — the same per-use bump
+     * [theme] makes for a schema-2 theme. A plugin that reaches for none of the 3.x features stays at
+     * [Sdk.API] and emits byte-identical output to a build that predates them.
+     */
+    fun screens(block: ScreensBuilder.() -> Unit) {
+        val json = ScreensBuilder().apply(block).toJson()
+        sections["screens/screens.json"] = json.toString(2).toByteArray()
+        declared += "screens"
+        api = maxOf(api, Sdk.API_V3)
+    }
+
+    /**
+     * Attach one or more read-only dashboard widgets built with [WidgetsBuilder].
+     *
+     * Each widget is its own `widgets/<id>.json` file, and declaring the section and writing those
+     * files are one act — like [screens], so the host never sees a manifest whose `declares` names
+     * `widgets` with no file behind it, nor a widget file the manifest never declared. Dashboard
+     * widgets are a 3.x host feature, so a package that ships any raises its manifest `api` to
+     * [Sdk.API_V3] — the same per-use bump [screens] and [settings] make, and unconditional here for
+     * the same reason: [WidgetsBuilder.toFiles] refuses an empty section, so reaching this bump means
+     * at least one widget was declared. A plugin that calls this never leaves its `api` at [Sdk.API]
+     * and emits byte-identical output to a build that predates the feature.
+     *
+     * A dashboard widget draws GameCore's own approved readings, so a plugin that ships one must also
+     * request [Permissions.ADD_DASHBOARD_WIDGETS], and any `stat` node needs
+     * [Permissions.READ_APPROVED_DATA] scoped to that stat's [OverlayStats.scopeFor] — a missing grant
+     * is not malformed JSON, so no codec will catch it for you.
+     */
+    fun widgets(block: WidgetsBuilder.() -> Unit) {
+        val files = WidgetsBuilder().apply(block).toFiles()
+        files.forEach { (path, json) -> sections[path] = json.toString(2).toByteArray() }
+        declared += "widgets"
+        api = maxOf(api, Sdk.API_V3)
     }
 
     /** Attach a raw section file (escape hatch for sections without a dedicated builder yet). */
     fun section(path: String, declares: String, bytes: ByteArray) {
         sections[path] = bytes
         declared += declares
+    }
+
+    /** True when the finished pill tree contains a chart node at any depth. */
+    private fun pillUsesChart(pill: JSONObject): Boolean {
+        fun walk(node: JSONObject): Boolean {
+            if (node.optString("type") == CHART_NODE_TYPE) return true
+            val children = node.optJSONArray("children") ?: return false
+            for (i in 0 until children.length()) {
+                if (walk(children.getJSONObject(i))) return true
+            }
+            return false
+        }
+        return walk(pill.getJSONObject("content"))
     }
 
     internal fun build(): PluginDefinition {
@@ -115,6 +199,27 @@ data class PluginDefinition(
 )
 
 /**
+ * Whether a built `pill.json` draws any [OverlayStats.MOTION_READINGS] stat. Walked from the finished
+ * tree rather than tracked as the DSL builds, so a motion stat added any way at all is caught, and
+ * iterative so a deeply nested module cannot overflow the stack while deciding its own api level.
+ */
+private fun pillUsesMotionReading(pill: JSONObject): Boolean {
+    val root = pill.optJSONObject("content") ?: return false
+    val pending = ArrayDeque<JSONObject>()
+    pending.addLast(root)
+    while (pending.isNotEmpty()) {
+        val node = pending.removeLast()
+        if (node.optString("type") == "stat") {
+            val statId = node.optJSONObject("props")?.optString("stat")
+            if (statId != null && statId in OverlayStats.MOTION_READINGS) return true
+        }
+        val children = node.optJSONArray("children") ?: continue
+        for (i in 0 until children.length()) pending.addLast(children.getJSONObject(i))
+    }
+    return false
+}
+
+/**
  * Builds a plugin's `theme.json`: the six colours GameCore repaints itself with, plus a font,
  * a corner radius and a density nudge.
  *
@@ -128,9 +233,11 @@ data class PluginDefinition(
  *   and it loads looking like something the author never chose.
  *
  * The defaults are GameCore's own dark palette, so a `theme { }` block that sets nothing but a
- * name is valid and legible. All eleven values are emitted every time, including the ones left
+ * name is valid and legible. The eleven v1 values are emitted every time, including the ones left
  * at their default: the host requires the six colours and defaults the rest, and a theme file
- * that spells out what it means is one a developer can read back and diff.
+ * that spells out what it means is one a developer can read back and diff. The schema-2 extras —
+ * [amoled], [roles] and [typography] — are additive and appear only when the theme uses one, so a
+ * theme that touches none of them is byte-for-byte the v1 file it was before they existed.
  */
 @PluginDsl
 class ThemeBuilder {
@@ -149,6 +256,33 @@ class ThemeBuilder {
 
     /** A density nudge in [ThemeBounds.MIN_UI_SCALE]..[ThemeBounds.MAX_UI_SCALE]. */
     var uiScale: Double = 1.0
+
+    /** From schema 2: base the dark theme on the true-black AMOLED scheme. Absent on a v1 theme. */
+    var amoled: Boolean = false
+
+    private var rolesBuilder: ThemeRolesBuilder? = null
+    private var typographyBuilder: ThemeTypographyBuilder? = null
+
+    /** From schema 2: recolour semantic roles beyond the v1 six. A role left unset is inherited. */
+    fun roles(block: ThemeRolesBuilder.() -> Unit) {
+        rolesBuilder = (rolesBuilder ?: ThemeRolesBuilder()).apply(block)
+    }
+
+    /** From schema 2: a type-ramp scale and/or one global weight. */
+    fun typography(block: ThemeTypographyBuilder.() -> Unit) {
+        typographyBuilder = (typographyBuilder ?: ThemeTypographyBuilder()).apply(block)
+    }
+
+    /**
+     * The schema this theme serialises as: V2 the moment it uses any v2 feature, else V1. This
+     * gates both the keys [toJson] emits and the manifest api bump in [PluginBuilder.theme].
+     */
+    internal fun schemaVersion(): Int =
+        if (amoled || rolesBuilder?.any() == true || typographyBuilder?.any() == true) {
+            ThemeSchema.V2
+        } else {
+            ThemeSchema.V1
+        }
 
     internal fun toJson(): JSONObject {
         require(name.isNotBlank()) { "a theme needs a name" }
@@ -179,7 +313,81 @@ class ThemeBuilder {
             put("cornerRadiusDp", cornerRadiusDp)
             put("font", fontId)
             put("uiScale", uiScale)
+            // Additive v2 extras — emitted ONLY when a v2 feature was used, so a pure v1 theme is
+            // byte-for-byte the 11-key file it has always been.
+            if (schemaVersion() >= ThemeSchema.V2) {
+                put("schema", ThemeSchema.V2)
+                if (amoled) put("amoled", true)
+                rolesBuilder?.toJsonOrNull()?.let { put("roles", it) }
+                typographyBuilder?.toJsonOrNull()?.let { put("typography", it) }
+            }
         }
+    }
+}
+
+/**
+ * The seven optional [ThemeRoles] a v2 theme may recolour. Each is validated as a hex colour the
+ * same way the v1 colours are, and only the roles the author set are emitted.
+ */
+@PluginDsl
+class ThemeRolesBuilder {
+    var secondary: String? = null
+    var tertiary: String? = null
+    var surfaceVariant: String? = null
+    var onSurfaceVariant: String? = null
+    var outline: String? = null
+    var error: String? = null
+    var onError: String? = null
+
+    internal fun any(): Boolean =
+        listOf(secondary, tertiary, surfaceVariant, onSurfaceVariant, outline, error, onError)
+            .any { it != null }
+
+    internal fun toJsonOrNull(): JSONObject? {
+        val json = JSONObject()
+        secondary?.let { json.put(ThemeRoles.SECONDARY, hexColor("theme role secondary", it)) }
+        tertiary?.let { json.put(ThemeRoles.TERTIARY, hexColor("theme role tertiary", it)) }
+        surfaceVariant?.let { json.put(ThemeRoles.SURFACE_VARIANT, hexColor("theme role surfaceVariant", it)) }
+        onSurfaceVariant?.let { json.put(ThemeRoles.ON_SURFACE_VARIANT, hexColor("theme role onSurfaceVariant", it)) }
+        outline?.let { json.put(ThemeRoles.OUTLINE, hexColor("theme role outline", it)) }
+        error?.let { json.put(ThemeRoles.ERROR, hexColor("theme role error", it)) }
+        onError?.let { json.put(ThemeRoles.ON_ERROR, hexColor("theme role onError", it)) }
+        return if (json.length() == 0) null else json
+    }
+}
+
+/**
+ * A v2 theme's type controls: a scale on the whole ramp and/or one global weight. The host clamps
+ * the scale; this SDK refuses one out of range, the same bargain the corner radius and UI scale
+ * strike — a value the host quietly adjusted is one the author never saw.
+ */
+@PluginDsl
+class ThemeTypographyBuilder {
+    /** Multiplies every role's size and line height together. In [ThemeBounds.MIN_TYPE_SCALE]..[ThemeBounds.MAX_TYPE_SCALE]. */
+    var scale: Double = ThemeBounds.DEFAULT_TYPE_SCALE
+
+    /** One of [ThemeWeights], or null to keep each role's own designed weight. */
+    var weight: String? = null
+
+    internal fun any(): Boolean = scale != ThemeBounds.DEFAULT_TYPE_SCALE || weight != null
+
+    internal fun toJsonOrNull(): JSONObject? {
+        val json = JSONObject()
+        if (scale != ThemeBounds.DEFAULT_TYPE_SCALE) {
+            require(scale in ThemeBounds.MIN_TYPE_SCALE..ThemeBounds.MAX_TYPE_SCALE) {
+                "theme type scale is $scale; the host clamps to ${ThemeBounds.MIN_TYPE_SCALE}.." +
+                    "${ThemeBounds.MAX_TYPE_SCALE}, so a value outside it ships as a ramp the author never chose"
+            }
+            json.put("scale", scale)
+        }
+        weight?.let {
+            val id = it.trim().lowercase()
+            require(id in ThemeWeights.ALL) {
+                "theme type weight is \"$it\"; a theme names one of ${ThemeWeights.ALL.joinToString()}"
+            }
+            json.put("weight", id)
+        }
+        return if (json.length() == 0) null else json
     }
 }
 

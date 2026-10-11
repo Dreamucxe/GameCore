@@ -24,6 +24,12 @@ object Permissions {
     const val RUN_AUTOMATIONS = "run_automations"
     const val ADD_AIMLAB_CONTENT = "add_aimlab_content"
     const val SYSTEM_ACTIONS = "system_actions"
+
+    /** From API 3: a plugin's own isolated, host-encrypted key–value store. */
+    const val STORE_DATA = "store_data"
+
+    /** From API 3: register bounded, read-only widgets onto GameCore's home dashboard. */
+    const val ADD_DASHBOARD_WIDGETS = "add_dashboard_widgets"
 }
 
 /** Scopes valid on [Permissions.READ_APPROVED_DATA]. */
@@ -32,6 +38,19 @@ object DataScopes {
     const val GAMES = "games"
     const val DEVICE_STATS = "device_stats"
     const val THERMALS = "thermals"
+
+    /** From API 3: device motion from the gyroscope and accelerometer, read through the stat feed. */
+    const val MOTION = "motion"
+
+    /**
+     * From API 4: the user's own automation history — the trail of which rules fired and when —
+     * which the host shows read-only to a plugin that holds this scope. Mirrors the host's
+     * `DataScope.AUTOMATION_HISTORY`. The trail is empty until a rule actually fires, and a plugin
+     * can never write to it or fabricate an entry: it is a window onto the user's data, not a store
+     * the plugin owns. Unlike the overlay/widget sections, a scope is not a section, so a plugin that
+     * reads this must set its manifest `api` to [Sdk.API_V4] itself — nothing bumps it automatically.
+     */
+    const val AUTOMATION_HISTORY = "automation_history"
 }
 
 /**
@@ -67,6 +86,54 @@ object ThemeBounds {
     /** The density nudge, clamped host-side. A theme may lean the UI, not rebuild it. */
     const val MIN_UI_SCALE = 0.8
     const val MAX_UI_SCALE = 1.4
+
+    /** From schema 2: the type-ramp scale, clamped host-side. A theme leans the ramp, not rebuilds it. */
+    const val MIN_TYPE_SCALE = 0.85
+    const val MAX_TYPE_SCALE = 1.30
+    const val DEFAULT_TYPE_SCALE = 1.0
+}
+
+/**
+ * The theme schema versions, mirroring the host's `PluginTheme.SCHEMA_*` constants.
+ *
+ * A theme that uses only the v1 surface emits no `schema` key and stays an API-1 plugin. The
+ * moment it reaches for a v2 feature — an AMOLED base, a semantic role, a type control — the DSL
+ * stamps `schema: V2` into the theme and raises the manifest `api` to match, because a build that
+ * predates v2 would read those keys as unknown and reject the whole theme.
+ */
+object ThemeSchema {
+    const val V1 = 1
+    const val V2 = 2
+    const val CURRENT = 2
+}
+
+/**
+ * The seven Material roles a v2 theme may recolour beyond the v1 six. Each is an optional
+ * `#RRGGBB` / `#AARRGGBB` colour; a role left unset keeps the house scheme's own value.
+ */
+object ThemeRoles {
+    const val SECONDARY = "secondary"
+    const val TERTIARY = "tertiary"
+    const val SURFACE_VARIANT = "surfaceVariant"
+    const val ON_SURFACE_VARIANT = "onSurfaceVariant"
+    const val OUTLINE = "outline"
+    const val ERROR = "error"
+    const val ON_ERROR = "onError"
+
+    val ALL = setOf(SECONDARY, TERTIARY, SURFACE_VARIANT, ON_SURFACE_VARIANT, OUTLINE, ERROR, ON_ERROR)
+}
+
+/**
+ * The global type weights a v2 theme may name. Unset (null) keeps each Material role's own weight —
+ * the ramp draws display and label text at different weights on purpose.
+ */
+object ThemeWeights {
+    const val LIGHT = "light"
+    const val NORMAL = "normal"
+    const val MEDIUM = "medium"
+    const val BOLD = "bold"
+
+    val ALL = setOf(LIGHT, NORMAL, MEDIUM, BOLD)
 }
 
 /**
@@ -83,6 +150,24 @@ object OverlaySizes {
     const val LARGE = "large"
 
     val ALL = setOf(SMALL, MEDIUM, LARGE)
+}
+
+/**
+ * The closed set of dashboard-widget sizes, as a `widgets/<id>.json` spells them.
+ *
+ * Like [OverlaySizes], a size is an id and not a width/height pair: a widget that could name its own
+ * dimensions could grow itself across the whole dashboard by arithmetic, and "bounded" would then be a
+ * promise the format could not keep. The host maps each id to a fixed span in its dashboard grid and
+ * rejects an id it does not know — a small tile, a medium and a large card, and [FULL] for the
+ * full-width row a chart usually wants.
+ */
+object WidgetSizes {
+    const val SMALL = "small"
+    const val MEDIUM = "medium"
+    const val LARGE = "large"
+    const val FULL = "full"
+
+    val ALL = setOf(SMALL, MEDIUM, LARGE, FULL)
 }
 
 /**
@@ -105,7 +190,14 @@ object OverlayStats {
     const val BATTERY = "battery"
     const val TEMP = "temp"
 
-    val ALL = setOf(FPS, CPU, GPU, RAM, BATTERY, TEMP)
+    /** From API 3: the two gyroscope/accelerometer readings, each read through the `motion` scope. */
+    const val ROTATION_RATE = "rotation_rate"
+    const val MOVEMENT = "movement"
+
+    /** The motion subset, for the DSL's per-use api bump to [Sdk.API_V3]. */
+    val MOTION_READINGS = setOf(ROTATION_RATE, MOVEMENT)
+
+    val ALL = setOf(FPS, CPU, GPU, RAM, BATTERY, TEMP, ROTATION_RATE, MOVEMENT)
 
     /**
      * The [DataScopes] id a stat is read through, or null if the stat is unknown.
@@ -117,6 +209,7 @@ object OverlayStats {
     fun scopeFor(stat: String): String? = when (stat) {
         FPS, CPU, GPU, RAM -> DataScopes.DEVICE_STATS
         BATTERY, TEMP -> DataScopes.THERMALS
+        ROTATION_RATE, MOVEMENT -> DataScopes.MOTION
         else -> null
     }
 }
@@ -231,6 +324,59 @@ object OverlayBounds {
 }
 
 /**
+ * The bounds the host's screen codec enforces at its DEFAULT (full-screen) caps, mirrored so an author
+ * hits them at build time instead of on a device. These are far wider than [OverlayBounds]: a plugin
+ * screen is a full, scrollable, touchable surface the host draws under its own theme, not a readout in
+ * a notification-sized window. The host runs its own ScreenValidator with exactly these numbers — 500
+ * nodes, depth 24, 8 grid columns, 2000-char strings, 100 children per container.
+ *
+ * Where this SDK could truncate — the screen title — it **refuses** instead, as [OverlayBounds] does,
+ * because a title the host quietly shortened is one the author never saw on their own screen.
+ */
+object ScreenBounds {
+    /** Total nodes in a screen's tree, root included. */
+    const val MAX_NODES = 500
+
+    /** Depth below the root, so a chain of `MAX_DEPTH + 1` nodes is the deepest legal tree. */
+    const val MAX_DEPTH = 24
+
+    /** Columns in a `grid` node. */
+    const val MAX_GRID_COLUMNS = 8
+
+    /** Any single string prop a node draws — far wider than an overlay's. */
+    const val MAX_STRING_LENGTH = 2_000
+
+    /** Children of one container node. */
+    const val MAX_CHILDREN = 100
+
+    /** The screen title, refused rather than truncated (see this object's note). */
+    const val MAX_TITLE_LENGTH = 64
+
+    /** Screens in one `screens/<id>.json` file; the host caps the per-plugin total the same way. */
+    const val MAX_SCREENS = 32
+}
+
+/**
+ * The bounds the host's dashboard-widget codec enforces, mirrored so an author meets them at build
+ * time instead of on a device.
+ *
+ * A widget's own node tree is held to the overlay caps ([OverlayBounds]) rather than a screen's, and
+ * not by coincidence: a dashboard widget is a bounded, read-only readout the size of a card, built from
+ * the very same [OverlayNodeScope] an overlay module is — so a value an overlay node already checks
+ * (grid width, string length) is checked against the overlay cap by construction, and the tree walk in
+ * [WidgetBuilder] follows the same cap for coherence. The one bound a widget needs of its own is how
+ * many of them a plugin may register, below.
+ */
+object WidgetBounds {
+    /**
+     * Widgets one plugin may register on the dashboard. A dashboard has room for a bounded number of
+     * cards, so the SDK caps the count here rather than letting an author ship a manifest the host
+     * would thin out on install.
+     */
+    const val MAX_WIDGETS = 16
+}
+
+/**
  * The broker actions an automation rule may name. These are the only device actions a plugin
  * can reach, and a rule names one — it never carries a command, a key or a value of its own.
  *
@@ -311,7 +457,14 @@ object RuleVariables {
     const val BATTERY = OverlayStats.BATTERY
     const val TEMP = OverlayStats.TEMP
 
-    val ALL = OverlayStats.ALL
+    /**
+     * The six figures the automation feed actually publishes. Decoupled from [OverlayStats.ALL] on
+     * purpose: motion joined the overlay vocabulary but NOT the automation feed, and because the host
+     * reads an unknown rule variable as a condition that is simply never met, aliasing the two would
+     * let an author ship a motion rule that installs and silently never fires. These are exactly the
+     * overlay stats whose scope is `device_stats` or `thermals`.
+     */
+    val ALL = setOf(FPS, CPU, GPU, RAM, BATTERY, TEMP)
 }
 
 /**
@@ -328,11 +481,75 @@ object RuleBounds {
     const val MAX_CONDITIONS_PER_RULE = 10
 }
 
+/**
+ * The settings-schema versions. v1 is the only version today and, like a v1 theme, a
+ * `settings.json` emits no `schema` key at all — the host defaults an absent key to [V1]. A
+ * future additive version would stamp `schema: V2` and bump the manifest api, exactly as the
+ * theme schema does.
+ */
+object SettingsSchema {
+    const val V1 = 1
+    const val CURRENT = 1
+}
+
+/**
+ * The five setting types a plugin may declare. The host rejects the whole `settings.json` on a
+ * type outside this set, so naming one here turns a typo into a compile error in the plugin's
+ * own build.
+ */
+object SettingTypes {
+    const val BOOL = "bool"
+    const val INT = "int"
+    const val FLOAT = "float"
+    const val ENUM = "enum"
+    const val STRING = "string"
+
+    val ALL = setOf(BOOL, INT, FLOAT, ENUM, STRING)
+}
+
+/**
+ * The limits a settings section is held to, mirrored from the host's `PluginSettingsCodec`.
+ * Every one is **refused** by the DSL rather than clamped by the host: a settings file the host
+ * would reject, or a default it would have had to move into range, is one the author should see
+ * fail at build time.
+ *
+ * [ID_PATTERN] is the setting-id grammar, and it is also the plugin's storage-key grammar — the
+ * id a setting declares is the key its value is stored under. It is identical to the host's
+ * `PluginSettingsCodec` id grammar, so an id that compiles here is one the host's namespace will
+ * always accept.
+ */
+object SettingBounds {
+    const val MAX_SETTINGS = 64
+    const val MAX_ID_LENGTH = 64
+    const val MAX_ENUM_OPTIONS = 32
+    const val MAX_STRING_DEFAULT = 256
+
+    val ID_PATTERN = Regex("^[a-z0-9][a-z0-9._-]{0,${MAX_ID_LENGTH - 1}}$")
+}
+
 /** The API version and host version this SDK targets. Keep in step with the host PluginApi. */
 object Sdk {
     const val API = 1
     const val HOST_VERSION_CODE = 28
     const val FORMAT = "gamecore.plugin"
+
+    /**
+     * The manifest `api` level at which the 3.x platform features landed — a settings section,
+     * declarative screens, chart components, dashboard widgets, and the motion data scope — matching
+     * the host's `PluginApi` level 3. A plugin that uses any of them raises its manifest `api` to
+     * this via the same per-use bump the theme uses with [ThemeSchema.V2]; a plugin that uses none of
+     * them stays at [API] and emits byte-identical output to a build that predates these features.
+     */
+    const val API_V3 = 3
+
+    /**
+     * The manifest `api` level at which the automation-history read scope landed
+     * ([DataScopes.AUTOMATION_HISTORY]), matching the host's current `PluginApi.CURRENT` of 4. Unlike
+     * the 3.x features, nothing raises `api` to this automatically — a read scope is not a section — so
+     * a plugin that reads automation history sets `api = API_V4` itself. A plugin that does not touch
+     * the scope stays at whatever level its sections (if any) require.
+     */
+    const val API_V4 = 4
 
     /**
      * `pill.json`'s own format tag and version. A section file carries its format separately
@@ -341,4 +558,21 @@ object Sdk {
      */
     const val PILL_FORMAT = "gamecore.plugin.pill"
     const val PILL_VERSION = 1
+
+    /**
+     * `screens/<id>.json`'s own format tag and version, mirroring the host screens codec. Carried inside
+     * the section file, separate from the package format, so a screens file dropped into the wrong
+     * section is caught by its tag rather than by its shape.
+     */
+    const val SCREENS_FORMAT = "gamecore.plugin.screens"
+    const val SCREENS_VERSION = 1
+
+    /**
+     * `widgets/<id>.json`'s own format tag and version, mirroring the host widgets codec. Each
+     * dashboard widget is its own file carrying this tag, separate from the package format, so a
+     * widget file dropped into the wrong section is caught by its tag rather than by its shape —
+     * exactly as [PILL_FORMAT] and [SCREENS_FORMAT] guard their own sections.
+     */
+    const val WIDGET_FORMAT = "gamecore.plugin.widget"
+    const val WIDGET_VERSION = 1
 }

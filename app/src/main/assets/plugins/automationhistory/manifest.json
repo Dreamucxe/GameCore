@@ -1,0 +1,20 @@
+{
+  "minHostVersion": 29,
+  "declares": ["screens"],
+  "permissions": [
+    {
+      "id": "read_approved_data",
+      "scopes": ["automation_history"]
+    },
+    {"id": "change_ui"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Automation History",
+  "description": "A read-only window onto your automation history \u2014 the record of which rules have run, and when. The trail itself is kept by GameCore and stays empty until a rule fires.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.automationhistory",
+  "api": 4,
+  "versionName": "1.0.0",
+  "version": 1
+}

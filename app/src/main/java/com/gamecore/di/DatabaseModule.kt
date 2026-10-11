@@ -5,10 +5,12 @@ import androidx.room.Room
 import com.gamecore.data.database.ColorPresetDao
 import com.gamecore.data.database.ConfigBackupDao
 import com.gamecore.data.database.CrosshairPresetDao
+import com.gamecore.data.database.DashboardDao
 import com.gamecore.data.database.GameCoreDatabase
 import com.gamecore.data.database.GameCoreMigrations
 import com.gamecore.data.database.GameProfileDao
 import com.gamecore.data.database.HudLayoutDao
+import com.gamecore.data.database.PluginAutomationEventDao
 import com.gamecore.data.database.RestorePointDao
 import com.gamecore.data.database.SessionDao
 import com.gamecore.data.preferences.DatabaseKeyStore
@@ -95,6 +97,13 @@ object DatabaseModule {
 
     @Provides
     fun configBackupDao(database: GameCoreDatabase): ConfigBackupDao = database.configBackups()
+
+    @Provides
+    fun pluginAutomationEventDao(database: GameCoreDatabase): PluginAutomationEventDao =
+        database.pluginAutomationEvents()
+
+    @Provides
+    fun dashboardDao(database: GameCoreDatabase): DashboardDao = database.dashboardLayouts()
 
     /**
      * Loads `libsqlcipher.so`.

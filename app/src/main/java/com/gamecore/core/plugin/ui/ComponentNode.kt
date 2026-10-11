@@ -28,7 +28,11 @@ enum class ComponentType(val id: String, val isContainer: Boolean) {
     SWITCH("switch", false),
     STAT("stat", false),
     SPACER("spacer", false),
-    IMAGE("image", false);
+    IMAGE("image", false),
+
+    // A declarative plot (part 4): a leaf, because it carries series data, never children. Adding
+    // it here is what forces the renderer's exhaustive `when` to grow a CHART branch.
+    CHART("chart", false);
 
     companion object {
         private val byId = entries.associateBy { it.id }
@@ -66,4 +70,5 @@ data class PluginScreen(
     val id: String,
     val title: String,
     val root: ComponentNode,
+    val icon: String? = null,
 )

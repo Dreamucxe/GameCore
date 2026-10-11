@@ -1,0 +1,128 @@
+{
+  "size": "large",
+  "anchor": {
+    "x": 0.5,
+    "y": 0.08
+  },
+  "format": "gamecore.plugin.pill",
+  "id": "bench-telemetry",
+  "title": "Benchmark telemetry",
+  "opacity": 85,
+  "version": 1,
+  "content": {
+    "children": [{
+      "children": [
+        {
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "color": "#8AA0B4",
+                "size": 10,
+                "text": "FPS"
+              }
+            },
+            {
+              "type": "stat",
+              "props": {
+                "stat": "fps",
+                "size": 16,
+                "color": "#E6F1FF"
+              }
+            }
+          ],
+          "type": "column",
+          "props": {
+            "gap": 2,
+            "align": "center"
+          }
+        },
+        {
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "color": "#8AA0B4",
+                "size": 10,
+                "text": "CPU"
+              }
+            },
+            {
+              "type": "stat",
+              "props": {
+                "stat": "cpu",
+                "size": 16,
+                "color": "#E6F1FF"
+              }
+            }
+          ],
+          "type": "column",
+          "props": {
+            "gap": 2,
+            "align": "center"
+          }
+        },
+        {
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "color": "#8AA0B4",
+                "size": 10,
+                "text": "GPU"
+              }
+            },
+            {
+              "type": "stat",
+              "props": {
+                "stat": "gpu",
+                "size": 16,
+                "color": "#E6F1FF"
+              }
+            }
+          ],
+          "type": "column",
+          "props": {
+            "gap": 2,
+            "align": "center"
+          }
+        },
+        {
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "color": "#8AA0B4",
+                "size": 10,
+                "text": "TEMP"
+              }
+            },
+            {
+              "type": "stat",
+              "props": {
+                "stat": "temp",
+                "size": 16,
+                "color": "#E6F1FF"
+              }
+            }
+          ],
+          "type": "column",
+          "props": {
+            "gap": 2,
+            "align": "center"
+          }
+        }
+      ],
+      "type": "row",
+      "props": {
+        "gap": 14,
+        "align": "center"
+      }
+    }],
+    "type": "card",
+    "props": {
+      "padding": 10,
+      "color": "#CC0B0F17"
+    }
+  }
+}

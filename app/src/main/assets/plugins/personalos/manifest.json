@@ -1,0 +1,30 @@
+{
+  "minHostVersion": 28,
+  "declares": [
+    "theme",
+    "screens",
+    "widgets",
+    "settings"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "add_dashboard_widgets"},
+    {"id": "store_data"},
+    {
+      "id": "read_approved_data",
+      "scopes": [
+        "device_stats",
+        "thermals"
+      ]
+    }
+  ],
+  "format": "gamecore.plugin",
+  "name": "GameCore Personal OS",
+  "description": "A personal home dashboard: a dark theme, home screens, live-vitals widgets and layout settings.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.personalos",
+  "api": 3,
+  "versionName": "1.0.0",
+  "version": 1
+}

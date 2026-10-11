@@ -78,6 +78,7 @@ import com.gamecore.ui.config.ConfigEditorScreen
 import com.gamecore.ui.config.ConfigEditorViewModel
 import com.gamecore.ui.controller.ControllerScreen
 import com.gamecore.ui.crosshair.CrosshairScreen
+import com.gamecore.ui.dashboard.DashboardComposerRoute
 import com.gamecore.ui.developer.DeveloperScreen
 import com.gamecore.ui.dock.DockCustomizationScreen
 import com.gamecore.ui.extraction.ScreenExtractionScreen
@@ -94,7 +95,9 @@ import com.gamecore.ui.network.NetworkStabilityScreen
 import com.gamecore.ui.overlay.OverlayScreen
 import com.gamecore.ui.performance.PerformanceScreen
 import com.gamecore.ui.permissions.PermissionsScreen
+import com.gamecore.ui.plugins.PluginAutomationHistoryRoute
 import com.gamecore.ui.plugins.PluginDetailScreen
+import com.gamecore.ui.plugins.PluginScreenRoute
 import com.gamecore.ui.plugins.PluginsScreen
 import com.gamecore.ui.quickapps.QuickAppsScreen
 import com.gamecore.ui.scout.ScoutScreen
@@ -546,8 +549,46 @@ private fun GameCoreNav(
             arguments = listOf(navArgument(Destination.ARG_PLUGIN_ID) { type = NavType.StringType }),
         ) {
             houseTheme {
-                PluginDetailScreen(onBack = back)
+                PluginDetailScreen(
+                    onBack = back,
+                    onOpenScreen = { pluginId, screenId ->
+                        navController.push(Destination.PluginScreen.routeFor(pluginId, screenId))
+                    },
+                    onOpenAutomationHistory = { pluginId ->
+                        navController.push(Destination.PluginAutomationHistory.routeFor(pluginId))
+                    },
+                )
             }
+        }
+
+        // The host's own record of automations that have run on the device, reachable from a plugin's
+        // detail screen only while that plugin holds the automation-history read scope. Wrapped in
+        // `houseTheme` for the same reason as the detail screen above: it is GameCore drawing GameCore's
+        // own records, and the plugin — handed none of the entries — must not be able to restyle the
+        // page that tells the user what ran on their device. The id is a validated package grammar that
+        // cannot carry a slash; the route itself handles an id that resolves to nothing after a revoke.
+        composable(
+            route = Destination.PluginAutomationHistory.route,
+            arguments = listOf(navArgument(Destination.ARG_PLUGIN_ID) { type = NavType.StringType }),
+        ) {
+            houseTheme {
+                PluginAutomationHistoryRoute(onBack = back)
+            }
+        }
+
+        // A plugin's own declarative screen is a full navigation destination, and the one plugin
+        // surface deliberately NOT wrapped in `houseTheme`: it is drawn under GameCore's active theme
+        // so a plugin cannot restyle the chrome the user relies on while standing on its content. Two
+        // StringType args, no encoding — both ids are validated grammars that cannot carry a slash.
+        // The route itself handles an id that resolves to nothing (a stale back stack after a revoke).
+        composable(
+            route = Destination.PluginScreen.route,
+            arguments = listOf(
+                navArgument(Destination.ARG_PLUGIN_ID) { type = NavType.StringType },
+                navArgument(Destination.ARG_SCREEN_ID) { type = NavType.StringType },
+            ),
+        ) {
+            PluginScreenRoute(onBack = back)
         }
 
         composable(Destination.Overlay.route) {
@@ -588,6 +629,10 @@ private fun GameCoreNav(
 
         composable(Destination.BackupRestore.route) {
             BackupRestoreScreen(onBack = back)
+        }
+
+        composable(Destination.DashboardComposer.route) {
+            DashboardComposerRoute(onBack = back)
         }
 
         composable(Destination.NeverClose.route) {

@@ -19,8 +19,8 @@ import org.json.JSONObject
  * system cannot keep. Mirroring that as a missing function rather than a validation message is
  * what makes the rule cost an author nothing to obey.
  *
- * The eight functions here are therefore the whole component set a module may use: `column`,
- * `row`, `grid`, `card`, `text`, `stat`, `spacer`, `image`.
+ * The nine functions here are therefore the whole component set a module may use: `column`,
+ * `row`, `grid`, `card`, `text`, `stat`, `spacer`, `image`, `chart`.
  */
 @PluginDsl
 abstract class OverlayNodeScope internal constructor() {
@@ -156,6 +156,77 @@ abstract class OverlayNodeScope internal constructor() {
         val props = JSONObject().put("icon", icon)
         size?.let { props.put("size", it) }
         leaf("image", props)
+    }
+
+    /**
+     * A declarative plot — a line or a bar chart — drawn from numbers the module ships.
+     *
+     * **Literal-only, by construction.** There is no `stat` parameter, so an overlay chart cannot
+     * name one of GameCore's live feeds the way a [stat] node does. That is not a style choice: a
+     * module's data appetite is walked from its `stat` nodes, a live chart series would not be seen
+     * by that walk, and the host's overlay audit refuses one outright. A chart over a game shows the
+     * numbers it was built with.
+     *
+     * [values] is the primary series and [values2] an optional comparison line; the host plots at
+     * most these two. [kind] is one of [ChartKinds]. [min]/[max] pin the vertical range and must be
+     * given together with [max] above [min], or omitted to let the host auto-scale — a half or an
+     * inverted range is refused here rather than silently dropped on a device. [label]/[label2] name
+     * the series in the legend, [note] is a caption, and [color]/[color2] are `#RRGGBB`/`#AARRGGBB`.
+     *
+     * The series ride as bounded delimited strings, so each must fit the host's tightest string cap
+     * ([ChartBounds.MAX_VALUE_STRING_LENGTH]); an overrun is reported at build time, because the host
+     * would otherwise truncate it unseen.
+     */
+    fun chart(
+        values: List<Number>,
+        kind: String = ChartKinds.LINE,
+        values2: List<Number>? = null,
+        min: Number? = null,
+        max: Number? = null,
+        label: String? = null,
+        label2: String? = null,
+        note: String? = null,
+        color: String? = null,
+        color2: String? = null,
+    ) {
+        val kindId = kind.trim().lowercase()
+        require(kindId in ChartKinds.ALL) {
+            "chart kind is \"$kind\"; a chart is one of ${ChartKinds.ALL.joinToString()} — the host " +
+                "falls back to a line on anything else, so a typo would draw silently wrong"
+        }
+        require(values.isNotEmpty()) { "a chart needs at least one value" }
+        require(values.size <= ChartBounds.MAX_POINTS) {
+            "a chart carries ${values.size} points; the cap is ${ChartBounds.MAX_POINTS}, the length " +
+                "of the host's own rolling history"
+        }
+        values2?.let {
+            require(it.size <= ChartBounds.MAX_POINTS) {
+                "a chart's second series carries ${it.size} points; the cap is ${ChartBounds.MAX_POINTS}"
+            }
+        }
+        require((min == null) == (max == null)) {
+            "a chart range needs both min and max, or neither; the host honours a range only when both are set"
+        }
+        if (min != null && max != null) {
+            require(max.toDouble() > min.toDouble()) {
+                "chart max (${max.toDouble()}) must be above min (${min.toDouble()}); the host ignores " +
+                    "a range that is not and auto-scales instead"
+            }
+        }
+        val props = JSONObject()
+        props.put("kind", kindId)
+        props.put("values", seriesProp("chart values", values))
+        values2?.let { props.put("values2", seriesProp("chart values2", it)) }
+        if (min != null && max != null) {
+            props.put("min", min.toDouble())
+            props.put("max", max.toDouble())
+        }
+        label?.let { props.put("label", plainText("chart label", it)) }
+        label2?.let { props.put("label2", plainText("chart label2", it)) }
+        note?.let { props.put("note", plainText("chart note", it)) }
+        color?.let { props.put("color", hexColor("chart color", it)) }
+        color2?.let { props.put("color2", hexColor("chart color2", it)) }
+        leaf("chart", props)
     }
 
     // ---------------------------------------------------------------------------------- internals
@@ -397,6 +468,23 @@ internal fun plainText(field: String, raw: String, max: Int = OverlayBounds.MAX_
 private fun strProp(field: String, raw: String): String {
     val checked = plainText(field, raw)
     return if (checked.startsWith("@")) "@$checked" else checked
+}
+
+/**
+ * Encodes a chart series as the host's delimited numeric string, refusing a non-finite point and an
+ * encoding longer than the host's tightest string cap — the two things the host would otherwise
+ * resolve by dropping a value or truncating the string, neither of which the author would see.
+ */
+private fun seriesProp(field: String, values: List<Number>): String {
+    val encoded = values.joinToString(",") { formatPoint(field, it) }
+    return plainText(field, encoded, ChartBounds.MAX_VALUE_STRING_LENGTH)
+}
+
+/** One point, compact: a whole number loses its trailing `.0` so the series string stays short. */
+private fun formatPoint(field: String, n: Number): String {
+    val d = n.toDouble()
+    require(d.isFinite()) { "$field has a non-finite point ($n); a chart plots real numbers" }
+    return if (d == d.toLong().toDouble()) d.toLong().toString() else d.toString()
 }
 
 /**

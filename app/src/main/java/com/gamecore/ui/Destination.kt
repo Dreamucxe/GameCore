@@ -310,6 +310,33 @@ sealed interface Destination {
     }
 
     /**
+     * One declarative screen a plugin declares, reached from that plugin's detail screen with the
+     * plugin id and the screen id. Drawn by the host under the GLOBAL theme (never the plugin's
+     * houseTheme) and resolved live from the registry every frame, so a revoked grant or the kill
+     * switch replaces it with an honest unavailable panel. Deliberately NOT in [external]: a plugin
+     * screen is reached from inside the app, after the user opened the plugin that owns it.
+     */
+    data object PluginScreen : Destination {
+        override val route = "plugin/{$ARG_PLUGIN_ID}/screen/{$ARG_SCREEN_ID}"
+        fun routeFor(pluginId: String, screenId: String): String =
+            "plugin/$pluginId/screen/$screenId"
+    }
+
+    /**
+     * The user's automation history, shown to a plugin that holds the `automation_history` read scope.
+     * Reached from that plugin's detail screen. Unlike [PluginScreen] this is a *host* screen drawn under
+     * houseTheme — it is GameCore rendering GameCore's own automation trail, not plugin content; the
+     * plugin only requested that the host show it, and never receives a line. The screen resolves the
+     * trail live through the registry's scope gate, so a revoked grant or the kill switch leaves an
+     * honest unavailable panel. Not in [external]: it is reached from inside, after the user opened the
+     * plugin that holds the scope.
+     */
+    data object PluginAutomationHistory : Destination {
+        override val route = "plugin/{$ARG_PLUGIN_ID}/automation-history"
+        fun routeFor(pluginId: String): String = "plugin/$pluginId/automation-history"
+    }
+
+    /**
      * Back up all configuration to one file and restore it (§20). Reached from Settings' Data card.
      *
      * Config only — appearance, settings, profiles, presets, HUD layouts and macros — never session
@@ -318,6 +345,16 @@ sealed interface Destination {
      */
     data object BackupRestore : Destination {
         override val route = "backup-restore"
+    }
+
+    /**
+     * The Dashboard Composer: arrange built-in panels and plugin dashboard widgets into one saved layout
+     * (Personal OS §5 / Dashboard Composer plugin). Reached from Settings' Access and tools card. Not in
+     * [external]: a dashboard is composed deliberately from inside the app, and nothing outside it has a
+     * reason to open the editor.
+     */
+    data object DashboardComposer : Destination {
+        override val route = "dashboard-composer"
     }
 
     /**
@@ -529,6 +566,9 @@ sealed interface Destination {
 
         /** A plugin's string id, carried by [PluginDetail]. Separate from [ARG_ID] (a Long). */
         const val ARG_PLUGIN_ID = "plugin_id"
+
+        /** A plugin screen's string id, carried by [PluginScreen] alongside [ARG_PLUGIN_ID]. */
+        const val ARG_SCREEN_ID = "screen_id"
 
         /**
          * The three parts a [ConfigTarget][com.gamecore.core.config.ConfigTarget] travels as, one nav

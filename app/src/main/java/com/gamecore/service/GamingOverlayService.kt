@@ -129,6 +129,10 @@ import com.gamecore.core.permissions.PermissionChecker
 import com.gamecore.core.plugin.ActiveOverlayModule
 import com.gamecore.core.plugin.PluginRegistry
 import com.gamecore.core.plugin.overlay.ModuleStat
+import com.gamecore.core.sensors.MotionFrame
+import com.gamecore.core.sensors.MotionReading
+import com.gamecore.core.sensors.MotionReadingReader
+import com.gamecore.core.sensors.MotionSampler
 import com.gamecore.core.system.AudioControls
 import com.gamecore.core.system.ControlOutcome
 import com.gamecore.core.system.DisplayControls
@@ -212,6 +216,9 @@ class GamingOverlayService : GameCoreService() {
     @Inject lateinit var overlays: OverlayController
 
     @Inject lateinit var monitor: PerformanceMonitor
+
+    /** The gyroscope/accelerometer sampler behind the two `motion`-scoped overlay stats. */
+    @Inject lateinit var motionSampler: MotionSampler
 
     @Inject lateinit var coordinator: GamingCoordinator
 
@@ -332,6 +339,13 @@ class GamingOverlayService : GameCoreService() {
     private val pillReadings = MutableStateFlow<List<StatReading>>(emptyList())
 
     private val hudReadings = MutableStateFlow<Map<HudStat, StatReading>>(emptyMap())
+
+    /**
+     * The latest motion frame behind the `motion`-scoped overlay stats, or [MotionFrame.EMPTY] when
+     * no module on screen draws one. Fed by [streamMotion] under the same visibility gate as the stat
+     * feed, and read by [pluginStatValue] through [MotionReadingReader].
+     */
+    private val motionFrame = MutableStateFlow(MotionFrame.EMPTY)
 
     /**
      * The thermal dot the floating button shows (spec §2), classified through the shared [ThermalClassifier]
@@ -826,6 +840,7 @@ class GamingOverlayService : GameCoreService() {
         lifecycleScope.launch { resolveCrosshair() }
         lifecycleScope.launch { resolveHud() }
         lifecycleScope.launch { streamReadings() }
+        lifecycleScope.launch { streamMotion() }
         lifecycleScope.launch {
             // The panel header names the game and its session timer; both change without any overlay
             // window changing, so the panel state is refreshed rather than the windows reconciled.
@@ -1079,6 +1094,34 @@ class GamingOverlayService : GameCoreService() {
                         delay(preferences.overlay.value.normalised().updateIntervalMillis)
                     }
                 }
+            }
+    }
+
+    /**
+     * Mirrors [streamReadings] for the motion sensors: it samples only while the screen is on and a
+     * module that actually draws a motion reading is allowed on screen, and parks at
+     * [MotionFrame.EMPTY] otherwise. A separate stream because motion comes from [MotionSampler]'s own
+     * `callbackFlow` (register on collect, unregister on cancel) rather than from the shared
+     * [PerformanceMonitor] snapshot, and `collectLatest` tears the sampler down the instant the gate
+     * closes — the "do not keep sensors live for a module nobody is showing" rule enforced by the
+     * subscription's lifetime, exactly as the stat loop enforces its own.
+     */
+    private suspend fun streamMotion() {
+        combine(
+            screenInteractive,
+            pluginRegistry.activeOverlayModules,
+        ) { awake, modules ->
+            awake && modules.any { active ->
+                active.module.requiredStats.any { it.motionReading() != null }
+            }
+        }
+            .distinctUntilChanged()
+            .collectLatest { needed ->
+                if (!needed) {
+                    motionFrame.value = MotionFrame.EMPTY
+                    return@collectLatest
+                }
+                motionSampler.stream().collect { motionFrame.value = it }
             }
     }
 
@@ -2307,9 +2350,10 @@ class GamingOverlayService : GameCoreService() {
             host = host,
         ) {
             val readings by hudReadings.collectAsState()
+            val motion by motionFrame.collectAsState()
             PluginNodeTree(
                 node = content,
-                stats = { id -> pluginStatValue(id, readings) },
+                stats = { id -> pluginStatValue(id, readings, motion) },
                 modifier = Modifier.alpha(opacity),
             )
         }
@@ -2331,19 +2375,31 @@ class GamingOverlayService : GameCoreService() {
      * here, in the service, at the boundary — which is what lets GameCore add, rename or re-source a
      * [HudStat] without breaking a plugin somebody already installed.
      */
-    private fun pluginStatValue(id: String, readings: Map<HudStat, StatReading>): String? {
+    private fun pluginStatValue(
+        id: String,
+        readings: Map<HudStat, StatReading>,
+        motion: MotionFrame,
+    ): String? {
         val stat = ModuleStat.fromId(id) ?: return null
-        val reading = readings[stat.hudStat()] ?: return null
+        stat.motionReading()?.let { reading ->
+            // Motion has no HudStat and never enters the StatReading map: resolve it straight from
+            // the frame to a display string (null = sensor absent, so the renderer draws its em dash).
+            return MotionReadingReader.read(reading, motion).display()
+        }
+        val hud = stat.hudStatOrNull() ?: return null
+        val reading = readings[hud] ?: return null
         return if (reading.isAvailable) reading.display() else null
     }
 
     /**
-     * The host reading behind each of the six stats a plugin module may display.
+     * The host reading behind each stat the performance monitor serves, or null for a motion stat
+     * (which [motionReading] resolves instead — motion comes from the sensor sampler, not the monitor
+     * snapshot).
      *
      * Exhaustive with no `else`, so adding a [ModuleStat] is a compile error here rather than a stat that
      * silently never resolves.
      */
-    private fun ModuleStat.hudStat(): HudStat = when (this) {
+    private fun ModuleStat.hudStatOrNull(): HudStat? = when (this) {
         ModuleStat.FPS -> HudStat.FRAME_RATE
         ModuleStat.CPU -> HudStat.CPU_USAGE
         ModuleStat.GPU -> HudStat.GPU_USAGE
@@ -2355,6 +2411,20 @@ class GamingOverlayService : GameCoreService() {
         // asked for a temperature, not for a particular sensor, and `thermals` is the scope whose own
         // description is "Temperature and battery readings".
         ModuleStat.TEMP -> HudStat.BATTERY_TEMPERATURE
+        // Motion has no HudStat — it is sampled from MotionSampler, not the performance monitor — so it
+        // resolves through motionReading() instead.
+        ModuleStat.ROTATION_RATE, ModuleStat.MOVEMENT -> null
+    }
+
+    /**
+     * The [MotionReading] behind a motion stat, or null for a stat the performance monitor serves.
+     * Exhaustive with no `else` for the same reason [hudStatOrNull] is.
+     */
+    private fun ModuleStat.motionReading(): MotionReading? = when (this) {
+        ModuleStat.ROTATION_RATE -> MotionReading.ROTATION_RATE
+        ModuleStat.MOVEMENT -> MotionReading.MOVEMENT
+        ModuleStat.FPS, ModuleStat.CPU, ModuleStat.GPU, ModuleStat.RAM,
+        ModuleStat.BATTERY, ModuleStat.TEMP -> null
     }
 
     /**
@@ -2367,7 +2437,7 @@ class GamingOverlayService : GameCoreService() {
     private fun pluginModuleStats(): List<HudStat> =
         pluginRegistry.activeOverlayModules.value
             .flatMap { it.module.requiredStats }
-            .map { it.hudStat() }
+            .mapNotNull { it.hudStatOrNull() }
             .distinct()
 
     /**

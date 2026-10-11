@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Dock
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FormatSize
@@ -914,6 +915,13 @@ private fun AccessCard(
             description = "Installed plugins, what each one asked for, and the switch that stops all of " +
                 "them. Plugins are data GameCore reads, not code it runs.",
             icon = Icons.Filled.Extension,
+        )
+        NavRow(
+            title = "Dashboard",
+            onClick = { onNavigate(Destination.DashboardComposer) },
+            description = "Compose a dashboard from built-in panels and your plugins' widgets — play " +
+                "time, aim trend, and whatever your plugins provide, arranged how you like.",
+            icon = Icons.Filled.Dashboard,
         )
         NavRow(
             title = "Charge bypass",

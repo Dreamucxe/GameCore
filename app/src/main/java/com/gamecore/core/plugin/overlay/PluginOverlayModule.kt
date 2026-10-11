@@ -96,7 +96,9 @@ enum class ModuleStat(val id: String, val label: String, val scope: String) {
     GPU("gpu", "GPU load", "device_stats"),
     RAM("ram", "Memory", "device_stats"),
     BATTERY("battery", "Battery", "thermals"),
-    TEMP("temp", "Temperature", "thermals");
+    TEMP("temp", "Temperature", "thermals"),
+    ROTATION_RATE("rotation_rate", "Rotation rate", "motion"),
+    MOVEMENT("movement", "Movement", "motion");
 
     companion object {
         /**
@@ -254,7 +256,7 @@ data class PluginOverlayModule(
          * The complement — `BUTTON`, `SLIDER`, `SWITCH`, `SCROLL` — is rejected by the codec, and
          * this single set is why that rejection is reviewable: a module is rendered in a window
          * that cannot receive touches, so content that could want a touch must not be able to
-         * reach it. Expressing it as "these eight are allowed" rather than "those four are
+         * reach it. Expressing it as "these nine are allowed" rather than "those four are
          * banned" means a future component type is excluded until someone adds it here, which is
          * the safe direction for a list that gates what can appear over a game.
          */
@@ -267,6 +269,7 @@ data class PluginOverlayModule(
             ComponentType.STAT,
             ComponentType.SPACER,
             ComponentType.IMAGE,
+            ComponentType.CHART,
         )
 
         /**

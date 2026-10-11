@@ -6,9 +6,12 @@ import androidx.compose.material3.Shapes
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gamecore.core.common.ContrastMath
 import com.gamecore.core.plugin.theme.PluginTheme
+import com.gamecore.core.plugin.theme.PluginThemeRoles
+import com.gamecore.core.plugin.theme.PluginThemeTypography
 import kotlin.math.roundToInt
 
 /**
@@ -131,6 +134,13 @@ private const val HOUSE_EXTRA_LARGE_DP = 28
  * Every one of the six is forced opaque by [opaque] first, `accent` included: the house scheme
  * lerps `accent` into a dozen container roles, so a translucent accent would thin the whole
  * scheme and not just the one role that named it.
+ *
+ * From schema 2 two more things can happen, both additive. A theme that declared `amoled` and
+ * `dark` bases on [amoledSchemeFor] — a true-black surface family — instead of [darkSchemeFor];
+ * every other build of the scheme is untouched. And a theme that supplied [PluginTheme.roles] has
+ * them copied over the base by [applyRoles], after the v1 six. A theme that did neither — every v1
+ * theme, and every v2 theme that set only typography — takes the exact `base` built below, so its
+ * scheme is byte-for-byte what it was before these fields existed.
  */
 fun PluginTheme.toColorScheme(): ColorScheme {
     val accentArgb = opaque(accent)
@@ -138,8 +148,12 @@ fun PluginTheme.toColorScheme(): ColorScheme {
     val backgroundArgb = opaque(background)
     val surfaceArgb = opaque(surface)
     val inkArgb = opaque(onSurface)
-    val house = if (dark) darkSchemeFor(Color(accentArgb)) else lightSchemeFor(Color(accentArgb))
-    return house.copy(
+    val house = when {
+        dark && amoled -> amoledSchemeFor(Color(accentArgb))
+        dark -> darkSchemeFor(Color(accentArgb))
+        else -> lightSchemeFor(Color(accentArgb))
+    }
+    val base = house.copy(
         primary = Color(primaryArgb),
         onPrimary = legibleInk(supplied = opaque(onPrimary), backdrop = primaryArgb, houseInk = house.onPrimary),
         background = Color(backgroundArgb),
@@ -147,6 +161,70 @@ fun PluginTheme.toColorScheme(): ColorScheme {
         surface = Color(surfaceArgb),
         onSurface = legibleInk(supplied = inkArgb, backdrop = surfaceArgb, houseInk = house.onSurface),
     )
+    val suppliedRoles = roles
+    return if (suppliedRoles == null) base else base.applyRoles(suppliedRoles)
+}
+
+/**
+ * The schema-2 semantic roles copied over the base scheme, each in the manner that role takes.
+ *
+ * Fills — [PluginThemeRoles.secondary], [PluginThemeRoles.tertiary], [PluginThemeRoles.surfaceVariant],
+ * [PluginThemeRoles.outline], [PluginThemeRoles.error] — are applied as given (forced opaque): they
+ * are backgrounds and accents, judged legible by whatever ink sits on them, and the inks that sit on
+ * them are guarded here too. The two inks — [PluginThemeRoles.onSurfaceVariant] and
+ * [PluginThemeRoles.onError] — pass through [legibleInk] against the fill they sit on, the same guard
+ * the v1 inks get, so a role a theme set to something illegible degrades to a readable value rather
+ * than being painted blind. A role the theme left null keeps the base scheme's own value — so a v2
+ * theme that names three roles inherits the other thirty-odd exactly as the v1 six already do.
+ *
+ * The backdrop for each guarded ink is the role's own fill when the theme supplied one, and the base
+ * scheme's existing fill otherwise, so `onSurfaceVariant` is measured against whatever
+ * `surfaceVariant` actually ends up being.
+ */
+private fun ColorScheme.applyRoles(roles: PluginThemeRoles): ColorScheme {
+    val surfaceVariantArgb = roles.surfaceVariant?.let { opaque(it) } ?: surfaceVariant.toArgb()
+    val errorArgb = roles.error?.let { opaque(it) } ?: error.toArgb()
+    return copy(
+        secondary = roles.secondary?.let { Color(opaque(it)) } ?: secondary,
+        tertiary = roles.tertiary?.let { Color(opaque(it)) } ?: tertiary,
+        surfaceVariant = roles.surfaceVariant?.let { Color(opaque(it)) } ?: surfaceVariant,
+        outline = roles.outline?.let { Color(opaque(it)) } ?: outline,
+        error = roles.error?.let { Color(opaque(it)) } ?: error,
+        onSurfaceVariant = roles.onSurfaceVariant?.let {
+            legibleInk(supplied = opaque(it), backdrop = surfaceVariantArgb, houseInk = onSurfaceVariant)
+        } ?: onSurfaceVariant,
+        onError = roles.onError?.let {
+            legibleInk(supplied = opaque(it), backdrop = errorArgb, houseInk = onError)
+        } ?: onError,
+    )
+}
+
+/**
+ * The schema-2 type scale to apply, clamped — unit when the theme named no typography.
+ *
+ * The clamp is the bridge's half of the belt-and-braces the corner radius gets: the codec has
+ * already held [PluginThemeTypography.scale] inside its bounds, and this holds it there again so a
+ * value that reached the bridge another way still cannot rebuild the ramp. A theme with no
+ * typography block leaves the ramp at [PluginThemeTypography.DEFAULT_SCALE].
+ */
+fun PluginTheme.resolvedTypeScale(): Float =
+    (typography?.scale ?: PluginThemeTypography.DEFAULT_SCALE)
+        .coerceIn(PluginThemeTypography.MIN_SCALE, PluginThemeTypography.MAX_SCALE)
+
+/**
+ * The one global [FontWeight] the theme asked for, or null to keep each Material role's own weight.
+ *
+ * Null is the common case and the only v1 case: the Material ramp draws display and label text at
+ * different weights on purpose, and a theme that only wanted larger text has no reason to flatten
+ * that. A non-null weight is the theme deliberately asking for one weight across the whole app,
+ * which `Theme.kt` then applies to every role.
+ */
+fun PluginTheme.resolvedBaseWeight(): FontWeight? = when (typography?.weight) {
+    null -> null
+    PluginThemeTypography.Weight.LIGHT -> FontWeight.Light
+    PluginThemeTypography.Weight.NORMAL -> FontWeight.Normal
+    PluginThemeTypography.Weight.MEDIUM -> FontWeight.Medium
+    PluginThemeTypography.Weight.BOLD -> FontWeight.Bold
 }
 
 /**

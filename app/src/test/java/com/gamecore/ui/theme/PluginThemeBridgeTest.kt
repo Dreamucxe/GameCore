@@ -5,9 +5,12 @@ import androidx.compose.material3.Shapes
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gamecore.core.common.ContrastMath
 import com.gamecore.core.plugin.theme.PluginTheme
+import com.gamecore.core.plugin.theme.PluginThemeRoles
+import com.gamecore.core.plugin.theme.PluginThemeTypography
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertSame
@@ -76,6 +79,9 @@ class PluginThemeBridgeTest {
         cornerRadiusDp: Int = HOUSE_CORNER_REFERENCE_DP,
         font: PluginTheme.Font = PluginTheme.Font.SYSTEM,
         uiScale: Float = 1.0f,
+        amoled: Boolean = false,
+        roles: PluginThemeRoles? = null,
+        typography: PluginThemeTypography? = null,
     ) = PluginTheme(
         name = name,
         dark = dark,
@@ -88,6 +94,9 @@ class PluginThemeBridgeTest {
         cornerRadiusDp = cornerRadiusDp,
         font = font,
         uiScale = uiScale,
+        amoled = amoled,
+        roles = roles,
+        typography = typography,
     )
 
     /** The house scheme a plugin theme bases on, built the same way the bridge builds it. */
@@ -379,5 +388,92 @@ class PluginThemeBridgeTest {
         assertTrue(ratio(scheme.onSurface, scheme.surface) >= MIN_CONTRAST_RATIO)
         assertTrue(ratio(scheme.onPrimary, scheme.primary) >= MIN_CONTRAST_RATIO)
         assertTrue(ratio(scheme.onBackground, scheme.background) >= MIN_CONTRAST_RATIO)
+    }
+
+    // ------------------------------------------------------- schema 2: the amoled base and the roles
+
+    @Test
+    fun `a dark amoled theme bases on the true-black scheme, not the ordinary dark one`() {
+        val t = theme(dark = true, amoled = true)
+        val amoledHouse = amoledSchemeFor(Color(t.accent))
+        val scheme = t.toColorScheme()
+
+        // surfaceVariant and outline are roles the v1 copy leaves untouched and where amoled diverges.
+        assertEquals(amoledHouse.surfaceVariant, scheme.surfaceVariant)
+        assertEquals(amoledHouse.outline, scheme.outline)
+        assertNotEquals(darkSchemeFor(Color(t.accent)).surfaceVariant, scheme.surfaceVariant)
+    }
+
+    @Test
+    fun `amoled is a dark-only base and is ignored on a light theme`() {
+        val t = theme(dark = false, amoled = true)
+
+        assertEquals(lightSchemeFor(Color(t.accent)).surfaceVariant, t.toColorScheme().surfaceVariant)
+    }
+
+    @Test
+    fun `a supplied role fill is copied over the base and forced opaque`() {
+        val scheme = theme(roles = PluginThemeRoles(secondary = 0x8000FF00.toInt())).toColorScheme()
+
+        assertEquals(Color(0xFF00FF00.toInt()), scheme.secondary)
+        assertOpaque(scheme.secondary, "secondary")
+    }
+
+    @Test
+    fun `a role the plugin leaves unset still comes from the house scheme`() {
+        val t = theme(roles = PluginThemeRoles(secondary = 0xFF00FF00.toInt()))
+        val house = houseFor(t)
+        val scheme = t.toColorScheme()
+
+        assertEquals(house.tertiary, scheme.tertiary)
+        assertEquals(house.outline, scheme.outline)
+    }
+
+    @Test
+    fun `a role ink is guarded against its own fill the way the v1 inks are`() {
+        // onError sits a hair off the error fill — legal input, illegible, must be substituted.
+        val scheme = theme(roles = PluginThemeRoles(error = 0xFFB00020.toInt(), onError = 0xFFA10121.toInt())).toColorScheme()
+
+        assertEquals(Color(0xFFB00020.toInt()), scheme.error)
+        assertNotEquals(Color(0xFFA10121.toInt()), scheme.onError)
+        assertTrue(
+            "the substituted onError must clear the floor on the role's own fill",
+            ratio(scheme.onError, scheme.error) >= MIN_CONTRAST_RATIO,
+        )
+    }
+
+    @Test
+    fun `a legible role ink is used as given`() {
+        val scheme = theme(roles = PluginThemeRoles(error = 0xFFB00020.toInt(), onError = 0xFFFFFFFF.toInt())).toColorScheme()
+
+        assertEquals(Color(0xFFFFFFFF.toInt()), scheme.onError)
+    }
+
+    @Test
+    fun `a theme with no typography resolves to unit scale and no weight`() {
+        assertEquals(PluginThemeTypography.DEFAULT_SCALE, theme().resolvedTypeScale(), 0.0001f)
+        assertEquals(null, theme().resolvedBaseWeight())
+    }
+
+    @Test
+    fun `the resolved type scale is clamped at both ends`() {
+        assertEquals(
+            PluginThemeTypography.MAX_SCALE,
+            theme(typography = PluginThemeTypography(scale = 9.0f)).resolvedTypeScale(),
+            0.0001f,
+        )
+        assertEquals(
+            PluginThemeTypography.MIN_SCALE,
+            theme(typography = PluginThemeTypography(scale = 0.1f)).resolvedTypeScale(),
+            0.0001f,
+        )
+    }
+
+    @Test
+    fun `each named weight maps to its Compose FontWeight`() {
+        assertEquals(FontWeight.Light, theme(typography = PluginThemeTypography(weight = PluginThemeTypography.Weight.LIGHT)).resolvedBaseWeight())
+        assertEquals(FontWeight.Normal, theme(typography = PluginThemeTypography(weight = PluginThemeTypography.Weight.NORMAL)).resolvedBaseWeight())
+        assertEquals(FontWeight.Medium, theme(typography = PluginThemeTypography(weight = PluginThemeTypography.Weight.MEDIUM)).resolvedBaseWeight())
+        assertEquals(FontWeight.Bold, theme(typography = PluginThemeTypography(weight = PluginThemeTypography.Weight.BOLD)).resolvedBaseWeight())
     }
 }

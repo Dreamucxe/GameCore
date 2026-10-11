@@ -1,0 +1,20 @@
+{
+  "size": "full",
+  "format": "gamecore.plugin.widget",
+  "id": "advisor_trend",
+  "title": "Temperature trend",
+  "version": 1,
+  "content": {
+    "type": "chart",
+    "props": {
+      "note": "Live when thermals is granted; sample shown otherwise.",
+      "stat": "temp",
+      "min": 20,
+      "color": "#FF8A65",
+      "max": 70,
+      "kind": "line",
+      "values": "38,40,41,43,44,46,47,46,48,49,50,48",
+      "label": "Device temperature"
+    }
+  }
+}
