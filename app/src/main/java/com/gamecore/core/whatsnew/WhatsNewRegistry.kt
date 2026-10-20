@@ -35,6 +35,27 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 34,
+            versionName = "3.12.0",
+            date = "2026-10-20",
+            features = listOf(
+                FeatureNote(
+                    "App-wide colour",
+                    "A switch under the vector hands the app's accent to the engine. On, every screen " +
+                        "is tinted by what the device is doing right now, and a theme plugin keeps " +
+                        "everything else it does but stops choosing the palette. Off, a plugin's " +
+                        "colours win exactly as they always have.",
+                ),
+                FeatureNote(
+                    "The engine runs the whole time",
+                    "The Theme Engine now starts with the app instead of with its settings screen, so " +
+                        "its colour is alive on every screen and the first recolour is a transition " +
+                        "rather than a jump. Calibrating still drives it live; leaving the screen no " +
+                        "longer stops it.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 33,
             versionName = "3.11.0",
             date = "2026-10-20",

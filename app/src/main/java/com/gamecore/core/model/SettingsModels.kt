@@ -60,6 +60,20 @@ data class AppSettings(
     val redlineSkin: Boolean = false,
 
     /**
+     * Let the Theme Engine's live colour outrank a plugin's theme.
+     *
+     * Off by default, and the precedence it reverses is deliberate: selecting a plugin theme on the
+     * Plugins screen is a specific act, and a standing preference must not silently undo it. So this is
+     * the switch that says "I know a plugin is supplying colours, and I want the engine's vector anyway".
+     * When it is on, a plugin with `change_ui` no longer changes the app's colours — it keeps every other
+     * thing it does (its screens, its panels, its settings) and only stops choosing the palette.
+     *
+     * Ignored when no engine is running: true with no vector to paint is simply "no override", never a
+     * theme-less app. See [com.gamecore.ui.theme.GameCoreTheme].
+     */
+    val themeEngineOverridesPlugins: Boolean = false,
+
+    /**
      * The absolute path of the imported wallpaper inside GameCore's own storage, or null when none.
      *
      * A path and not a `Uri`: the import decodes and re-encodes into app-private storage, so nothing

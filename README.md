@@ -3,10 +3,27 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.11.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.12.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
 no backend, nothing you record leaves the device
+
+---
+
+## New in 3.12.0
+
+The Theme Engine stops being something you visit and becomes the colour the app wears.
+
+- **App-wide colour.** A switch on the calibration screen hands the app's accent to the engine.
+  On, every screen is tinted by what the device is doing right now — the same ice-blue, violet and
+  molten crimson you see on the canvas — and a theme plugin keeps everything else it does but
+  stops choosing the palette. Off, a plugin's colours win exactly as they always have, which is
+  the default.
+- **The engine runs the whole time.** It starts with the app rather than with its settings screen,
+  so its colour is live everywhere and the first recolour is a transition instead of a jump.
+  Calibrating still drives it live; leaving the screen no longer stops it.
+- **Say who chooses.** The same card prints the accent in force and whether it came from your
+  settings, the engine, or nothing at all yet — no guessing which layer won.
 
 ---
 

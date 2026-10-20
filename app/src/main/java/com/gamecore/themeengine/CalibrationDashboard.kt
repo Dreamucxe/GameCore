@@ -43,6 +43,7 @@ import com.gamecore.ui.components.ScreenPadding
 import com.gamecore.ui.components.SectionCard
 import com.gamecore.ui.components.SectionGap
 import com.gamecore.ui.components.SliderRow
+import com.gamecore.ui.components.SwitchRow
 import com.gamecore.ui.components.StatTile
 import com.gamecore.ui.components.StatusChip
 import com.gamecore.ui.components.Tone
@@ -69,6 +70,7 @@ fun CalibrationDashboard(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val renderVector by viewModel.renderVector.collectAsStateWithLifecycle()
+    val overridesPluginThemes by viewModel.overridesPluginThemes.collectAsStateWithLifecycle()
     var saveName by rememberSaveable { mutableStateOf("") }
 
     LazyColumn(
@@ -131,6 +133,38 @@ fun CalibrationDashboard(
                 onSelect = viewModel::selectPreset,
                 onDelete = viewModel::deleteActivePreset,
             )
+        }
+        item { SectionGap() }
+        item {
+            SectionCard(
+                title = "App-wide colour",
+                subtitle = "Whether this engine or a plugin decides what the app looks like",
+                icon = Icons.Filled.Palette,
+            ) {
+                SwitchRow(
+                    title = "Override plugin themes",
+                    checked = overridesPluginThemes,
+                    onCheckedChange = viewModel::setOverridesPluginThemes,
+                    description = "Off, a plugin that supplies colours wins, exactly as it always has. " +
+                        "On, the vector above is the app's accent on every screen and a plugin keeps " +
+                        "everything else it does but stops choosing the palette.",
+                )
+                RowDivider()
+                KeyValueRow(
+                    label = "App accent right now",
+                    value = rgbText(state.resolution.vector.rgb),
+                    tone = if (overridesPluginThemes) Tone.Accent else Tone.Muted,
+                )
+                KeyValueRow(
+                    label = "Chosen by",
+                    value = when {
+                        !overridesPluginThemes -> "The settings above"
+                        !state.isActive -> "Nothing yet — the engine is not running"
+                        else -> "Theme Engine, from this device's readings"
+                    },
+                    tone = Tone.Muted,
+                )
+            }
         }
         item { SectionGap() }
         item {

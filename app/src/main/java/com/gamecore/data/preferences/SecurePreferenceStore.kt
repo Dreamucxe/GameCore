@@ -210,6 +210,10 @@ class SecurePreferenceStore @Inject constructor(
             customAccentArgb = p.getInt(KEY_CUSTOM_ACCENT, 0).takeIf { it != 0 },
             useWallpaper = p.getBoolean(KEY_USE_WALLPAPER, defaults.useWallpaper),
             redlineSkin = p.getBoolean(KEY_REDLINE_SKIN, defaults.redlineSkin),
+            themeEngineOverridesPlugins = p.getBoolean(
+                KEY_ENGINE_OVERRIDES_PLUGINS,
+                defaults.themeEngineOverridesPlugins,
+            ),
             // The empty string is the "nothing imported" sentinel, read back through the same blank
             // check normalised() applies, so a cleared wallpaper and an absent one are one state.
             wallpaperPath = p.getString(KEY_WALLPAPER_PATH, null)?.takeIf { it.isNotBlank() },
@@ -322,6 +326,7 @@ class SecurePreferenceStore @Inject constructor(
             putInt(KEY_CUSTOM_ACCENT, value.customAccentArgb ?: 0)
             putBoolean(KEY_USE_WALLPAPER, value.useWallpaper)
             putBoolean(KEY_REDLINE_SKIN, value.redlineSkin)
+            putBoolean(KEY_ENGINE_OVERRIDES_PLUGINS, value.themeEngineOverridesPlugins)
             putString(KEY_WALLPAPER_PATH, value.wallpaperPath ?: "")
             putInt(KEY_WALLPAPER_SCRIM, value.wallpaperScrimPercent)
             putBoolean(KEY_COMPACT_DENSITY, value.compactDensity)
@@ -1077,6 +1082,7 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_CUSTOM_ACCENT = "custom_accent_argb"
         const val KEY_USE_WALLPAPER = "use_wallpaper"
         const val KEY_REDLINE_SKIN = "redline_skin"
+        const val KEY_ENGINE_OVERRIDES_PLUGINS = "engine_overrides_plugins"
         const val KEY_WALLPAPER_PATH = "wallpaper_path"
         const val KEY_WALLPAPER_SCRIM = "wallpaper_scrim_percent"
         const val KEY_COMPACT_DENSITY = "compact_density"

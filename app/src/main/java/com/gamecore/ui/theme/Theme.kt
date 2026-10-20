@@ -81,13 +81,19 @@ val GameCoreShapes = Shapes(
 fun GameCoreTheme(
     settings: AppSettings = AppSettings(),
     pluginTheme: PluginTheme? = null,
+    engineTint: Color? = null,
     content: @Composable () -> Unit,
 ) {
     val systemDark = isSystemInDarkTheme()
+    // The Theme Engine's override is the one thing above a plugin theme. It is only ever non-null when the
+    // user turned the override on AND the engine has a vector, so `null` here means "no opinion" and the
+    // ordering below is unchanged from every release before this one.
+    val engineOverride = settings.themeEngineOverridesPlugins && engineTint != null
+    val effectivePluginTheme = if (engineOverride) null else pluginTheme
     // AMOLED is a dark theme, so it resolves dark like DARK does; the difference is the true-black scheme
     // chosen below, not whether the app is in dark mode.
     val dark = when {
-        pluginTheme != null -> pluginTheme.dark
+        effectivePluginTheme != null -> effectivePluginTheme.dark
         // The Redline skin is a dark skin by construction, so it forces dark polarity ahead of the theme
         // setting. A plugin theme still outranks it (the branch above), because selecting a plugin is the
         // more specific act.
@@ -98,7 +104,7 @@ fun GameCoreTheme(
             ThemeChoice.LIGHT -> false
         }
     }
-    val amoled = pluginTheme == null && settings.theme == ThemeChoice.AMOLED
+    val amoled = effectivePluginTheme == null && settings.theme == ThemeChoice.AMOLED
     // The accent colour the scheme is actually built from: the user's custom pick when it is turned on and
     // a colour has been chosen, otherwise the selected palette swatch. normalised() has already forced the
     // custom colour opaque, so `onPrimary`'s readability check is never fed a half-transparent accent.
@@ -108,10 +114,15 @@ fun GameCoreTheme(
         Color(settings.accent.argb)
     }
     val context = LocalContext.current
-    val scheme = remember(dark, amoled, accentColour, settings.useDynamicColour, pluginTheme) {
+    val scheme = remember(dark, amoled, accentColour, settings.useDynamicColour, effectivePluginTheme, engineOverride, engineTint) {
         val dynamicAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
         when {
-            pluginTheme != null -> pluginTheme.toColorScheme()
+            // The engine's live colour is the accent the whole app is built from. The same scheme builders
+            // the house palettes use do the contrast work, so a molten crimson still yields readable text
+            // rather than a red-on-red screen.
+            engineOverride && engineTint != null ->
+                if (dark) darkSchemeFor(engineTint) else lightSchemeFor(engineTint)
+            effectivePluginTheme != null -> effectivePluginTheme.toColorScheme()
             // Redline outranks dynamic colour and the house schemes, but not a plugin: its whole point is
             // a specific red-on-black identity, which a wallpaper-derived palette would dissolve.
             settings.redlineSkin -> redlineColorScheme()
@@ -124,21 +135,21 @@ fun GameCoreTheme(
     }
 
     // A plugin's own shapes win; then Redline's cut corners; otherwise the house rounded set.
-    val shapes = remember(pluginTheme, settings.redlineSkin) {
-        pluginTheme?.toShapes() ?: if (settings.redlineSkin) RedlineShapes else GameCoreShapes
+    val shapes = remember(effectivePluginTheme, settings.redlineSkin) {
+        effectivePluginTheme?.toShapes() ?: if (settings.redlineSkin) RedlineShapes else GameCoreShapes
     }
 
     // The stat styles in `Type.kt` are deliberately not reached by this: `StatValueStyle` is monospaced
     // because a proportional figure changes width when 9% becomes 10%, and a plugin asking for a serif
     // face has no business making a column of live numbers twitch.
-    val typography = remember(pluginTheme) {
-        pluginTheme?.let {
+    val typography = remember(effectivePluginTheme) {
+        effectivePluginTheme?.let {
             GameCoreTypography.withTypography(it.toFontFamily(), it.resolvedTypeScale(), it.resolvedBaseWeight())
         } ?: GameCoreTypography
     }
 
     val base = LocalDensity.current
-    val scalePercent = pluginTheme?.resolvedUiScalePercent(settings.uiScalePercent)
+    val scalePercent = effectivePluginTheme?.resolvedUiScalePercent(settings.uiScalePercent)
         ?: settings.uiScalePercent
     val scaled = remember(base, scalePercent) {
         if (scalePercent == 100) {

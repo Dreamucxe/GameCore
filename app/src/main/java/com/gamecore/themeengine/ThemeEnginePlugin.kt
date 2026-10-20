@@ -68,12 +68,37 @@ class ThemeEnginePlugin @Inject constructor() {
 
     private val mutablePainted = MutableStateFlow(mutableState.value.resolution.vector)
 
+    /**
+     * Readings that stand in for the live ones while a user drags the calibration sliders.
+     *
+     * Held by the plugin rather than by the stream, because the engine is now started once for the whole
+     * app: the shell feeds live readings and the calibration screen asks for a stand-in on the *same*
+     * collector. Null means "the device's own numbers", which is the state the app spends almost all of
+     * its time in.
+     */
+    private val metricOverride = MutableStateFlow<ThemeEngineMetrics?>(null)
+
     /** The smoothed vector the canvas paints. Changes while a transition runs, then goes quiet. */
     val renderVector: StateFlow<AuroraVector> = mutablePainted.asStateFlow()
 
     private var metricsJob: Job? = null
 
     private var renderJob: Job? = null
+
+    /** The most recent reading the caller's stream produced, so clearing an override can restore it. */
+    private var lastLive: ThemeEngineMetrics? = null
+
+    /**
+     * Stands in for the live readings, or clears the stand-in with null.
+     *
+     * Applied on the spot rather than on the next live emission: a slider the user is dragging must move
+     * the backdrop under their finger, and the live stream only speaks about once a second.
+     */
+    fun setMetricOverride(metrics: ThemeEngineMetrics?) {
+        metricOverride.value = metrics
+        val reading = metrics ?: lastLive ?: return
+        ingest(reading)
+    }
 
     /**
      * Attaches the engine to a stream of readings.
@@ -106,8 +131,15 @@ class ThemeEnginePlugin @Inject constructor() {
         mutablePainted.value = initialResolution.vector
 
         metricsJob = scope.launch {
-            metrics.collect { reading -> ingest(reading) }
+            metrics.collect { reading ->
+                lastLive = reading
+                ingest(metricOverride.value ?: reading)
+            }
         }
+
+        // A stand-in already in force (the user was on the calibration screen before the shell restarted
+        // the engine) applies immediately instead of waiting for the next live reading to arrive.
+        metricOverride.value?.let { ingest(it) }
 
         renderJob = scope.launch {
             var lastNanos = System.nanoTime()

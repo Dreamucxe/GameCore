@@ -156,6 +156,11 @@ fun GameCoreRoot(
     // registry reads packages off the main thread, so a plugin-themed user sees the house theme settle
     // into theirs. See [RootViewModel.pluginTheme] for why nothing is gated on that arriving.
     val pluginTheme by viewModel.pluginTheme.collectAsStateWithLifecycle()
+
+    // The engine's live colour. Null until the engine has resolved its first vector; passed to the theme
+    // unconditionally so the override switch takes effect without rebuilding the shell.
+    val engineTintArgb by viewModel.engineTint.collectAsStateWithLifecycle()
+    val engineTint = engineTintArgb?.let { androidx.compose.ui.graphics.Color(it) }
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route
@@ -222,7 +227,7 @@ fun GameCoreRoot(
         navController.openUnguarded(Destination.Settings)
     }
 
-    GameCoreTheme(settings, pluginTheme) {
+    GameCoreTheme(settings, pluginTheme, engineTint) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(modifier = Modifier.fillMaxSize()) {
                 // Behind everything, inside the themed Surface so the scrim is mixed from the scheme the

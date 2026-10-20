@@ -2,8 +2,7 @@ package com.gamecore.themeengine
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gamecore.core.common.Observed
-import com.gamecore.core.model.PerformanceSnapshot
+import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.domain.monitoring.PerformanceMonitor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
@@ -80,7 +79,13 @@ class ThemeEngineViewModel @Inject constructor(
     performance: PerformanceMonitor,
     private val plugin: ThemeEnginePlugin,
     private val repository: AuroraThemeRepository,
+    private val preferences: SecurePreferenceStore,
 ) : ViewModel() {
+
+    /** Whether the engine outranks a plugin's theme, as stored. */
+    val overridesPluginThemes: StateFlow<Boolean> = preferences.settings
+        .map { it.themeEngineOverridesPlugins }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_AFTER_MILLIS), false)
 
     private val liveReading: StateFlow<LiveReading> = performance.snapshots
         .map(::readingsOf)
@@ -91,10 +96,6 @@ class ThemeEngineViewModel @Inject constructor(
 
     /** Null while the sliders are untouched. Non-null means every figure on screen is an override. */
     private val manualOverride = MutableStateFlow<ThemeEngineMetrics?>(null)
-
-    private val effectiveMetrics = combine(liveReading, manualOverride) { live, manual ->
-        manual ?: live.metrics
-    }
 
     val uiState: StateFlow<CalibrationUiState> = combine(
         liveReading,
@@ -122,7 +123,9 @@ class ThemeEngineViewModel @Inject constructor(
     )
 
     init {
-        plugin.start(viewModelScope, effectiveMetrics, repository.activePreset.value)
+        // The shell starts and stops the engine now, so that its colour is live app-wide and not only
+        // while this screen is open. This screen contributes a stand-in reading and a preset; it does
+        // not own the lifecycle, and leaving it no longer stops anything.
         // Selecting a different save point, or saving a new one, lands here and re-aims the engine
         // without restarting it — the painted colour transitions rather than snapping.
         viewModelScope.launch {
@@ -141,13 +144,16 @@ class ThemeEngineViewModel @Inject constructor(
     /** Back to the device's own readings. */
     fun followLive() {
         manualOverride.value = null
+        plugin.setMetricOverride(null)
     }
 
     private fun applyOverride(change: (ThemeEngineMetrics) -> ThemeEngineMetrics) {
         // Seeded from what is on screen, so the first slider moved only changes its own figure instead
         // of dropping the other two to zero.
         val base = manualOverride.value ?: uiState.value.metrics
-        manualOverride.value = change(base).normalised()
+        val next = change(base).normalised()
+        manualOverride.value = next
+        plugin.setMetricOverride(next)
     }
 
     // ---------- presets --------------------------------------------------------------------------
@@ -197,46 +203,22 @@ class ThemeEngineViewModel @Inject constructor(
         viewModelScope.launch { repository.delete(id) }
     }
 
-    override fun onCleared() {
-        plugin.stop()
-        super.onCleared()
-    }
-
     /**
-     * One snapshot, as a reading the engine can paint from.
+     * Turns the engine's precedence over plugin themes on or off.
      *
-     * The temperature is the deci-Celsius integer the sampler reports, divided once here; everything
-     * downstream is Celsius. A reading the device withheld contributes 0 to the engine *and* a false in
-     * [MetricAvailability], which is what keeps the canvas honest: cold is the safe direction to be
-     * wrong in, and the card beside it says "—" rather than the 0.
+     * A standing preference, stored where every other appearance setting is, so the shell sees it on the
+     * next frame. Turning it on while a plugin theme is active does not uninstall or disable the plugin —
+     * it keeps everything else it does and stops choosing the palette.
      */
-    private fun readingsOf(snapshot: PerformanceSnapshot?): LiveReading {
-        if (snapshot == null) return LiveReading.EMPTY
-        val cpu = (snapshot.cpu.overallPercent as? Observed.Value)?.value
-        val ram = snapshot.memory.takeIf { it.totalBytes > 0L }?.usedPercent
-        val temperature = (snapshot.primaryTemperatureDeciCelsius as? Observed.Value)?.value
-            ?.let { it / 10f }
-        return LiveReading(
-            metrics = ThemeEngineMetrics(
-                cpuUsage = cpu ?: 0f,
-                ramAllocation = ram ?: 0f,
-                coreTemperatureC = temperature ?: 0f,
-            ),
-            availability = MetricAvailability(
-                cpu = cpu != null,
-                ram = ram != null,
-                temperature = temperature != null,
-            ),
-        )
+    fun setOverridesPluginThemes(enabled: Boolean) {
+        preferences.updateSettings { it.copy(themeEngineOverridesPlugins = enabled) }
     }
 
-    private data class LiveReading(
-        val metrics: ThemeEngineMetrics,
-        val availability: MetricAvailability,
-    ) {
-        companion object {
-            val EMPTY = LiveReading(ThemeEngineMetrics.EMPTY, MetricAvailability.NONE)
-        }
+    override fun onCleared() {
+        // The engine outlives this screen: clearing the stand-in is all this screen owes it. Stopping the
+        // engine here would take the app's own colours down with the screen that calibrated them.
+        plugin.setMetricOverride(null)
+        super.onCleared()
     }
 
     private companion object {

@@ -13,15 +13,20 @@ import com.gamecore.core.whatsnew.shouldShowCard
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.data.repository.SessionRepository
+import com.gamecore.domain.monitoring.PerformanceMonitor
 import com.gamecore.domain.setup.SetupSignals
 import com.gamecore.domain.setup.WizardEntry
 import com.gamecore.domain.setup.decideEntry
+import com.gamecore.themeengine.AuroraThemeRepository
+import com.gamecore.themeengine.ThemeEnginePlugin
+import com.gamecore.themeengine.readingsOf
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
@@ -43,7 +48,28 @@ class RootViewModel @Inject constructor(
     profiles: GameProfileRepository,
     sessions: SessionRepository,
     plugins: PluginRegistry,
+    performance: PerformanceMonitor,
+    private val themeEngine: ThemeEnginePlugin,
+    private val auroraRepository: AuroraThemeRepository,
 ) : ViewModel() {
+
+    /**
+     * The engine's current colour, as an ARGB int, or null when there is nothing to paint.
+     *
+     * Deliberately the *target* vector and not the smoothed one the canvas draws. The shell's colours
+     * changing is a whole-app recomposition; following the sixty-a-second painted vector would recompose
+     * every screen to chase a fading transition. The target moves only when a reading crosses a mode
+     * edge, which is about once a second at most.
+     *
+     * It is exposed whether or not the override is on: [GameCoreTheme] decides that, so the switch takes
+     * effect on the next frame without this flow having to be rebuilt around it.
+     */
+    val engineTint: StateFlow<Int?> = themeEngine.state
+        .map { state ->
+            val (r, g, b) = state.resolution.vector.rgb
+            (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val settings: StateFlow<AppSettings> = preferences.settings
 
@@ -63,6 +89,28 @@ class RootViewModel @Inject constructor(
     val pluginTheme: StateFlow<PluginTheme?> = plugins.activeTheme
         .map { it?.theme }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
+     * Starts the Theme Engine for the life of the app, not for the life of a screen.
+     *
+     * This is what lets the engine's colour reach every screen: the shell holds the only instance, feeds
+     * it the monitor's readings, and never stops it. A screen that wants to calibrate the engine now asks
+     * it for a stand-in reading instead of starting its own — see [ThemeEnginePlugin.setMetricOverride].
+     *
+     * Started eagerly rather than on first use because the engine's render loop is what smooths a colour
+     * change; starting it when the user first opens Settings → Theme Engine would make the app's first
+     * recolour a jump instead of a transition.
+     */
+    init {
+        themeEngine.start(
+            viewModelScope,
+            performance.snapshots.map { readingsOf(it).metrics },
+            auroraRepository.activePreset.value,
+        )
+        viewModelScope.launch {
+            auroraRepository.activePreset.collect { themeEngine.setPreset(it) }
+        }
+    }
 
     /**
      * How the setup wizard should present itself this launch (spec §A1), or null until the facts it reads
