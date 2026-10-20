@@ -132,18 +132,42 @@ fun FullPanel(
     modifier: Modifier = Modifier,
     maxHeightDp: Int = 0,
     accent: Color = OverlayPalette.Good,
+    redline: Boolean = false,
 ) {
+    // One boolean picks the whole look. With it off, every value below is exactly what it has always
+    // been, so a panel built without the skin is byte-for-byte unchanged — the Redline plate, shape,
+    // header and gauges are additive branches, never a rewrite of the default.
+    val panelPlate = if (redline) RedlineOverlay.PanelPlate else OverlayPalette.PanelPlate
+    val panelShape = if (redline) RedlineOverlay.CardShape else RoundedCornerShape(16.dp)
     Column(
         modifier = modifier
-            .background(OverlayPalette.PanelPlate, RoundedCornerShape(16.dp))
+            .background(panelPlate, panelShape)
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // Header, stats strip and tabs stay pinned; only the tab's controls scroll, so a tall Display tab
         // on a short screen does not scroll its own title away (§5, and the §7 "scrolls, not clips" rule).
-        PanelHeader(gameLabel = gameLabel, clock = clock, onClose = onClose)
-        if (readings.isNotEmpty()) {
-            PanelStats(readings = readings)
+        if (redline) {
+            RedlinePanelHeader(gameLabel = gameLabel, clock = clock, onClose = onClose)
+            // The gauge pair stands in for the plain stats strip: the two load figures become rings, the
+            // rest stay as the chip strip beneath, so nothing the strip showed is dropped.
+            val cpu = readings.firstOrNull { it.stat == com.gamecore.core.model.HudStat.CPU_USAGE }
+            val gpu = readings.firstOrNull { it.stat == com.gamecore.core.model.HudStat.GPU_USAGE }
+            if (cpu != null || gpu != null) {
+                RedlineGaugeRow(cpu = cpu, gpu = gpu)
+            }
+            val rest = readings.filter {
+                it.stat != com.gamecore.core.model.HudStat.CPU_USAGE &&
+                    it.stat != com.gamecore.core.model.HudStat.GPU_USAGE
+            }
+            if (rest.isNotEmpty()) {
+                PanelStats(readings = rest)
+            }
+        } else {
+            PanelHeader(gameLabel = gameLabel, clock = clock, onClose = onClose)
+            if (readings.isNotEmpty()) {
+                PanelStats(readings = readings)
+            }
         }
         TabRow(selected = tab, onSelected = onTabSelected, accent = accent)
 

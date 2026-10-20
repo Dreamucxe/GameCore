@@ -40,6 +40,47 @@ data class AppSettings(
     val customAccentArgb: Int? = null,
 
     /**
+     * Draw [wallpaperPath] behind the app instead of the scheme's flat background.
+     *
+     * A mode flag beside a nullable value, exactly like [useCustomAccent] and [customAccentArgb], and
+     * for the same reason: "no image was ever imported" and "an image the user switched off" are
+     * different states, and collapsing them into one would throw away an import every time the switch
+     * went off. True with no usable path falls back to the flat background — never to a black screen.
+     */
+    val useWallpaper: Boolean = false,
+
+    /**
+     * The built-in REDLINE / RedMagic skin: the red-on-black scheme, the cut-corner jagged shapes, the
+     * pinwheel mark and the restyled home banner. Off by default, so a user who never turns it on gets
+     * exactly today's GameCore. A dark skin by construction — [com.gamecore.ui.theme.GameCoreTheme]
+     * forces dark polarity when it is on, because a light Redline is a contradiction rather than a
+     * variant. A plugin theme still outranks it: selecting a plugin on the Plugins screen is the more
+     * specific act, and the skin steps aside so that selection is never silently overridden.
+     */
+    val redlineSkin: Boolean = false,
+
+    /**
+     * The absolute path of the imported wallpaper inside GameCore's own storage, or null when none.
+     *
+     * A path and not a `Uri`: the import decodes and re-encodes into app-private storage, so nothing
+     * here depends on a content permission the provider can revoke, and the file stays GameCore's to
+     * read for as long as this setting names it. Each import writes a *new* file name, so this value
+     * changes whenever the image does — which is what makes the UI redraw. See `WallpaperImageStore`.
+     */
+    val wallpaperPath: String? = null,
+
+    /**
+     * How much of the scheme's background is laid over the wallpaper, as a percentage.
+     *
+     * Not a decoration. The theme contract guarantees `onSurface` text is legible against `background`,
+     * and a photograph behind that text voids the guarantee silently — nothing fails, the app just
+     * becomes unreadable in patches. So the scrim is always drawn and its floor is
+     * [MIN_WALLPAPER_SCRIM], clamped in [normalised]. The user decides how much of their image shows
+     * through; they cannot remove the guarantee.
+     */
+    val wallpaperScrimPercent: Int = DEFAULT_WALLPAPER_SCRIM,
+
+    /**
      * Tighten between-element spacing across the app (§3 "Compact density option").
      *
      * Off by default. When on, the section and card gaps shrink by [Density.COMPACT_FACTOR] while inner
@@ -404,11 +445,32 @@ data class AppSettings(
         // alpha byte — from a hand-edited file, or a picker that let alpha through — would make text drawn
         // on the accent unreadable; the accent is always a solid fill, so the alpha is not the user's to set.
         customAccentArgb = customAccentArgb?.let { it or ALPHA_OPAQUE },
+        // A blank path is not a path. Collapsing it to null here is what stops a half-set state — the
+        // flag on, the file gone, an empty string left behind — from reaching the renderer as something
+        // it would try to decode.
+        wallpaperPath = wallpaperPath?.trim()?.ifBlank { null },
+        // Clamped rather than refused: a scrim out of range arrived from a restored backup or a
+        // hand-edited preference file, and the right answer there is a legible app, not no app.
+        wallpaperScrimPercent = wallpaperScrimPercent
+            .coerceIn(MIN_WALLPAPER_SCRIM, MAX_WALLPAPER_SCRIM),
     )
 
     companion object {
         const val MIN_UI_SCALE = 85
         const val MAX_UI_SCALE = 130
+
+        /**
+         * The wallpaper scrim's bounds, as a percentage of the scheme background laid over the image.
+         *
+         * The floor is the legibility guarantee made real: below roughly a quarter, a bright photograph
+         * takes `onSurfaceVariant` body text under the contrast the rest of the app is held to, and the
+         * result reads as a broken app rather than a customised one. The ceiling stops short of 100 so
+         * the setting always shows *something* of the image — at 100 the wallpaper is invisible and the
+         * control looks like it does nothing.
+         */
+        const val MIN_WALLPAPER_SCRIM = 25
+        const val MAX_WALLPAPER_SCRIM = 90
+        const val DEFAULT_WALLPAPER_SCRIM = 60
 
         /**
          * Two seconds between foreground checks.

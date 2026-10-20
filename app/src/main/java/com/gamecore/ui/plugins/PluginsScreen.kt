@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -49,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.core.plugin.PluginPackageLoader
 import com.gamecore.core.plugin.RiskTier
 import com.gamecore.ui.components.ActionRow
+import com.gamecore.ui.components.ChoiceRow
 import com.gamecore.ui.components.ClickableCard
 import com.gamecore.ui.components.ConfirmDialog
 import com.gamecore.ui.components.EmptyState
@@ -134,6 +136,18 @@ private const val INSTALL_DESCRIPTION =
     "A plugin is data, not a program: GameCore reads a .gcplugin file and draws what it describes. It " +
         "runs no code of its own, so it cannot reach the internet, start other apps, or see anything " +
         "you have not granted it. Installing one grants it nothing — it arrives switched off."
+
+/**
+ * What each order means, including the one fact a user could otherwise get wrong.
+ *
+ * "By date" is when the bytes reached the device, and for a bundled plugin that is the app's own
+ * install date rather than anything about the plugin. Saying so here is cheaper than a user concluding
+ * the sort is broken because the eight plugins that came with GameCore all share one day.
+ */
+private const val ORDER_DESCRIPTION =
+    "By date puts the most recently installed or updated package first. A plugin bundled with GameCore " +
+        "has no file of its own, so it dates from when the app was installed; a plugin whose file time " +
+        "the device will not report sorts last rather than pretending to be old."
 
 private const val TOO_LARGE_NOTE =
     "That file is larger than a plugin package is allowed to be, so GameCore stopped reading part way " +
@@ -263,6 +277,18 @@ fun PluginsScreen(
                 onPick = { picker.launch(PLUGIN_MIME_TYPES) },
                 modifier = padded,
             )
+        }
+
+        // Only once there is something to order. A sort control over an empty list is a control that
+        // cannot do anything, and §32's rule covers a choice offered with no list to apply it to.
+        if (state.hasPlugins) {
+            item {
+                SortCard(
+                    sort = state.sort,
+                    onSort = viewModel::setSort,
+                    modifier = padded,
+                )
+            }
         }
 
         when {
@@ -420,6 +446,41 @@ private fun InstallCard(
         ActionRow {
             Button(onClick = onPick) { Text("Choose a file") }
         }
+    }
+}
+
+/**
+ * The list's order, as three chips.
+ *
+ * Nothing here reaches the registry. The order is a lens over rows the screen already has, so choosing
+ * one cannot change what any plugin is allowed to do — and the explanation underneath says what "date"
+ * actually measures, because for the bundled plugins it is the app's install date.
+ */
+@Composable
+private fun SortCard(
+    sort: PluginSort,
+    onSort: (PluginSort) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Order",
+        modifier = modifier,
+        subtitle = "How the installed list is arranged",
+        icon = Icons.Filled.Sort,
+    ) {
+        ChoiceRow(
+            options = PluginSort.entries.toList(),
+            selected = sort,
+            onSelect = onSort,
+            label = { it.label },
+            perRow = 3,
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Text(
+            text = ORDER_DESCRIPTION,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

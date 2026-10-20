@@ -16,8 +16,8 @@ android {
         applicationId = "com.gamecore"
         minSdk = 26
         targetSdk = 34
-        versionCode = 29
-        versionName = "3.8.1"
+        versionCode = 33
+        versionName = "3.11.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Room exports its schema so a future migration can be tested against the

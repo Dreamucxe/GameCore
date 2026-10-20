@@ -108,6 +108,7 @@ import com.gamecore.ui.games.GameIcon
 import com.gamecore.ui.setup.SetupCard
 import com.gamecore.ui.setup.SetupCardViewModel
 import com.gamecore.ui.theme.Density
+import com.gamecore.ui.theme.RedlineBanner
 import com.gamecore.ui.theme.Spacing
 import com.gamecore.ui.theme.StatLabelStyle
 import com.gamecore.ui.theme.StatValueStyle
@@ -182,11 +183,29 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(cardGap),
     ) {
         item {
-            ScreenHeader(
-                title = "GameCore",
-                subtitle = state.subtitle,
-                action = { WatchPill(state.watch) },
-            )
+            if (state.redlineSkin) {
+                // The REDLINE identity + hero band replaces the plain header while the skin is on. The
+                // watch state still has to be visible, so it rides under the banner as the same WatchPill
+                // the header otherwise hosts — the skin restyles the chrome, it never drops a signal.
+                Column {
+                    RedlineBanner(
+                        subtitle = state.subtitle,
+                        onSystem = { onNavigate(Destination.Settings) },
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = ScreenPadding),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        WatchPill(state.watch)
+                    }
+                }
+            } else {
+                ScreenHeader(
+                    title = "GameCore",
+                    subtitle = state.subtitle,
+                    action = { WatchPill(state.watch) },
+                )
+            }
         }
 
         state.message?.let { message ->

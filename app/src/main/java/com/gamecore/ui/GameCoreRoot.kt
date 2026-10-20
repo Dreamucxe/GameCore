@@ -62,6 +62,7 @@ import com.gamecore.aimlab.ui.tracking.TrackingScreen
 import com.gamecore.aimlab.ui.weapon.WeaponEditorScreen
 import com.gamecore.core.config.LineDiff
 import com.gamecore.domain.setup.WizardEntry
+import com.gamecore.themeengine.CalibrationDashboard
 import com.gamecore.ui.backup.BackupRestoreScreen
 import com.gamecore.ui.capability.CapabilityScreen
 import com.gamecore.ui.color.ColorScreen
@@ -91,6 +92,7 @@ import com.gamecore.ui.hunt.HuntScreen
 import com.gamecore.ui.macros.MacroEditorScreen
 import com.gamecore.ui.media.MediaAccessScreen
 import com.gamecore.ui.motion.MotionScreen
+import com.gamecore.ui.graphics.GraphicsScreen
 import com.gamecore.ui.network.NetworkStabilityScreen
 import com.gamecore.ui.overlay.OverlayScreen
 import com.gamecore.ui.performance.PerformanceScreen
@@ -110,6 +112,7 @@ import com.gamecore.ui.setup.SetupWizardScreen
 import com.gamecore.ui.shizuku.ShizukuScreen
 import com.gamecore.ui.storage.GameStorageScreen
 import com.gamecore.ui.theme.GameCoreTheme
+import com.gamecore.ui.theme.WallpaperLayer
 import com.gamecore.ui.tools.ToolsScreen
 import com.gamecore.ui.touch.SamplingMonitorScreen
 import com.gamecore.ui.touch.TouchScreen
@@ -222,6 +225,13 @@ fun GameCoreRoot(
     GameCoreTheme(settings, pluginTheme) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(modifier = Modifier.fillMaxSize()) {
+                // Behind everything, inside the themed Surface so the scrim is mixed from the scheme the
+                // app is actually wearing — including a plugin's. Drawn first and never again: it is one
+                // layer under the whole navigation graph, not something each screen opts into.
+                WallpaperLayer(
+                    path = settings.wallpaperPath?.takeIf { settings.useWallpaper },
+                    scrimPercent = settings.wallpaperScrimPercent,
+                )
                 GameCoreNav(
                     navController = navController,
                     open = open,
@@ -459,6 +469,19 @@ private fun GameCoreNav(
         // network readers and opens no connection of its own.
         composable(Destination.NetworkStability.route) {
             NetworkStabilityScreen(onBack = back)
+        }
+
+        // Graphics: render resolution and the frame-rate cap. A leaf reached from Settings, drawing the
+        // same device levers a game profile drives, as standing controls rather than per-game ones.
+        composable(Destination.Graphics.route) {
+            GraphicsScreen(onBack = back)
+        }
+
+        // The Theme Engine's calibration dashboard. A leaf reached from Settings that both edits the
+        // engine's calibration and drives its preview from the same performance sampler the rest of the
+        // app reads.
+        composable(Destination.ThemeEngine.route) {
+            CalibrationDashboard(onBack = back)
         }
 
         // §3.7 Screen Extraction / Touch Sampling Monitor / What's New: three leaves reached from Settings,

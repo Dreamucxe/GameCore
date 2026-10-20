@@ -68,6 +68,7 @@ data class HomeUiState(
     val detectionAvailable: Boolean = false,
     /** The §3 compact-density choice, so the gaps between cards tighten with the rest of the app. */
     val isCompact: Boolean = false,
+    val redlineSkin: Boolean = false,
     val repairedSessions: Int = 0,
     val outstandingRestores: Int = 0,
     val isRestoring: Boolean = false,

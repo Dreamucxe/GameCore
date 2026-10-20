@@ -35,6 +35,97 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 33,
+            versionName = "3.11.0",
+            date = "2026-10-20",
+            features = listOf(
+                FeatureNote(
+                    "Theme Engine",
+                    "Settings → Theme Engine paints a live backdrop from this device's CPU, memory " +
+                        "and temperature. Low load is a soft ice-blue drifting at half speed; a busy " +
+                        "or warm device turns Aurora Violet; a hot or saturated one goes molten " +
+                        "crimson and travels fastest of all.",
+                ),
+                FeatureNote(
+                    "Calibrate it yourself",
+                    "The calibration screen shows the vector in force — its mode, its exact " +
+                        "rgb(r, g, b) value and its fluid velocity — beside the three readings it is " +
+                        "drawn from. Flat sliders let you stand in for those readings and watch the " +
+                        "backdrop answer, and the thresholds that decide each mode are adjustable.",
+                ),
+                FeatureNote(
+                    "Save points",
+                    "A calibration you like can be saved under a name and recalled later; save points " +
+                        "are stored on this device and survive restarts.",
+                ),
+            ),
+        ),
+        ReleaseNote(
+            versionCode = 32,
+            versionName = "3.10.0",
+            date = "2026-10-20",
+            features = listOf(
+                FeatureNote(
+                    "Sort your plugins",
+                    "The plugin manager now has an Order control: by name, by date installed, or by " +
+                        "version. By date puts the most recently installed or updated package first; by " +
+                        "version puts the highest version number first. The order is only how the list " +
+                        "is drawn — it changes nothing about which plugins run.",
+                ),
+                FeatureNote(
+                    "Where the date comes from",
+                    "A sideloaded plugin's date is when its file was written on this device — its install " +
+                        "or update. A plugin bundled with GameCore has no file of its own, so it dates " +
+                        "from when the app itself was installed.",
+                ),
+            ),
+        ),
+        ReleaseNote(
+            versionCode = 31,
+            versionName = "3.9.1",
+            date = "2026-10-20",
+            features = listOf(
+                FeatureNote(
+                    "Graphics screen",
+                    "Settings → Graphics now holds two standing device controls: a render resolution preset " +
+                        "that runs the display below its own pixel count, and a frame-rate cap that sets the " +
+                        "highest refresh the display may use. Both read the device back after every change " +
+                        "and say so when the elevated shell is missing.",
+                ),
+                FeatureNote(
+                    "What it cannot do",
+                    "A game's textures, filtering and shaders live inside its own renderer, and GameCore does " +
+                        "not claim to reach them. The screen changes what the display draws and says plainly " +
+                        "where that stops.",
+                ),
+            ),
+        ),
+        ReleaseNote(
+            versionCode = 30,
+            versionName = "3.9.0",
+            date = "2026-10-15",
+            features = listOf(
+                FeatureNote(
+                    "Background image",
+                    "Pick a photo of your own to draw behind the app, under Settings → Appearance. GameCore " +
+                        "keeps a resized copy in its own storage and dims it so text stays readable — you choose " +
+                        "how much of the image shows through.",
+                ),
+                FeatureNote(
+                    "Graphics Tuning plugin",
+                    "A guide to the in-game graphics settings that actually move frame rate, with an in-game " +
+                        "readout of frame rate, GPU load and temperature so you can check a change on your own " +
+                        "device. It explains and measures — it cannot change a game's graphics for you.",
+                ),
+                FeatureNote(
+                    "Redline skin",
+                    "A red-on-black RedMagic-style look under Settings → Appearance: cut-corner cards, the " +
+                        "pinwheel mark and a restyled home banner. Always dark, and off until you turn it on. " +
+                        "A matching RedMagic theme plugin carries the colours for a plain install.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 29,
             versionName = "3.8.1",
             date = "2026-10-11",

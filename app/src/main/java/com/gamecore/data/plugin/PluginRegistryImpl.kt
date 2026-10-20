@@ -152,6 +152,10 @@ class PluginRegistryImpl @Inject constructor(
     /** Plugin id to its record. Held under [lock]; holds no bytes and no parsed sections. */
     private var records: Map<String, PluginRecord> = emptyMap()
 
+    /** The APK's timestamp, memoised: it cannot change while this process is alive. */
+    @Volatile
+    private var apkModifiedOnce: Long? = null
+
     /**
      * One parsed theme, keyed by plugin id and the digest it came from.
      *
@@ -238,6 +242,7 @@ class PluginRegistryImpl @Inject constructor(
             // and it is drawn in a list row like any other untrusted name.
             suspensionDetail = store.suspensionDetail(id)?.let { TextSanitizer.sanitizeName(it, MAX_DETAIL_LENGTH) },
             grant = store.grantFor(id),
+            installedAtMillis = installedAtMillis,
         )
     }
 
@@ -283,7 +288,13 @@ class PluginRegistryImpl @Inject constructor(
             val name = bundledEntryName(section)
             entries += name to (readAsset("$base/$name") ?: return null)
         }
-        return PluginRecord(manifest = manifest, sha256 = digestOf(entries), source = PluginSource.Asset(base))
+        return PluginRecord(
+            manifest = manifest,
+            sha256 = digestOf(entries),
+            source = PluginSource.Asset(base),
+            // A bundled plugin has no file of its own; the APK it arrived in is the only date there is.
+            installedAtMillis = apkModifiedMillis(),
+        )
     }
 
     /**
@@ -370,8 +381,21 @@ class PluginRegistryImpl @Inject constructor(
             manifest = loaded.manifest,
             sha256 = loaded.sha256,
             source = PluginSource.Package(file),
+            // When the package was written: install time, or the moment an update replaced the file.
+            installedAtMillis = file.lastModified().coerceAtLeast(0L),
         )
     }
+
+    /**
+     * The APK's last-modified time, read once per process.
+     *
+     * Bundled plugins have no file of their own, so this is the only honest date for them: when the
+     * app they ship inside was installed or last updated. A platform that cannot report it yields 0,
+     * which the manager treats as "no date" rather than as 1970.
+     */
+    private fun apkModifiedMillis(): Long = apkModifiedOnce ?: runCatching {
+        File(context.applicationInfo.sourceDir).lastModified().coerceAtLeast(0L)
+    }.getOrDefault(0L).also { apkModifiedOnce = it }
 
     private fun loadPackage(file: File): LoadedPlugin? {
         // Checked before the read, not after: the point of the cap is not holding the bytes at all.
@@ -1020,6 +1044,12 @@ class PluginRegistryImpl @Inject constructor(
         val manifest: PluginManifest,
         val sha256: String,
         val source: PluginSource,
+        /**
+         * When these bytes reached the device — the package file's write time, or the APK's for a
+         * bundled plugin. Zero when the platform will not say, which sorts last rather than pretending
+         * to be an old date.
+         */
+        val installedAtMillis: Long = 0L,
     ) {
         /** Derived, so a record can never claim an origin its source contradicts. */
         val origin: PluginOrigin

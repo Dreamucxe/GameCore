@@ -146,6 +146,27 @@ sealed interface Destination {
         override val route = "network_stability"
     }
 
+    /**
+     * The Graphics screen: render resolution and the frame-rate cap, the two device levers that lighten
+     * what the system draws without reaching into a game's own renderer. Reached from Settings, a leaf
+     * that takes only a way back. Not in [external] — nothing outside the app opens a standing setting.
+     */
+    data object Graphics : Destination {
+        override val route = "graphics"
+    }
+
+    /**
+     * The Theme Engine's calibration dashboard: a live backdrop driven by the device's own CPU, memory
+     * and thermal readings, with manual overrides, adjustable trigger thresholds and save points.
+     *
+     * Reached from Settings and a leaf — it needs only a way back. Not in [external]: nothing outside the
+     * app has a reason to open a calibration screen, and the engine keeps running regardless of whether
+     * this screen is in front.
+     */
+    data object ThemeEngine : Destination {
+        override val route = "theme-engine"
+    }
+
     data object Shizuku : Destination {
         override val route = "shizuku"
     }

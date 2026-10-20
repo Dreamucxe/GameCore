@@ -1,5 +1,6 @@
 package com.gamecore.ui.settings
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.core.common.Formatters
@@ -10,7 +11,9 @@ import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.data.repository.HudLayoutRepository
 import com.gamecore.data.repository.SessionExporter
 import com.gamecore.data.repository.SessionRepository
+import com.gamecore.data.repository.WallpaperImageStore
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +21,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -38,6 +42,7 @@ class SettingsViewModel @Inject constructor(
     private val preferences: SecurePreferenceStore,
     private val sessions: SessionRepository,
     private val exporter: SessionExporter,
+    private val wallpapers: WallpaperImageStore,
     profiles: GameProfileRepository,
     layouts: HudLayoutRepository,
 ) : ViewModel() {
@@ -54,6 +59,7 @@ class SettingsViewModel @Inject constructor(
         val scaleDraft: Int? = null,
         val hostDraft: String? = null,
         val isExporting: Boolean = false,
+        val isImportingWallpaper: Boolean = false,
         val export: ExportNote? = null,
         val pendingClearHistory: Boolean = false,
         val pendingResetSettings: Boolean = false,
@@ -118,6 +124,50 @@ class SettingsViewModel @Inject constructor(
      */
     fun update(transform: (AppSettings) -> AppSettings) {
         preferences.updateSettings(transform)
+    }
+
+    /**
+     * Imports [uri] as the app's background image, or says why it could not be.
+     *
+     * The decode and the re-encode run off the main thread, and the screen hands over a `Uri` without
+     * ever touching a `ContentResolver` itself. On success the path is stored and the wallpaper
+     * switched on in one update, so what the user picked is what they are immediately looking at; the
+     * store has already pruned the previous import, so nothing here has to clean up after it.
+     *
+     * On failure nothing is written — the previous wallpaper survives — and a message says so. A
+     * background image that silently fails to apply is the one outcome worth an extra branch: the user
+     * would otherwise re-pick the same file forever with no way to tell that GameCore could not read it.
+     */
+    fun importWallpaper(uri: Uri) {
+        if (local.value.isImportingWallpaper) return
+        local.value = local.value.copy(isImportingWallpaper = true, message = null)
+        viewModelScope.launch {
+            val stored = withContext(Dispatchers.IO) { wallpapers.store(uri) }
+            local.value = local.value.copy(
+                isImportingWallpaper = false,
+                message = if (stored == null) {
+                    "That image could not be read. Pick another, or free some storage and try again."
+                } else {
+                    null
+                },
+            )
+            if (stored != null) update { it.copy(useWallpaper = true, wallpaperPath = stored) }
+        }
+    }
+
+    /**
+     * Removes the background image: the setting is cleared first, then the file.
+     *
+     * The order matters. Deleting the file while the path still named it would leave a frame in which
+     * the renderer points at bytes that are gone, and the user would see the removal they asked for as
+     * a flicker or a blank. Clearing the setting first drops the app back to its flat background at
+     * once, and the delete becomes housekeeping whose failure costs the user nothing.
+     */
+    fun clearWallpaper() {
+        val previous = state.value.settings.wallpaperPath
+        update { it.copy(useWallpaper = false, wallpaperPath = null) }
+        if (previous.isNullOrBlank()) return
+        viewModelScope.launch { withContext(Dispatchers.IO) { wallpapers.delete(previous) } }
     }
 
     /** During the drag. The app does not rescale until [commitScale]. */

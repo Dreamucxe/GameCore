@@ -1,0 +1,372 @@
+{
+  "screens": [
+    {
+      "icon": "speed",
+      "id": "tuning",
+      "title": "Tuning",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "Graphics Tuning",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "The settings below are ordered by how much they actually move frame rate on a phone. You change them in the game's own video menu \u2014 GameCore cannot reach another app's renderer. What it can do is show you what happened."
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 13,
+                  "text": "Live readings",
+                  "bold": true
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {"text": "Frame rate"}
+                  },
+                  {
+                    "type": "stat",
+                    "props": {"stat": "fps"}
+                  }
+                ],
+                "type": "row",
+                "props": {"gap": 12}
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {"text": "GPU load"}
+                  },
+                  {
+                    "type": "stat",
+                    "props": {"stat": "gpu"}
+                  }
+                ],
+                "type": "row",
+                "props": {"gap": 12}
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {"text": "Temperature"}
+                  },
+                  {
+                    "type": "stat",
+                    "props": {"stat": "temp"}
+                  }
+                ],
+                "type": "row",
+                "props": {"gap": 12}
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 12,
+              "color": "#14181F",
+              "gap": 8
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 16,
+              "text": "What actually moves frame rate",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "Render distance",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {"text": "Largest single win. Halving it can double frame rate."}
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Graphics: Fast, not Fancy",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {"text": "Large. Drops transparency and lighting passes."}
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Simulation distance",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {"text": "Large, and mostly CPU \u2014 the fix when GPU load is low but frames are not."}
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Particles: minimal",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {"text": "Moderate. Many small blended quads are expensive on mobile."}
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Entity shadows: off",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {"text": "Moderate in crowded scenes."}
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Smooth lighting: off",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {"text": "Small to moderate; costs a lighting pass."}
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Mipmap levels",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {"text": "Roughly neutral. A quality setting \u2014 see the Textures screen."}
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "VSync off",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {"text": "Uncaps frames above the panel's rate; raises heat, so watch the probe."}
+              }
+            ],
+            "type": "grid",
+            "props": {
+              "columns": 2,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 13,
+                  "text": "Change one thing at a time",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 13,
+                  "text": "Turn on the in-game probe, note the frame rate, change one setting, and compare after two or three minutes of real play \u2014 long enough for the device to warm up. A figure taken in the first thirty seconds is a figure taken before throttling starts."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 12,
+              "color": "#1A1410",
+              "gap": 6
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "insights",
+      "id": "textures",
+      "title": "Textures",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "Mipmaps, trilinear and texture size",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "Trilinear filtering is a quality setting, not a speed one. Bilinear takes four texel samples inside one mip level; trilinear takes eight across two levels and blends them, so per sample it costs more. What it buys is the disappearance of the visible seam where one mip level pops to the next."
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "The speed-up usually credited to it belongs to mipmapping, which trilinear requires. Small mip levels fit the texture cache and cut memory bandwidth on distant surfaces, and mobile GPUs are bandwidth-bound \u2014 so mipmaps on is generally a net win over mipmaps off, and trilinear is the polish on top that gives a little of it back."
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "On the texture side the real saving is resolution. A low-resolution texture pack asks for less texture memory and less bandwidth for exactly the same geometry, which is why those packs help most on the weakest devices."
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 13,
+                  "text": "GameCore cannot change a game's texture filtering",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 13,
+                  "text": "Filtering is sampler state the game sets inside its own graphics context. No app outside that process can change it without injecting code into the game and hooking its graphics driver, and GameCore does neither. This plugin runs no code at all: it is declarative data the host renders. So this screen explains the setting, and the game's own video menu changes it."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 12,
+              "color": "#14181F",
+              "gap": 6
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "shield",
+      "id": "limits",
+      "title": "Limits",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "What this plugin can and cannot do",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 13,
+                  "text": "It can",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 13,
+                  "text": "Show your own frame rate, GPU load and temperature; draw a bounded probe over the game; and run the three brokered automations on the Tuning screen, each of which you switch on yourself."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 12,
+              "color": "#101A14",
+              "gap": 6
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 13,
+                  "text": "It cannot",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 13,
+                  "text": "Change a game's textures, filtering, resolution or draw distance; press a button for you, since every control on these screens is drawn read-only by design; or report a figure it cannot measure \u2014 an unavailable reading shows as a dash, never as a zero."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 12,
+              "color": "#1A1012",
+              "gap": 6
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 13,
+              "text": "The automations act on the device through GameCore's broker \u2014 refresh-rate bounds, system animation scales, battery saver. None of them reaches inside a game."
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    }
+  ],
+  "format": "gamecore.plugin.screens",
+  "version": 1
+}

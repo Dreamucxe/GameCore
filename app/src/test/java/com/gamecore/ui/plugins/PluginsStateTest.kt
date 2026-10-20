@@ -35,6 +35,7 @@ class PluginsStateTest {
     private fun manifest(
         id: String = "com.example.plugin",
         name: String = "Example",
+        version: Int = 1,
         versionName: String = "1.0",
         developer: String = "Tester",
         description: String = "Adds a theme.",
@@ -45,7 +46,7 @@ class PluginsStateTest {
     ): PluginManifest = PluginManifest(
         id = id,
         name = name,
-        version = 1,
+        version = version,
         versionName = versionName,
         api = api,
         minHostVersion = minHostVersion,
@@ -62,6 +63,7 @@ class PluginsStateTest {
         enabled: Boolean = false,
         suspended: Boolean = false,
         suspensionDetail: String? = null,
+        installedAtMillis: Long = 0L,
     ): InstalledPlugin = InstalledPlugin(
         manifest = manifest,
         sha256 = "0".repeat(64),
@@ -70,6 +72,7 @@ class PluginsStateTest {
         suspended = suspended,
         suspensionDetail = suspensionDetail,
         grant = PluginGrant.none(manifest.id),
+        installedAtMillis = installedAtMillis,
     )
 
     // ---------------------------------------------------------------- rowFor: the plain mapping
@@ -221,6 +224,96 @@ class PluginsStateTest {
         val empty = PluginsUiState(isLoaded = true)
         assertTrue(empty.isLoaded)
         assertFalse(empty.hasPlugins)
+    }
+
+    // ---------------------------------------------------------------- sorting the manager's list
+
+    private fun rowsOf(vararg plugins: InstalledPlugin): List<PluginRow> =
+        plugins.map { rowFor(it, null) }
+
+    @Test
+    fun `by name is alphabetical regardless of case, with the id breaking a tie`() {
+        val rows = rowsOf(
+            installed(manifest(id = "com.example.z", name = "Zeta")),
+            installed(manifest(id = "com.example.b", name = "beta")),
+            installed(manifest(id = "com.example.a", name = "Alpha")),
+            // Same visible name, different ids: both are "Twin", and only the id can order them.
+            installed(manifest(id = "com.example.t2", name = "Twin")),
+            installed(manifest(id = "com.example.t1", name = "Twin")),
+        )
+        val ordered = sortedRows(rows, PluginSort.NAME).map { it.id }
+
+        assertEquals(
+            listOf("com.example.a", "com.example.b", "com.example.t1", "com.example.t2", "com.example.z"),
+            ordered,
+        )
+    }
+
+    @Test
+    fun `by date puts the most recently installed first and an unknown date last`() {
+        val rows = rowsOf(
+            installed(manifest(id = "com.example.old", name = "Old"), installedAtMillis = 1_000),
+            installed(manifest(id = "com.example.new", name = "New"), installedAtMillis = 3_000),
+            // 0 means the platform would not report a time; it belongs at the bottom, not the top.
+            installed(manifest(id = "com.example.none", name = "None"), installedAtMillis = 0),
+            installed(manifest(id = "com.example.mid", name = "Mid"), installedAtMillis = 2_000),
+        )
+        val ordered = sortedRows(rows, PluginSort.NEWEST).map { it.id }
+
+        assertEquals(listOf("com.example.new", "com.example.mid", "com.example.old", "com.example.none"), ordered)
+    }
+
+    @Test
+    fun `by version compares version names as numbers, not as text`() {
+        val rows = rowsOf(
+            installed(manifest(id = "com.example.nine", name = "Nine", versionName = "1.9")),
+            // Text order would put 1.10 before 1.9; a version list that did that is wrong to a user.
+            installed(manifest(id = "com.example.ten", name = "Ten", versionName = "1.10")),
+            installed(manifest(id = "com.example.two", name = "Two", versionName = "2.0")),
+        )
+        val ordered = sortedRows(rows, PluginSort.VERSION).map { it.id }
+
+        assertEquals(listOf("com.example.two", "com.example.ten", "com.example.nine"), ordered)
+    }
+
+    @Test
+    fun `version names parse dotted numbers, ignore a leading v, and treat missing parts as zero`() {
+        assertTrue(compareVersionNames("1.10", "1.9") > 0)
+        assertTrue(compareVersionNames("1.9", "1.10") < 0)
+        assertEquals(0, compareVersionNames("1.0", "1.0.0"))
+        assertEquals(0, compareVersionNames("v2.1", "2.1"))
+        assertTrue(compareVersionNames("2.0-beta", "1.0") > 0)
+        // A non-numeric segment compares as text rather than being dropped.
+        assertTrue(compareVersionNames("1.2-beta", "1.2-alpha") > 0)
+    }
+
+    @Test
+    fun `the displayed sort order is total, so two identical rows never swap places`() {
+        val rows = rowsOf(
+            installed(manifest(id = "com.example.b", name = "Same"), installedAtMillis = 5),
+            installed(manifest(id = "com.example.a", name = "Same"), installedAtMillis = 5),
+        )
+        PluginSort.entries.forEach { sort ->
+            assertEquals(
+                sort.name,
+                listOf("com.example.a", "com.example.b"),
+                sortedRows(rows, sort).map { it.id },
+            )
+        }
+    }
+
+    @Test
+    fun `a row carries what the sort needs from the manifest and the package`() {
+        val row = rowFor(
+            installed(
+                manifest(version = 7, versionName = "7.2.1"),
+                installedAtMillis = 123_456L,
+            ),
+            null,
+        )
+        assertEquals(7, row.versionCode)
+        assertEquals("7.2.1", row.versionName)
+        assertEquals(123_456L, row.installedAtMillis)
     }
 
     // ---------------------------------------------------------------- messageFor: every outcome

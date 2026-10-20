@@ -208,6 +208,12 @@ class SecurePreferenceStore @Inject constructor(
             // 0 is the "no custom colour picked" sentinel: normalised() forces every stored custom accent
             // opaque, so a real one always has a 0xFF alpha byte and can never be 0.
             customAccentArgb = p.getInt(KEY_CUSTOM_ACCENT, 0).takeIf { it != 0 },
+            useWallpaper = p.getBoolean(KEY_USE_WALLPAPER, defaults.useWallpaper),
+            redlineSkin = p.getBoolean(KEY_REDLINE_SKIN, defaults.redlineSkin),
+            // The empty string is the "nothing imported" sentinel, read back through the same blank
+            // check normalised() applies, so a cleared wallpaper and an absent one are one state.
+            wallpaperPath = p.getString(KEY_WALLPAPER_PATH, null)?.takeIf { it.isNotBlank() },
+            wallpaperScrimPercent = p.getInt(KEY_WALLPAPER_SCRIM, defaults.wallpaperScrimPercent),
             compactDensity = p.getBoolean(KEY_COMPACT_DENSITY, defaults.compactDensity),
             animations = enumOrDefault(
                 p.getString(KEY_ANIMATIONS, null),
@@ -314,6 +320,10 @@ class SecurePreferenceStore @Inject constructor(
             putBoolean(KEY_DYNAMIC_COLOUR, value.useDynamicColour)
             putBoolean(KEY_USE_CUSTOM_ACCENT, value.useCustomAccent)
             putInt(KEY_CUSTOM_ACCENT, value.customAccentArgb ?: 0)
+            putBoolean(KEY_USE_WALLPAPER, value.useWallpaper)
+            putBoolean(KEY_REDLINE_SKIN, value.redlineSkin)
+            putString(KEY_WALLPAPER_PATH, value.wallpaperPath ?: "")
+            putInt(KEY_WALLPAPER_SCRIM, value.wallpaperScrimPercent)
             putBoolean(KEY_COMPACT_DENSITY, value.compactDensity)
             putString(KEY_ANIMATIONS, value.animations.name)
             putBoolean(KEY_HAPTICS, value.hapticsEnabled)
@@ -1065,6 +1075,10 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_DYNAMIC_COLOUR = "dynamic_colour"
         const val KEY_USE_CUSTOM_ACCENT = "use_custom_accent"
         const val KEY_CUSTOM_ACCENT = "custom_accent_argb"
+        const val KEY_USE_WALLPAPER = "use_wallpaper"
+        const val KEY_REDLINE_SKIN = "redline_skin"
+        const val KEY_WALLPAPER_PATH = "wallpaper_path"
+        const val KEY_WALLPAPER_SCRIM = "wallpaper_scrim_percent"
         const val KEY_COMPACT_DENSITY = "compact_density"
         const val KEY_ANIMATIONS = "animations_mode"
         const val KEY_HAPTICS = "haptics_enabled"

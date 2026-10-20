@@ -88,6 +88,10 @@ fun GameCoreTheme(
     // chosen below, not whether the app is in dark mode.
     val dark = when {
         pluginTheme != null -> pluginTheme.dark
+        // The Redline skin is a dark skin by construction, so it forces dark polarity ahead of the theme
+        // setting. A plugin theme still outranks it (the branch above), because selecting a plugin is the
+        // more specific act.
+        settings.redlineSkin -> true
         else -> when (settings.theme) {
             ThemeChoice.SYSTEM -> systemDark
             ThemeChoice.DARK, ThemeChoice.AMOLED -> true
@@ -108,6 +112,9 @@ fun GameCoreTheme(
         val dynamicAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
         when {
             pluginTheme != null -> pluginTheme.toColorScheme()
+            // Redline outranks dynamic colour and the house schemes, but not a plugin: its whole point is
+            // a specific red-on-black identity, which a wallpaper-derived palette would dissolve.
+            settings.redlineSkin -> redlineColorScheme()
             settings.useDynamicColour && dynamicAvailable && dark -> dynamicDarkColorScheme(context)
             settings.useDynamicColour && dynamicAvailable -> dynamicLightColorScheme(context)
             amoled -> amoledSchemeFor(accentColour)
@@ -116,7 +123,10 @@ fun GameCoreTheme(
         }
     }
 
-    val shapes = remember(pluginTheme) { pluginTheme?.toShapes() ?: GameCoreShapes }
+    // A plugin's own shapes win; then Redline's cut corners; otherwise the house rounded set.
+    val shapes = remember(pluginTheme, settings.redlineSkin) {
+        pluginTheme?.toShapes() ?: if (settings.redlineSkin) RedlineShapes else GameCoreShapes
+    }
 
     // The stat styles in `Type.kt` are deliberately not reached by this: `StatValueStyle` is monospaced
     // because a proportional figure changes width when 9% becomes 10%, and a plugin asking for a serif

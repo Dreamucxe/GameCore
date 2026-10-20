@@ -4,6 +4,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -146,6 +148,8 @@ fun SettingsScreen(
             AppearanceCard(
                 state = state,
                 onEdit = viewModel::update,
+                onImportWallpaper = viewModel::importWallpaper,
+                onClearWallpaper = viewModel::clearWallpaper,
                 modifier = padded,
             )
         }
@@ -251,10 +255,18 @@ fun SettingsScreen(
 private fun AppearanceCard(
     state: SettingsUiState,
     onEdit: ((AppSettings) -> AppSettings) -> Unit,
+    onImportWallpaper: (Uri) -> Unit,
+    onClearWallpaper: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var pickerOpen by remember { mutableStateOf(false) }
     val custom = state.settings.customAccentArgb
+
+    // The picker hands back a URI GameCore can read for this call only, which is why the store decodes
+    // and re-encodes the image rather than keeping the URI. No `ContentResolver` appears in this file.
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let(onImportWallpaper)
+    }
 
     SectionCard(title = "Appearance", icon = Icons.Filled.Tune, modifier = modifier) {
         Text(
@@ -340,6 +352,54 @@ private fun AppearanceCard(
             onCheckedChange = { enabled -> onEdit { it.copy(compactDensity = enabled) } },
             description = "Tightens the space between rows. Tap targets keep their full size.",
         )
+        RowDivider()
+        SwitchRow(
+            title = "Redline skin",
+            checked = state.settings.redlineSkin,
+            onCheckedChange = { enabled -> onEdit { it.copy(redlineSkin = enabled) } },
+            description = "A red-on-black RedMagic-style look: cut-corner cards, the pinwheel mark and " +
+                "a restyled home banner. Always dark. A selected plugin theme overrides it.",
+        )
+        RowDivider()
+        // "Background image", not "wallpaper": the row above already says "wallpaper colours", and that
+        // one means *Android's* wallpaper, not GameCore's. Two controls in one card both called
+        // wallpaper, meaning different things, is a question a user should never have to stop and ask.
+        Text(
+            text = "BACKGROUND IMAGE",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (state.settings.wallpaperPath == null) {
+            Text(
+                text = "Draws an image of your own behind the app. It is copied into GameCore's own " +
+                    "storage and shrunk to fit your screen, so the original file is never held open.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ActionRow {
+                TextButton(onClick = { imagePicker.launch("image/*") }) { Text("Choose image") }
+            }
+        } else {
+            SwitchRow(
+                title = "Show background image",
+                checked = state.settings.useWallpaper,
+                onCheckedChange = { enabled -> onEdit { it.copy(useWallpaper = enabled) } },
+                description = "Keeps the image but lets you switch back to the flat background.",
+            )
+            SliderRow(
+                title = "Dim",
+                value = state.settings.wallpaperScrimPercent,
+                range = AppSettings.MIN_WALLPAPER_SCRIM..AppSettings.MAX_WALLPAPER_SCRIM,
+                onValueChange = { percent -> onEdit { it.copy(wallpaperScrimPercent = percent) } },
+                valueLabel = "${state.settings.wallpaperScrimPercent}%",
+                description = "How much of the theme's background covers the image. It stops at " +
+                    "${AppSettings.MIN_WALLPAPER_SCRIM}% because text has to stay readable on top of it.",
+            )
+            ActionRow {
+                TextButton(onClick = { imagePicker.launch("image/*") }) { Text("Replace") }
+                TextButton(onClick = onClearWallpaper) { Text("Remove") }
+            }
+        }
     }
 }
 
@@ -922,6 +982,22 @@ private fun AccessCard(
             description = "Compose a dashboard from built-in panels and your plugins' widgets — play " +
                 "time, aim trend, and whatever your plugins provide, arranged how you like.",
             icon = Icons.Filled.Dashboard,
+        )
+        NavRow(
+            title = "Theme Engine",
+            onClick = { onNavigate(Destination.ThemeEngine) },
+            description = "A live backdrop painted from this device's CPU, memory and thermal readings — " +
+                "with manual overrides, the thresholds where the colour steps up, and save points kept on " +
+                "this device.",
+            icon = Icons.Filled.Palette,
+        )
+        NavRow(
+            title = "Graphics",
+            onClick = { onNavigate(Destination.Graphics) },
+            description = "Run the display below its own resolution and cap the refresh rate. Both are " +
+                "device-level levers and are read back after every change; a game's own textures and " +
+                "filtering are inside its renderer and are not something this can touch.",
+            icon = Icons.Filled.Tune,
         )
         NavRow(
             title = "Charge bypass",

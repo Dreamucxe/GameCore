@@ -68,6 +68,7 @@ data class PluginRow(
     val name: String = "",
     val developer: String = "",
     val versionName: String = "",
+    val versionCode: Int = 0,
     val summary: String = "",
     val origin: PluginOrigin = PluginOrigin.SIDELOADED,
     val enabled: Boolean = false,
@@ -78,7 +79,25 @@ data class PluginRow(
     val highestTier: RiskTier? = null,
     val isThemeSource: Boolean = false,
     val canBeRemoved: Boolean = true,
+    /** When these bytes reached the device; 0 when the platform could not say. See [InstalledPlugin]. */
+    val installedAtMillis: Long = 0L,
 )
+
+/**
+ * How the manager orders its list.
+ *
+ * The choice is presentational only: the registry's own [com.gamecore.core.plugin.PluginRegistry.installed]
+ * flow keeps its stable bundled-then-alphabetical order, because the broker and the overlay read it and
+ * must not care where the user left a chip. Sorting happens once, here, on the rows the screen draws.
+ *
+ * Each order is total — every tie is broken by name and then id — so the list never reshuffles between
+ * recompositions and a row cannot move under the finger that just touched it.
+ */
+enum class PluginSort(val label: String) {
+    NAME("By name"),
+    NEWEST("By date"),
+    VERSION("By version"),
+}
 
 /**
  * Everything the manager screen draws.
@@ -93,6 +112,7 @@ data class PluginRow(
 data class PluginsUiState(
     val isLoaded: Boolean = false,
     val rows: List<PluginRow> = emptyList(),
+    val sort: PluginSort = PluginSort.NAME,
     val killSwitchOn: Boolean = false,
     val activeThemeName: String? = null,
     val message: String? = null,
@@ -145,8 +165,71 @@ internal fun rowFor(plugin: InstalledPlugin, activeThemeId: String?): PluginRow 
         highestTier = manifest.permissions.maxOfOrNull { it.permission.tier },
         isThemeSource = activeThemeId != null && activeThemeId == manifest.id,
         canBeRemoved = plugin.canBeRemoved,
+        versionCode = manifest.version,
+        installedAtMillis = plugin.installedAtMillis,
     )
 }
+
+/**
+ * The manager's list in the user's chosen order.
+ *
+ * Pure, total and stable: every comparator ends with the name (case-insensitively) and then the id, so
+ * two rows that tie on the visible key never swap places between emissions. That matters more here than
+ * on a table — this list is a column of switches, and a row that jumps while a finger is over it is how
+ * the wrong plugin gets turned off.
+ *
+ * `By name` is a plain alphabetical order across both origins. `By date` is newest first and puts a
+ * plugin whose date the platform could not report (0) at the bottom, rather than at the top as a
+ * descending numeric sort would. `By version` is highest first, comparing the manifest's integer
+ * [PluginRow.versionCode] and then the version *name* as dotted numbers — so `1.10` sorts above `1.9`,
+ * which a string sort gets backwards.
+ */
+internal fun sortedRows(rows: List<PluginRow>, sort: PluginSort): List<PluginRow> {
+    val byNameThenId = compareBy<PluginRow>({ it.name.lowercase() }, { it.id })
+    return when (sort) {
+        PluginSort.NAME -> rows.sortedWith(byNameThenId)
+
+        PluginSort.NEWEST -> rows.sortedWith(
+            compareByDescending<PluginRow> { it.installedAtMillis }.then(byNameThenId),
+        )
+
+        PluginSort.VERSION -> rows.sortedWith(
+            compareByDescending<PluginRow> { it.versionCode }
+                .thenComparator { a, b -> compareVersionNames(b.versionName, a.versionName) }
+                .then(byNameThenId),
+        )
+    }
+}
+
+/**
+ * Compares two version names as dotted numbers, ascending.
+ *
+ * `1.10.0` is above `1.9.9`, which a plain string comparison gets backwards — and a version list sorted
+ * lexicographically is exactly the kind of quietly-wrong the user would notice once and distrust
+ * forever. A segment that is not a number compares as text, missing segments count as zero, and a
+ * leading `v` is ignored because half the packages in the wild carry one. Equal names return 0 and let
+ * the caller's name/id tie-break decide.
+ */
+internal fun compareVersionNames(a: String, b: String): Int {
+    val left = segmentsOf(a)
+    val right = segmentsOf(b)
+    for (index in 0 until maxOf(left.size, right.size)) {
+        val l = left.getOrNull(index) ?: "0"
+        val r = right.getOrNull(index) ?: "0"
+        val ln = l.toLongOrNull()
+        val rn = r.toLongOrNull()
+        val result = if (ln != null && rn != null) ln.compareTo(rn) else l.lowercase().compareTo(r.lowercase())
+        if (result != 0) return result
+    }
+    return 0
+}
+
+/** `v1.4.2-beta` → `[1, 4, 2, beta]`. Empty segments are dropped so `1..2` is still `1.2`. */
+private fun segmentsOf(version: String): List<String> =
+    version.trim()
+        .removePrefix("v")
+        .split('.', '-', '_', '+', ' ')
+        .filter { it.isNotEmpty() }
 
 /**
  * What the app says after trying to install a package.

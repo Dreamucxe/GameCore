@@ -3,10 +3,33 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.9.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.11.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
 no backend, nothing you record leaves the device
+
+---
+
+## New in 3.11.0
+
+A live backdrop painted from what your device is actually doing — and a calibration screen where
+every figure it uses is on the table.
+
+- **Theme Engine.** A canvas in Settings → Theme Engine draws a soft ice-blue drifting at half
+  speed when the device is cool and quiet, turns Aurora Violet once CPU, memory or temperature
+  cross their thresholds, and goes molten crimson at speed when it is hot or saturated. The colour
+  and the speed both follow the readings as they change.
+- **See the vector.** The calibration screen prints the mode in force, its exact
+  `rgb(r, g, b)` value and its fluid velocity beside the three readings it was drawn from — CPU,
+  memory allocation and core temperature, each labelled with what it is.
+- **Calibrate against your own thresholds.** Flat sliders stand in for each reading so you can
+  watch the backdrop answer without loading the device, and the thresholds that decide each mode
+  are adjustable.
+- **Save points.** Keep a calibration you like under a name and recall it later. Save points are
+  stored on the device and survive a restart.
+
+The engine is built into GameCore, in its own package rather than in the screens that use it. It
+is not a `.gcplugin`: those are data GameCore reads, and this one draws, so it ships with the app.
 
 ---
 
@@ -52,6 +75,9 @@ directory can grow without widening what any one install can do.
   three at a time.
 - **One switch to stop them all.** A single toggle on the Plugins screen stops every plugin at
   once, whatever each plugin's own switch says.
+- **Order the list your way.** Sort installed plugins by name, by date installed, or by version
+  number — highest first, with `1.10` correctly above `1.9`. The order only changes how the list
+  is drawn; it changes nothing about which plugins run.
 
 ---
 

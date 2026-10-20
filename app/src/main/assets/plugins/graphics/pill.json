@@ -1,0 +1,93 @@
+{
+  "size": "medium",
+  "anchor": {
+    "x": 0.5,
+    "y": 0.06
+  },
+  "format": "gamecore.plugin.pill",
+  "id": "graphics-probe",
+  "title": "Graphics probe",
+  "opacity": 85,
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "color": "#99FFFFFF",
+              "size": 10,
+              "text": "FPS"
+            }
+          },
+          {
+            "type": "stat",
+            "props": {
+              "stat": "fps",
+              "size": 16
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "gap": 2,
+          "align": "center"
+        }
+      },
+      {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "color": "#99FFFFFF",
+              "size": 10,
+              "text": "GPU"
+            }
+          },
+          {
+            "type": "stat",
+            "props": {
+              "stat": "gpu",
+              "size": 16
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "gap": 2,
+          "align": "center"
+        }
+      },
+      {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "color": "#99FFFFFF",
+              "size": 10,
+              "text": "TEMP"
+            }
+          },
+          {
+            "type": "stat",
+            "props": {
+              "stat": "temp",
+              "size": 16
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "gap": 2,
+          "align": "center"
+        }
+      }
+    ],
+    "type": "row",
+    "props": {
+      "gap": 12,
+      "align": "center"
+    }
+  }
+}

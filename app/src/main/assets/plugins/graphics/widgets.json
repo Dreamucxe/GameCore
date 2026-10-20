@@ -1,0 +1,20 @@
+{
+  "size": "full",
+  "format": "gamecore.plugin.widget",
+  "id": "graphics_trend",
+  "title": "Frame rate trend",
+  "version": 1,
+  "content": {
+    "type": "chart",
+    "props": {
+      "note": "Live when device_stats is granted; sample shown otherwise.",
+      "stat": "fps",
+      "min": 0,
+      "color": "#4F8CFF",
+      "max": 120,
+      "kind": "line",
+      "values": "48,52,57,60,59,61,58,54,49,46,44,47",
+      "label": "Frame rate"
+    }
+  }
+}

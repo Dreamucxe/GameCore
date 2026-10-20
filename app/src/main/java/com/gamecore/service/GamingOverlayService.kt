@@ -567,6 +567,12 @@ class GamingOverlayService : GameCoreService() {
 
     private val accent = MutableStateFlow(Color(AccentChoice.CYAN.argb))
 
+    /**
+     * Whether the Redline skin is on, mirrored from preferences so the panel can pick its look. A plain
+     * boolean flow like [accent]: it changes while the panel is up, and the panel recomposes from it.
+     */
+    private val redlineSkin = MutableStateFlow(false)
+
     /** The full panel's selected tab (§5). Reset to [PanelTab.DEFAULT] on close so a reopen starts on Display. */
     private val panelTab = MutableStateFlow(PanelTab.DEFAULT)
 
@@ -815,6 +821,12 @@ class GamingOverlayService : GameCoreService() {
                 .map { it.accent }
                 .distinctUntilChanged()
                 .collect { accent.value = Color(it.argb) }
+        }
+        lifecycleScope.launch {
+            preferences.settings
+                .map { it.redlineSkin }
+                .distinctUntilChanged()
+                .collect { redlineSkin.value = it }
         }
         lifecycleScope.launch {
             // The one Hunt input that changes without the desired request changing: the chosen grade. Its
@@ -2736,6 +2748,7 @@ class GamingOverlayService : GameCoreService() {
         val tab by panelTab.collectAsState()
         val progress by endProgress.collectAsState()
         val live by panelWidth.collectAsState()
+        val redline by redlineSkin.collectAsState()
 
         val track = playing as? NowPlaying.Track
         FullPanel(
@@ -2763,6 +2776,7 @@ class GamingOverlayService : GameCoreService() {
             onClose = ::closePanel,
             maxHeightDp = maxHeightDp,
             accent = tint,
+            redline = redline,
         )
     }
 

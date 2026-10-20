@@ -65,8 +65,23 @@ class PluginsViewModel @Inject constructor(
 
     private val transient = MutableStateFlow(Transient())
 
-    val state: StateFlow<PluginsUiState> = combine(fromRegistry, transient) { observed, own ->
-        observed.copy(message = own.message, pendingRemoval = own.pendingRemoval)
+    /**
+     * The user's chosen order for the list.
+     *
+     * Screen state, not registry state: sorting changes nothing about a plugin, so it is held here and
+     * applied to the rows on the way out. Like the session history's order control it starts at the
+     * default each time the screen is opened rather than being stored — the choice is about this
+     * reading of the list, not a preference the app has to remember between runs.
+     */
+    private val sort = MutableStateFlow(PluginSort.NAME)
+
+    val state: StateFlow<PluginsUiState> = combine(fromRegistry, transient, sort) { observed, own, order ->
+        observed.copy(
+            rows = sortedRows(observed.rows, order),
+            sort = order,
+            message = own.message,
+            pendingRemoval = own.pendingRemoval,
+        )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, PluginsUiState())
 
     init {
@@ -188,6 +203,17 @@ class PluginsViewModel @Inject constructor(
 
     fun dismissMessage() {
         transient.update { it.copy(message = null) }
+    }
+
+    /**
+     * Reorders the list.
+     *
+     * Only the presentation changes: no plugin is touched, no registry call is made, and a switch
+     * flipped while the list was in another order stays flipped. The rows the screen draws come back
+     * through [sortedRows], so the order is applied in exactly one place.
+     */
+    fun setSort(order: PluginSort) {
+        sort.value = order
     }
 
     /**

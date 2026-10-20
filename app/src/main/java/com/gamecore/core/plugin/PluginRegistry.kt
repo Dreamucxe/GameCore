@@ -36,6 +36,12 @@ enum class PluginOrigin(val label: String) {
  * things to the user. Disabled is a choice they made (or the supervisor made for them after a crash
  * loop). Suspended is this run only — the plugin failed repeatedly and was stopped — and it carries
  * [suspensionDetail] so the manager can say what happened instead of showing a dead row.
+ *
+ * [installedAtMillis] is when the bytes on this device were written, not a date the plugin claims in
+ * its manifest. For a sideloaded package that is its file's last-modified time — the moment it was
+ * installed, or re-installed over an older copy. For a bundled plugin it is the APK's own timestamp,
+ * because those plugins arrive with the app and have no file of their own. Zero means the platform
+ * could not report a time; the manager sorts those last rather than inventing a date.
  */
 data class InstalledPlugin(
     val manifest: PluginManifest,
@@ -45,6 +51,7 @@ data class InstalledPlugin(
     val suspended: Boolean = false,
     val suspensionDetail: String? = null,
     val grant: PluginGrant,
+    val installedAtMillis: Long = 0L,
 ) {
     val id: String get() = manifest.id
 

@@ -215,6 +215,7 @@ class HomeViewModel @Inject constructor(
             autoApply = own.autoApply,
             detectionAvailable = own.detectionAvailable,
             isCompact = own.isCompact,
+            redlineSkin = own.redlineSkin,
             repairedSessions = own.repairedSessions,
             outstandingRestores = own.outstandingRestores,
             isRestoring = own.isRestoring,
@@ -256,7 +257,11 @@ class HomeViewModel @Inject constructor(
             // which is already at its five typed sources.
             preferences.settings.collect { settings ->
                 local.update {
-                    it.copy(isCompact = settings.compactDensity, autoApply = settings.autoApplyProfiles)
+                    it.copy(
+                        isCompact = settings.compactDensity,
+                        autoApply = settings.autoApplyProfiles,
+                        redlineSkin = settings.redlineSkin,
+                    )
                 }
             }
         }
@@ -799,6 +804,7 @@ private data class LocalState(
     val autoApply: Boolean = true,
     val detectionAvailable: Boolean = false,
     val isCompact: Boolean = false,
+    val redlineSkin: Boolean = false,
     val selectedPackage: String? = null,
     val busyPackage: String? = null,
     val pendingLaunch: PendingLaunch? = null,
