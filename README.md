@@ -3,10 +3,43 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.15.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.16.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
 no backend, nothing you record leaves the device
+
+---
+
+## New in 3.16.0
+
+A theme can ask for glass now. A plugin stays data — it never touches the canvas — but it can now
+ask the host for a material, and the host draws every frame of it.
+
+- **Themes can be made of glass.** The theme schema is now 4, and a `glass` block asks for a
+  material rather than a flat colour: a translucent surface, a specular rim along the top edge, a
+  highlight that drifts slowly down the face, and an iOS-style spring that settles a panel when the
+  material changes. A theme that declares schema 3 and carries the block is refused, not
+  downgraded — a glass theme whose transparency silently became a flat fill is not the design its
+  author wrote.
+- **The blur belongs to Android 12.** From API 31 the backdrop behind a panel is blurred as well.
+  Below that the host still draws the translucency, the rim and the gloss against a sharp
+  backdrop, and the Control Center says so — "Sharp — this Android version cannot blur one" —
+  rather than calling it frosted.
+- **One slider.** Settings → Glass Control Center holds a single control: how much of the material
+  the app is wearing, scaling the transparency, the gloss and the blur radius together. The
+  preview above it is drawn from the exact material the slider points at, through the app's own
+  renderer, so you can judge it before you let go. The row appears only while a theme with a
+  material is in force.
+- **Animation settings still win.** Settings → Animations → Off, or the system's
+  remove-animations switch, and the material is drawn at rest — the translucency, the rim and the
+  gloss stay, the highlight stops and the panels stop settling. A plugin asks for motion; it can
+  never take it.
+
+Ships with **Liquid Glass GameCore** (`dist/liquidglass/liquidglass.gcplugin`) — rewritten to ask
+for the material it is named after, version 1.2.0, and it needs GameCore 3.16 or newer. It is a
+downloadable package rather than a bundled theme: drop the `.gcplugin` file into GameCore's
+plugin installer. All twenty official plugin packages ship with the release that way, and nine
+of them are also bundled in the app.
 
 ---
 
@@ -24,6 +57,8 @@ GameCore has five launcher icons, and a plugin can choose one of them.
   icon, so a plugin's own image cannot become the icon — and this release does not pretend it can.
   Artwork is offered as a **pinned home-screen shortcut** instead: you confirm it in the launcher,
   and GameCore's own icon is left alone. The picker says so in as many words.
+
+---
 
 ## New in 3.14.0
 
@@ -848,8 +883,8 @@ closest the platform offers. Nothing runs when it is not needed — each service
 ## Architecture
 
 Kotlin only, Jetpack Compose with Material 3, MVVM, Hilt, Coroutines and `StateFlow`. No
-Java, no XML layouts — the only XML is Android resources and the manifest. 593 source files,
-about 150,000 lines.
+Java, no XML layouts — the only XML is Android resources and the manifest. 625 source files,
+about 158,000 lines.
 
 ```
 app/
@@ -873,7 +908,7 @@ app/
 │   ├── optimization/ OptimizationManager over Standard / Shizuku optimizers
 │   ├── overlay/      what is on screen and why
 │   └── storage/      per-game cache measurement, and the one delete it offers
-├── service/          the four foreground services, screen recording, media listener and quick-trigger services
+├── service/          six foreground services, the media listener, and the quick-trigger tile and accessibility services
 └── ui/               one package per screen, each a Screen + State + ViewModel
 ```
 
@@ -914,8 +949,8 @@ signing key is not blocked — but an unsigned APK will not install on a device.
 
 The unit tests are deliberately written against the pure, Android-free seams: the geometry,
 the formatters, the sanitizer, the command builder, the aggregators, the state reducers, the
-per-session latency fold, and every word the shareable card is allowed to print. 202 suites,
-2,475 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
+per-session latency fold, and every word the shareable card is allowed to print. 211 suites,
+2,563 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
 
 ## Your data, and the network
 

@@ -1,6 +1,7 @@
 package com.gamecore.core.plugin.theme
 
 import com.gamecore.core.common.TextSanitizer
+import com.gamecore.core.plugin.settings.PluginSettingsCodec
 import org.json.JSONException
 import org.json.JSONObject
 
@@ -50,14 +51,27 @@ object PluginThemeCodec {
     /** The v2 surface: the v1 keys, the schema tag, and the three v2 extras. */
     private val KNOWN_KEYS_V2 = KNOWN_KEYS_V1_AND_SCHEMA + setOf("amoled", "roles", "typography")
 
-    /** The v3 surface adds exactly one key — `effects` — whose only member today is `glitch`. */
+    /** The v3 surface adds exactly one key — `effects` — whose members are now `glitch` and `glass`. */
     private val KNOWN_KEYS_V3 = KNOWN_KEYS_V2 + "effects"
 
-    private val EFFECT_KEYS = setOf("glitch")
+    private val EFFECT_KEYS = setOf("glitch", "glass")
 
     private val GLITCH_KEYS = setOf(
         "intensity", "slices", "sliceOffsetDp", "ghostOffsetDp", "fractureLines",
         "noise", "microJitter", "hardwareReactive", "burstMinMs", "burstMaxMs",
+    )
+
+    /**
+     * The nine keys a schema-4 `glass` object may name.
+     *
+     * `intensitySetting` is the one that is not a degree: it names a setting in *this plugin's own*
+     * `settings.json`, and the host reads that value at runtime to scale the material. It is checked
+     * against the plugin's declared settings when the package is loaded rather than here, because a
+     * theme file does not know what its sibling sections contain.
+     */
+    private val GLASS_KEYS = setOf(
+        "intensity", "transparency", "gloss", "blurRadiusDp", "sheen",
+        "sheenPeriodMs", "spring", "hardwareReactive", "intensitySetting",
     )
 
     /** The seven semantic roles a v2 `roles` object may name; any other key rejects the theme. */
@@ -171,6 +185,7 @@ object PluginThemeCodec {
         // and half of one is not the design. An `effects` object with no `glitch` in it is legal and
         // means "no motion" — that is how a v3 theme keeps the door open without using it.
         var glitch: PluginGlitch? = null
+        var glass: PluginGlass? = null
         if (schema >= PluginTheme.SCHEMA_V3 && root.has("effects")) {
             val effects = root.optJSONObject("effects")
                 ?: return Result.Rejected(Reason.BAD_EFFECTS, "\"effects\" is not an object")
@@ -203,6 +218,58 @@ object PluginThemeCodec {
                         .coerceIn(PluginGlitch.MIN_BURST_MS, PluginGlitch.MAX_BURST_MS),
                 ).clamped()
             }
+            if (effects.has("glass")) {
+                // `effects` arrived with schema 3 and `glass` with schema 4, so a theme that declares
+                // itself v3 and carries the block is asking for something its own tag says it does not
+                // use. Refused rather than rendered, for the reason the schema exists at all: an older
+                // host reading this theme must reach the same conclusion this one does.
+                if (schema < PluginTheme.SCHEMA_V4) {
+                    return Result.Rejected(
+                        Reason.UNKNOWN_KEY,
+                        "\"glass\" needs schema ${PluginTheme.SCHEMA_V4}, and this theme declares $schema",
+                    )
+                }
+                val obj = effects.optJSONObject("glass")
+                    ?: return Result.Rejected(Reason.BAD_EFFECTS, "\"glass\" is not an object")
+                obj.keys().asSequence().toList().firstOrNull { it !in GLASS_KEYS }?.let {
+                    return Result.Rejected(Reason.UNKNOWN_KEY, "unknown glass key \"$it\"")
+                }
+                val spring = PluginGlass.Spring.fromId(obj.optString("spring", PluginGlass.DEFAULT.spring.id))
+                    ?: return Result.Rejected(
+                        Reason.BAD_EFFECTS,
+                        "\"${obj.optString("spring")}\" is not a glass spring",
+                    )
+                val setting = obj.optString("intensitySetting").trim()
+                    .takeIf { it.isNotEmpty() }
+                // A blank name is the same as no name; a name past the id cap is refused here so the
+                // registry never has to ask a store for a key it could not have written.
+                if (setting != null && setting.length > PluginSettingsCodec.MAX_ID_LENGTH) {
+                    return Result.Rejected(
+                        Reason.BAD_EFFECTS,
+                        "glass intensitySetting is ${setting.length} characters; the cap is " +
+                            "${PluginSettingsCodec.MAX_ID_LENGTH}",
+                    )
+                }
+                glass = PluginGlass(
+                    intensity = obj.optDouble("intensity", PluginGlass.DEFAULT.intensity.toDouble())
+                        .toFloat()
+                        .coerceIn(PluginGlass.MIN_INTENSITY, PluginGlass.MAX_INTENSITY),
+                    transparency = obj.optDouble("transparency", PluginGlass.DEFAULT.transparency.toDouble())
+                        .toFloat()
+                        .coerceIn(PluginGlass.MIN_TRANSPARENCY, PluginGlass.MAX_TRANSPARENCY),
+                    gloss = obj.optDouble("gloss", PluginGlass.DEFAULT.gloss.toDouble())
+                        .toFloat()
+                        .coerceIn(PluginGlass.MIN_GLOSS, PluginGlass.MAX_GLOSS),
+                    blurRadiusDp = obj.optInt("blurRadiusDp", PluginGlass.DEFAULT.blurRadiusDp)
+                        .coerceIn(PluginGlass.MIN_BLUR_DP, PluginGlass.MAX_BLUR_DP),
+                    sheen = obj.optBoolean("sheen", PluginGlass.DEFAULT.sheen),
+                    sheenPeriodMs = obj.optInt("sheenPeriodMs", PluginGlass.DEFAULT.sheenPeriodMs)
+                        .coerceIn(PluginGlass.MIN_SHEEN_MS, PluginGlass.MAX_SHEEN_MS),
+                    spring = spring,
+                    hardwareReactive = obj.optBoolean("hardwareReactive", PluginGlass.DEFAULT.hardwareReactive),
+                    intensitySetting = setting,
+                ).clamped()
+            }
         }
         return Result.Parsed(
             PluginTheme(
@@ -222,6 +289,7 @@ object PluginThemeCodec {
                 roles = roles,
                 typography = typography,
                 glitch = glitch,
+                glass = glass,
             ),
         )
     }

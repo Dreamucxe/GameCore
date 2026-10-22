@@ -34,6 +34,7 @@ data class PluginTheme(
     val roles: PluginThemeRoles? = null,
     val typography: PluginThemeTypography? = null,
     val glitch: PluginGlitch? = null,
+    val glass: PluginGlass? = null,
 ) {
     /** The fonts GameCore bundles. A theme may pick one; it cannot ship a font file. */
     enum class Font(val id: String) {
@@ -64,8 +65,20 @@ data class PluginTheme(
          */
         const val SCHEMA_V3 = 3
 
+        /**
+         * Schema 4 is schema 3 plus the `glass` material block.
+         *
+         * A new schema for the same reason v3 was: a material is not a decoration on a palette, it
+         * is what the palette is made of, and a host that ignored the block would render a flat
+         * opaque theme where its author designed a translucent one — with nothing on screen to say
+         * the two had ever been different. A v4 theme on an older host is an UNKNOWN_KEY rejection
+         * carrying a reason, which is the honest answer, and a v4 theme carries no `glass` block at
+         * all if it did not ask for one.
+         */
+        const val SCHEMA_V4 = 4
+
         /** The newest schema this build understands; [PluginThemeCodec] rejects anything past it. */
-        const val SCHEMA_CURRENT = SCHEMA_V3
+        const val SCHEMA_CURRENT = SCHEMA_V4
 
         const val MIN_CORNER_DP = 0
         const val MAX_CORNER_DP = 48

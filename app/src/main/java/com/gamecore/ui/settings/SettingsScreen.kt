@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Animation
+import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CenterFocusStrong
@@ -202,7 +203,13 @@ fun SettingsScreen(
                 modifier = padded,
             )
         }
-        item { AccessCard(onNavigate = onNavigate, modifier = padded) }
+        item {
+            AccessCard(
+                hasGlassTheme = state.hasGlassTheme,
+                onNavigate = onNavigate,
+                modifier = padded,
+            )
+        }
         item {
             DataCard(
                 state = state,
@@ -938,13 +945,30 @@ private fun RecordingCard(
 
 /**
  * Four screens rather than four settings: none of these is a value, they are all a state of the device.
+ *
+ * [hasGlassTheme] is the one row here that is not gated by the user: the Glass Control Center has nothing
+ * to control until a schema-4 theme asks for a material, and a row that opened onto an empty screen would
+ * be a control that does nothing. It appears the moment such a theme is selected and leaves with it, which
+ * is the same bargain the Screen extraction and Touch sampling rows make with their feature switches.
  */
 @Composable
 private fun AccessCard(
+    hasGlassTheme: Boolean,
     onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     SectionCard(title = "Access and tools", icon = Icons.Filled.Shield, modifier = modifier) {
+        // Only while a theme is actually wearing glass. Placed above Plugins because it is the control for
+        // the thing the Plugins row installs — the intensity of the material that theme asked for.
+        if (hasGlassTheme) {
+            NavRow(
+                title = "Glass Control Center",
+                onClick = { onNavigate(Destination.GlassCentre) },
+                description = "How much of the material the active theme asked for the app wears — " +
+                    "transparency, gloss and blur, moved together, with a live panel to judge it by.",
+                icon = Icons.Filled.BlurOn,
+            )
+        }
         // §A3, and first in this card because it is the summary over the two rows beneath it: it reads
         // every grant Permissions lists and the Shizuku state that screen explains, and says which of
         // them something the user actually turned on is waiting for. Someone who knows which grant is

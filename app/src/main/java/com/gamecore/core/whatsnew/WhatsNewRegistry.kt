@@ -35,6 +35,38 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 38,
+            versionName = "3.16.0",
+            date = "2026-10-22",
+            features = listOf(
+                FeatureNote(
+                    "Themes can be made of glass",
+                    "A plugin theme can now ask for a material instead of a flat colour: a " +
+                        "translucent, glossy surface with a specular rim, a highlight that falls " +
+                        "across the face and drifts slowly down it, and an iOS-style spring that " +
+                        "settles a panel when it changes. On Android 12 and newer the backdrop " +
+                        "behind a panel is blurred too.",
+                ),
+                FeatureNote(
+                    "Glass Control Center",
+                    "One slider for how much material the app is wearing. It scales the " +
+                        "transparency, the gloss and the blur together, over a live panel drawn from " +
+                        "the exact material you are about to save — so you can see it before you let " +
+                        "go. Settings shows the row only while a theme with a material is active, and " +
+                        "your Animations setting still wins: with animation off the material is drawn " +
+                        "at rest, without the drift or the settle.",
+                ),
+                FeatureNote(
+                    "Liquid Glass GameCore, rewritten",
+                    "The iOS-inspired theme now asks for the material it was named after, with an " +
+                        "Intensity control in the Control Center. It needs this version of GameCore, " +
+                        "and Android 11 and below get the translucency, rim and gloss against a sharp " +
+                        "backdrop — backdrop blur is an Android 12 feature, and the Control Center " +
+                        "says so rather than calling it frosted.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 37,
             versionName = "3.15.0",
             date = "2026-10-21",

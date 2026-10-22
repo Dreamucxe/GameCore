@@ -31,6 +31,10 @@ class AppIconSlotManifestTest {
     private val res = File("src/main/res")
 
     private fun document() = DocumentBuilderFactory.newInstance()
+        // Namespace-aware, because every attribute this test reads is `android:`-prefixed and
+        // `getAttributeNS` only sees a namespace-aware parse. Without this the parse succeeds and
+        // every read comes back empty, which reads as "the manifest declares no aliases at all".
+        .apply { isNamespaceAware = true }
         .newDocumentBuilder()
         .parse(manifest)
 

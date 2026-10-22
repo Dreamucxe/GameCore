@@ -1,6 +1,7 @@
 package com.gamecore.core.plugin.theme
 
 import com.gamecore.core.common.ContrastMath
+import com.gamecore.core.plugin.PluginApi
 import com.gamecore.core.plugin.PluginManifestCodec
 import com.gamecore.core.plugin.PluginPackageLoader
 import com.gamecore.core.plugin.PluginPermission
@@ -8,6 +9,7 @@ import com.gamecore.core.plugin.PluginSection
 import java.io.File
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -64,25 +66,36 @@ class LiquidGlassThemePluginTest {
         val m = loadedOrFail().manifest
         assertEquals("id", "com.dreamucxe.gamecore.liquidglass", m.id)
         assertEquals("name", "Liquid Glass GameCore", m.name)
-        assertEquals("version", 2, m.version)
-        assertEquals("versionName", "1.1.0", m.versionName)
-        assertEquals("api", 1, m.api)
-        // The icon section needs the 3.15.0 host (versionCode 37).
-        assertEquals("minHostVersion", 37, m.minHostVersion)
+        assertEquals("version", 3, m.version)
+        assertEquals("versionName", "1.2.0", m.versionName)
+        // The api is the schema-4 level: a theme that carries the glass block is only readable
+        // by a host that knows schema 4, so the plugin cannot claim to run on an older one.
+        assertEquals("api", PluginApi.CURRENT, m.api)
+        // The glass block needs the 3.16.0 host (versionCode 38). This is the plugin's own floor
+        // and is pinned as a literal on purpose: a host that bumps its own version code must not
+        // silently widen the floor this plugin declares.
+        assertEquals("minHostVersion", 38, m.minHostVersion)
         assertEquals("developer", "Dream", m.developer)
-        assertEquals("changelog", "Initial release.", m.changelog)
+        assertTrue("changelog names the release", m.changelog.startsWith("1.2.0"))
 
-        assertTrue("compatible with this build (api 1 / host 28)", m.compatibility.isRunnable)
+        assertTrue("compatible with this build (api 4 / host 38)", m.compatibility.isRunnable)
 
-        assertEquals("two permissions", 2, m.permissions.size)
+        assertEquals("three permissions", 3, m.permissions.size)
         assertEquals("change_ui first", PluginPermission.CHANGE_UI, m.permissions[0].permission)
         assertTrue("CHANGE_UI carries no scopes", m.permissions[0].scopes.isEmpty())
         assertEquals("change_icon second", PluginPermission.CHANGE_ICON, m.permissions[1].permission)
         assertTrue("CHANGE_ICON carries no scopes", m.permissions[1].scopes.isEmpty())
+        assertEquals("store_data third", PluginPermission.STORE_DATA, m.permissions[2].permission)
+        assertTrue("STORE_DATA carries no scopes", m.permissions[2].scopes.isEmpty())
         assertTrue("requests CHANGE_UI", m.requests(PluginPermission.CHANGE_UI))
         assertTrue("requests CHANGE_ICON", m.requests(PluginPermission.CHANGE_ICON))
+        assertTrue("requests STORE_DATA", m.requests(PluginPermission.STORE_DATA))
 
-        assertEquals("declares the theme and the icon", setOf(PluginSection.THEME, PluginSection.ICON), m.declares)
+        assertEquals(
+            "declares the theme, the settings and the icon",
+            setOf(PluginSection.THEME, PluginSection.SETTINGS, PluginSection.ICON),
+            m.declares,
+        )
 
         // Legal guard: no Apple marks in the id or name (describing it as "inspired by iOS" is fine).
         for ((field, value) in listOf("id" to m.id, "name" to m.name)) {
@@ -113,6 +126,35 @@ class LiquidGlassThemePluginTest {
         assertEquals("corner radius", 20, theme.cornerRadiusDp)
         assertEquals("font", PluginTheme.Font.ROUNDED, theme.font)
         assertEquals("uiScale", 1.0f, theme.uiScale, 1e-6f)
+    }
+
+    /**
+     * The material itself, read back through the host's own codec. This is the 3.16 feature the
+     * plugin exists to demonstrate, so it is checked on the host side and not only in the SDK
+     * that authored the bytes: a host that silently dropped the block would render the theme
+     * flat, and that is exactly the failure this plugin's name promises not to happen.
+     */
+    @Test
+    fun theme_carries_the_glass_material() {
+        val bytes = loadedOrFail().entry("theme.json")
+            ?: run { fail("package carries no theme.json"); error("unreachable") }
+        val theme = when (val r = PluginThemeCodec.decode(String(bytes))) {
+            is PluginThemeCodec.Result.Parsed -> r.theme
+            is PluginThemeCodec.Result.Rejected -> {
+                fail("theme rejected: ${r.reason} ${r.detail}"); error("unreachable")
+            }
+        }
+        assertEquals("schema", PluginTheme.SCHEMA_V4, theme.schema)
+        val glass = theme.glass ?: run { fail("the theme carries no glass block"); error("unreachable") }
+        assertEquals("intensity", 0.7f, glass.intensity, 1e-6f)
+        assertEquals("transparency", 0.62f, glass.transparency, 1e-6f)
+        assertEquals("gloss", 0.55f, glass.gloss, 1e-6f)
+        assertEquals("blur radius", 16, glass.blurRadiusDp)
+        assertTrue("sheen", glass.sheen)
+        assertEquals("sheen period", 9000, glass.sheenPeriodMs)
+        assertEquals("spring", PluginGlass.Spring.SNAPPY, glass.spring)
+        assertFalse("hardwareReactive", glass.hardwareReactive)
+        assertEquals("intensitySetting", "glass_intensity", glass.intensitySetting)
     }
 
     @Test

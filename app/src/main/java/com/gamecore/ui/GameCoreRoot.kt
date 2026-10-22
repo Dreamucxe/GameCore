@@ -85,6 +85,7 @@ import com.gamecore.ui.dock.DockCustomizationScreen
 import com.gamecore.ui.extraction.ScreenExtractionScreen
 import com.gamecore.ui.games.GamesScreen
 import com.gamecore.ui.games.ProfileEditorScreen
+import com.gamecore.ui.glass.GlassCentreScreen
 import com.gamecore.ui.home.HomeScreen
 import com.gamecore.ui.hud.HudEditorScreen
 import com.gamecore.ui.hud.HudScreen
@@ -112,6 +113,7 @@ import com.gamecore.ui.setup.SetupWizardScreen
 import com.gamecore.ui.shizuku.ShizukuScreen
 import com.gamecore.ui.storage.GameStorageScreen
 import com.gamecore.ui.theme.GameCoreTheme
+import com.gamecore.ui.theme.GlassBackdrop
 import com.gamecore.ui.theme.WallpaperLayer
 import com.gamecore.ui.tools.ToolsScreen
 import com.gamecore.ui.touch.SamplingMonitorScreen
@@ -165,6 +167,10 @@ fun GameCoreRoot(
     // for reactive motion — the ViewModel stops sampling in that case — so collecting it here costs
     // a single comparison for the overwhelming majority of installs.
     val glitchConditions by viewModel.glitchConditions.collectAsStateWithLifecycle()
+    // The schema-4 material, or null. Null for every theme before schema 4 and for a glass theme the
+    // user has dialled to nothing, so this costs one flow read and no layer on the overwhelming
+    // majority of installs. See [GlassMaterialStore] for what resolving it involves.
+    val glass by viewModel.glass.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route
@@ -231,9 +237,19 @@ fun GameCoreRoot(
         navController.openUnguarded(Destination.Settings)
     }
 
-    GameCoreTheme(settings, pluginTheme, engineTint, glitchConditions) {
+    GameCoreTheme(settings, pluginTheme, engineTint, glitchConditions, glass?.fraction ?: 1f) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(modifier = Modifier.fillMaxSize()) {
+                // The ambient bloom a glass theme's panels are drawn against, or nothing at all. Above
+                // the background fill and below the wallpaper, because that ordering is what makes the
+                // material read as a material: a translucent panel needs light behind it, and a user
+                // who chose a wallpaper gets the wallpaper instead — which is the better backdrop of
+                // the two and the one the glass was always going to pick up on a real device.
+                GlassBackdrop(
+                    material = glass?.material,
+                    primaryColour = MaterialTheme.colorScheme.primary,
+                    accentColour = MaterialTheme.colorScheme.secondary,
+                )
                 // Behind everything, inside the themed Surface so the scrim is mixed from the scheme the
                 // app is actually wearing — including a plugin's. Drawn first and never again: it is one
                 // layer under the whole navigation graph, not something each screen opts into.
@@ -491,6 +507,14 @@ private fun GameCoreNav(
         // app reads.
         composable(Destination.ThemeEngine.route) {
             CalibrationDashboard(onBack = back)
+        }
+
+        // The Glass Control Center. A leaf reached from Settings, and the one screen that drives the
+        // schema-4 material rather than reporting it: it draws its preview through the app's own glass
+        // renderer and stores the result in the plugin's own settings, so the value travels with the
+        // plugin and not with GameCore.
+        composable(Destination.GlassCentre.route) {
+            GlassCentreScreen(onBack = back)
         }
 
         // §3.7 Screen Extraction / Touch Sampling Monitor / What's New: three leaves reached from Settings,

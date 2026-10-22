@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.model.AppSettings
+import com.gamecore.data.plugin.GlassMaterialStore
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.ExportResult
 import com.gamecore.data.repository.GameProfileRepository
@@ -45,6 +46,7 @@ class SettingsViewModel @Inject constructor(
     private val wallpapers: WallpaperImageStore,
     profiles: GameProfileRepository,
     layouts: HudLayoutRepository,
+    glass: GlassMaterialStore,
 ) : ViewModel() {
 
     /**
@@ -68,13 +70,27 @@ class SettingsViewModel @Inject constructor(
 
     private val local = MutableStateFlow(LocalState())
 
+    /**
+     * The stored settings paired with the one fact about the active theme this screen needs: whether it
+     * asked for a material.
+     *
+     * Folded together here rather than added as a sixth flow to the `combine` below, which is the point at
+     * which the typed overload runs out and the whole state would have to become a list of tuples. The
+     * pairing is not a coincidence of arity: both halves answer "what is the appearance right now", and the
+     * glass half is read only to decide whether one row is drawn.
+     */
+    private val appearance = combine(preferences.settings, glass.state) { settings, material ->
+        settings to (material != null)
+    }
+
     val state: StateFlow<SettingsUiState> = combine(
-        preferences.settings,
+        appearance,
         profiles.profileCount,
         sessions.sessionCount,
         layouts.layouts.map { it.size },
         local,
-    ) { settings, profileCount, sessionCount, layoutCount, own ->
+    ) { appearanceNow, profileCount, sessionCount, layoutCount, own ->
+        val (settings, hasGlass) = appearanceNow
         SettingsUiState(
             settings = settings,
             isLoaded = own.isLoaded,
@@ -91,6 +107,7 @@ class SettingsViewModel @Inject constructor(
             pendingClearHistory = own.pendingClearHistory,
             pendingResetSettings = own.pendingResetSettings,
             message = own.message,
+            hasGlassTheme = hasGlass,
         )
     }.stateIn(
         viewModelScope,

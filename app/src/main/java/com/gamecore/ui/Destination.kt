@@ -320,6 +320,21 @@ sealed interface Destination {
     }
 
     /**
+     * The Glass Control Center: the material a schema-4 theme asked for, and the one slider that
+     * decides how much of it the app wears.
+     *
+     * Reached from Settings, and it is a leaf — it takes a way back and nothing else. It is the only
+     * screen that *drives* the appearance rather than reporting it, which is why it is a destination
+     * rather than a control inside the Settings list: the preview it draws is a real panel through the
+     * app's own renderer, and that needs a screen's worth of room.
+     *
+     * Not in [external] — nothing outside the app has a reason to move a theme's material.
+     */
+    data object GlassCentre : Destination {
+        override val route = "glass-centre"
+    }
+
+    /**
      * One plugin's preview/install screen, reached from the manager or the marketplace with the
      * plugin's id. Shows the permissions by risk tier, the compatibility verdict (and blocks
      * install when unsupported), developer, version, changelog and hash before the user trusts

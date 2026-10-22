@@ -12,6 +12,8 @@ import com.gamecore.core.whatsnew.WhatsNewRegistry
 import com.gamecore.core.whatsnew.entriesSince
 import com.gamecore.core.whatsnew.shouldShowCard
 import com.gamecore.data.icon.AppIconController
+import com.gamecore.data.plugin.GlassControl
+import com.gamecore.data.plugin.GlassMaterialStore
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.data.repository.SessionRepository
@@ -59,6 +61,7 @@ class RootViewModel @Inject constructor(
     private val themeEngine: ThemeEnginePlugin,
     private val auroraRepository: AuroraThemeRepository,
     private val appIcons: AppIconController,
+    private val glassMaterials: GlassMaterialStore,
 ) : ViewModel() {
 
     /**
@@ -97,6 +100,22 @@ class RootViewModel @Inject constructor(
     val pluginTheme: StateFlow<PluginTheme?> = plugins.activeTheme
         .map { it?.theme }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
+     * The schema-4 glass material in force, with the Control Center's own value already applied — or
+     * null when the app is not wearing glass.
+     *
+     * Passed straight through from [GlassMaterialStore] for the same reason [pluginTheme] is passed
+     * straight through from the registry: the store has already done the hard part, which is
+     * resolving a theme's block, the plugin's own intensity setting and the user's slider into one
+     * value. The shell does two things with it and no arithmetic: it hands the fraction to
+     * [com.gamecore.ui.theme.GameCoreTheme] so every panel in the app is drawn from the material, and
+     * it draws [com.gamecore.ui.theme.GlassBackdrop] from the material itself.
+     *
+     * Eager for the same reason as everything else here: a glass theme's panels have to be glass on
+     * the first frame they are drawn, not one frame later.
+     */
+    val glass: StateFlow<GlassControl?> = glassMaterials.state
 
     private val mutableGlitchConditions = MutableStateFlow(GlitchConditions.None)
 

@@ -53,6 +53,17 @@ class PluginBuilder(private val id: String, private val name: String) {
     private val sections = linkedMapOf<String, ByteArray>()
     private val declared = linkedSetOf<String>()
 
+    /**
+     * The settings section, kept rather than discarded, for one check: a `glass` block may name a
+     * setting to drive its intensity from, and naming one that `settings {}` never declared would
+     * ship a Control Center slider wired to nothing. Checked in [build], because the theme and the
+     * settings may be attached in either order.
+     */
+    private var settingsBuilder: SettingsBuilder? = null
+
+    /** The setting a glass block points at, resolved from the theme section, or null if it names none. */
+    private var glassIntensitySetting: String? = null
+
     /** Request a permission, optionally scoped (scopes only meaningful for read_approved_data/modify_settings). */
     fun request(permission: String, scopes: Set<String> = emptySet()) {
         permissions += RequestedPermission(permission, scopes)
@@ -69,6 +80,12 @@ class PluginBuilder(private val id: String, private val name: String) {
         if (schema >= ThemeSchema.V2) {
             api = maxOf(api, schema)
         }
+        // A glass block needs a host that renders it, and the icon section does not: `glass {}` is
+        // the only thing that raises minHostVersion here, so a theme without one still loads on 28.
+        if (builder.usesGlass()) {
+            minHostVersion = maxOf(minHostVersion, Sdk.HOST_VERSION_CODE_GLASS)
+        }
+        glassIntensitySetting = builder.glassIntensitySetting()
     }
 
     /** Attach automation rules built with [RulesBuilder]. */
@@ -88,7 +105,9 @@ class PluginBuilder(private val id: String, private val name: String) {
      * existed.
      */
     fun settings(block: SettingsBuilder.() -> Unit) {
-        val json = SettingsBuilder().apply(block).toJson()
+        val builder = SettingsBuilder().apply(block)
+        settingsBuilder = builder
+        val json = builder.toJson()
         sections["settings.json"] = json.toString(2).toByteArray()
         declared += "settings"
         api = maxOf(api, Sdk.API_V3)
@@ -260,6 +279,24 @@ class PluginBuilder(private val id: String, private val name: String) {
     }
 
     internal fun build(): PluginDefinition {
+        // A glass block may name one of this plugin's own settings to drive its intensity from. The two
+        // sections can be attached in either order, so the check lives here rather than in `theme {}`:
+        // the id must be one `settings {}` declares, and it must be a number. Both failure modes are
+        // silent in the host — it finds no control, or finds one it cannot read as a value — and both
+        // look to the user exactly like a theme that ignores its own Control Center.
+        glassIntensitySetting?.let { wanted ->
+            val type = settingsBuilder?.typeOf(wanted)
+                ?: error(
+                    "glass intensitySetting is \"$wanted\", which this plugin's settings {} does not " +
+                        "declare; the host would find no control to read, so the material would sit at " +
+                        "its authored intensity with a slider that does nothing",
+                )
+            require(type == SettingTypes.INT || type == SettingTypes.FLOAT) {
+                "glass intensitySetting is \"$wanted\", declared as \"$type\"; an intensity is scaled " +
+                    "from a number, so it must be an int or a float"
+            }
+        }
+
         val manifest = JSONObject().apply {
             put("format", Sdk.FORMAT)
             put("id", id)
@@ -363,6 +400,7 @@ class ThemeBuilder {
     private var rolesBuilder: ThemeRolesBuilder? = null
     private var typographyBuilder: ThemeTypographyBuilder? = null
     private var glitchBuilder: ThemeGlitchBuilder? = null
+    private var glassBuilder: ThemeGlassBuilder? = null
 
     /** From schema 2: recolour semantic roles beyond the v1 six. A role left unset is inherited. */
     fun roles(block: ThemeRolesBuilder.() -> Unit) {
@@ -387,15 +425,41 @@ class ThemeBuilder {
     }
 
     /**
+     * From schema 4: ask the host for a glass material.
+     *
+     * Like [glitch], this is a request rather than a program — the theme says how transparent, how
+     * glossy, how blurred and how it should settle, and the host owns what that looks like on the
+     * device it is running on. See the host's `PluginGlass` for what each value means and
+     * [GlassBounds] for the ranges, which the DSL asserts so an out-of-range theme fails in the
+     * author's build rather than arriving clamped in a user's hands.
+     *
+     * A glass theme is meant to be *controlled*, so the block may name one of the plugin's own
+     * settings with [ThemeGlassBuilder.intensitySetting]: the host then reads that setting live and
+     * scales the effect by it, which is what turns a settings slider into the Control Center's
+     * intensity control. The name is checked against the plugin's own settings when the package is
+     * built, so a glass block can never point at a control that does not exist.
+     */
+    fun glass(block: ThemeGlassBuilder.() -> Unit) {
+        glassBuilder = (glassBuilder ?: ThemeGlassBuilder()).apply(block)
+    }
+
+    /**
      * The schema this theme serialises as: V3 the moment it asks for motion, V2 for any other v2
      * feature, else V1. This gates both the keys [toJson] emits and the manifest api bump in
      * [PluginBuilder.theme].
      */
     internal fun schemaVersion(): Int = when {
+        glassBuilder != null -> ThemeSchema.V4
         glitchBuilder != null -> ThemeSchema.V3
         amoled || rolesBuilder?.any() == true || typographyBuilder?.any() == true -> ThemeSchema.V2
         else -> ThemeSchema.V1
     }
+
+    /** Whether the theme asked for the schema-4 glass material, which only a 3.16 host renders. */
+    internal fun usesGlass(): Boolean = glassBuilder != null
+
+    /** The setting the glass block drives its intensity from, or null when it names none. */
+    internal fun glassIntensitySetting(): String? = glassBuilder?.intensitySetting?.trim()
 
     internal fun toJson(): JSONObject {
         require(name.isNotBlank()) { "a theme needs a name" }
@@ -435,7 +499,10 @@ class ThemeBuilder {
                 typographyBuilder?.toJsonOrNull()?.let { put("typography", it) }
             }
             if (schemaVersion() >= ThemeSchema.V3) {
-                glitchBuilder?.let { put("effects", JSONObject().put("glitch", it.toJson())) }
+                JSONObject().apply {
+                    glitchBuilder?.let { put("glitch", it.toJson()) }
+                    glassBuilder?.let { put("glass", it.toJson()) }
+                }.takeIf { it.length() > 0 }?.let { put("effects", it) }
             }
         }
     }
@@ -588,6 +655,120 @@ class ThemeGlitchBuilder {
             put("hardwareReactive", hardwareReactive)
             put("burstMinMs", burstMinMs)
             put("burstMaxMs", burstMaxMs)
+        }
+    }
+}
+
+/**
+ * The schema-4 `glass` block: a translucent, glossy material the host draws the app's panels with,
+ * and the motion they settle with.
+ *
+ * Every field is a *degree*, not a recipe. The host owns the compositing, the frame budget and the
+ * device's own capabilities, so a theme asks for "quite transparent, gently glossy, blurred, and it
+ * should land softly" and the host decides what that is on the hardware in the user's hand.
+ *
+ * ### The intensity control
+ * [intensitySetting] names one of **this plugin's own settings** — the slider the host renders in the
+ * plugin's detail screen, which the user reaches from the Control Center. When it is set, the host
+ * reads that setting live and scales the whole material by it, so moving the slider changes the app
+ * in front of the user. Nothing else is needed: no extra permission, no code, no host API — the
+ * setting is validated against the plugin's `settings.json` when the package is built, so the block
+ * cannot name a control that does not exist, and the host cannot read a value the user never set.
+ *
+ * Leaving it null is legal: the block then renders at exactly [intensity] and there is no control.
+ */
+@PluginDsl
+class ThemeGlassBuilder {
+    /** How far every other value leans toward its maximum. In [GlassBounds.MIN_INTENSITY]..[GlassBounds.MAX_INTENSITY]. */
+    var intensity: Double = 0.7
+
+    /**
+     * How see-through the theme's surfaces are, before [intensity] is applied.
+     *
+     * In [GlassBounds.MIN_TRANSPARENCY]..[GlassBounds.MAX_TRANSPARENCY]. This *removes* alpha from
+     * what the theme's colours already carry rather than adding it, so the colours set the ceiling:
+     * a theme whose `surface` is opaque cannot be made transparent by this, which keeps the material
+     * from contradicting the palette its author also wrote.
+     */
+    var transparency: Double = 0.55
+
+    /** The specular rim and face highlight. In [GlassBounds.MIN_GLOSS]..[GlassBounds.MAX_GLOSS]. */
+    var gloss: Double = 0.45
+
+    /** The backdrop blur radius in dp. In [GlassBounds.MIN_BLUR_DP]..[GlassBounds.MAX_BLUR_DP]. */
+    var blurRadiusDp: Int = 16
+
+    /** Drift a highlight slowly across the panel, so the surface reads as glass rather than as a fill. */
+    var sheen: Boolean = true
+
+    /** One full drift, in milliseconds. In [GlassBounds.MIN_SHEEN_MS]..[GlassBounds.MAX_SHEEN_MS]. */
+    var sheenPeriodMs: Int = 6000
+
+    /**
+     * How a panel settles when the material changes. One of [GlassSprings].
+     *
+     * [GlassSprings.NONE] means no motion at all, which is what a user who has turned animations off
+     * gets regardless of what is asked for here — the host checks that before it reads this.
+     */
+    var spring: String = GlassSprings.SNAPPY
+
+    /**
+     * Let a hot or busy device thin the material — a smaller blur and a slower sheen — rather than
+     * spending its frame budget on glass. Off means the effect reads no sensors at all.
+     */
+    var hardwareReactive: Boolean = false
+
+    /**
+     * The id of one of this plugin's own settings to drive [intensity] from, or null for a fixed
+     * value. The package refuses to build if the id is not declared in `settings {}`.
+     */
+    var intensitySetting: String? = null
+
+    internal fun toJson(): JSONObject {
+        require(intensity in GlassBounds.MIN_INTENSITY..GlassBounds.MAX_INTENSITY) {
+            "glass intensity is $intensity; the host clamps to " +
+                "${GlassBounds.MIN_INTENSITY}..${GlassBounds.MAX_INTENSITY}"
+        }
+        require(transparency in GlassBounds.MIN_TRANSPARENCY..GlassBounds.MAX_TRANSPARENCY) {
+            "glass transparency is $transparency; the host clamps to " +
+                "${GlassBounds.MIN_TRANSPARENCY}..${GlassBounds.MAX_TRANSPARENCY} — " +
+                "0 keeps the theme's own alpha and 1 clears the surface"
+        }
+        require(gloss in GlassBounds.MIN_GLOSS..GlassBounds.MAX_GLOSS) {
+            "glass gloss is $gloss; the host clamps to " +
+                "${GlassBounds.MIN_GLOSS}..${GlassBounds.MAX_GLOSS}"
+        }
+        require(blurRadiusDp in GlassBounds.MIN_BLUR_DP..GlassBounds.MAX_BLUR_DP) {
+            "glass blurRadiusDp is $blurRadiusDp; the host clamps to " +
+                "${GlassBounds.MIN_BLUR_DP}..${GlassBounds.MAX_BLUR_DP} — past 32dp the backdrop " +
+                "is unreadable and the frame budget is gone"
+        }
+        require(sheenPeriodMs in GlassBounds.MIN_SHEEN_MS..GlassBounds.MAX_SHEEN_MS) {
+            "glass sheenPeriodMs is $sheenPeriodMs; the host clamps to " +
+                "${GlassBounds.MIN_SHEEN_MS}..${GlassBounds.MAX_SHEEN_MS} — faster than 1.5s strobes"
+        }
+        val springId = spring.trim().lowercase()
+        require(springId in GlassSprings.ALL) {
+            "glass spring is \"$spring\"; one of (${GlassSprings.ALL.joinToString()})"
+        }
+        val settingId = intensitySetting?.trim()
+        require(settingId == null || settingId.isNotEmpty()) {
+            "glass intensitySetting is blank; name a setting or leave it null"
+        }
+        require(settingId == null || settingId.length <= GlassBounds.MAX_SETTING_ID_LENGTH) {
+            "glass intensitySetting is ${settingId!!.length} characters; " +
+                "the host caps a setting id at ${GlassBounds.MAX_SETTING_ID_LENGTH}"
+        }
+        return JSONObject().apply {
+            put("intensity", intensity)
+            put("transparency", transparency)
+            put("gloss", gloss)
+            put("blurRadiusDp", blurRadiusDp)
+            put("sheen", sheen)
+            put("sheenPeriodMs", sheenPeriodMs)
+            put("spring", springId)
+            put("hardwareReactive", hardwareReactive)
+            settingId?.let { put("intensitySetting", it) }
         }
     }
 }

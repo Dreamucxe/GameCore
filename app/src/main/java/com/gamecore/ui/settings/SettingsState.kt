@@ -44,6 +44,16 @@ data class SettingsUiState(
     val pendingClearHistory: Boolean = false,
     val pendingResetSettings: Boolean = false,
     val message: String? = null,
+    /**
+     * Whether a schema-4 theme with a material is in force, so the Glass Control Center has something to
+     * control.
+     *
+     * The Settings list uses it to decide whether its row appears at all, because a row that leads to a
+     * screen with nothing on it is a control that does nothing — the same reason the Screen extraction row
+     * waits for its feature switch. Unlike that switch this one is not the user's to set: it is a fact
+     * about the theme they have selected.
+     */
+    val hasGlassTheme: Boolean = false,
 ) {
     val hasHistory: Boolean get() = sessionCount > 0
 

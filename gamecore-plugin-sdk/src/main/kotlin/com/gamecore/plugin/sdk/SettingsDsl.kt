@@ -35,6 +35,9 @@ class SettingsBuilder {
     private val settings = JSONArray()
     private val ids = linkedSetOf<String>()
 
+    /** The declared type of each id, so a cross-section check can ask what a control actually is. */
+    private val typesById = linkedMapOf<String, String>()
+
     /** A boolean setting. */
     fun bool(id: String, default: Boolean) {
         put(id, SettingTypes.BOOL) { put("default", default) }
@@ -116,6 +119,7 @@ class SettingsBuilder {
         require(settings.length() < SettingBounds.MAX_SETTINGS) {
             "a settings section holds at most ${SettingBounds.MAX_SETTINGS} settings"
         }
+        typesById[id] = type
         settings.put(
             JSONObject().apply {
                 put("id", id)
@@ -124,6 +128,16 @@ class SettingsBuilder {
             },
         )
     }
+
+    /**
+     * The type of the setting [id] declares, or null when this section declares no such id.
+     *
+     * Read by [PluginBuilder.build] to check that a `glass` block's intensity control exists *and* is a
+     * number: a glass material scaled by a boolean or a free-text string is a control the host could
+     * only ignore, and the author would see their theme render at its authored intensity with a slider
+     * that appeared to do nothing.
+     */
+    internal fun typeOf(id: String): String? = typesById[id]
 
     /**
      * Validates a setting id to the host's storage-key grammar: lowercase, starting with a letter or

@@ -82,6 +82,12 @@ val GameCoreShapes = Shapes(
  *    see, let alone set: the user's Animations preference and the platform animator scale. A theme that
  *    tears the screen is a style choice for the person who installed it, and an unreadable app is not
  *    something a package should be able to inflict on the person who did not.
+ *  - **A plugin may ask for a material; the user dials it in.** From schema 4 a theme can carry a
+ *    `glass` block. [glassScale] is where it lands, and it is not the theme's number — it is the
+ *    position of the Control Center's slider, which is the whole reason the block names one of the
+ *    plugin's own settings rather than carrying its intensity alone. `1f` is "as the author wrote
+ *    it" and is what every caller that does not pass a value gets, so a preview of a glass theme
+ *    draws the material the theme designed.
  */
 @Composable
 fun GameCoreTheme(
@@ -89,6 +95,7 @@ fun GameCoreTheme(
     pluginTheme: PluginTheme? = null,
     engineTint: Color? = null,
     glitchConditions: GlitchConditions = GlitchConditions.None,
+    glassScale: Float = 1f,
     content: @Composable () -> Unit,
 ) {
     val systemDark = isSystemInDarkTheme()
@@ -175,6 +182,11 @@ fun GameCoreTheme(
     // write. A plugin asks for motion; it never gets to argue with either.
     val animationsEnabled = settings.animations != AnimationsMode.OFF && systemAnimationScale() > 0f
 
+    // The schema-4 material, resolved once for the whole app. Null — the case for every theme before
+    // schema 4, and for a glass theme the user has dialled to nothing — costs one composition-local
+    // provide and no layer anywhere.
+    val glassState = rememberGlassState(effectivePluginTheme, glassScale, animationsEnabled)
+
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -191,7 +203,19 @@ fun GameCoreTheme(
         typography = typography,
         shapes = shapes,
     ) {
-        CompositionLocalProvider(LocalDensity provides scaled) {
+        CompositionLocalProvider(
+            LocalDensity provides scaled,
+            // The schema-4 material, or null. Published here rather than threaded through the
+            // component set because the components that have to change are the app's own cards,
+            // drawn a hundred call sites deep — a `PlainCard` that took a material parameter would
+            // be a change to the whole app for a feature none of those call sites know about.
+            LocalGlassMaterial provides glassState,
+            // The motion verdict, published for the one thing under this theme that draws motion
+            // without being part of its layer stack: the Glass Control Center's preview. It is
+            // provided rather than recomputed there so that the preview and the app cannot disagree
+            // about whether the user has asked for motion.
+            LocalAnimationsEnabled provides animationsEnabled,
+        ) {
             // The schema-3 motion block, when the theme carries one and the user has not asked for
             // motion off. Both halves are required: `resolvedGlitch()` already returns null for a
             // theme that asked for no motion, and `animationsEnabled` is the veto that a theme

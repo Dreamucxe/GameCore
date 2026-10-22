@@ -43,12 +43,24 @@ class LiquidGlassGameCorePackageTest {
         assertEquals("gamecore.plugin", m.getString("format"), "format")
         assertEquals("com.dreamucxe.gamecore.liquidglass", m.getString("id"), "id")
         assertEquals("Liquid Glass GameCore", m.getString("name"), "name")
-        assertEquals(2, m.getInt("version"), "version")
-        assertEquals("1.1.0", m.getString("versionName"), "versionName")
-        assertEquals(1, m.getInt("api"), "api")
-        assertEquals(Sdk.HOST_VERSION_CODE_ICON, m.getInt("minHostVersion"), "minHostVersion is the icon host (37)")
+        assertEquals(3, m.getInt("version"), "version")
+        assertEquals("1.2.0", m.getString("versionName"), "versionName")
+        // The api is raised by the section the plugin declares, not chosen: a schema-4 theme is
+        // readable only by a host that knows schema 4, so the builder lifts this from Sdk.API.
+        assertEquals(Sdk.API_V4, m.getInt("api"), "api is the schema-4 level")
+        // The glass block raises this on its own — see ThemeBuilder.schemaVersion(). Pinned to the
+        // glass host rather than to Sdk.HOST_VERSION_CODE, because a host below this one parses
+        // `effects.glass` as an unknown key and refuses the whole theme.
+        assertEquals(
+            Sdk.HOST_VERSION_CODE_GLASS,
+            m.getInt("minHostVersion"),
+            "minHostVersion is the glass host (${Sdk.HOST_VERSION_CODE_GLASS})",
+        )
         assertEquals("Dream", m.getString("developer"), "developer")
-        assertEquals("Initial release.", m.getString("changelog"), "changelog")
+        assertTrue(
+            m.getString("changelog").startsWith("1.2.0"),
+            "changelog names the release it belongs to",
+        )
 
         // Legal guard: the id and name must not carry Apple's marks (only "inspired by iOS").
         for (field in listOf("id", "name")) {
@@ -58,12 +70,13 @@ class LiquidGlassGameCorePackageTest {
             }
         }
 
-        // Two permissions: the theme repaint, then the launcher icon.
+        // Three permissions: the theme repaint, the launcher icon, and the isolated store the
+        // Control Center's intensity value lives in.
         val perms = m.getJSONArray("permissions")
         assertEquals(
-            listOf("change_ui", "change_icon"),
+            listOf("change_ui", "change_icon", "store_data"),
             (0 until perms.length()).map { perms.getJSONObject(it).getString("id") },
-            "change_ui then change_icon, in request order",
+            "change_ui, change_icon then store_data, in request order",
         )
         for (i in 0 until perms.length()) {
             assertTrue(!perms.getJSONObject(i).has("scopes"), "neither permission carries scopes")
@@ -71,9 +84,9 @@ class LiquidGlassGameCorePackageTest {
 
         val declares = m.getJSONArray("declares")
         assertEquals(
-            listOf("theme", "icon"),
+            listOf("theme", "settings", "icon"),
             (0 until declares.length()).map { declares.getString(it) },
-            "declares theme, then the icon section",
+            "declares theme, then settings, then the icon section",
         )
     }
 
@@ -82,12 +95,13 @@ class LiquidGlassGameCorePackageTest {
         val t = JSONObject(String(def.sectionFiles.getValue("theme.json")))
         assertEquals(
             setOf(
-                "name", "dark", "primary", "onPrimary", "background", "surface",
-                "onSurface", "accent", "cornerRadiusDp", "font", "uiScale",
+                "schema", "name", "dark", "primary", "onPrimary", "background", "surface",
+                "onSurface", "accent", "cornerRadiusDp", "font", "uiScale", "effects",
             ),
             t.keys().asSequence().toSet(),
             "theme emits exactly the host's known theme keys",
         )
+        assertEquals(4, t.getInt("schema"), "schema 4 — the glass material needs it")
         assertEquals("Liquid Glass GameCore", t.getString("name"), "theme name")
         assertTrue(t.getBoolean("dark"), "dark theme (dark=true)")
         assertEquals("#0A6FE0", t.getString("primary"), "primary system blue (AA-darkened)")
@@ -99,6 +113,102 @@ class LiquidGlassGameCorePackageTest {
         assertEquals(20, t.getInt("cornerRadiusDp"), "corner radius")
         assertEquals("rounded", t.getString("font"), "font")
         assertEquals(1.0, t.getDouble("uiScale"), 1e-9, "uiScale")
+    }
+
+    /**
+     * The block this plugin exists for. Every field is asserted, because each one is a *different*
+     * claim about the material: drop `transparency` and the theme is a flat tint again, drop `gloss`
+     * and it is translucency with no rim, drop the spring and a panel snaps instead of settling.
+     */
+    @Test
+    fun theme_asks_for_the_glass_material() {
+        val t = JSONObject(String(def.sectionFiles.getValue("theme.json")))
+        val effects = t.getJSONObject("effects")
+        assertEquals(setOf("glass"), effects.keys().asSequence().toSet(), "effects carries glass alone")
+        val g = effects.getJSONObject("glass")
+        assertEquals(
+            setOf(
+                "intensity", "transparency", "gloss", "blurRadiusDp", "sheen", "sheenPeriodMs",
+                "spring", "hardwareReactive", "intensitySetting",
+            ),
+            g.keys().asSequence().toSet(),
+            "glass emits exactly the host's known glass keys",
+        )
+        assertEquals(0.7, g.getDouble("intensity"), 1e-9, "intensity")
+        assertEquals(0.62, g.getDouble("transparency"), 1e-9, "transparency")
+        assertEquals(0.55, g.getDouble("gloss"), 1e-9, "gloss")
+        assertEquals(16, g.getInt("blurRadiusDp"), "blurRadiusDp")
+        assertTrue(g.getBoolean("sheen"), "sheen")
+        assertEquals(9000, g.getInt("sheenPeriodMs"), "sheenPeriodMs")
+        assertEquals(GlassSprings.SNAPPY, g.getString("spring"), "spring")
+        // Off on purpose: glass must not thin itself out on a warm device. See the template's header.
+        assertTrue(!g.getBoolean("hardwareReactive"), "hardwareReactive is off")
+        assertEquals("glass_intensity", g.getString("intensitySetting"), "intensitySetting")
+        for (key in listOf("intensity", "transparency", "gloss")) {
+            val v = g.getDouble(key)
+            assertTrue(v in 0.0..1.0, "$key is a 0..1 degree (is $v)")
+        }
+    }
+
+    /** The control the material is scaled by, which is what makes it a Control Center and not a look. */
+    @Test
+    fun settings_declare_the_intensity_the_glass_block_drives() {
+        // The section is a list of definitions, not a map keyed by id.
+        val settings = JSONObject(String(def.sectionFiles.getValue("settings.json")))
+            .getJSONArray("settings")
+        assertEquals(1, settings.length(), "the plugin declares exactly one setting")
+        val intensity = settings.getJSONObject(0)
+        assertEquals("glass_intensity", intensity.getString("id"), "id")
+        assertEquals(SettingTypes.FLOAT, intensity.getString("type"), "type")
+        assertEquals(0.7, intensity.getDouble("default"), 1e-9, "default — the theme's own intensity")
+        assertEquals(0.0, intensity.getDouble("min"), 1e-9, "min")
+        assertEquals(1.0, intensity.getDouble("max"), 1e-9, "max")
+    }
+
+    /**
+     * The cross-check that makes the pair above safe: the id the material is scaled by is a setting
+     * this plugin actually declares, and it is a number.
+     *
+     * Both failure modes are silent in the host — it finds no control, or finds one it cannot read as
+     * a value — and both look to the user exactly like a theme that ignores its own Control Center.
+     * So the refusal has to happen here, in the author's build. `plugin {}` builds its bytes eagerly,
+     * which is why the throw lands on the call and not on [`PluginDefinition.manifestJson`].
+     */
+    @Test
+    fun an_intensitySetting_that_names_nothing_refuses_to_build() {
+        val error = runCatching {
+            plugin(id = "com.dreamucxe.gamecore.probe", name = "Probe") {
+                theme {
+                    name = "Probe"
+                    glass { intensitySetting = "not_declared" }
+                }
+                settings { float("something_else", default = 0.5) }
+            }
+        }.exceptionOrNull()
+        assertTrue(error is IllegalStateException, "a nameless control is refused (got $error)")
+        assertTrue(
+            error!!.message!!.contains("not_declared"),
+            "the message names the id that could not be resolved",
+        )
+    }
+
+    /** A boolean is a setting, but it is not an intensity: the host could not read it as a value. */
+    @Test
+    fun an_intensitySetting_that_is_not_a_number_refuses_to_build() {
+        val error = runCatching {
+            plugin(id = "com.dreamucxe.gamecore.probe2", name = "Probe") {
+                theme {
+                    name = "Probe"
+                    glass { intensitySetting = "on" }
+                }
+                settings { bool("on", default = true) }
+            }
+        }.exceptionOrNull()
+        assertTrue(error is IllegalArgumentException, "a non-numeric control is refused (got $error)")
+        assertTrue(
+            error!!.message!!.contains("on"),
+            "the message names the id that could not be scaled from",
+        )
     }
 
     @Test
@@ -120,9 +230,9 @@ class LiquidGlassGameCorePackageTest {
             }
         }
         assertEquals(
-            listOf("manifest.json", "theme.json", "icon.json"),
+            listOf("manifest.json", "theme.json", "settings.json", "icon.json"),
             ordered,
-            "manifest first, then theme, then the icon section",
+            "manifest first, then theme, settings and the icon section",
         )
 
         ZipFile(out).use { zip ->

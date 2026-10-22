@@ -129,7 +129,11 @@ class PluginThemeCodecTest {
 
     @Test
     fun `a schema past the current one is rejected`() {
-        val r = PluginThemeCodec.decode(v2.replace("\"schema\":2", "\"schema\":4")) as PluginThemeCodec.Result.Rejected
+        // The current schema moves — it is 4 now — so the "past the current" value is computed
+        // from it rather than hard-coded. A hard-coded 4 silently became a *current* schema and
+        // this test stopped testing anything.
+        val past = PluginTheme.SCHEMA_CURRENT + 1
+        val r = PluginThemeCodec.decode(v2.replace("\"schema\":2", "\"schema\":$past")) as PluginThemeCodec.Result.Rejected
         assertEquals(PluginThemeCodec.Reason.BAD_SCHEMA, r.reason)
     }
 

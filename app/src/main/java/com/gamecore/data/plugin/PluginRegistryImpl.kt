@@ -38,6 +38,7 @@ import com.gamecore.core.plugin.settings.PluginSettingsCodec
 import com.gamecore.core.plugin.settings.PluginSettingsSchema
 import com.gamecore.core.plugin.settings.SettingValue
 import com.gamecore.core.plugin.theme.PluginTheme
+import com.gamecore.core.plugin.theme.glassIntensityScale
 import com.gamecore.core.plugin.icon.PluginIconArtwork
 import com.gamecore.core.plugin.icon.PluginIconCodec
 import com.gamecore.core.plugin.icon.PluginIconSpec
@@ -731,10 +732,39 @@ class PluginRegistryImpl @Inject constructor(
 
     private fun readTheme(record: PluginRecord): PluginTheme? {
         val raw = sectionEntries(record, PluginSection.THEME).firstOrNull() ?: return null
-        return when (val decoded = PluginThemeCodec.decode(raw.toString(Charsets.UTF_8))) {
+        val theme = when (val decoded = PluginThemeCodec.decode(raw.toString(Charsets.UTF_8))) {
             is PluginThemeCodec.Result.Parsed -> decoded.theme
-            is PluginThemeCodec.Result.Rejected -> null
+            is PluginThemeCodec.Result.Rejected -> return null
         }
+        return theme.takeIf { glassControlResolves(record, theme) }
+    }
+
+    /**
+     * Whether a schema-4 theme's glass intensity control names a setting this plugin actually has.
+     *
+     * The one cross-section check the theme path carries, and it exists because the theme file cannot
+     * carry it: `theme.json` does not know what its sibling `settings.json` declares. The codec holds
+     * the *shape* of the name — non-blank, inside the store's id cap — and this holds it to the
+     * declaration, which is the part that decides whether the Control Center the user is shown does
+     * anything at all.
+     *
+     * A theme that names a setting which does not exist, or which is not a number, or whose range
+     * cannot be read as a 0..1 travel, is rejected whole rather than loaded with its control quietly
+     * dropped. That is the harsher of the two available answers and it is the right one here: the
+     * alternative renders the material at its authored intensity behind a slider that moves and
+     * changes nothing, which is a screen that lies to the user about what it is doing. Rejecting the
+     * theme leaves the app on its own colours, where it is obvious at a glance that something is
+     * wrong.
+     *
+     * Cost is one extra read of `settings.json`, and only for a plugin whose theme carries a `glass`
+     * block with a control in it — which is to say, only for the plugins that asked for one. The
+     * official ones are refused before they are built rather than here: `ThemeGlassBuilder` fails the
+     * package in `PluginBuilder.build`.
+     */
+    private fun glassControlResolves(record: PluginRecord, theme: PluginTheme): Boolean {
+        val wanted = theme.glass?.intensitySetting ?: return true
+        val def = readSettings(record)?.byId(wanted) ?: return false
+        return def.glassIntensityScale() != null
     }
 
     /**

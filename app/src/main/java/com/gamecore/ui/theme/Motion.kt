@@ -3,6 +3,7 @@ package com.gamecore.ui.theme
 import android.provider.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 
 /**
@@ -48,3 +49,16 @@ fun systemAnimationScale(): Float {
         }.getOrDefault(1f)
     }
 }
+
+/**
+ * Whether motion is allowed anywhere under the current theme, decided once by
+ * [GameCoreTheme][com.gamecore.ui.theme.GameCoreTheme] and read by anything that draws motion outside
+ * the theme's own layer stack — in practice the Glass Control Center's preview.
+ *
+ * Both vetoes are already folded in by the time this is provided: the app's Animations setting and the
+ * platform's animator scale. A screen that recomputed the pair for itself would be a second opinion on
+ * a question the theme has already answered, and the two would drift the first time one of the vetoes
+ * changed. Defaults to `true` because the only code that reads it without a theme above it is a
+ * `@Preview`, where motion is not the thing being checked.
+ */
+val LocalAnimationsEnabled = staticCompositionLocalOf { true }

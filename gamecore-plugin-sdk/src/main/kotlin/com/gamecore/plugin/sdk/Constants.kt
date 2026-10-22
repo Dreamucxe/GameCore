@@ -145,7 +145,78 @@ object ThemeSchema {
      * around — see the host's `PluginTheme.SCHEMA_V3`.
      */
     const val V3 = 3
-    const val CURRENT = V3
+
+    /**
+     * Schema 4 adds the `glass` material block to `effects`: translucent surfaces, a specular rim and
+     * top highlight, an optional drifting sheen, a backdrop blur and the spring the panel settles with.
+     *
+     * A host that predates it rejects the theme rather than rendering an opaque stand-in, for the same
+     * reason schema 3 does: a glass theme whose transparency silently became a flat fill is not the
+     * design the author made, and the user has no way to tell that from a rendering bug.
+     */
+    const val V4 = 4
+    const val CURRENT = V4
+}
+
+/**
+ * The motion character a glass panel settles with, mirroring the host's `PluginGlass.Spring`.
+ *
+ * Named after the feel rather than the numbers, because the numbers are the host's to own: a plugin
+ * says "this should land like a switch" and the host decides what stiffness that is on the device it
+ * is running on. [NONE] is not "fast" — it is the absence of motion, which is what a user who turned
+ * animations off must get.
+ */
+object GlassSprings {
+    const val NONE = "none"
+    const val GENTLE = "gentle"
+    const val SNAPPY = "snappy"
+    const val BOUNCY = "bouncy"
+
+    val ALL = setOf(NONE, GENTLE, SNAPPY, BOUNCY)
+}
+
+/**
+ * Bounds for a schema-4 `glass` block, mirroring the host's `PluginGlass`.
+ *
+ * The host clamps every one of these, so a value outside a bound is not rejected — it ships as the
+ * nearest legal value, which is a theme that renders differently from the one that was authored. The
+ * DSL asserts instead of clamping so that lands in the author's build, not in the user's hands.
+ */
+object GlassBounds {
+    /** How far every other value leans toward its maximum. In [MIN_INTENSITY]..[MAX_INTENSITY]. */
+    const val MIN_INTENSITY = 0.0
+    const val MAX_INTENSITY = 1.0
+
+    /**
+     * How see-through the theme's own surfaces are at full intensity: 0 leaves the authored colours
+     * exactly as they are, 1 lets a surface show almost all of what is behind it.
+     *
+     * This multiplies what the theme's colours already carry rather than replacing it, so a theme that
+     * ships `#CC101216` keeps its own alpha as the ceiling and this only ever removes more.
+     */
+    const val MIN_TRANSPARENCY = 0.0
+    const val MAX_TRANSPARENCY = 1.0
+
+    /** The specular rim on the panel's top edge and the highlight that falls across its face. */
+    const val MIN_GLOSS = 0.0
+    const val MAX_GLOSS = 1.0
+
+    /**
+     * The backdrop blur radius in dp.
+     *
+     * Honest about the platform: Android applies a real blur from API 31, and the host renders the
+     * translucency, rim and sheen without it below that. A device under 31 still gets glass — it gets
+     * glass with a sharp backdrop, and the Control Center says so rather than pretending.
+     */
+    const val MIN_BLUR_DP = 0
+    const val MAX_BLUR_DP = 32
+
+    /** The period of one drift of the highlight across the panel. */
+    const val MIN_SHEEN_MS = 1500
+    const val MAX_SHEEN_MS = 20000
+
+    /** The longest a bound setting id may be — the same cap the host puts on a setting id. */
+    const val MAX_SETTING_ID_LENGTH = 64
 }
 
 /**
@@ -624,6 +695,16 @@ object Sdk {
      * declines to load on an older GameCore, and everything else stays byte-identical.
      */
     const val HOST_VERSION_CODE_ICON = 37
+
+    /**
+     * The first host build that understands a schema-4 `glass` effect.
+     *
+     * A per-use bump for the same reason [HOST_VERSION_CODE_ICON] is one: only a theme that asks for
+     * glass declines to load on an older GameCore, and every plugin that does not stays byte-identical.
+     * A theme that used the block needs it, because the older host rejects schema 4 outright rather
+     * than rendering the palette flat.
+     */
+    const val HOST_VERSION_CODE_GLASS = 38
 
     /**
      * The manifest `api` level at which the 3.x platform features landed — a settings section,

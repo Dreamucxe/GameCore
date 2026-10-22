@@ -39,9 +39,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.gamecore.ui.theme.LocalGlassMaterial
 import com.gamecore.ui.theme.StatusGood
 import com.gamecore.ui.theme.ThermalCritical
 import com.gamecore.ui.theme.ThermalWarning
+import com.gamecore.ui.theme.glassPanel
 
 /**
  * The pieces every screen is built out of.
@@ -140,18 +142,25 @@ fun SectionGap(height: Int = 12) = Spacer(modifier = Modifier.height(height.dp))
  * `surface` on a `background` that is a shade darker, with a hairline outline rather than an elevation
  * shadow: on the near-black dark scheme a shadow is invisible and a tonal elevation overlay muddies the
  * accent, whereas a one-pixel outline separates a card from the page at any brightness.
+ *
+ * When a schema-4 theme has put the app in glass, the card is drawn as material instead — see
+ * [glassPanel] — and this becomes the same `Surface` with its own fill and outline switched off, so
+ * everything a card is *for* is unchanged: the shape, the content colour, the ripple on the clickable
+ * variant and the role a screen reader announces. Only the pixels come from somewhere else.
  */
 @Composable
 fun PlainCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val shape = MaterialTheme.shapes.large
+    val glass = LocalGlassMaterial.current
     Surface(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surface,
+        modifier = if (glass == null) modifier else modifier.glassPanel(glass, shape),
+        shape = shape,
+        color = if (glass == null) MaterialTheme.colorScheme.surface else Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = if (glass == null) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
     ) {
         Column(modifier = Modifier.padding(14.dp), content = content)
     }
@@ -163,6 +172,10 @@ fun PlainCard(
  * Separate from [PlainCard] rather than a nullable `onClick`, because the two are different components
  * to the accessibility layer: a clickable `Surface` gets a role, a ripple and a focus target, and a card
  * that merely *might* have a click handler would advertise all three to a screen reader either way.
+ *
+ * Glass-aware in exactly [PlainCard]'s way, which is possible precisely because the material is a
+ * modifier on the `Surface` rather than a replacement for it: a tappable glass panel still ripples,
+ * and the ripple is drawn over the material rather than under it.
  */
 @Composable
 fun ClickableCard(
@@ -170,13 +183,15 @@ fun ClickableCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val shape = MaterialTheme.shapes.large
+    val glass = LocalGlassMaterial.current
     Surface(
         onClick = onClick,
-        modifier = modifier,
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surface,
+        modifier = if (glass == null) modifier else modifier.glassPanel(glass, shape),
+        shape = shape,
+        color = if (glass == null) MaterialTheme.colorScheme.surface else Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = if (glass == null) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
     ) {
         Column(modifier = Modifier.padding(14.dp), content = content)
     }
