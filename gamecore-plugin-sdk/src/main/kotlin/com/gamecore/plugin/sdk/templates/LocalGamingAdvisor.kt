@@ -3,6 +3,7 @@ package com.gamecore.plugin.sdk.templates
 import com.gamecore.plugin.sdk.Actions
 import com.gamecore.plugin.sdk.ChartKinds
 import com.gamecore.plugin.sdk.DataScopes
+import com.gamecore.plugin.sdk.IconSlots
 import com.gamecore.plugin.sdk.OverlayIcons
 import com.gamecore.plugin.sdk.OverlayStats
 import com.gamecore.plugin.sdk.Permissions
@@ -51,8 +52,8 @@ fun localGamingAdvisor(): PluginDefinition = plugin(
     id = "com.dreamucxe.gamecore.advisor",
     name = "Local Gaming Advisor",
 ) {
-    version = 1
-    versionName = "1.0.0"
+    version = 2
+    versionName = "1.1.0"
     developer = "Dream"
     description = "Read-only gaming advice drawn from your own device's performance and thermal " +
         "readings, with an optional cooldown automation you stay in control of. It reports; it " +
@@ -73,6 +74,7 @@ fun localGamingAdvisor(): PluginDefinition = plugin(
     request(Permissions.STORE_DATA)
     request(Permissions.RUN_AUTOMATIONS)
     request(Permissions.SYSTEM_ACTIONS)
+    request(Permissions.CHANGE_ICON)   // the launcher icon the plugin asks for
 
     screens {
         screen("advice", "Advice", icon = OverlayIcons.INSIGHTS) {
@@ -191,6 +193,9 @@ fun localGamingAdvisor(): PluginDefinition = plugin(
             ),
         )
     }
+    // The launcher icon this plugin asks for: one of the slots GameCore ships,
+    // switched in Settings and outranked by the user's own choice the moment they pick one.
+    icon(slot = IconSlots.DEFAULT)
 }
 
 /**

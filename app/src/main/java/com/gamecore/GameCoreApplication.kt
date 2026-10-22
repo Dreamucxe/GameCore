@@ -1,6 +1,7 @@
 package com.gamecore
 
 import android.app.Application
+import com.gamecore.core.common.CrashLog
 import com.gamecore.core.common.NotificationChannels
 import com.gamecore.core.shizuku.ShizukuShell
 import dagger.hilt.android.HiltAndroidApp
@@ -32,6 +33,11 @@ class GameCoreApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // First, so a crash anywhere below is written down. A release build has no reachable
+        // logcat on a phone without adb, and an unexplained "it just closes" is otherwise
+        // undiagnosable from the outside.
+        CrashLog.install(this)
 
         // Channels have to exist before any notification is posted, and a foreground
         // service can be started by the system restarting us before any Activity has

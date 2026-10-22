@@ -1,9 +1,10 @@
 {
-  "minHostVersion": 28,
+  "minHostVersion": 37,
   "declares": [
     "pill",
     "screens",
-    "settings"
+    "settings",
+    "icon"
   ],
   "permissions": [
     {"id": "create_overlay"},
@@ -15,7 +16,8 @@
       ]
     },
     {"id": "change_ui"},
-    {"id": "store_data"}
+    {"id": "store_data"},
+    {"id": "change_icon"}
   ],
   "format": "gamecore.plugin",
   "name": "Sensitivity Lab Pro",
@@ -24,6 +26,6 @@
   "developer": "Dream",
   "id": "com.dreamucxe.gamecore.sensitivitylab",
   "api": 3,
-  "versionName": "1.0.0",
-  "version": 1
+  "versionName": "1.1.0",
+  "version": 2
 }

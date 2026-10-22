@@ -43,10 +43,10 @@ class LiquidGlassGameCorePackageTest {
         assertEquals("gamecore.plugin", m.getString("format"), "format")
         assertEquals("com.dreamucxe.gamecore.liquidglass", m.getString("id"), "id")
         assertEquals("Liquid Glass GameCore", m.getString("name"), "name")
-        assertEquals(1, m.getInt("version"), "version")
-        assertEquals("1.0.0", m.getString("versionName"), "versionName")
+        assertEquals(2, m.getInt("version"), "version")
+        assertEquals("1.1.0", m.getString("versionName"), "versionName")
         assertEquals(1, m.getInt("api"), "api")
-        assertEquals(28, m.getInt("minHostVersion"), "minHostVersion")
+        assertEquals(Sdk.HOST_VERSION_CODE_ICON, m.getInt("minHostVersion"), "minHostVersion is the icon host (37)")
         assertEquals("Dream", m.getString("developer"), "developer")
         assertEquals("Initial release.", m.getString("changelog"), "changelog")
 
@@ -58,15 +58,23 @@ class LiquidGlassGameCorePackageTest {
             }
         }
 
+        // Two permissions: the theme repaint, then the launcher icon.
         val perms = m.getJSONArray("permissions")
-        assertEquals(1, perms.length(), "exactly one permission")
-        val p = perms.getJSONObject(0)
-        assertEquals("change_ui", p.getString("id"), "the one permission is change_ui")
-        assertTrue(!p.has("scopes"), "change_ui carries no scopes")
+        assertEquals(
+            listOf("change_ui", "change_icon"),
+            (0 until perms.length()).map { perms.getJSONObject(it).getString("id") },
+            "change_ui then change_icon, in request order",
+        )
+        for (i in 0 until perms.length()) {
+            assertTrue(!perms.getJSONObject(i).has("scopes"), "neither permission carries scopes")
+        }
 
         val declares = m.getJSONArray("declares")
-        assertEquals(1, declares.length(), "declares exactly one section")
-        assertEquals("theme", declares.getString(0), "declares theme")
+        assertEquals(
+            listOf("theme", "icon"),
+            (0 until declares.length()).map { declares.getString(it) },
+            "declares theme, then the icon section",
+        )
     }
 
     @Test
@@ -111,7 +119,11 @@ class LiquidGlassGameCorePackageTest {
                 zin.closeEntry()
             }
         }
-        assertEquals(listOf("manifest.json", "theme.json"), ordered, "manifest first, then theme")
+        assertEquals(
+            listOf("manifest.json", "theme.json", "icon.json"),
+            ordered,
+            "manifest first, then theme, then the icon section",
+        )
 
         ZipFile(out).use { zip ->
             zip.entries().asSequence().forEach { e ->

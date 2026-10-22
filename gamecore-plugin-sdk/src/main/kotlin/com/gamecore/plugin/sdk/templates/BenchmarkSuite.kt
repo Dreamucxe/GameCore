@@ -2,6 +2,7 @@ package com.gamecore.plugin.sdk.templates
 
 import com.gamecore.plugin.sdk.ChartKinds
 import com.gamecore.plugin.sdk.DataScopes
+import com.gamecore.plugin.sdk.IconSlots
 import com.gamecore.plugin.sdk.OverlayIcons
 import com.gamecore.plugin.sdk.OverlaySizes
 import com.gamecore.plugin.sdk.OverlayStats
@@ -53,8 +54,8 @@ fun benchmarkSuite(): PluginDefinition = plugin(
     id = "com.dreamucxe.gamecore.benchmark",
     name = "Benchmark Suite",
 ) {
-    version = 1
-    versionName = "1.0.0"
+    version = 2
+    versionName = "1.1.0"
     // api becomes 3 via the widgets{} and screens{} sections; minHostVersion keeps the default (28).
     developer = "Dream"
     description = "A read-only visualizer for GameCore's performance feed — live FPS, CPU, GPU and " +
@@ -71,6 +72,7 @@ fun benchmarkSuite(): PluginDefinition = plugin(
         scopes = setOf(DataScopes.DEVICE_STATS, DataScopes.THERMALS),
     )
     request(Permissions.CHANGE_UI)
+    request(Permissions.CHANGE_ICON)   // the launcher icon the plugin asks for
 
     // ── pill ──────────────────────────────────────────────────────────────────────────────────
     // A telemetry badge over the game: one card holding a four-column row, each column a label over
@@ -209,6 +211,9 @@ fun benchmarkSuite(): PluginDefinition = plugin(
             }
         }
     }
+    // The launcher icon this plugin asks for: one of the slots GameCore ships,
+    // switched in Settings and outranked by the user's own choice the moment they pick one.
+    icon(slot = IconSlots.DEFAULT)
 }
 
 /**

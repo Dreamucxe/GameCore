@@ -1,5 +1,6 @@
 package com.gamecore.plugin.sdk.templates
 
+import com.gamecore.plugin.sdk.IconSlots
 import com.gamecore.plugin.sdk.Permissions
 import com.gamecore.plugin.sdk.PluginDefinition
 import com.gamecore.plugin.sdk.ThemeFonts
@@ -23,13 +24,14 @@ fun cybercoreGameCore(): PluginDefinition = plugin(
     id = "com.dreamucxe.gamecore.cybercore",
     name = "Cybercore GameCore",
 ) {
-    version = 1
-    versionName = "1.0.0"
+    version = 2
+    versionName = "1.1.0"
     developer = "Dream"
     description = "Y2K blue-screen theme — CRT navy, screen-blue glow, mono type, square corners."
     changelog = "Initial release."
 
     request(Permissions.CHANGE_UI)
+    request(Permissions.CHANGE_ICON)   // the launcher icon the plugin asks for
 
     theme {
         name = "Cybercore GameCore"
@@ -58,4 +60,7 @@ fun cybercoreGameCore(): PluginDefinition = plugin(
             scale = 0.96               // dense, terminal-like
         }
     }
+
+    // The neon slot is the plugin's own launcher entry — the icon the launcher shows for it.
+    icon(slot = IconSlots.NEON)
 }

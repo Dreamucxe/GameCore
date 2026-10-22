@@ -49,6 +49,26 @@ enum class PluginPermission(
         whatItTouches = "Appearance only — safety screens stay as GameCore drew them.",
     ),
 
+    /**
+     * Change the icon the launcher shows for GameCore, within the set the app ships.
+     *
+     * Separate from [CHANGE_UI] because it is a different surface with a different lifetime: a theme
+     * lasts while GameCore is open, whereas the launcher icon is what the phone shows when the app is
+     * closed, and is the app's identity next to its other icons. A plugin that restyles screens has
+     * no business repainting that without asking.
+     *
+     * The power is bounded by construction: [com.gamecore.core.plugin.icon.AppIconSlot] is a closed
+     * set compiled into the APK, so a grant cannot produce an icon the host did not ship. The
+     * optional pinned shortcut, which does take plugin artwork, is always a separate, explicit tap.
+     */
+    CHANGE_ICON(
+        id = "change_icon",
+        tier = RiskTier.LOW,
+        title = "Change the app icon",
+        rationale = "Lets the plugin pick which of GameCore's app icons your phone shows.",
+        whatItTouches = "Only icons GameCore already ships — never a new one from the package.",
+    ),
+
     /** Register bounded modules into the Game Pill. */
     ADD_PILL_MODULES(
         id = "add_pill_modules",

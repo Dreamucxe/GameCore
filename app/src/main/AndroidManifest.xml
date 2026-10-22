@@ -152,17 +152,97 @@
         android:usesCleartextTraffic="false"
         tools:targetApi="34">
 
+        <!--
+          MainActivity is the target of the launcher aliases below; it carries no
+          MAIN/LAUNCHER filter of its own.
+
+          A launcher icon is a manifest resource, so an app cannot draw one at runtime:
+          the only way to change it is to declare one entry per icon and enable exactly
+          one. Each activity-alias below is one entry, mirrors an AppIconSlot case, and
+          points at this activity. Exactly one is enabled at a time — AppIconApplier
+          maintains that invariant and the tests read this file to prove the names match.
+        -->
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|fontScale"
             android:exported="true"
             android:theme="@style/Theme.GameCore.Starting"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- AppIconSlot.DEFAULT -->
+        <activity-alias
+            android:name=".icon.IconDefault"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <!-- AppIconSlot.MONO -->
+        <activity-alias
+            android:name=".icon.IconMono"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_mono"
+            android:roundIcon="@mipmap/ic_launcher_mono"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- AppIconSlot.GLITCH -->
+        <activity-alias
+            android:name=".icon.IconGlitch"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_glitch"
+            android:roundIcon="@mipmap/ic_launcher_glitch"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- AppIconSlot.NEON -->
+        <activity-alias
+            android:name=".icon.IconNeon"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_neon"
+            android:roundIcon="@mipmap/ic_launcher_neon"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- AppIconSlot.REDLINE -->
+        <activity-alias
+            android:name=".icon.IconRedline"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_redline"
+            android:roundIcon="@mipmap/ic_launcher_redline"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <!--
           The MediaProjection consent dialog host.

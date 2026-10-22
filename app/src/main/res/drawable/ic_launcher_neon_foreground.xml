@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Neon slot foreground: magenta reticle, cyan core.
+
+  The halo is a second, wider ring at low alpha rather than a blur — a vector drawable has no blur,
+  and a soft halo drawn as geometry survives R8 and every launcher's icon cache, which a runtime
+  effect would not.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Halo, drawn first so the sharp ring sits on top of it. -->
+    <path
+        android:fillColor="#33FF2BD6"
+        android:pathData="M54,23.5c16.85,0 30.5,13.65 30.5,30.5S70.85,84.5 54,84.5S23.5,70.85 23.5,54S37.15,23.5 54,23.5zM54,28.5c-14.08,0 -25.5,11.42 -25.5,25.5S39.92,79.5 54,79.5S79.5,68.08 79.5,54S68.08,28.5 54,28.5z" />
+
+    <path
+        android:fillColor="#FF2BD6"
+        android:pathData="M54,26.5c15.19,0 27.5,12.31 27.5,27.5S69.19,81.5 54,81.5S26.5,69.19 26.5,54S38.81,26.5 54,26.5zM54,31.5c-12.43,0 -22.5,10.07 -22.5,22.5S41.57,76.5 54,76.5S76.5,66.43 76.5,54S66.43,31.5 54,31.5z" />
+    <path
+        android:fillColor="#FF2BD6"
+        android:pathData="M52.2,16h3.6v10h-3.6zM52.2,82h3.6v10h-3.6zM16,52.2h10v3.6h-10zM82,52.2h10v3.6h-10z" />
+    <path
+        android:fillColor="#00F0FF"
+        android:pathData="M54,38l13.86,8v16L54,70l-13.86,-8v-16zM54,46.5l-6.5,3.75v7.5l6.5,3.75l6.5,-3.75v-7.5z" />
+</vector>

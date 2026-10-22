@@ -1,10 +1,11 @@
 {
-  "minHostVersion": 28,
+  "minHostVersion": 37,
   "declares": [
     "screens",
     "widgets",
     "settings",
-    "rules"
+    "rules",
+    "icon"
   ],
   "permissions": [
     {"id": "change_ui"},
@@ -18,7 +19,8 @@
     },
     {"id": "store_data"},
     {"id": "run_automations"},
-    {"id": "system_actions"}
+    {"id": "system_actions"},
+    {"id": "change_icon"}
   ],
   "format": "gamecore.plugin",
   "name": "Local Gaming Advisor",
@@ -27,6 +29,6 @@
   "developer": "Dream",
   "id": "com.dreamucxe.gamecore.advisor",
   "api": 3,
-  "versionName": "1.0.0",
-  "version": 1
+  "versionName": "1.1.0",
+  "version": 2
 }

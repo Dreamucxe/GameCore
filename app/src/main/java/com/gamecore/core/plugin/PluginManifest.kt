@@ -100,7 +100,13 @@ enum class PluginSection(val id: String, val entryPrefix: String) {
     AIMLAB("aimlab", "aimlab/"),
     STATS("stats", "stats/"),
     SETTINGS("settings", "settings.json"),
-    WIDGETS("widgets", "widgets/");
+    WIDGETS("widgets", "widgets/"),
+
+    /**
+     * The launcher icon the plugin would like the app to wear, plus optional artwork for a pinned
+     * shortcut. A single `icon.json`, so it is [THEME]'s shape exactly.
+     */
+    ICON("icon", "icon.json");
 
     companion object {
         private val byId = entries.associateBy { it.id }

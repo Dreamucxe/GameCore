@@ -59,16 +59,20 @@ class AutomationHistoryPackageTest {
         assertEquals("gamecore.plugin", m.getString("format"), "format")
         assertEquals("com.dreamucxe.gamecore.automationhistory", m.getString("id"), "id")
         assertEquals("Automation History", m.getString("name"), "name")
-        assertEquals(1, m.getInt("version"), "version")
-        assertEquals("1.0.0", m.getString("versionName"), "versionName")
+        assertEquals(2, m.getInt("version"), "version")
+        assertEquals("1.1.0", m.getString("versionName"), "versionName")
         assertEquals(4, m.getInt("api"), "api is 4 — the automation_history scope is an API-4 meaning")
-        assertEquals(29, m.getInt("minHostVersion"), "minHostVersion is 29 — the scope requires host 29")
+        assertEquals(
+            Sdk.HOST_VERSION_CODE_ICON, m.getInt("minHostVersion"),
+            "minHostVersion is the icon host (37); the scope alone needed 29",
+        )
         assertEquals("Dream", m.getString("developer"), "developer")
         assertEquals("Initial release.", m.getString("changelog"), "changelog")
 
-        // Two permissions: the scoped automation-history read, and change_ui for the screens.
+        // Three permissions: the scoped automation-history read, change_ui for the screens, and
+        // change_icon for the launcher icon.
         val perms = m.getJSONArray("permissions")
-        assertEquals(2, perms.length(), "exactly two permissions")
+        assertEquals(3, perms.length(), "exactly three permissions")
         val byId = (0 until perms.length())
             .map { perms.getJSONObject(it) }
             .associateBy { it.getString("id") }
@@ -84,9 +88,15 @@ class AutomationHistoryPackageTest {
         val changeUi = byId.getValue("change_ui")
         assertTrue(!changeUi.has("scopes"), "change_ui carries no scopes")
 
+        val changeIcon = byId.getValue("change_icon")
+        assertTrue(!changeIcon.has("scopes"), "change_icon carries no scopes")
+
         val declares = m.getJSONArray("declares")
-        assertEquals(1, declares.length(), "declares exactly one section")
-        assertEquals("screens", declares.getString(0), "declares screens")
+        assertEquals(
+            listOf("screens", "icon"),
+            (0 until declares.length()).map { declares.getString(it) },
+            "declares screens, then the icon section",
+        )
     }
 
     @Test
@@ -138,7 +148,7 @@ class AutomationHistoryPackageTest {
             }
         }
         assertEquals(
-            listOf("manifest.json", "screens/screens.json"),
+            listOf("manifest.json", "screens/screens.json", "icon.json"),
             ordered,
             "manifest first, then the screens section",
         )

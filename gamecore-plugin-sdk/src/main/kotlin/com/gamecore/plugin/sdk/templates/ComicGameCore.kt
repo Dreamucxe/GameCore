@@ -1,5 +1,6 @@
 package com.gamecore.plugin.sdk.templates
 
+import com.gamecore.plugin.sdk.IconSlots
 import com.gamecore.plugin.sdk.Permissions
 import com.gamecore.plugin.sdk.PluginDefinition
 import com.gamecore.plugin.sdk.ThemeFonts
@@ -13,9 +14,9 @@ import com.gamecore.plugin.sdk.plugin
  * Like [cyberpunkGameCore], this is a worked authoring example that lives *beside* [Templates]
  * in its own file, so it can be added without editing the shared template library.
  *
- * It carries **data only**: a single [Permissions.CHANGE_UI] grant and one `theme.json`. No
- * rules, no overlay, no scoped data reads — a theme is the lowest-risk thing a plugin can be,
- * and this one asks for nothing more than the permission to recolour.
+ * It carries **data only**: [Permissions.CHANGE_UI] and [Permissions.CHANGE_ICON] grants, one
+ * `theme.json` and one `icon.json`. No rules, no overlay, no scoped data reads — a theme is the
+ * lowest-risk thing a plugin can be, and the icon grant only lets it pick a launcher icon.
  *
  * ### Palette → the six theme roles
  * The host repaints itself from exactly six colours (see the host's `PluginTheme`). The brief's
@@ -48,14 +49,16 @@ fun comicGameCore(): PluginDefinition = plugin(
     id = "com.dreamucxe.gamecore.comic",
     name = "Comic GameCore",
 ) {
-    version = 1
-    versionName = "1.0.0"
-    // api and minHostVersion keep the SDK defaults: Sdk.API (1) and Sdk.HOST_VERSION_CODE (28).
+    version = 2
+    versionName = "1.1.0"
+    // api keeps the SDK default (Sdk.API, 1). The icon section below raises minHostVersion to
+    // Sdk.HOST_VERSION_CODE_ICON (37), the first host build that understands it.
     developer = "Dream"
     description = "Bright comic-book theme — bold ink on warm paper, punch red and comic blue."
     changelog = "Initial release."
 
     request(Permissions.CHANGE_UI)
+    request(Permissions.CHANGE_ICON)   // the launcher icon the plugin asks for
 
     theme {
         name = "Comic GameCore"
@@ -70,4 +73,7 @@ fun comicGameCore(): PluginDefinition = plugin(
         font = ThemeFonts.ROUNDED // closest friendly bundled face (host maps it to sans-serif)
         uiScale = 1.0
     }
+
+    // Redline is the plugin's own launcher entry — the slot is what changes the icon the launcher shows.
+    icon(slot = IconSlots.REDLINE)
 }

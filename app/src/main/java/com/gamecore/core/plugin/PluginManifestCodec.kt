@@ -254,4 +254,4 @@ object PluginManifestCodec {
 }
 
 /** The number of declarable sections, as a compile-time constant for the cap above. */
-private const val PluginSectionCount = 9
+private const val PluginSectionCount = 10

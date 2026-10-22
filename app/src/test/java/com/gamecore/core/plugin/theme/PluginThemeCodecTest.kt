@@ -24,6 +24,17 @@ class PluginThemeCodecTest {
          "typography":{"scale":1.2,"weight":"bold"}}
     """.trimIndent()
 
+    private val v3 = """
+        {"schema":3,"name":"Torn","dark":true,
+         "primary":"#00F0FF","onPrimary":"#000A0C","background":"#050505",
+         "surface":"#0A0A0C","onSurface":"#E8FBFF","accent":"#FF0055",
+         "cornerRadiusDp":2,"font":"mono","uiScale":1.0,
+         "effects":{"glitch":{"intensity":0.85,"slices":3,"sliceOffsetDp":24,
+           "ghostOffsetDp":6,"fractureLines":true,"noise":true,
+           "microJitter":true,"hardwareReactive":true,
+           "burstMinMs":150,"burstMaxMs":800}}}
+    """.trimIndent()
+
     @Test
     fun `a well-formed theme parses`() {
         val r = PluginThemeCodec.decode(minimal) as PluginThemeCodec.Result.Parsed
@@ -118,7 +129,7 @@ class PluginThemeCodecTest {
 
     @Test
     fun `a schema past the current one is rejected`() {
-        val r = PluginThemeCodec.decode(v2.replace("\"schema\":2", "\"schema\":3")) as PluginThemeCodec.Result.Rejected
+        val r = PluginThemeCodec.decode(v2.replace("\"schema\":2", "\"schema\":4")) as PluginThemeCodec.Result.Rejected
         assertEquals(PluginThemeCodec.Reason.BAD_SCHEMA, r.reason)
     }
 
@@ -168,5 +179,67 @@ class PluginThemeCodecTest {
         assertEquals(2, r.theme.schema)
         assertEquals(null, r.theme.roles)
         assertEquals(null, r.theme.typography)
+    }
+
+    @Test
+    fun `a v3 theme parses its glitch block`() {
+        val r = PluginThemeCodec.decode(v3) as PluginThemeCodec.Result.Parsed
+        assertEquals(3, r.theme.schema)
+        val g = r.theme.glitch!!
+        assertEquals(0.85f, g.intensity, 1e-6f)
+        assertEquals(3, g.slices)
+        assertEquals(24, g.sliceOffsetDp)
+        assertEquals(6, g.ghostOffsetDp)
+        assertEquals(150, g.burstMinMs)
+        assertEquals(800, g.burstMaxMs)
+        assertTrue(g.fractureLines)
+        assertTrue(g.hardwareReactive)
+    }
+
+    @Test
+    fun `a v3 theme with no effects block has no glitch`() {
+        val bare = minimal.replaceFirst("{", "{\"schema\":3,")
+        val r = PluginThemeCodec.decode(bare) as PluginThemeCodec.Result.Parsed
+        assertEquals(3, r.theme.schema)
+        assertEquals(null, r.theme.glitch)
+    }
+
+    @Test
+    fun `effects at schema two is rejected, not ignored`() {
+        // A schema-2 theme that reaches for motion must fail loudly: silently dropping it would ship
+        // a theme whose author believes it tears when it does not.
+        val r = PluginThemeCodec.decode(v3.replace("\"schema\":3", "\"schema\":2")) as PluginThemeCodec.Result.Rejected
+        assertEquals(PluginThemeCodec.Reason.UNKNOWN_KEY, r.reason)
+    }
+
+    @Test
+    fun `an unknown effects key is rejected`() {
+        val bad = v3.replace("\"glitch\":{", "\"bloom\":{},\"glitch\":{")
+        val r = PluginThemeCodec.decode(bad) as PluginThemeCodec.Result.Rejected
+        assertEquals(PluginThemeCodec.Reason.UNKNOWN_KEY, r.reason)
+    }
+
+    @Test
+    fun `an unknown glitch key is rejected`() {
+        val bad = v3.replace("\"slices\":3", "\"slices\":3,\"chromaSplit\":true")
+        val r = PluginThemeCodec.decode(bad) as PluginThemeCodec.Result.Rejected
+        assertEquals(PluginThemeCodec.Reason.UNKNOWN_KEY, r.reason)
+    }
+
+    @Test
+    fun `glitch numbers outside the bounds are clamped`() {
+        val wild = v3.replace("\"intensity\":0.85", "\"intensity\":9.0")
+            .replace("\"slices\":3", "\"slices\":99")
+            .replace("\"sliceOffsetDp\":24", "\"sliceOffsetDp\":999")
+            .replace("\"burstMinMs\":150", "\"burstMinMs\":99999")
+            .replace("\"burstMaxMs\":800", "\"burstMaxMs\":99999")
+        val r = PluginThemeCodec.decode(wild) as PluginThemeCodec.Result.Parsed
+        val g = r.theme.glitch!!
+        assertEquals(1f, g.intensity, 1e-6f)
+        assertEquals(PluginGlitch.MAX_SLICES, g.slices)
+        assertEquals(PluginGlitch.MAX_SLICE_OFFSET_DP, g.sliceOffsetDp)
+        assertEquals(PluginGlitch.MAX_BURST_MS, g.burstMinMs)
+        assertEquals(PluginGlitch.MAX_BURST_MS, g.burstMaxMs)
+        assertTrue("min never exceeds max", g.burstMinMs <= g.burstMaxMs)
     }
 }

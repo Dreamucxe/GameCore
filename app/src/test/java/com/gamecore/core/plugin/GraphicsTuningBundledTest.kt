@@ -53,11 +53,11 @@ class GraphicsTuningBundledTest {
         .orEmpty()
 
     @Test
-    fun `manifest parses and declares the five sections with their seven permissions`() {
+    fun `manifest parses and declares the five sections plus the icon with their eight permissions`() {
         val manifest = manifest()
         assertEquals("com.dreamucxe.gamecore.graphics", manifest.id)
         assertEquals(3, manifest.api)
-        assertEquals(28, manifest.minHostVersion)
+        assertEquals(37, manifest.minHostVersion) // the icon section needs the 3.15.0 host
         assertTrue(manifest.declares.contains(PluginSection.SCREENS))
         assertTrue(manifest.declares.contains(PluginSection.PILL))
         assertTrue(manifest.declares.contains(PluginSection.WIDGETS))
@@ -74,6 +74,7 @@ class GraphicsTuningBundledTest {
                 PluginPermission.STORE_DATA,
                 PluginPermission.RUN_AUTOMATIONS,
                 PluginPermission.SYSTEM_ACTIONS,
+                PluginPermission.CHANGE_ICON,
             ),
             perms,
         )

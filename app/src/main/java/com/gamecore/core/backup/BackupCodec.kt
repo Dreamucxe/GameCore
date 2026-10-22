@@ -281,6 +281,7 @@ object BackupCodec {
         put("snapToEdge", b.snapToEdge)
         put("idleOpacityPercent", b.idleOpacityPercent)
         put("hapticFeedback", b.hapticFeedback)
+        put("tapOpensPanel", b.tapOpensPanel)
         put("doubleTapForPanel", b.doubleTapForPanel)
         put("panelWidthDp", b.panelWidthDp)
         put("panelLayout", b.panelLayout.name)
@@ -548,6 +549,7 @@ object BackupCodec {
             snapToEdge = o.optBoolean("snapToEdge", d.snapToEdge),
             idleOpacityPercent = o.optInt("idleOpacityPercent", d.idleOpacityPercent),
             hapticFeedback = o.optBoolean("hapticFeedback", d.hapticFeedback),
+            tapOpensPanel = o.optBoolean("tapOpensPanel", d.tapOpensPanel),
             doubleTapForPanel = o.optBoolean("doubleTapForPanel", d.doubleTapForPanel),
             panelWidthDp = o.optInt("panelWidthDp", d.panelWidthDp),
             panelLayout = enumByName(o.optString("panelLayout"), d.panelLayout),

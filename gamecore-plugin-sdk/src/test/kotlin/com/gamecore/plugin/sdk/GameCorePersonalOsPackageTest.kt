@@ -44,10 +44,10 @@ class GameCorePersonalOsPackageTest {
         assertEquals("gamecore.plugin", m.getString("format"), "format")
         assertEquals("com.dreamucxe.gamecore.personalos", m.getString("id"), "id")
         assertEquals("GameCore Personal OS", m.getString("name"), "name")
-        assertEquals(1, m.getInt("version"), "version")
-        assertEquals("1.0.0", m.getString("versionName"), "versionName")
+        assertEquals(2, m.getInt("version"), "version")
+        assertEquals("1.1.0", m.getString("versionName"), "versionName")
         assertEquals(3, m.getInt("api"), "api is V3 — screens/widgets/settings raise it")
-        assertEquals(28, m.getInt("minHostVersion"), "minHostVersion")
+        assertEquals(Sdk.HOST_VERSION_CODE_ICON, m.getInt("minHostVersion"), "minHostVersion is the icon host (37)")
         assertEquals("Dream", m.getString("developer"), "developer")
         assertEquals("Initial release.", m.getString("changelog"), "changelog")
 
@@ -58,11 +58,15 @@ class GameCorePersonalOsPackageTest {
             p.getString("id") to p
         }
         assertEquals(
-            setOf("change_ui", "add_dashboard_widgets", "store_data", "read_approved_data"),
+            setOf(
+                "change_ui", "add_dashboard_widgets", "store_data", "read_approved_data",
+                "change_icon",
+            ),
             byId.keys,
-            "the four requested permissions",
+            "the five requested permissions",
         )
         assertTrue(!byId.getValue("change_ui").has("scopes"), "change_ui carries no scopes")
+        assertTrue(!byId.getValue("change_icon").has("scopes"), "change_icon carries no scopes")
         assertTrue(!byId.getValue("store_data").has("scopes"), "store_data carries no scopes")
         assertTrue(
             !byId.getValue("add_dashboard_widgets").has("scopes"),
@@ -77,9 +81,9 @@ class GameCorePersonalOsPackageTest {
 
         val declares = m.getJSONArray("declares")
         assertEquals(
-            setOf("theme", "screens", "widgets", "settings"),
+            setOf("theme", "screens", "widgets", "settings", "icon"),
             (0 until declares.length()).map { declares.getString(it) }.toSet(),
-            "declares the four authored sections",
+            "declares the four authored sections plus the icon",
         )
     }
 
@@ -199,6 +203,7 @@ class GameCorePersonalOsPackageTest {
                 "widgets/welcome.json",
                 "widgets/trend.json",
                 "settings.json",
+                "icon.json",
             ),
             ordered,
             "manifest first, then sections in author order",

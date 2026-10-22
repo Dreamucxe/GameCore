@@ -18,7 +18,7 @@ import org.json.JSONObject
  * The advisor is a data-only plugin across four sections — screens, widgets, settings and rules. The
  * `screens { }`, `widgets { }` and `settings { }` blocks each raise the manifest api to [Sdk.API_V3]
  * (3); `rules { }` and the hand-emitted `section(...)` raise nothing, so the final api is 3, asserted
- * below. `minHostVersion` keeps the SDK default (28), so the manifest and the features it needs can
+ * below. `icon {}` raises `minHostVersion` to 37 (the 3.15.0 icon host), so the manifest and the features it needs can
  * never disagree.
  *
  * The one widget the DSL cannot build is the live chart: `OverlayNodeScope.chart` is literal-only, so
@@ -71,33 +71,36 @@ class LocalGamingAdvisorPackageTest {
         assertEquals("gamecore.plugin", m.getString("format"), "format")
         assertEquals("com.dreamucxe.gamecore.advisor", m.getString("id"), "id")
         assertEquals("Local Gaming Advisor", m.getString("name"), "name")
-        assertEquals(1, m.getInt("version"), "version")
-        assertEquals("1.0.0", m.getString("versionName"), "versionName")
+        assertEquals(2, m.getInt("version"), "version")
+        assertEquals("1.1.0", m.getString("versionName"), "versionName")
         assertEquals(Sdk.API_V3, m.getInt("api"), "api is 3 — screens + widgets + settings are 3.x host features")
         assertEquals(3, m.getInt("api"), "api is literally 3, so the bump is not an alias drifting")
         assertEquals(
-            Sdk.HOST_VERSION_CODE, m.getInt("minHostVersion"),
-            "minHostVersion keeps the SDK default (28); rules and the hand-emitted chart raise nothing",
+            Sdk.HOST_VERSION_CODE_ICON, m.getInt("minHostVersion"),
+            "the icon section needs the 3.15.0 host (37)",
         )
-        assertEquals(28, m.getInt("minHostVersion"), "minHostVersion is literally 28")
+        assertEquals(Sdk.HOST_VERSION_CODE_ICON, m.getInt("minHostVersion"), "minHostVersion is the icon host (37)")
         assertEquals("Dream", m.getString("developer"), "developer")
         assertEquals("Initial release.", m.getString("changelog"), "changelog")
 
-        // Six permissions. Only READ_APPROVED_DATA carries scopes; the other five carry none.
+        // Seven permissions. Only READ_APPROVED_DATA carries scopes; the other six carry none.
         val perms = m.getJSONArray("permissions")
-        assertEquals(6, perms.length(), "exactly six permissions")
+        assertEquals(7, perms.length(), "exactly seven permissions")
         val byId = (0 until perms.length())
             .map { perms.getJSONObject(it) }
             .associateBy { it.getString("id") }
         assertEquals(
             setOf(
                 "change_ui", "add_dashboard_widgets", "read_approved_data",
-                "store_data", "run_automations", "system_actions",
+                "store_data", "run_automations", "system_actions", "change_icon",
             ),
             byId.keys,
-            "the six permissions the four sections and the cooldown rule need",
+            "the seven permissions the four sections, the cooldown rule and the icon need",
         )
-        for (unscoped in listOf("change_ui", "add_dashboard_widgets", "store_data", "run_automations", "system_actions")) {
+        for (unscoped in listOf(
+            "change_ui", "add_dashboard_widgets", "store_data", "run_automations", "system_actions",
+            "change_icon",
+        )) {
             assertTrue(!byId.getValue(unscoped).has("scopes"), "$unscoped carries no scopes")
         }
         val scopes = byId.getValue("read_approved_data").getJSONArray("scopes")
@@ -109,17 +112,17 @@ class LocalGamingAdvisorPackageTest {
 
         val declares = m.getJSONArray("declares")
         assertEquals(
-            listOf("screens", "widgets", "settings", "rules"),
+            listOf("screens", "widgets", "settings", "rules", "icon"),
             (0 until declares.length()).map { declares.getString(it) },
-            "declares screens, widgets, settings, rules in call order (section()'s widgets dedupes)",
+            "declares screens, widgets, settings, rules in call order (section()'s widgets dedupes), then the icon",
         )
     }
     @Test
     fun emits_exactly_the_four_sections_files() {
         assertEquals(
-            sectionPaths.toSet(),
+            sectionPaths.toSet() + "icon.json",
             def.sectionFiles.keys.toSet(),
-            "the four sections emit exactly their six files (two DSL stat tiles + one hand-emitted chart)",
+            "the four sections emit exactly their six files (two DSL stat tiles + one hand-emitted chart) plus icon.json",
         )
     }
 
@@ -202,7 +205,7 @@ class LocalGamingAdvisorPackageTest {
             }
         }
         assertEquals(
-            listOf("manifest.json") + sectionPaths,
+            listOf("manifest.json") + sectionPaths + "icon.json",
             ordered,
             "manifest first, then each section file in author order",
         )

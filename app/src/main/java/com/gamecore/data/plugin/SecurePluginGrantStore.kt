@@ -8,6 +8,7 @@ import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.plugin.PluginGrant
 import com.gamecore.core.plugin.PluginGrantStore
 import com.gamecore.core.plugin.PluginNamespace
+import com.gamecore.core.plugin.icon.AppIconSlot
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
@@ -143,6 +144,40 @@ class SecurePluginGrantStore @Inject constructor(
         }
     }
 
+    // ------------------------------------------------------------------------------------- icon
+
+    /**
+     * The slot the user picked by hand, or [AppIconSlot.FALLBACK] when they never have.
+     *
+     * The icon has two layers where the theme has one. A plugin may *ask* for an icon
+     * ([selectedIconPluginId]), and the user may *choose* one directly; the plugin's choice wins
+     * while it is in force, and this is what the app falls back to when it is not. Keeping the
+     * user's own choice rather than overwriting it means uninstalling the theme plugin restores the
+     * icon they picked, not the stock one.
+     */
+    fun selectedIconSlot(): AppIconSlot =
+        AppIconSlot.fromId(readString(KEY_SELECTED_ICON_SLOT)) ?: AppIconSlot.FALLBACK
+
+    /**
+     * Records the user's own choice.
+     *
+     * An unknown id is dropped rather than stored: [selectedIconSlot] would ignore it on the way
+     * back out, and a value nothing can interpret is not worth persisting.
+     */
+    fun setSelectedIconSlot(slot: AppIconSlot) {
+        edit { putString(KEY_SELECTED_ICON_SLOT, slot.id) }
+    }
+
+    /** The plugin id whose icon the user accepted, or null when no plugin is supplying one. */
+    fun selectedIconPluginId(): String? = readString(KEY_SELECTED_ICON_PLUGIN)
+
+    /** [setSelectedThemePluginId]'s shape exactly: the id only, never the parsed request. */
+    fun setSelectedIconPluginId(pluginId: String?) {
+        edit {
+            if (pluginId == null) remove(KEY_SELECTED_ICON_PLUGIN) else putString(KEY_SELECTED_ICON_PLUGIN, pluginId)
+        }
+    }
+
     // ------------------------------------------------------------------------------------ values
 
     /**
@@ -250,5 +285,7 @@ class SecurePluginGrantStore @Inject constructor(
 
         const val KEY_KILL_SWITCH = "kill_switch"
         const val KEY_SELECTED_THEME = "selected_theme"
+        const val KEY_SELECTED_ICON_SLOT = "selected_icon_slot"
+        const val KEY_SELECTED_ICON_PLUGIN = "selected_icon_plugin"
     }
 }

@@ -2,6 +2,7 @@ package com.gamecore.core.plugin
 
 import com.gamecore.core.plugin.content.AutomationRule
 import com.gamecore.core.plugin.dashboard.PluginDashboardWidget
+import com.gamecore.core.plugin.icon.PluginIconSpec
 import com.gamecore.core.plugin.overlay.PluginOverlayModule
 import com.gamecore.core.plugin.settings.PluginSettingsSchema
 import com.gamecore.core.plugin.settings.SettingValue
@@ -234,6 +235,43 @@ interface PluginRegistry {
      */
     suspend fun resetToDefaultTheme()
 
+    /**
+     * The launcher icon a plugin is asking for, or null.
+     *
+     * The same filter chain as [activeTheme] — the plugin must be installed, runnable, enabled, not
+     * suspended, in force with the kill switch off, declare an `icon` section, and hold `change_icon`
+     * in its grant — and for the same reason: a null here is always reachable, needs nothing from the
+     * plugin, and is the app's own icon.
+     *
+     * Unlike a theme, this is only a *request*. The launcher entry is changed by
+     * `AppIconApplier`, which the UI calls once, on an explicit tap; the flow says which slots are on
+     * offer, not which one is installed.
+     */
+    val activeIcon: StateFlow<ActiveIcon?>
+
+    /**
+     * Every installed plugin that is allowed to offer an icon right now.
+     *
+     * The picker needs the offers before the selection, the way a list needs its rows before its
+     * chosen row: a user cannot accept an icon they were never shown.
+     */
+    val iconOffers: StateFlow<List<ActiveIcon>>
+
+    /** Accepts [pluginId]'s icon request. Clears itself if the request cannot be honoured. */
+    suspend fun setActiveIcon(pluginId: String?)
+
+    /** Drops the plugin's icon request, returning the app to the user's own slot choice. */
+    suspend fun resetToPluginIcon()
+
+    /**
+     * The image a plugin attached for a pinned shortcut, or null.
+     *
+     * Read on demand rather than carried in [ActiveIcon]: the bytes are up to
+     * `PluginIconArtwork.MAX_BYTES` and only the one action that pins a shortcut needs them, so a
+     * `StateFlow` that re-emitted them on every registry publish would be a megabyte of churn.
+     */
+    suspend fun iconArtwork(pluginId: String): ByteArray?
+
     suspend fun setKillSwitch(on: Boolean)
 
     /** Clears a this-run suspension so a plugin the supervisor stopped can be tried again. */
@@ -331,6 +369,24 @@ interface PluginRegistry {
  * is the first thing a user needs when they want it to stop.
  */
 data class ActiveTheme(val pluginId: String, val pluginName: String, val theme: PluginTheme)
+
+/**
+ * One plugin's launcher-icon request, with the plugin that made it.
+ *
+ * The id and name travel with the request for [ActiveTheme]'s reason, and one more: the picker has to
+ * show *which plugin* is offering an icon before the user accepts it, and "the icon" alone does not
+ * say that.
+ *
+ * [spec] is the validated `icon.json` — a slot from the closed set the app ships, and optionally a
+ * path to artwork for a pinned shortcut. Neither of those is a launcher icon the package supplied,
+ * because Android has no such thing; [com.gamecore.core.plugin.icon.AppIconSlot] explains what the
+ * system will and will not accept.
+ */
+data class ActiveIcon(
+    val pluginId: String,
+    val pluginName: String,
+    val spec: PluginIconSpec,
+)
 
 /**
  * One overlay module in force, with the plugin that supplied it.

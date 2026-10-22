@@ -2,6 +2,7 @@ package com.gamecore.plugin.sdk.templates
 
 import com.gamecore.plugin.sdk.ChartKinds
 import com.gamecore.plugin.sdk.DataScopes
+import com.gamecore.plugin.sdk.IconSlots
 import com.gamecore.plugin.sdk.OverlayIcons
 import com.gamecore.plugin.sdk.OverlayStats
 import com.gamecore.plugin.sdk.Permissions
@@ -56,8 +57,8 @@ fun dashboardComposer(): PluginDefinition = plugin(
     id = "com.dreamucxe.gamecore.dashboardcomposer",
     name = "Dashboard Composer",
 ) {
-    version = 1
-    versionName = "1.0.0"
+    version = 2
+    versionName = "1.1.0"
     // minHostVersion keeps the SDK default (28). `api` is NOT set here: the widgets { } section
     // raises it to Sdk.API_V3 (3) automatically, so the manifest and the feature can never disagree.
     developer = "Dream"
@@ -73,6 +74,7 @@ fun dashboardComposer(): PluginDefinition = plugin(
         Permissions.READ_APPROVED_DATA,
         scopes = setOf(DataScopes.DEVICE_STATS, DataScopes.THERMALS),
     )
+    request(Permissions.CHANGE_ICON)   // the launcher icon the plugin asks for
 
     widgets {
         // 1 — SMALL live tile: a single big frame-rate readout. Scope: device_stats.
@@ -205,4 +207,7 @@ fun dashboardComposer(): PluginDefinition = plugin(
             }
         }
     }
+    // The launcher icon this plugin asks for: one of the slots GameCore ships,
+    // switched in Settings and outranked by the user's own choice the moment they pick one.
+    icon(slot = IconSlots.DEFAULT)
 }

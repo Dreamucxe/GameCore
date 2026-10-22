@@ -43,22 +43,26 @@ class CyberpunkGameCorePackageTest {
         assertEquals("gamecore.plugin", m.getString("format"), "format")
         assertEquals("com.dreamucxe.gamecore.cyberpunk", m.getString("id"), "id")
         assertEquals("Cyberpunk GameCore", m.getString("name"), "name")
-        assertEquals(1, m.getInt("version"), "version")
-        assertEquals("1.0.0", m.getString("versionName"), "versionName")
+        assertEquals(2, m.getInt("version"), "version")
+        assertEquals("1.1.0", m.getString("versionName"), "versionName")
         assertEquals(1, m.getInt("api"), "api")
-        assertEquals(28, m.getInt("minHostVersion"), "minHostVersion")
+        assertEquals(37, m.getInt("minHostVersion"), "the icon section needs the 3.15.0 host")
         assertEquals("Dream", m.getString("developer"), "developer")
         assertEquals("Initial release.", m.getString("changelog"), "changelog")
 
         val perms = m.getJSONArray("permissions")
-        assertEquals(1, perms.length(), "exactly one permission")
+        assertEquals(2, perms.length(), "exactly two permissions")
         val p = perms.getJSONObject(0)
-        assertEquals("change_ui", p.getString("id"), "the one permission is change_ui")
+        assertEquals("change_ui", p.getString("id"), "the first permission is change_ui")
         assertTrue(!p.has("scopes"), "change_ui carries no scopes")
+        val iconPerm = perms.getJSONObject(1)
+        assertEquals("change_icon", iconPerm.getString("id"), "change_icon is requested last")
+        assertTrue(!iconPerm.has("scopes"), "change_icon carries no scopes")
 
         val declares = m.getJSONArray("declares")
-        assertEquals(1, declares.length(), "declares exactly one section")
-        assertEquals("theme", declares.getString(0), "declares theme")
+        assertEquals(2, declares.length(), "declares two sections")
+        assertEquals("theme", declares.getString(0), "declares theme first")
+        assertEquals("icon", declares.getString(1), "declares icon last")
     }
 
     @Test
@@ -103,7 +107,7 @@ class CyberpunkGameCorePackageTest {
                 zin.closeEntry()
             }
         }
-        assertEquals(listOf("manifest.json", "theme.json"), ordered, "manifest first, then theme")
+        assertEquals(listOf("manifest.json", "theme.json", "icon.json"), ordered, "manifest first, then theme, then icon")
 
         ZipFile(out).use { zip ->
             zip.entries().asSequence().forEach { e ->

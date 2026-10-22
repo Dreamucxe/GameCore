@@ -214,15 +214,30 @@ data class FloatingButtonConfig(
     val idleOpacityPercent: Int = 40,
     val hapticFeedback: Boolean = true,
     /**
+     * What one tap on the floating button opens.
+     *
+     * On — the default — a single tap brings up the full control panel, the surface that holds every
+     * control. Off, it opens the quick sheet, §4's narrow strip, and the panel is one gesture further in:
+     * the sheet's "More" button, or the double tap when [doubleTapForPanel] is on.
+     *
+     * On by default because the panel is the thing with all the features on it, and a tap that stops
+     * short of it costs a second gesture every single time. Nothing is lost when it is on: the service
+     * gives the freed double tap to the quick sheet, so the two surfaces swap places rather than one of
+     * them becoming unreachable.
+     */
+    val tapOpensPanel: Boolean = true,
+    /**
      * Whether a double tap on the button opens the full panel, spec §4's "optional setting".
      *
-     * Off, so a single tap opens the quick sheet with no added latency — see
-     * [com.gamecore.core.overlay.FloatingGameButton], where a null double-tap handler makes every tap
-     * fire the instant the finger lifts. Turning this on wires the second handler: the first tap of a
-     * pair still fires immediately (the quick sheet opens), and a second within the double-tap window
-     * swaps it for the panel. The user reaches the panel from the sheet's "More" button either way; this
-     * only adds the shortcut for those who want it, and defaults off because an armed double tap makes a
-     * stray second tap open a surface the user did not ask for.
+     * Only reached when [tapOpensPanel] is off. Then a single tap opens the quick sheet with no added
+     * latency — see [com.gamecore.core.overlay.FloatingGameButton], where a null double-tap handler makes
+     * every tap fire the instant the finger lifts. Turning this on wires the second handler: the first tap
+     * of a pair still fires immediately (the quick sheet opens), and a second within the double-tap window
+     * swaps it for the panel. Defaults off because an armed double tap makes a stray second tap open a
+     * surface the user did not ask for.
+     *
+     * With [tapOpensPanel] on, the setting has nothing left to do — a single tap already opens the
+     * panel — so the button spends its double tap on the quick sheet instead, whatever this holds.
      */
     val doubleTapForPanel: Boolean = false,
     /**

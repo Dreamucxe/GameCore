@@ -15,4 +15,12 @@
     <color name="splash_background">#FF07090E</color>
     <color name="splash_icon">#FF3DDC97</color>
     <color name="launcher_background">#FF0B0F16</color>
+
+    <!-- Alternate launcher plates, one per AppIconSlot. Each is chosen to make its
+         foreground read at 24dp: near-black for the bright marks, deep tinted plates
+         where the mark itself is one colour. -->
+    <color name="launcher_background_mono">#FF000000</color>
+    <color name="launcher_background_glitch">#FF050505</color>
+    <color name="launcher_background_neon">#FF12002A</color>
+    <color name="launcher_background_redline">#FF140002</color>
 </resources>

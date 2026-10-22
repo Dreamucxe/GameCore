@@ -3,10 +3,59 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.12.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.15.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
 no backend, nothing you record leaves the device
+
+---
+
+## New in 3.15.0
+
+GameCore has five launcher icons, and a plugin can choose one of them.
+
+- **The picker.** Settings → App icon shows the set: **Core**, **Mono**, **Glitch**, **Neon** and
+  **Redline**. Tapping one changes the icon your launcher shows — a real switch, not a shortcut to
+  the app, because each icon is its own launcher component and exactly one is enabled at a time.
+- **Plugins can ask.** A plugin with the `change_icon` permission ships an `icon.json` naming a
+  slot; Settings shows which plugin is setting the icon and offers a one-tap Undo back to your own
+  choice. A plugin that is disabled, uninstalled or suspended loses the icon on the next launch.
+- **Plugin artwork, honestly.** Android has no API that lets an app install a bitmap as its launcher
+  icon, so a plugin's own image cannot become the icon — and this release does not pretend it can.
+  Artwork is offered as a **pinned home-screen shortcut** instead: you confirm it in the launcher,
+  and GameCore's own icon is left alone. The picker says so in as many words.
+
+## New in 3.14.0
+
+Theme plugins can move now. A plugin stays data — it never gets to touch the canvas — but it can
+now *ask* the host to distort what it draws, and the host owns every frame of that.
+
+- **Themes can move.** A schema-3 theme may carry a `glitch` block. The app's content is recorded
+  into a layer and re-drawn as displaced horizontal bands: the frame tears, text and panels
+  together, with one-pixel fracture lines, ghost copies at the band edges and translucent block
+  noise. It is a live re-draw, not a colour filter, and it applies to the whole app.
+- **It reads the phone.** With `hardwareReactive` on, a device above 85% CPU tears about twice as
+  often, and one the platform reports as thermally throttled adds a vertical frame-drop on the
+  first frame of a burst. Off, the effect keeps a fixed rhythm and reads no sensors at all.
+- **Animation settings still win.** Settings → Animations → Off, or the system's remove-animations
+  switch, suppresses every theme effect. A plugin asks for motion; it can never take it.
+- **Off by default.** Nothing changes unless you install and select a theme that asks for it.
+  Every existing theme renders exactly as it did.
+
+Ships with **True Glitch** (`dist/trueglitch/trueglitch.gcplugin`) — cyan and red on near-black,
+monospaced, torn.
+
+---
+
+## New in 3.13.0
+
+The floating button stops making you tap twice.
+
+- **One tap, the full panel.** Tapping the game button opens the control panel straight away — every
+  tab, every control — instead of the small quick sheet. The sheet has not gone anywhere: a double
+  tap on the button opens it, with the same toggles, sliders and session clock.
+- **Or keep the sheet first.** Settings → Overlay → Quick sheet has a switch. Off, a tap opens the
+  sheet first and the panel stays behind its "More" button, exactly as it used to behave.
 
 ---
 

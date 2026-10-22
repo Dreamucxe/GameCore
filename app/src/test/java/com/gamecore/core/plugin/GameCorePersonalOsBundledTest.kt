@@ -49,6 +49,7 @@ class GameCorePersonalOsBundledTest {
                 PluginPermission.ADD_DASHBOARD_WIDGETS,
                 PluginPermission.STORE_DATA,
                 PluginPermission.READ_APPROVED_DATA,
+                PluginPermission.CHANGE_ICON,
             ),
             perms,
         )

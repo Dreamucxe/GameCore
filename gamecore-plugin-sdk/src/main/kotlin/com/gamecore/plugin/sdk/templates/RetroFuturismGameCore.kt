@@ -1,5 +1,6 @@
 package com.gamecore.plugin.sdk.templates
 
+import com.gamecore.plugin.sdk.IconSlots
 import com.gamecore.plugin.sdk.Permissions
 import com.gamecore.plugin.sdk.PluginDefinition
 import com.gamecore.plugin.sdk.ThemeFonts
@@ -24,13 +25,15 @@ fun retroFuturismGameCore(): PluginDefinition = plugin(
     id = "com.dreamucxe.gamecore.retrofuturism",
     name = "Retro Futurism GameCore",
 ) {
-    version = 1
-    versionName = "1.0.0"
+    version = 2
+    versionName = "1.1.0"
     developer = "Dream"
     description = "Cream-paper 80s future — teal machinery, coral print, visor green, serif type."
     changelog = "Initial release."
 
     request(Permissions.CHANGE_UI)
+    // The launcher icon is visible with the app closed; a slot asks for an icon GameCore ships.
+    request(Permissions.CHANGE_ICON)
 
     theme {
         name = "Retro Futurism GameCore"
@@ -59,4 +62,7 @@ fun retroFuturismGameCore(): PluginDefinition = plugin(
             scale = 1.0
         }
     }
+
+    // The glitched reticle GameCore already ships — the only thing that can become the app icon.
+    icon(slot = IconSlots.GLITCH)
 }

@@ -1,6 +1,7 @@
 package com.gamecore.plugin.sdk.templates
 
 import com.gamecore.plugin.sdk.DataScopes
+import com.gamecore.plugin.sdk.IconSlots
 import com.gamecore.plugin.sdk.OverlayIcons
 import com.gamecore.plugin.sdk.Permissions
 import com.gamecore.plugin.sdk.PluginDefinition
@@ -53,8 +54,8 @@ fun automationHistory(): PluginDefinition = plugin(
     id = "com.dreamucxe.gamecore.automationhistory",
     name = "Automation History",
 ) {
-    version = 1
-    versionName = "1.0.0"
+    version = 2
+    versionName = "1.1.0"
     // Set by hand: a data scope bumps nothing automatically, and the `screens` bump only reaches
     // Sdk.API_V3 (3). The automation_history scope is an API-4 meaning, so api is API_V4 (4), and
     // the scope requires host build 29 while Sdk.HOST_VERSION_CODE is still 28, so minHostVersion
@@ -70,6 +71,7 @@ fun automationHistory(): PluginDefinition = plugin(
     // The read-only aperture onto the host-owned trail, plus the grant the screens section needs.
     request(Permissions.READ_APPROVED_DATA, scopes = setOf(DataScopes.AUTOMATION_HISTORY))
     request(Permissions.CHANGE_UI)
+    request(Permissions.CHANGE_ICON)   // the launcher icon the plugin asks for
 
     screens {
         // What the trail is, and whose it is.
@@ -148,4 +150,7 @@ fun automationHistory(): PluginDefinition = plugin(
             }
         }
     }
+    // The launcher icon this plugin asks for: one of the slots GameCore ships,
+    // switched in Settings and outranked by the user's own choice the moment they pick one.
+    icon(slot = IconSlots.DEFAULT)
 }

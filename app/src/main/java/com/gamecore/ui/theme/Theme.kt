@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import androidx.core.view.WindowCompat
+import com.gamecore.core.model.AnimationsMode
 import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.ThemeChoice
 import com.gamecore.core.plugin.theme.PluginTheme
@@ -76,12 +77,18 @@ val GameCoreShapes = Shapes(
  *    transparent and their icons are drawn over this app's background; light icons on a light scheme
  *    would be invisible. `SideEffect` rather than `LaunchedEffect` because it is a window property that
  *    must match the composition that has just been produced, not a job.
+ *  - **A plugin may ask for motion; it may not take it.** From schema 3 a theme can carry a `glitch`
+ *    block, and this function hands it to [GlitchLayer] — but only behind two vetoes the plugin cannot
+ *    see, let alone set: the user's Animations preference and the platform animator scale. A theme that
+ *    tears the screen is a style choice for the person who installed it, and an unreadable app is not
+ *    something a package should be able to inflict on the person who did not.
  */
 @Composable
 fun GameCoreTheme(
     settings: AppSettings = AppSettings(),
     pluginTheme: PluginTheme? = null,
     engineTint: Color? = null,
+    glitchConditions: GlitchConditions = GlitchConditions.None,
     content: @Composable () -> Unit,
 ) {
     val systemDark = isSystemInDarkTheme()
@@ -162,6 +169,12 @@ fun GameCoreTheme(
         }
     }
 
+    // Whether a theme is allowed to move at all. Two independent vetoes, and either one is enough:
+    // the app's own Animations setting (Off means off, whatever the system says) and the platform
+    // animator scale, which is the knob accessibility "remove animations" and Developer options
+    // write. A plugin asks for motion; it never gets to argue with either.
+    val animationsEnabled = settings.animations != AnimationsMode.OFF && systemAnimationScale() > 0f
+
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -178,7 +191,23 @@ fun GameCoreTheme(
         typography = typography,
         shapes = shapes,
     ) {
-        CompositionLocalProvider(LocalDensity provides scaled, content = content)
+        CompositionLocalProvider(LocalDensity provides scaled) {
+            // The schema-3 motion block, when the theme carries one and the user has not asked for
+            // motion off. Both halves are required: `resolvedGlitch()` already returns null for a
+            // theme that asked for no motion, and `animationsEnabled` is the veto that a theme
+            // cannot override. A user debugging a glitch theme they can no longer read needs an
+            // off switch that does not require navigating with it on.
+            GlitchLayer(
+                glitch = effectivePluginTheme?.resolvedGlitch(),
+                enabled = animationsEnabled,
+                // The theme's own two accents are the colours a tear is drawn in, so the fracture
+                // belongs to the palette rather than to a hard-coded neon that might clash with it.
+                accent = scheme.primary,
+                fracture = scheme.secondary,
+                conditions = glitchConditions,
+                content = content,
+            )
+        }
     }
 }
 

@@ -30,6 +30,38 @@ object Permissions {
 
     /** From API 3: register bounded, read-only widgets onto GameCore's home dashboard. */
     const val ADD_DASHBOARD_WIDGETS = "add_dashboard_widgets"
+
+    /**
+     * From host build 37: choose which of GameCore's launcher icons the app wears.
+     *
+     * Separate from [CHANGE_UI] because it is a different surface with a different lifetime — the
+     * launcher icon is what the phone shows when GameCore is closed. The icon has to be one of
+     * [IconSlots]: a package cannot supply a launcher icon, because Android resolves that from the
+     * installed APK's manifest and no API takes a bitmap for it.
+     */
+    const val CHANGE_ICON = "change_icon"
+}
+
+/**
+ * The launcher icons GameCore ships, by id. Exactly the ids the host's `AppIconSlot` accepts.
+ *
+ * Kept as constants so a typo is a compile error in the plugin's own build. If you need an icon that
+ * is not here, the answer is not a string the host will reject — it is that the host has to ship it.
+ *
+ * **What this can and cannot do.** Naming a slot here changes the icon the launcher shows. Shipping
+ * your own image (`icon(slot, artwork = ...)`) does not: Android will not put a package's bitmap in
+ * its launcher slot, so the host offers that image as a *pinned home-screen shortcut* instead, which
+ * the user has to accept in one tap.
+ */
+object IconSlots {
+    const val DEFAULT = "default"
+    const val MONO = "mono"
+    const val GLITCH = "glitch"
+    const val NEON = "neon"
+    const val REDLINE = "redline"
+
+    /** Every id the host accepts, in display order. */
+    val ALL: Set<String> = linkedSetOf(DEFAULT, MONO, GLITCH, NEON, REDLINE)
 }
 
 /** Scopes valid on [Permissions.READ_APPROVED_DATA]. */
@@ -104,7 +136,40 @@ object ThemeBounds {
 object ThemeSchema {
     const val V1 = 1
     const val V2 = 2
-    const val CURRENT = 2
+
+    /**
+     * Schema 3 adds `effects`, whose only member today is the `glitch` motion block.
+     *
+     * A theme that asks for motion must declare this, because a host that predates it rejects the
+     * whole theme rather than rendering the palette without the movement the author designed it
+     * around — see the host's `PluginTheme.SCHEMA_V3`.
+     */
+    const val V3 = 3
+    const val CURRENT = V3
+}
+
+/**
+ * Bounds for a schema-3 `glitch` block, mirroring the host's `PluginGlitch`.
+ *
+ * The host clamps every one of these, so a value outside a bound is not rejected — it ships as the
+ * nearest legal value, which is a theme that renders differently from the one that was authored.
+ * The DSL asserts instead of clamping so that lands in the author's build, not in the user's hands.
+ */
+object GlitchBounds {
+    const val MIN_INTENSITY = 0.0
+    const val MAX_INTENSITY = 1.0
+
+    const val MIN_SLICES = 2
+    const val MAX_SLICES = 6
+
+    const val MIN_SLICE_OFFSET_DP = 0
+    const val MAX_SLICE_OFFSET_DP = 48
+
+    const val MIN_GHOST_OFFSET_DP = 0
+    const val MAX_GHOST_OFFSET_DP = 12
+
+    const val MIN_BURST_MS = 120
+    const val MAX_BURST_MS = 8000
 }
 
 /**
@@ -527,11 +592,38 @@ object SettingBounds {
     val ID_PATTERN = Regex("^[a-z0-9][a-z0-9._-]{0,${MAX_ID_LENGTH - 1}}$")
 }
 
+/**
+ * The limits an icon section is held to, mirrored from the host's `PluginIconCodec` and
+ * `PluginIconArtwork`. Unlike the theme's corner radius, none of these is clamped by the host — an
+ * oversized or unreadable image refuses the whole `icon.json`, taking the slot request down with
+ * it — so the DSL refuses them here, in the author's build.
+ */
+object IconBounds {
+    /** The largest image a package may offer as shortcut artwork. */
+    const val MAX_ARTWORK_BYTES = 512 * 1024
+
+    /** The longest edge, in pixels, the host will decode artwork at. Larger is scaled down, not refused. */
+    const val MAX_ARTWORK_EDGE_PX = 1024
+
+    /** The longest shortcut label. */
+    const val MAX_LABEL_LENGTH = 40
+}
+
 /** The API version and host version this SDK targets. Keep in step with the host PluginApi. */
 object Sdk {
     const val API = 1
     const val HOST_VERSION_CODE = 28
     const val FORMAT = "gamecore.plugin"
+
+    /**
+     * The first host build that understands an `icon` section.
+     *
+     * A per-use bump rather than a change to [HOST_VERSION_CODE]: bumping the default would make every
+     * template in this SDK — including the ones that predate icons — require a newer host than they
+     * need. `icon {}` raises `minHostVersion` to this instead, so only a plugin that asks for an icon
+     * declines to load on an older GameCore, and everything else stays byte-identical.
+     */
+    const val HOST_VERSION_CODE_ICON = 37
 
     /**
      * The manifest `api` level at which the 3.x platform features landed — a settings section,

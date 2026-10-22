@@ -1108,6 +1108,7 @@ private fun sectionLabel(section: PluginSection): String = when (section) {
     PluginSection.STATS -> "Stat readouts"
     PluginSection.SETTINGS -> "Settings"
     PluginSection.WIDGETS -> "Dashboard widgets"
+    PluginSection.ICON -> "App icon"
 }
 
 /**

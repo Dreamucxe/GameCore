@@ -19,7 +19,7 @@ import org.json.JSONObject
  * rules. The `screens { }`, `widgets { }` and `settings { }` blocks each raise the manifest api to
  * [Sdk.API_V3] (3); `pill { }` raises nothing here because the module draws neither a chart nor a
  * motion reading, and `rules { }` and the hand-emitted `section(...)` raise nothing either — so the
- * final api is 3, asserted below. `minHostVersion` keeps the SDK default (28), so the manifest and the
+ * final api is 3, asserted below. `icon {}` raises `minHostVersion` to 37 (the 3.15.0 icon host), so the manifest and the
  * features it needs can never disagree.
  *
  * Two assertions carry more than their length. The first is the **scope subset**: every `stat` the
@@ -95,36 +95,35 @@ class GraphicsTuningPackageTest {
         assertEquals("gamecore.plugin", m.getString("format"), "format")
         assertEquals("com.dreamucxe.gamecore.graphics", m.getString("id"), "id")
         assertEquals("Graphics Tuning", m.getString("name"), "name")
-        assertEquals(1, m.getInt("version"), "version")
-        assertEquals("1.0.0", m.getString("versionName"), "versionName")
+        assertEquals(2, m.getInt("version"), "version")
+        assertEquals("1.1.0", m.getString("versionName"), "versionName")
         assertEquals(Sdk.API_V3, m.getInt("api"), "api is 3 — screens + widgets + settings are 3.x host features")
         assertEquals(3, m.getInt("api"), "api is literally 3, so the bump is not an alias drifting")
         assertEquals(
-            Sdk.HOST_VERSION_CODE, m.getInt("minHostVersion"),
-            "minHostVersion keeps the SDK default (28); the pill, the rules and the hand-emitted " +
-                "chart raise nothing",
+            Sdk.HOST_VERSION_CODE_ICON, m.getInt("minHostVersion"),
+            "the icon section needs the 3.15.0 host (37)",
         )
-        assertEquals(28, m.getInt("minHostVersion"), "minHostVersion is literally 28")
+        assertEquals(Sdk.HOST_VERSION_CODE_ICON, m.getInt("minHostVersion"), "minHostVersion is the icon host (37)")
         assertEquals("Dream", m.getString("developer"), "developer")
         assertEquals("Initial release.", m.getString("changelog"), "changelog")
 
-        // Seven permissions. Only READ_APPROVED_DATA carries scopes; the other six carry none.
+        // Eight permissions. Only READ_APPROVED_DATA carries scopes; the other seven carry none.
         val perms = m.getJSONArray("permissions")
-        assertEquals(7, perms.length(), "exactly seven permissions")
+        assertEquals(8, perms.length(), "exactly eight permissions")
         val byId = (0 until perms.length())
             .map { perms.getJSONObject(it) }
             .associateBy { it.getString("id") }
         assertEquals(
             setOf(
                 "change_ui", "create_overlay", "add_dashboard_widgets", "read_approved_data",
-                "store_data", "run_automations", "system_actions",
+                "store_data", "run_automations", "system_actions", "change_icon",
             ),
             byId.keys,
-            "the seven permissions the five sections and the three rules need",
+            "the eight permissions the five sections, the three rules and the icon need",
         )
         for (unscoped in listOf(
             "change_ui", "create_overlay", "add_dashboard_widgets", "store_data",
-            "run_automations", "system_actions",
+            "run_automations", "system_actions", "change_icon",
         )) {
             assertTrue(!byId.getValue(unscoped).has("scopes"), "$unscoped carries no scopes")
         }
@@ -137,18 +136,18 @@ class GraphicsTuningPackageTest {
 
         val declares = m.getJSONArray("declares")
         assertEquals(
-            listOf("screens", "pill", "widgets", "settings", "rules"),
+            listOf("screens", "pill", "widgets", "settings", "rules", "icon"),
             (0 until declares.length()).map { declares.getString(it) },
-            "declares the five sections in call order (section()'s widgets dedupes)",
+            "declares the five sections in call order (section()'s widgets dedupes), then the icon",
         )
     }
 
     @Test
     fun emits_exactly_the_five_sections_files() {
         assertEquals(
-            sectionPaths.toSet(),
+            sectionPaths.toSet() + "icon.json",
             def.sectionFiles.keys.toSet(),
-            "the five sections emit exactly their seven files (three widget files, one of them hand-emitted)",
+            "the five sections emit exactly their seven files (three widget files, one of them hand-emitted) plus icon.json",
         )
     }
 
@@ -318,7 +317,7 @@ class GraphicsTuningPackageTest {
             }
         }
         assertEquals(
-            listOf("manifest.json") + sectionPaths,
+            listOf("manifest.json") + sectionPaths + "icon.json",
             ordered,
             "manifest first, then each section file in author order",
         )
@@ -344,9 +343,10 @@ class GraphicsTuningPackageTest {
         // declared section, named from that section's entry prefix — a prefix that is a directory
         // (`screens/`, `rules/`, `widgets/`) ships as `<section>.json`, and a prefix that is already a
         // file name (`pill.json`, `settings.json`) ships unchanged. A declared section whose flat file
-        // is missing makes the whole bundled plugin vanish silently, so every one of the five is
+        // is missing makes the whole bundled plugin vanish silently, so every one of the six is
         // written here, and exactly one widgets.json travels in the APK (the representative live
-        // chart) where the .gcplugin carries the whole widgets/ directory.
+        // chart) where the .gcplugin carries the whole widgets/ directory. `icon.json` is already a
+        // file name, so it ships unchanged.
         val assetsDir = File(repoRoot(), "app/src/main/assets/plugins/graphics").apply { mkdirs() }
         File(assetsDir, "manifest.json").writeBytes(def.manifestJson)
         val rep = "widgets/graphics_trend.json"
@@ -362,7 +362,10 @@ class GraphicsTuningPackageTest {
             flattened += flat
         }
         assertEquals(
-            setOf("screens.json", "pill.json", "widgets.json", "settings.json", "rules.json"),
+            setOf(
+                "screens.json", "pill.json", "widgets.json", "settings.json", "rules.json",
+                "icon.json",
+            ),
             flattened,
             "one flat file per declared section — a missing one makes the bundled plugin vanish silently",
         )

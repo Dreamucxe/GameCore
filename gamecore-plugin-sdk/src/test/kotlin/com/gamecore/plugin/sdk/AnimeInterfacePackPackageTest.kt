@@ -44,11 +44,11 @@ class AnimeInterfacePackPackageTest {
         assertEquals("gamecore.plugin", m.getString("format"), "format")
         assertEquals("com.dreamucxe.gamecore.anime", m.getString("id"), "id")
         assertEquals("Anime Interface Pack", m.getString("name"), "name")
-        assertEquals(1, m.getInt("version"), "version")
-        assertEquals("1.0.0", m.getString("versionName"), "versionName")
+        assertEquals(2, m.getInt("version"), "version")
+        assertEquals("1.1.0", m.getString("versionName"), "versionName")
         // The schema-2 theme raises api to 2 and the screens section raises it to 3; the max wins.
         assertEquals(3, m.getInt("api"), "api")
-        assertEquals(28, m.getInt("minHostVersion"), "minHostVersion (SDK default, host version code)")
+        assertEquals(Sdk.HOST_VERSION_CODE_ICON, m.getInt("minHostVersion"), "minHostVersion is the icon host (37)")
         assertEquals("Dream", m.getString("developer"), "developer")
         assertEquals("Initial release.", m.getString("changelog"), "changelog")
 
@@ -61,18 +61,22 @@ class AnimeInterfacePackPackageTest {
             }
         }
 
+        // Two permissions: the theme repaint, then the launcher icon.
         val perms = m.getJSONArray("permissions")
-        assertEquals(1, perms.length(), "exactly one permission")
-        val p = perms.getJSONObject(0)
-        assertEquals("change_ui", p.getString("id"), "the one permission is change_ui")
-        assertTrue(!p.has("scopes"), "change_ui carries no scopes")
+        assertEquals(
+            listOf("change_ui", "change_icon"),
+            (0 until perms.length()).map { perms.getJSONObject(it).getString("id") },
+            "change_ui then change_icon, in request order",
+        )
+        for (i in 0 until perms.length()) {
+            assertTrue(!perms.getJSONObject(i).has("scopes"), "neither permission carries scopes")
+        }
 
         val declares = m.getJSONArray("declares")
-        assertEquals(2, declares.length(), "declares two sections")
         assertEquals(
-            setOf("theme", "screens"),
-            (0 until declares.length()).map { declares.getString(it) }.toSet(),
-            "declares theme and screens",
+            listOf("theme", "screens", "icon"),
+            (0 until declares.length()).map { declares.getString(it) },
+            "declares theme and screens, then the icon section last",
         )
     }
 
@@ -147,7 +151,7 @@ class AnimeInterfacePackPackageTest {
             }
         }
         assertEquals(
-            listOf("manifest.json", "theme.json", "screens/screens.json"),
+            listOf("manifest.json", "theme.json", "screens/screens.json", "icon.json"),
             ordered,
             "manifest first, then theme, then the screens section file",
         )

@@ -1,12 +1,16 @@
 {
-  "minHostVersion": 29,
-  "declares": ["screens"],
+  "minHostVersion": 37,
+  "declares": [
+    "screens",
+    "icon"
+  ],
   "permissions": [
     {
       "id": "read_approved_data",
       "scopes": ["automation_history"]
     },
-    {"id": "change_ui"}
+    {"id": "change_ui"},
+    {"id": "change_icon"}
   ],
   "format": "gamecore.plugin",
   "name": "Automation History",
@@ -15,6 +19,6 @@
   "developer": "Dream",
   "id": "com.dreamucxe.gamecore.automationhistory",
   "api": 4,
-  "versionName": "1.0.0",
-  "version": 1
+  "versionName": "1.1.0",
+  "version": 2
 }

@@ -2,6 +2,7 @@ package com.gamecore.ui.plugins
 
 import androidx.lifecycle.SavedStateHandle
 import com.gamecore.core.plugin.ActiveDashboardWidget
+import com.gamecore.core.plugin.ActiveIcon
 import com.gamecore.core.plugin.ActiveOverlayModule
 import com.gamecore.core.plugin.ActivePluginAutomation
 import com.gamecore.core.plugin.ActiveTheme
@@ -186,6 +187,8 @@ class PluginDetailViewModelTest {
     ) : PluginRegistry {
         override val installed = MutableStateFlow(listOf(plugin))
         override val activeTheme = MutableStateFlow<ActiveTheme?>(null)
+        override val activeIcon = MutableStateFlow<ActiveIcon?>(null)
+        override val iconOffers = MutableStateFlow<List<ActiveIcon>>(emptyList())
         override val activeOverlayModules = MutableStateFlow<List<ActiveOverlayModule>>(emptyList())
         override val activeDashboardWidgets = MutableStateFlow<List<ActiveDashboardWidget>>(emptyList())
         override val activeAutomations = MutableStateFlow<List<ActivePluginAutomation>>(emptyList())
@@ -237,6 +240,9 @@ class PluginDetailViewModelTest {
         override suspend fun grant(pluginId: String, grant: PluginGrant) {}
         override suspend fun setActiveTheme(pluginId: String?) {}
         override suspend fun resetToDefaultTheme() {}
+        override suspend fun setActiveIcon(pluginId: String?) {}
+        override suspend fun resetToPluginIcon() {}
+        override suspend fun iconArtwork(pluginId: String): ByteArray? = null
         override suspend fun setKillSwitch(on: Boolean) {}
         override suspend fun clearSuspension(pluginId: String) {}
         override suspend fun automationHistory(

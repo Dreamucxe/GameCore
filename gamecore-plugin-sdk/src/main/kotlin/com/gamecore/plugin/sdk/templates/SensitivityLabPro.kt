@@ -1,6 +1,7 @@
 package com.gamecore.plugin.sdk.templates
 
 import com.gamecore.plugin.sdk.DataScopes
+import com.gamecore.plugin.sdk.IconSlots
 import com.gamecore.plugin.sdk.OverlayIcons
 import com.gamecore.plugin.sdk.OverlaySizes
 import com.gamecore.plugin.sdk.OverlayStats
@@ -46,8 +47,8 @@ fun sensitivityLabPro(): PluginDefinition = plugin(
     id = "com.dreamucxe.gamecore.sensitivitylab",
     name = "Sensitivity Lab Pro",
 ) {
-    version = 1
-    versionName = "1.0.0"
+    version = 2
+    versionName = "1.1.0"
     developer = "Dream"
     description = "A sensitivity and DPI reference lab: a live motion overlay to feel out aim " +
         "changes, copy-ready preset tables, and saved preferences. It measures and remembers — " +
@@ -65,6 +66,7 @@ fun sensitivityLabPro(): PluginDefinition = plugin(
     )
     request(Permissions.CHANGE_UI)
     request(Permissions.STORE_DATA)
+    request(Permissions.CHANGE_ICON)   // the launcher icon the plugin asks for
 
     // ---------------------------------------------------------------- overlay (live motion)
     // Rotation-rate and movement are the two `motion` readings; the frame rate rides along for
@@ -192,4 +194,7 @@ fun sensitivityLabPro(): PluginDefinition = plugin(
         float("ads_multiplier", default = 1.0, min = 0.1, max = 5.0)
         bool("invert_y", default = false)
     }
+    // The launcher icon this plugin asks for: one of the slots GameCore ships,
+    // switched in Settings and outranked by the user's own choice the moment they pick one.
+    icon(slot = IconSlots.REDLINE)
 }

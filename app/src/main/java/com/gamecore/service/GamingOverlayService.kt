@@ -1392,13 +1392,19 @@ class GamingOverlayService : GameCoreService() {
                 positionProvider = ::buttonOffset,
                 onDragTo = ::dragButtonTo,
                 onDragFinished = ::finishButtonDrag,
-                // §4: a tap opens the quick sheet, the tap-and-back surface. The full panel is one gesture
-                // further in — the sheet's "More", or the double tap when the user has turned it on.
-                onTap = ::toggleQuickSheet,
-                // Null unless the setting is on, so a single tap has no double-tap latency (see
-                // [FloatingGameButton]); wired live from the collected config, so turning the setting on or
-                // off takes effect on the next recomposition without the window being re-added.
-                onDoubleTap = if (normalised.doubleTapForPanel) ::openPanel else null,
+                // One tap opens the full panel by default — the surface with every control on it — and the
+                // quick sheet when the user has asked for the narrow one first. Either way the *other*
+                // surface keeps the double tap, so preferring one never strands the other: the two simply
+                // swap places.
+                onTap = if (normalised.tapOpensPanel) ::togglePanel else ::toggleQuickSheet,
+                // Wired live from the collected config, so changing either preference takes effect on the
+                // next recomposition without the window being re-added. The panel's own double tap is only
+                // armed when a single tap does not already open it.
+                onDoubleTap = when {
+                    normalised.tapOpensPanel -> ::toggleQuickSheet
+                    normalised.doubleTapForPanel -> ::togglePanel
+                    else -> null
+                },
                 // Lit while either surface is up — both are "the button is open" as far as the idle fade
                 // and the expanded look are concerned.
                 isExpanded = panelUp || sheetUp,

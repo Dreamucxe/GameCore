@@ -368,7 +368,19 @@ class OverlayViewModel @Inject constructor(
     fun setQuickAutoClose(enabled: Boolean) = updatePill { it.copy(quickAutoClose = enabled) }
 
     /**
+     * What one tap on the floating button opens.
+     *
+     * On — the default — is the full panel, with the quick sheet on the double tap. Off restores the
+     * sheet-first order the overlay shipped with. The service reads it live, so the next tap obeys the
+     * new choice without the floating window being rebuilt.
+     */
+    fun setTapOpensPanel(enabled: Boolean) = updateButton { it.copy(tapOpensPanel = enabled) }
+
+    /**
      * §4's optional gesture.
+     *
+     * Only reached when [tapOpensPanel] is off: with a single tap already opening the panel there is
+     * nothing for a double tap to add, and the button gives that second tap to the quick sheet instead.
      *
      * Off by default, and the cost of turning it on is worth stating where it is set: a button that has to
      * wait and see whether a second tap is coming cannot open the sheet until that window has passed, so

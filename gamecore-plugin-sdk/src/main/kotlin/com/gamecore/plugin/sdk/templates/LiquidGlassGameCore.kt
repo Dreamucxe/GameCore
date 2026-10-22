@@ -1,5 +1,6 @@
 package com.gamecore.plugin.sdk.templates
 
+import com.gamecore.plugin.sdk.IconSlots
 import com.gamecore.plugin.sdk.Permissions
 import com.gamecore.plugin.sdk.PluginDefinition
 import com.gamecore.plugin.sdk.ThemeFonts
@@ -64,14 +65,15 @@ fun liquidGlassGameCore(): PluginDefinition = plugin(
     id = "com.dreamucxe.gamecore.liquidglass",
     name = "Liquid Glass GameCore",
 ) {
-    version = 1
-    versionName = "1.0.0"
+    version = 2
+    versionName = "1.1.0"
     // api and minHostVersion keep the SDK defaults: Sdk.API (1) and Sdk.HOST_VERSION_CODE (28).
     developer = "Dream"
     description = "iOS-inspired dark glass theme: deep blacks, system blue and indigo accents."
     changelog = "Initial release."
 
     request(Permissions.CHANGE_UI)
+    request(Permissions.CHANGE_ICON)   // the launcher icon the plugin asks for
 
     theme {
         name = "Liquid Glass GameCore"
@@ -86,4 +88,7 @@ fun liquidGlassGameCore(): PluginDefinition = plugin(
         font = ThemeFonts.ROUNDED // host maps to FontFamily.SansSerif — nearest clean sans to SF Pro
         uiScale = 1.0
     }
+    // The launcher icon this plugin asks for: one of the slots GameCore ships,
+    // switched in Settings and outranked by the user's own choice the moment they pick one.
+    icon(slot = IconSlots.MONO)
 }

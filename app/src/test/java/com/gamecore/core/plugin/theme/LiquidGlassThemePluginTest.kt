@@ -64,21 +64,25 @@ class LiquidGlassThemePluginTest {
         val m = loadedOrFail().manifest
         assertEquals("id", "com.dreamucxe.gamecore.liquidglass", m.id)
         assertEquals("name", "Liquid Glass GameCore", m.name)
-        assertEquals("version", 1, m.version)
-        assertEquals("versionName", "1.0.0", m.versionName)
+        assertEquals("version", 2, m.version)
+        assertEquals("versionName", "1.1.0", m.versionName)
         assertEquals("api", 1, m.api)
-        assertEquals("minHostVersion", 28, m.minHostVersion)
+        // The icon section needs the 3.15.0 host (versionCode 37).
+        assertEquals("minHostVersion", 37, m.minHostVersion)
         assertEquals("developer", "Dream", m.developer)
         assertEquals("changelog", "Initial release.", m.changelog)
 
         assertTrue("compatible with this build (api 1 / host 28)", m.compatibility.isRunnable)
 
-        assertEquals("exactly one permission", 1, m.permissions.size)
-        assertEquals("the one permission is CHANGE_UI", PluginPermission.CHANGE_UI, m.permissions[0].permission)
+        assertEquals("two permissions", 2, m.permissions.size)
+        assertEquals("change_ui first", PluginPermission.CHANGE_UI, m.permissions[0].permission)
         assertTrue("CHANGE_UI carries no scopes", m.permissions[0].scopes.isEmpty())
+        assertEquals("change_icon second", PluginPermission.CHANGE_ICON, m.permissions[1].permission)
+        assertTrue("CHANGE_ICON carries no scopes", m.permissions[1].scopes.isEmpty())
         assertTrue("requests CHANGE_UI", m.requests(PluginPermission.CHANGE_UI))
+        assertTrue("requests CHANGE_ICON", m.requests(PluginPermission.CHANGE_ICON))
 
-        assertEquals("declares exactly one section", setOf(PluginSection.THEME), m.declares)
+        assertEquals("declares the theme and the icon", setOf(PluginSection.THEME, PluginSection.ICON), m.declares)
 
         // Legal guard: no Apple marks in the id or name (describing it as "inspired by iOS" is fine).
         for ((field, value) in listOf("id" to m.id, "name" to m.name)) {

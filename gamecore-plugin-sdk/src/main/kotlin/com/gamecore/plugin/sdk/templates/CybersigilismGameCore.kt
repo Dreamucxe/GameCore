@@ -1,5 +1,6 @@
 package com.gamecore.plugin.sdk.templates
 
+import com.gamecore.plugin.sdk.IconSlots
 import com.gamecore.plugin.sdk.Permissions
 import com.gamecore.plugin.sdk.PluginDefinition
 import com.gamecore.plugin.sdk.ThemeFonts
@@ -24,13 +25,14 @@ fun cybersigilismGameCore(): PluginDefinition = plugin(
     id = "com.dreamucxe.gamecore.cybersigilism",
     name = "Cybersigilism GameCore",
 ) {
-    version = 1
-    versionName = "1.0.0"
+    version = 2
+    versionName = "1.1.0"
     developer = "Dream"
     description = "Monochrome chrome-on-void theme — silver, steel, true black, sharp edges, serif type."
     changelog = "Initial release."
 
     request(Permissions.CHANGE_UI)
+    request(Permissions.CHANGE_ICON)
 
     theme {
         name = "Cybersigilism GameCore"
@@ -60,4 +62,7 @@ fun cybersigilismGameCore(): PluginDefinition = plugin(
             scale = 1.0
         }
     }
+
+    // The mono slot: the launcher icon GameCore wears while the sigil theme is active.
+    icon(slot = IconSlots.MONO)
 }

@@ -616,6 +616,7 @@ class SecurePreferenceStore @Inject constructor(
             snapToEdge = p.getBoolean(KEY_BUTTON_SNAP, defaults.snapToEdge),
             idleOpacityPercent = p.getInt(KEY_BUTTON_IDLE_OPACITY, defaults.idleOpacityPercent),
             hapticFeedback = p.getBoolean(KEY_BUTTON_HAPTIC, defaults.hapticFeedback),
+            tapOpensPanel = p.getBoolean(KEY_BUTTON_TAP_OPENS_PANEL, defaults.tapOpensPanel),
             doubleTapForPanel = p.getBoolean(KEY_BUTTON_DOUBLE_TAP_PANEL, defaults.doubleTapForPanel),
             panelWidthDp = p.getInt(KEY_BUTTON_PANEL_WIDTH, defaults.panelWidthDp),
             panelLayout = enumOrDefault(
@@ -668,6 +669,7 @@ class SecurePreferenceStore @Inject constructor(
             putBoolean(KEY_BUTTON_SNAP, value.snapToEdge)
             putInt(KEY_BUTTON_IDLE_OPACITY, value.idleOpacityPercent)
             putBoolean(KEY_BUTTON_HAPTIC, value.hapticFeedback)
+            putBoolean(KEY_BUTTON_TAP_OPENS_PANEL, value.tapOpensPanel)
             putBoolean(KEY_BUTTON_DOUBLE_TAP_PANEL, value.doubleTapForPanel)
             putInt(KEY_BUTTON_PANEL_WIDTH, value.panelWidthDp)
             putString(KEY_BUTTON_PANEL_LAYOUT, value.panelLayout.name)
@@ -1161,6 +1163,7 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_BUTTON_SNAP = "button_snap"
         const val KEY_BUTTON_IDLE_OPACITY = "button_idle_opacity"
         const val KEY_BUTTON_HAPTIC = "button_haptic"
+        const val KEY_BUTTON_TAP_OPENS_PANEL = "button_tap_opens_panel"
         const val KEY_BUTTON_DOUBLE_TAP_PANEL = "button_double_tap_panel"
         const val KEY_BUTTON_PANEL_WIDTH = "button_panel_width"
         const val KEY_BUTTON_PANEL_LAYOUT = "button_panel_layout"

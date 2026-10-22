@@ -161,6 +161,10 @@ fun GameCoreRoot(
     // unconditionally so the override switch takes effect without rebuilding the shell.
     val engineTintArgb by viewModel.engineTint.collectAsStateWithLifecycle()
     val engineTint = engineTintArgb?.let { androidx.compose.ui.graphics.Color(it) }
+    // What a schema-3 theme's glitch block may react to. Constant for every theme that did not ask
+    // for reactive motion — the ViewModel stops sampling in that case — so collecting it here costs
+    // a single comparison for the overwhelming majority of installs.
+    val glitchConditions by viewModel.glitchConditions.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route
@@ -227,7 +231,7 @@ fun GameCoreRoot(
         navController.openUnguarded(Destination.Settings)
     }
 
-    GameCoreTheme(settings, pluginTheme, engineTint) {
+    GameCoreTheme(settings, pluginTheme, engineTint, glitchConditions) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(modifier = Modifier.fillMaxSize()) {
                 // Behind everything, inside the themed Surface so the scrim is mixed from the scheme the

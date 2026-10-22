@@ -1,9 +1,10 @@
 {
-  "minHostVersion": 28,
+  "minHostVersion": 37,
   "declares": [
     "pill",
     "widgets",
-    "screens"
+    "screens",
+    "icon"
   ],
   "permissions": [
     {"id": "create_overlay"},
@@ -15,7 +16,8 @@
         "thermals"
       ]
     },
-    {"id": "change_ui"}
+    {"id": "change_ui"},
+    {"id": "change_icon"}
   ],
   "format": "gamecore.plugin",
   "name": "Benchmark Suite",
@@ -24,6 +26,6 @@
   "developer": "Dream",
   "id": "com.dreamucxe.gamecore.benchmark",
   "api": 3,
-  "versionName": "1.0.0",
-  "version": 1
+  "versionName": "1.1.0",
+  "version": 2
 }

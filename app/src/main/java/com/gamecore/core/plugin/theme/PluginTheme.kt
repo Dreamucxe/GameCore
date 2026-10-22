@@ -4,8 +4,9 @@ package com.gamecore.core.plugin.theme
  * A plugin's theme, parsed and clamped from its `theme.json`.
  *
  * A theme is the lowest-risk thing a plugin can carry: colours, a corner radius, a font
- * choice, a density nudge, and — from schema 2 — a handful of semantic colour roles, a type
- * scale and weight, and an AMOLED preset, each of them optional and absent on a v1 theme. It is
+ * choice, a density nudge, — from schema 2 — a handful of semantic colour roles, a type
+ * scale and weight, and an AMOLED preset, and — from schema 3 — an optional [PluginGlitch]
+ * motion block. Each is optional and absent on a theme that predates it. It is
  * still untrusted data, so this model holds only values that
  * have already passed [PluginThemeCodec] — every colour is a valid opaque-or-alpha ARGB int,
  * the radius and the scales are inside sane bounds, and the font is one of a fixed set the app
@@ -32,6 +33,7 @@ data class PluginTheme(
     val amoled: Boolean = false,
     val roles: PluginThemeRoles? = null,
     val typography: PluginThemeTypography? = null,
+    val glitch: PluginGlitch? = null,
 ) {
     /** The fonts GameCore bundles. A theme may pick one; it cannot ship a font file. */
     enum class Font(val id: String) {
@@ -51,8 +53,19 @@ data class PluginTheme(
         const val SCHEMA_V1 = 1
         const val SCHEMA_V2 = 2
 
+        /**
+         * Schema 3 is schema 2 plus `effects`, whose only member today is the `glitch` block.
+         *
+         * It is a new schema rather than an optional key on v2 because of what it asks for. A v2
+         * theme that this build quietly ignored would render as a plain palette on some devices
+         * and as a tearing HUD on others, with nothing on screen to say which — and the author
+         * would have no number to raise to get the behaviour they asked for. A v3 theme on a host
+         * that predates it is an UNKNOWN_KEY rejection with a reason, which is the honest answer.
+         */
+        const val SCHEMA_V3 = 3
+
         /** The newest schema this build understands; [PluginThemeCodec] rejects anything past it. */
-        const val SCHEMA_CURRENT = 2
+        const val SCHEMA_CURRENT = SCHEMA_V3
 
         const val MIN_CORNER_DP = 0
         const val MAX_CORNER_DP = 48

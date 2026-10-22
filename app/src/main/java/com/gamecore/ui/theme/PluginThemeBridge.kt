@@ -9,6 +9,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gamecore.core.common.ContrastMath
+import com.gamecore.core.plugin.theme.PluginGlitch
 import com.gamecore.core.plugin.theme.PluginTheme
 import com.gamecore.core.plugin.theme.PluginThemeRoles
 import com.gamecore.core.plugin.theme.PluginThemeTypography
@@ -226,6 +227,22 @@ fun PluginTheme.resolvedBaseWeight(): FontWeight? = when (typography?.weight) {
     PluginThemeTypography.Weight.MEDIUM -> FontWeight.Medium
     PluginThemeTypography.Weight.BOLD -> FontWeight.Bold
 }
+
+/**
+ * The schema-3 motion block this theme asked for, clamped — or null when it asked for none.
+ *
+ * Null covers two different cases on purpose: a theme that carries no `effects` block (every v1
+ * and v2 theme, and every v3 theme that only took the palette), and one whose `intensity` is
+ * zero. Both mean the same thing to the renderer — nothing to draw, so do not even record a
+ * layer — and neither is an error the user should ever be told about.
+ *
+ * The clamp is repeated here for the same reason the type scale's is: the codec has already
+ * bounded every field, and this guarantees the renderer's inputs are bounded even if a
+ * `PluginTheme` was built by a path that skipped the codec. It is a pure function, so it stays
+ * inside this file's no-Android rule.
+ */
+fun PluginTheme.resolvedGlitch(): PluginGlitch? =
+    glitch?.clamped()?.takeIf { it.isVisible }
 
 /**
  * The plugin's corner radius as a full [Shapes] ladder.

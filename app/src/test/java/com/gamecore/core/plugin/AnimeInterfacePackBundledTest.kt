@@ -35,14 +35,18 @@ class AnimeInterfacePackBundledTest {
     }
 
     @Test
-    fun `anime manifest parses, declares theme and screens, and asks only for change_ui`() {
+    fun `anime manifest parses, declares theme screens and icon, and asks for change_ui and change_icon`() {
         val m = PluginManifestCodec.decode(read("anime/manifest.json"))
         assertTrue("manifest did not parse: $m", m is PluginManifestCodec.Result.Parsed)
         m as PluginManifestCodec.Result.Parsed
         assertEquals("com.dreamucxe.gamecore.anime", m.manifest.id)
         assertTrue(m.manifest.declares.contains(PluginSection.THEME))
         assertTrue(m.manifest.declares.contains(PluginSection.SCREENS))
-        assertEquals(listOf(PluginPermission.CHANGE_UI), m.manifest.permissions.map { it.permission })
+        assertTrue(m.manifest.declares.contains(PluginSection.ICON))
+        assertEquals(
+            listOf(PluginPermission.CHANGE_UI, PluginPermission.CHANGE_ICON),
+            m.manifest.permissions.map { it.permission },
+        )
     }
 
     @Test

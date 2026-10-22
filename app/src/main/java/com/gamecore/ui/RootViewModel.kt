@@ -3,6 +3,7 @@ package com.gamecore.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.BuildConfig
+import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.AppSettings
 import com.gamecore.core.plugin.PluginRegistry
 import com.gamecore.core.plugin.theme.PluginTheme
@@ -10,6 +11,7 @@ import com.gamecore.core.whatsnew.ReleaseNote
 import com.gamecore.core.whatsnew.WhatsNewRegistry
 import com.gamecore.core.whatsnew.entriesSince
 import com.gamecore.core.whatsnew.shouldShowCard
+import com.gamecore.data.icon.AppIconController
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.data.repository.SessionRepository
@@ -20,10 +22,15 @@ import com.gamecore.domain.setup.decideEntry
 import com.gamecore.themeengine.AuroraThemeRepository
 import com.gamecore.themeengine.ThemeEnginePlugin
 import com.gamecore.themeengine.readingsOf
+import com.gamecore.ui.theme.GlitchConditions
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -51,6 +58,7 @@ class RootViewModel @Inject constructor(
     performance: PerformanceMonitor,
     private val themeEngine: ThemeEnginePlugin,
     private val auroraRepository: AuroraThemeRepository,
+    private val appIcons: AppIconController,
 ) : ViewModel() {
 
     /**
@@ -90,6 +98,24 @@ class RootViewModel @Inject constructor(
         .map { it?.theme }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    private val mutableGlitchConditions = MutableStateFlow(GlitchConditions.None)
+
+    /**
+     * The device state the active theme's glitch block is allowed to react to — or [GlitchConditions.None].
+     *
+     * Eager only in the sense that the collector starts with the ViewModel; the sampler behind it is
+     * only subscribed while a theme that actually asked for reactive motion is in force. That matters
+     * because [PerformanceMonitor.snapshots] is shared with `WhileSubscribed`, so an always-on collector
+     * here would keep the CPU sampler running for every user in every session, including the ones who
+     * never install a theme. `collectLatest` cancels the inner subscription the moment the active theme
+     * stops caring, and the loop stops with it.
+     *
+     * Two readings and no more — see [GlitchConditions] for why. Both are optional: the first sample of
+     * a session has no CPU delta to report and the platform may hide its thermal status, and "no reading"
+     * is deliberately treated as "nothing wrong" rather than as an overload.
+     */
+    val glitchConditions: StateFlow<GlitchConditions> = mutableGlitchConditions.asStateFlow()
+
     /**
      * Starts the Theme Engine for the life of the app, not for the life of a screen.
      *
@@ -107,8 +133,34 @@ class RootViewModel @Inject constructor(
             performance.snapshots.map { readingsOf(it).metrics },
             auroraRepository.activePreset.value,
         )
+        // One pass per launch, before anything the user can tap: drop a plugin icon request that no
+        // longer resolves (the plugin was disabled or uninstalled while the app was closed) and make
+        // sure the launcher is wearing the slot the user chose. Idempotent — the applier returns
+        // immediately when the requested slot is already in force — so a launch that changed nothing
+        // costs one binder read.
+        viewModelScope.launch { appIcons.reconcile() }
         viewModelScope.launch {
             auroraRepository.activePreset.collect { themeEngine.setPreset(it) }
+        }
+        // Reacts to load only while a glitch theme with `hardwareReactive` on is active. The inner
+        // collect is cancelled by `collectLatest` when that stops being true, which releases the
+        // shared sampler rather than leaving it spinning behind a theme that no longer uses it.
+        viewModelScope.launch {
+            plugins.activeTheme
+                .map { it?.theme?.glitch }
+                .distinctUntilChanged()
+                .collectLatest { glitch ->
+                    if (glitch == null || !glitch.hardwareReactive) {
+                        mutableGlitchConditions.value = GlitchConditions.None
+                        return@collectLatest
+                    }
+                    performance.snapshots.collect { snapshot ->
+                        mutableGlitchConditions.value = GlitchConditions(
+                            cpuPercent = snapshot?.cpu?.overallPercent?.valueOrNull,
+                            thermalLevel = snapshot?.thermal?.status?.valueOrNull?.level ?: 0,
+                        )
+                    }
+                }
         }
     }
 

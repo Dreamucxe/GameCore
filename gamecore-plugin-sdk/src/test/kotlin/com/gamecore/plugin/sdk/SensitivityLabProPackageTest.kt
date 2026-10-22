@@ -60,10 +60,10 @@ class SensitivityLabProPackageTest {
         assertEquals("gamecore.plugin", m.getString("format"), "format")
         assertEquals("com.dreamucxe.gamecore.sensitivitylab", m.getString("id"), "id")
         assertEquals("Sensitivity Lab Pro", m.getString("name"), "name")
-        assertEquals(1, m.getInt("version"), "version")
-        assertEquals("1.0.0", m.getString("versionName"), "versionName")
+        assertEquals(2, m.getInt("version"), "version")
+        assertEquals("1.1.0", m.getString("versionName"), "versionName")
         assertEquals(3, m.getInt("api"), "api auto-bumps to 3 (settings + screens + a motion stat)")
-        assertEquals(28, m.getInt("minHostVersion"), "minHostVersion keeps the SDK default")
+        assertEquals(Sdk.HOST_VERSION_CODE_ICON, m.getInt("minHostVersion"), "minHostVersion is the icon host (37)")
         assertEquals("Dream", m.getString("developer"), "developer")
         assertEquals("Initial release.", m.getString("changelog"), "changelog")
 
@@ -72,13 +72,14 @@ class SensitivityLabProPackageTest {
             val p = perms.getJSONObject(it); p.getString("id") to p
         }
         assertEquals(
-            setOf("create_overlay", "read_approved_data", "change_ui", "store_data"),
+            setOf("create_overlay", "read_approved_data", "change_ui", "store_data", "change_icon"),
             byId.keys,
-            "the four permissions the three sections need",
+            "the five permissions the three sections and the icon need",
         )
         assertTrue(!byId.getValue("create_overlay").has("scopes"), "create_overlay has no scopes")
         assertTrue(!byId.getValue("change_ui").has("scopes"), "change_ui has no scopes")
         assertTrue(!byId.getValue("store_data").has("scopes"), "store_data has no scopes")
+        assertTrue(!byId.getValue("change_icon").has("scopes"), "change_icon has no scopes")
         val scopes = byId.getValue("read_approved_data").getJSONArray("scopes")
         assertEquals(
             setOf("motion", "device_stats"),
@@ -88,9 +89,9 @@ class SensitivityLabProPackageTest {
 
         val declares = m.getJSONArray("declares")
         assertEquals(
-            listOf("pill", "screens", "settings"),
+            listOf("pill", "screens", "settings", "icon"),
             (0 until declares.length()).map { declares.getString(it) },
-            "declares pill, screens, settings in call order",
+            "declares pill, screens, settings in call order, then the icon",
         )
     }
 
@@ -161,7 +162,7 @@ class SensitivityLabProPackageTest {
             }
         }
         assertEquals(
-            listOf("manifest.json", "pill.json", "screens/screens.json", "settings.json"),
+            listOf("manifest.json", "pill.json", "screens/screens.json", "settings.json", "icon.json"),
             ordered,
             "manifest first, then the sections in declared order",
         )

@@ -2,6 +2,7 @@ package com.gamecore.plugin.sdk.templates
 
 import com.gamecore.plugin.sdk.ChartKinds
 import com.gamecore.plugin.sdk.DataScopes
+import com.gamecore.plugin.sdk.IconSlots
 import com.gamecore.plugin.sdk.OverlayIcons
 import com.gamecore.plugin.sdk.OverlayStats
 import com.gamecore.plugin.sdk.Permissions
@@ -53,8 +54,8 @@ fun gameCorePersonalOs(): PluginDefinition = plugin(
     id = "com.dreamucxe.gamecore.personalos",
     name = "GameCore Personal OS",
 ) {
-    version = 1
-    versionName = "1.0.0"
+    version = 2
+    versionName = "1.1.0"
     // api is raised to Sdk.API_V3 (3) automatically by the screens/widgets/settings sections;
     // minHostVersion keeps the SDK default, Sdk.HOST_VERSION_CODE (28).
     developer = "Dream"
@@ -71,6 +72,7 @@ fun gameCorePersonalOs(): PluginDefinition = plugin(
         Permissions.READ_APPROVED_DATA,
         scopes = setOf(DataScopes.DEVICE_STATS, DataScopes.THERMALS),
     )
+    request(Permissions.CHANGE_ICON)   // the launcher icon the plugin asks for
 
     theme {
         name = "GameCore Personal OS"
@@ -182,4 +184,7 @@ fun gameCorePersonalOs(): PluginDefinition = plugin(
         enum("temperature_units", options = listOf("celsius", "fahrenheit"), default = "celsius")
         string("greeting", default = "Welcome back", maxLength = 48)
     }
+    // The launcher icon this plugin asks for: one of the slots GameCore ships,
+    // switched in Settings and outranked by the user's own choice the moment they pick one.
+    icon(slot = IconSlots.MONO)
 }

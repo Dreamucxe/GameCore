@@ -1,5 +1,6 @@
 package com.gamecore.plugin.sdk.templates
 
+import com.gamecore.plugin.sdk.IconSlots
 import com.gamecore.plugin.sdk.Permissions
 import com.gamecore.plugin.sdk.PluginDefinition
 import com.gamecore.plugin.sdk.ThemeFonts
@@ -23,13 +24,14 @@ fun chromecoreGameCore(): PluginDefinition = plugin(
     id = "com.dreamucxe.gamecore.chromecore",
     name = "Chromecore GameCore",
 ) {
-    version = 1
-    versionName = "1.0.0"
+    version = 2
+    versionName = "1.1.0"
     developer = "Dream"
     description = "Liquid chrome on true black — silver primary, blue reflection, red glint, round forms."
     changelog = "Initial release."
 
     request(Permissions.CHANGE_UI)
+    request(Permissions.CHANGE_ICON)
 
     theme {
         name = "Chromecore GameCore"
@@ -59,4 +61,7 @@ fun chromecoreGameCore(): PluginDefinition = plugin(
             scale = 1.0
         }
     }
+
+    // The neon slot: the launcher icon GameCore wears while the chrome theme is active.
+    icon(slot = IconSlots.NEON)
 }

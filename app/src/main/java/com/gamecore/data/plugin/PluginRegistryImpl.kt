@@ -4,6 +4,7 @@ import android.content.Context
 import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.common.TextSanitizer
 import com.gamecore.core.plugin.ActiveDashboardWidget
+import com.gamecore.core.plugin.ActiveIcon
 import com.gamecore.core.plugin.ActiveOverlayModule
 import com.gamecore.core.plugin.ActivePluginAutomation
 import com.gamecore.core.plugin.ActiveTheme
@@ -37,6 +38,9 @@ import com.gamecore.core.plugin.settings.PluginSettingsCodec
 import com.gamecore.core.plugin.settings.PluginSettingsSchema
 import com.gamecore.core.plugin.settings.SettingValue
 import com.gamecore.core.plugin.theme.PluginTheme
+import com.gamecore.core.plugin.icon.PluginIconArtwork
+import com.gamecore.core.plugin.icon.PluginIconCodec
+import com.gamecore.core.plugin.icon.PluginIconSpec
 import com.gamecore.core.plugin.theme.PluginThemeCodec
 import com.gamecore.core.plugin.ui.PluginScreen
 import com.gamecore.core.plugin.ui.PluginScreensCodec
@@ -104,6 +108,12 @@ class PluginRegistryImpl @Inject constructor(
 
     private val activeThemeState = MutableStateFlow<ActiveTheme?>(null)
     override val activeTheme: StateFlow<ActiveTheme?> = activeThemeState.asStateFlow()
+
+    private val activeIconState = MutableStateFlow<ActiveIcon?>(null)
+    override val activeIcon: StateFlow<ActiveIcon?> = activeIconState.asStateFlow()
+
+    private val iconOffersState = MutableStateFlow<List<ActiveIcon>>(emptyList())
+    override val iconOffers: StateFlow<List<ActiveIcon>> = iconOffersState.asStateFlow()
 
     private val overlayModulesState = MutableStateFlow<List<ActiveOverlayModule>>(emptyList())
     override val activeOverlayModules: StateFlow<List<ActiveOverlayModule>> = overlayModulesState.asStateFlow()
@@ -225,6 +235,9 @@ class PluginRegistryImpl @Inject constructor(
         killSwitchState.value = killSwitch
         installedState.value = plugins
         activeThemeState.value = resolveActiveTheme(plugins, killSwitch)
+        val iconOffers = resolveIconOffers(plugins, killSwitch)
+        iconOffersState.value = iconOffers
+        activeIconState.value = resolveActiveIcon(iconOffers)
         overlayModulesState.value = resolveOverlayModules(plugins, killSwitch)
         dashboardWidgetsState.value = resolveDashboardWidgets(plugins, killSwitch)
         automationsState.value = resolveAutomations(plugins, killSwitch)
@@ -507,6 +520,7 @@ class PluginRegistryImpl @Inject constructor(
             store.setEnabled(pluginId, false)
             store.clearSuspension(pluginId)
             if (store.selectedThemePluginId() == pluginId) store.setSelectedThemePluginId(null)
+            if (store.selectedIconPluginId() == pluginId) store.setSelectedIconPluginId(null)
 
             reload()
             true
@@ -566,6 +580,37 @@ class PluginRegistryImpl @Inject constructor(
                 activeThemeState.value = null
             }
         }
+    }
+
+    override suspend fun setActiveIcon(pluginId: String?) {
+        withContext(io) {
+            lock.withLock {
+                store.setSelectedIconPluginId(pluginId)
+                publish()
+                // [setActiveTheme]'s rule: a selection that cannot produce an icon is not kept,
+                // because it would read as the user's choice while the app wears something else.
+                if (pluginId != null && activeIconState.value == null) {
+                    store.setSelectedIconPluginId(null)
+                }
+            }
+        }
+    }
+
+    override suspend fun resetToPluginIcon() {
+        withContext(io) {
+            lock.withLock {
+                store.setSelectedIconPluginId(null)
+                // Direct, for [resetToDefaultTheme]'s reason: clearing a selection needs nothing from
+                // the plugin and must work even when the encrypted file cannot be opened.
+                activeIconState.value = null
+            }
+        }
+    }
+
+    override suspend fun iconArtwork(pluginId: String): ByteArray? = withContext(io) {
+        val record = lock.withLock { records[pluginId] } ?: return@withContext null
+        val path = readIcon(record)?.artworkPath ?: return@withContext null
+        looseEntry(record, path)?.takeIf { PluginIconArtwork.isAcceptable(it) }
     }
 
     override suspend fun setKillSwitch(on: Boolean) {
@@ -691,6 +736,72 @@ class PluginRegistryImpl @Inject constructor(
             is PluginThemeCodec.Result.Rejected -> null
         }
     }
+
+    /**
+     * Every plugin currently allowed to offer an icon, in registry order.
+     *
+     * [resolveOverlayModules]'s loop shape rather than [resolveActiveTheme]'s single selection,
+     * because the picker has to show the user what is on offer before they accept it. The selection
+     * is applied to this list afterwards, so the permission chain is walked once per publish either
+     * way.
+     */
+    private fun resolveIconOffers(plugins: List<InstalledPlugin>, killSwitch: Boolean): List<ActiveIcon> {
+        val out = ArrayList<ActiveIcon>()
+        for (plugin in plugins) {
+            if (!plugin.isActive) continue
+            val record = records[plugin.id] ?: continue
+            if (PluginSection.ICON !in record.manifest.declares) continue
+            if (!gate.isAllowed(plugin.runtimeState(killSwitch), PluginPermission.CHANGE_ICON)) continue
+            val spec = readIcon(record) ?: continue
+            out += ActiveIcon(pluginId = plugin.id, pluginName = plugin.name, spec = spec)
+        }
+        return out
+    }
+
+    /**
+     * The icon request the user accepted, or null.
+     *
+     * A selection that is no longer in [offers] — the plugin was disabled, uninstalled, suspended, its
+     * grant revoked, or its `icon.json` stopped parsing — resolves to null, which is what makes "use
+     * the icon I picked" always reachable.
+     */
+    private fun resolveActiveIcon(offers: List<ActiveIcon>): ActiveIcon? {
+        val selectedId = store.selectedIconPluginId() ?: return null
+        return offers.firstOrNull { it.pluginId == selectedId }
+    }
+
+    /**
+     * Reads and vets one plugin's `icon.json`.
+     *
+     * Icon requests are not cached the way themes are: a theme is read on every start and every
+     * publish because a whole screen depends on it, whereas this is a few hundred bytes read only
+     * when the picker is open or a switch is being made. A cache here would be state to invalidate in
+     * exchange for nothing.
+     */
+    private fun readIcon(record: PluginRecord): PluginIconSpec? {
+        val raw = sectionEntries(record, PluginSection.ICON).firstOrNull() ?: return null
+        val spec = when (val decoded = PluginIconCodec.decode(raw.toString(Charsets.UTF_8))) {
+            is PluginIconCodec.Result.Parsed -> decoded.spec
+            is PluginIconCodec.Result.Rejected -> return null
+        }
+        val path = spec.artworkPath ?: return spec
+        val bytes = looseEntry(record, path) ?: return null
+        return spec.takeIf { PluginIconArtwork.isAcceptable(bytes) }
+    }
+
+    /**
+     * One loose entry from a package — `assets/...` rather than a section file.
+     *
+     * [sectionEntries] walks a section prefix; artwork sits under `assets/`, which the loader admits
+     * by prefix precisely so a section can point at it. Bundled plugins keep the same layout under
+     * their asset directory, so both sources resolve the same way.
+     */
+    private fun looseEntry(record: PluginRecord, path: String): ByteArray? = runCatching {
+        when (val source = record.source) {
+            is PluginSource.Asset -> readAsset("${source.base}/$path")
+            is PluginSource.Package -> loadPackage(source.file)?.entry(path)
+        }
+    }.getOrNull()
 
     /**
      * The plugin's settings schema, or null.

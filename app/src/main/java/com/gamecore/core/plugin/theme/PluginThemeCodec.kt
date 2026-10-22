@@ -25,7 +25,10 @@ import org.json.JSONObject
  */
 object PluginThemeCodec {
 
-    enum class Reason { EMPTY, MALFORMED, MISSING_FIELD, BAD_COLOR, BAD_FONT, UNKNOWN_KEY, BAD_SCHEMA, BAD_TYPOGRAPHY }
+    enum class Reason {
+        EMPTY, MALFORMED, MISSING_FIELD, BAD_COLOR, BAD_FONT, UNKNOWN_KEY, BAD_SCHEMA, BAD_TYPOGRAPHY,
+        BAD_EFFECTS,
+    }
 
     sealed interface Result {
         data class Parsed(val theme: PluginTheme) : Result
@@ -46,6 +49,16 @@ object PluginThemeCodec {
 
     /** The v2 surface: the v1 keys, the schema tag, and the three v2 extras. */
     private val KNOWN_KEYS_V2 = KNOWN_KEYS_V1_AND_SCHEMA + setOf("amoled", "roles", "typography")
+
+    /** The v3 surface adds exactly one key — `effects` — whose only member today is `glitch`. */
+    private val KNOWN_KEYS_V3 = KNOWN_KEYS_V2 + "effects"
+
+    private val EFFECT_KEYS = setOf("glitch")
+
+    private val GLITCH_KEYS = setOf(
+        "intensity", "slices", "sliceOffsetDp", "ghostOffsetDp", "fractureLines",
+        "noise", "microJitter", "hardwareReactive", "burstMinMs", "burstMaxMs",
+    )
 
     /** The seven semantic roles a v2 `roles` object may name; any other key rejects the theme. */
     private val ROLE_KEYS = setOf(
@@ -75,8 +88,12 @@ object PluginThemeCodec {
 
         // A v1 theme is held to the v1 surface plus the schema tag itself, so a theme that reaches
         // for a v2 key without declaring v2 is rejected rather than quietly ignored. Only a theme
-        // that declares schema >= 2 opens up the v2 keys.
-        val knownKeys = if (schema >= PluginTheme.SCHEMA_V2) KNOWN_KEYS_V2 else KNOWN_KEYS_V1_AND_SCHEMA
+        // that declares schema >= 2 opens up the v2 keys, and only schema >= 3 opens `effects`.
+        val knownKeys = when {
+            schema >= PluginTheme.SCHEMA_V3 -> KNOWN_KEYS_V3
+            schema >= PluginTheme.SCHEMA_V2 -> KNOWN_KEYS_V2
+            else -> KNOWN_KEYS_V1_AND_SCHEMA
+        }
         root.keys().asSequence().toList().firstOrNull { it !in knownKeys }?.let {
             return Result.Rejected(Reason.UNKNOWN_KEY, "unknown key \"$it\"")
         }
@@ -147,6 +164,46 @@ object PluginThemeCodec {
                 typography = PluginThemeTypography(scale = typeScale, weight = weight)
             }
         }
+
+        // Schema 3 and up may ask the host to distort what it draws. The block is all-or-nothing in
+        // the same way the rest of the theme is: a malformed `glitch` rejects the theme rather than
+        // loading a palette without the motion its author asked for, because a theme is one design
+        // and half of one is not the design. An `effects` object with no `glitch` in it is legal and
+        // means "no motion" — that is how a v3 theme keeps the door open without using it.
+        var glitch: PluginGlitch? = null
+        if (schema >= PluginTheme.SCHEMA_V3 && root.has("effects")) {
+            val effects = root.optJSONObject("effects")
+                ?: return Result.Rejected(Reason.BAD_EFFECTS, "\"effects\" is not an object")
+            effects.keys().asSequence().toList().firstOrNull { it !in EFFECT_KEYS }?.let {
+                return Result.Rejected(Reason.UNKNOWN_KEY, "unknown effect \"$it\"")
+            }
+            if (effects.has("glitch")) {
+                val obj = effects.optJSONObject("glitch")
+                    ?: return Result.Rejected(Reason.BAD_EFFECTS, "\"glitch\" is not an object")
+                obj.keys().asSequence().toList().firstOrNull { it !in GLITCH_KEYS }?.let {
+                    return Result.Rejected(Reason.UNKNOWN_KEY, "unknown glitch key \"$it\"")
+                }
+                glitch = PluginGlitch(
+                    intensity = obj.optDouble("intensity", PluginGlitch.DEFAULT.intensity.toDouble())
+                        .toFloat()
+                        .coerceIn(PluginGlitch.MIN_INTENSITY, PluginGlitch.MAX_INTENSITY),
+                    slices = obj.optInt("slices", PluginGlitch.DEFAULT.slices)
+                        .coerceIn(PluginGlitch.MIN_SLICES, PluginGlitch.MAX_SLICES),
+                    sliceOffsetDp = obj.optInt("sliceOffsetDp", PluginGlitch.DEFAULT.sliceOffsetDp)
+                        .coerceIn(PluginGlitch.MIN_SLICE_OFFSET_DP, PluginGlitch.MAX_SLICE_OFFSET_DP),
+                    ghostOffsetDp = obj.optInt("ghostOffsetDp", PluginGlitch.DEFAULT.ghostOffsetDp)
+                        .coerceIn(PluginGlitch.MIN_GHOST_OFFSET_DP, PluginGlitch.MAX_GHOST_OFFSET_DP),
+                    fractureLines = obj.optBoolean("fractureLines", PluginGlitch.DEFAULT.fractureLines),
+                    noise = obj.optBoolean("noise", PluginGlitch.DEFAULT.noise),
+                    microJitter = obj.optBoolean("microJitter", PluginGlitch.DEFAULT.microJitter),
+                    hardwareReactive = obj.optBoolean("hardwareReactive", PluginGlitch.DEFAULT.hardwareReactive),
+                    burstMinMs = obj.optInt("burstMinMs", PluginGlitch.DEFAULT.burstMinMs)
+                        .coerceIn(PluginGlitch.MIN_BURST_MS, PluginGlitch.MAX_BURST_MS),
+                    burstMaxMs = obj.optInt("burstMaxMs", PluginGlitch.DEFAULT.burstMaxMs)
+                        .coerceIn(PluginGlitch.MIN_BURST_MS, PluginGlitch.MAX_BURST_MS),
+                ).clamped()
+            }
+        }
         return Result.Parsed(
             PluginTheme(
                 name = name,
@@ -164,6 +221,7 @@ object PluginThemeCodec {
                 amoled = amoled,
                 roles = roles,
                 typography = typography,
+                glitch = glitch,
             ),
         )
     }

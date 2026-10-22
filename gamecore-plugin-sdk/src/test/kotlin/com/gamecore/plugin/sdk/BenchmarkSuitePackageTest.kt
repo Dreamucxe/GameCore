@@ -17,7 +17,7 @@ import org.json.JSONObject
  *
  * Benchmark Suite is a three-section plugin — a `pill`, two DSL `widgets` plus one hand-emitted
  * live-chart widget, and `screens` — so it reaches `api == 3` (the widgets and screens sections are
- * each API-3) while keeping `minHostVersion == 28` (the SDK default; nothing here needs a newer host).
+ * each API-3), and `icon {}` raises `minHostVersion` to 37 (the 3.15.0 icon host).
  * Both are asserted below, as is the honest shape of the plugin: the pill draws **live stat nodes and
  * no chart** (the overlay audit refuses a live chart series), while the one chart that names a live
  * series rides as a **dashboard** widget, where the host validates and honours it.
@@ -76,23 +76,27 @@ class BenchmarkSuitePackageTest {
         assertEquals("gamecore.plugin", m.getString("format"), "format")
         assertEquals("com.dreamucxe.gamecore.benchmark", m.getString("id"), "id")
         assertEquals("Benchmark Suite", m.getString("name"), "name")
-        assertEquals(1, m.getInt("version"), "version")
-        assertEquals("1.0.0", m.getString("versionName"), "versionName")
+        assertEquals(2, m.getInt("version"), "version")
+        assertEquals("1.1.0", m.getString("versionName"), "versionName")
         assertEquals(3, m.getInt("api"), "api is 3 — widgets{} and screens{} are each API-3 sections")
-        assertEquals(28, m.getInt("minHostVersion"), "minHostVersion stays the SDK default (28)")
+        assertEquals(Sdk.HOST_VERSION_CODE_ICON, m.getInt("minHostVersion"), "minHostVersion is the icon host (37)")
         assertEquals("Dream", m.getString("developer"), "developer")
         assertEquals("Initial release.", m.getString("changelog"), "changelog")
 
-        // Four permissions: one gate per section, plus the scoped read behind every live figure.
+        // Five permissions: one gate per section, the scoped read behind every live figure, and
+        // change_icon for the launcher icon.
         val perms = m.getJSONArray("permissions")
-        assertEquals(4, perms.length(), "exactly four permissions")
+        assertEquals(5, perms.length(), "exactly five permissions")
         val byId = (0 until perms.length())
             .map { perms.getJSONObject(it) }
             .associateBy { it.getString("id") }
         assertEquals(
-            setOf("create_overlay", "add_dashboard_widgets", "read_approved_data", "change_ui"),
+            setOf(
+                "create_overlay", "add_dashboard_widgets", "read_approved_data", "change_ui",
+                "change_icon",
+            ),
             byId.keys,
-            "the four permissions, by id",
+            "the five permissions, by id",
         )
 
         val read = byId.getValue("read_approved_data")
@@ -103,15 +107,15 @@ class BenchmarkSuitePackageTest {
             "read_approved_data is scoped to device_stats (fps/cpu/gpu) and thermals (temp)",
         )
         // The three section-gating grants carry no scopes — scopes are meaningful only for the read.
-        for (id in listOf("create_overlay", "add_dashboard_widgets", "change_ui")) {
+        for (id in listOf("create_overlay", "add_dashboard_widgets", "change_ui", "change_icon")) {
             assertTrue(!byId.getValue(id).has("scopes"), "$id carries no scopes")
         }
 
         val declares = m.getJSONArray("declares")
         assertEquals(
-            listOf("pill", "widgets", "screens"),
+            listOf("pill", "widgets", "screens", "icon"),
             (0 until declares.length()).map { declares.getString(it) },
-            "declares pill, widgets and screens, in author order",
+            "declares pill, widgets and screens, then the icon section, in author order",
         )
     }
 
@@ -197,6 +201,7 @@ class BenchmarkSuitePackageTest {
                 "widgets/bench_about.json",
                 "widgets/bench_trend.json",
                 "screens/screens.json",
+                "icon.json",
             ),
             ordered,
             "manifest first, then the sections in author order",

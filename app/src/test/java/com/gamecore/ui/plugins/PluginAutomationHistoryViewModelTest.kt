@@ -2,6 +2,7 @@ package com.gamecore.ui.plugins
 
 import androidx.lifecycle.SavedStateHandle
 import com.gamecore.core.plugin.ActiveDashboardWidget
+import com.gamecore.core.plugin.ActiveIcon
 import com.gamecore.core.plugin.ActiveOverlayModule
 import com.gamecore.core.plugin.ActivePluginAutomation
 import com.gamecore.core.plugin.ActiveTheme
@@ -146,6 +147,8 @@ class PluginAutomationHistoryViewModelTest {
 
         override val installed = MutableStateFlow<List<InstalledPlugin>>(emptyList())
         override val activeTheme = MutableStateFlow<ActiveTheme?>(null)
+        override val activeIcon = MutableStateFlow<ActiveIcon?>(null)
+        override val iconOffers = MutableStateFlow<List<ActiveIcon>>(emptyList())
         override val activeOverlayModules = MutableStateFlow<List<ActiveOverlayModule>>(emptyList())
         override val activeDashboardWidgets = MutableStateFlow<List<ActiveDashboardWidget>>(emptyList())
         override val activeAutomations = MutableStateFlow<List<ActivePluginAutomation>>(emptyList())
@@ -174,6 +177,9 @@ class PluginAutomationHistoryViewModelTest {
         override suspend fun readPluginSetting(pluginId: String, schema: PluginSettingsSchema, id: String): ApiResult<SettingValue> = ApiResult.Error("unused")
         override suspend fun setPluginSetting(pluginId: String, schema: PluginSettingsSchema, id: String, value: SettingValue): ApiResult<SettingValue> = ApiResult.Error("unused")
         override suspend fun refresh() {}
+        override suspend fun setActiveIcon(pluginId: String?) {}
+        override suspend fun resetToPluginIcon() {}
+        override suspend fun iconArtwork(pluginId: String): ByteArray? = null
         override suspend fun install(bytes: ByteArray, origin: PluginOrigin): InstallOutcome = InstallOutcome.StorageFailed("unused")
         override suspend fun remove(pluginId: String): Boolean = false
         override suspend fun setEnabled(pluginId: String, enabled: Boolean) {}

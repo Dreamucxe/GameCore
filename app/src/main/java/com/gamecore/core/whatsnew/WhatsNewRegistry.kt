@@ -35,6 +35,80 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 37,
+            versionName = "3.15.0",
+            date = "2026-10-21",
+            features = listOf(
+                FeatureNote(
+                    "GameCore has five icons now",
+                    "Settings → App icon shows the set: the Core mark, a one-colour Mono for " +
+                        "themed-icon launchers, Glitch torn cyan-and-red, Neon's magenta reticle and " +
+                        "Redline cut to a hard corner. Tapping one changes the icon your launcher " +
+                        "shows — the real one, not a shortcut to it.",
+                ),
+                FeatureNote(
+                    "Plugins can pick the icon",
+                    "A plugin can ask for one of the five, and Settings shows which plugin is " +
+                        "currently doing it with a one-tap Undo back to your own choice.",
+                ),
+                FeatureNote(
+                    "Plugin artwork as a pinned icon",
+                    "A plugin that brings an image of its own can offer it as a home-screen " +
+                        "shortcut. Android will not let any app install a bitmap as its launcher icon, " +
+                        "so this is the honest version of that: your launcher asks you to confirm, " +
+                        "and GameCore's own icon is untouched.",
+                ),
+            ),
+        ),
+        ReleaseNote(
+            versionCode = 36,
+            versionName = "3.14.0",
+            date = "2026-10-21",
+            features = listOf(
+                FeatureNote(
+                    "Themes can move now",
+                    "A plugin theme can carry a glitch block: the screen tears into horizontal bands " +
+                        "that slide sideways, fractures into one-pixel lines, throws block noise and " +
+                        "drops a frame when the phone gets hot. The whole app is affected, text and " +
+                        "panels alike — it is a live re-draw, not a colour filter.",
+                ),
+                FeatureNote(
+                    "It reads the phone",
+                    "With \"hardware reactive\" on, a busy device tears about twice as often and a " +
+                        "throttling one adds a vertical frame drop. Turn it off and the effect runs on " +
+                        "a fixed rhythm and costs no sensor reads at all.",
+                ),
+                FeatureNote(
+                    "Animation settings still win",
+                    "Settings → Animations → Off, or the system's remove-animations switch, suppresses " +
+                        "every theme effect. A plugin asks for motion; it can never take it.",
+                ),
+                FeatureNote(
+                    "Off by default",
+                    "Nothing changes unless you install and select a theme that asks for it. " +
+                        "Existing themes render exactly as they did.",
+                ),
+            ),
+        ),
+        ReleaseNote(
+            versionCode = 35,
+            versionName = "3.13.0",
+            date = "2026-10-20",
+            features = listOf(
+                FeatureNote(
+                    "One tap, the full panel",
+                    "Tapping the floating button now opens the control panel straight away — every tab, " +
+                        "every control — instead of the small quick sheet. The sheet's toggles, sliders " +
+                        "and session clock have not gone anywhere: a double tap on the button opens it.",
+                ),
+                FeatureNote(
+                    "Or keep the sheet first",
+                    "Settings → Overlay → Quick sheet has a switch for it. Off, a tap opens the small " +
+                        "sheet first and the panel stays on its \"More\" button, exactly as before.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 34,
             versionName = "3.12.0",
             date = "2026-10-20",

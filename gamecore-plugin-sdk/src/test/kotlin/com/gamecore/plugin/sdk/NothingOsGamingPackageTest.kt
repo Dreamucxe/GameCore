@@ -45,19 +45,19 @@ class NothingOsGamingPackageTest {
         assertEquals("gamecore.plugin", m.getString("format"), "format")
         assertEquals("com.dreamucxe.gamecore.nothingos", m.getString("id"), "id")
         assertEquals("Nothing OS Gaming", m.getString("name"), "name")
-        assertEquals(1, m.getInt("version"), "version")
-        assertEquals("1.0.0", m.getString("versionName"), "versionName")
+        assertEquals(2, m.getInt("version"), "version")
+        assertEquals("1.1.0", m.getString("versionName"), "versionName")
         assertEquals(2, m.getInt("api"), "api is 2, reached automatically by the amoled schema-2 theme")
-        assertEquals(28, m.getInt("minHostVersion"), "minHostVersion keeps the SDK default")
+        assertEquals(Sdk.HOST_VERSION_CODE_ICON, m.getInt("minHostVersion"), "minHostVersion is the icon host (37)")
         assertEquals("Dream", m.getString("developer"), "developer")
         assertEquals("Initial release.", m.getString("changelog"), "changelog")
 
         val perms = m.getJSONArray("permissions")
-        assertEquals(3, perms.length(), "exactly three permissions")
+        assertEquals(4, perms.length(), "exactly four permissions")
         assertEquals(
-            setOf("change_ui", "run_automations", "system_actions"),
+            setOf("change_ui", "run_automations", "system_actions", "change_icon"),
             (0 until perms.length()).map { perms.getJSONObject(it).getString("id") }.toSet(),
-            "the three permissions the brief requires",
+            "the four permissions the brief requires",
         )
         (0 until perms.length()).forEach { i ->
             assertTrue(!perms.getJSONObject(i).has("scopes"), "none of these permissions carries scopes")
@@ -65,9 +65,9 @@ class NothingOsGamingPackageTest {
 
         val declares = m.getJSONArray("declares")
         assertEquals(
-            listOf("theme", "rules"),
+            listOf("theme", "rules", "icon"),
             (0 until declares.length()).map { declares.getString(it) },
-            "declares theme then rules, in insertion order",
+            "declares theme then rules then the icon, in insertion order",
         )
     }
 
@@ -162,7 +162,7 @@ class NothingOsGamingPackageTest {
             }
         }
         assertEquals(
-            listOf("manifest.json", "theme.json", "rules/rules.json"),
+            listOf("manifest.json", "theme.json", "rules/rules.json", "icon.json"),
             ordered,
             "manifest first, then theme, then rules — insertion order",
         )

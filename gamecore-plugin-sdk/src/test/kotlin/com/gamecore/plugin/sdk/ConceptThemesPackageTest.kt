@@ -64,22 +64,34 @@ class ConceptThemesPackageTest {
             assertEquals(case.id, m.getString("id"), "${case.slug} id")
             assertEquals(case.name, m.getString("name"), "${case.slug} name")
             assertEquals("gamecore.plugin", m.getString("format"), "${case.slug} format")
-            assertEquals(1, m.getInt("version"), "${case.slug} version")
-            assertEquals("1.0.0", m.getString("versionName"), "${case.slug} versionName")
-            assertEquals(28, m.getInt("minHostVersion"), "${case.slug} minHostVersion")
+            assertEquals(2, m.getInt("version"), "${case.slug} version")
+            assertEquals("1.1.0", m.getString("versionName"), "${case.slug} versionName")
+            assertEquals(37, m.getInt("minHostVersion"), "${case.slug} minHostVersion")
             assertEquals(
                 2, m.getInt("api"),
                 "${case.slug} is schema 2, so its api must be 2 — a v1 host rejects a v2 theme",
             )
 
             val perms = m.getJSONArray("permissions")
-            assertEquals(1, perms.length(), "${case.slug} asks for exactly one permission")
+            assertEquals(2, perms.length(), "${case.slug} asks for exactly two permissions")
             assertEquals("change_ui", perms.getJSONObject(0).getString("id"), "${case.slug} permission")
             assertTrue(!perms.getJSONObject(0).has("scopes"), "${case.slug} change_ui carries no scopes")
+            assertEquals(
+                "change_icon", perms.getJSONObject(perms.length() - 1).getString("id"),
+                "${case.slug} change_icon is requested last",
+            )
+            assertTrue(
+                !perms.getJSONObject(perms.length() - 1).has("scopes"),
+                "${case.slug} change_icon carries no scopes",
+            )
 
             val declares = m.getJSONArray("declares")
-            assertEquals(1, declares.length(), "${case.slug} declares exactly one section")
+            assertEquals(2, declares.length(), "${case.slug} declares exactly two sections")
             assertEquals("theme", declares.getString(0), "${case.slug} declares theme")
+            assertEquals(
+                "icon", declares.getString(declares.length() - 1),
+                "${case.slug} declares the icon section last",
+            )
         }
     }
 
@@ -177,7 +189,10 @@ class ConceptThemesPackageTest {
                     zin.closeEntry()
                 }
             }
-            assertEquals(listOf("manifest.json", "theme.json"), ordered, "${case.slug} entry order")
+            assertEquals(
+                listOf("manifest.json", "theme.json", "icon.json"), ordered,
+                "${case.slug} entry order",
+            )
 
             ZipFile(out).use { zip ->
                 zip.entries().asSequence().forEach { e ->

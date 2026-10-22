@@ -17,7 +17,7 @@ import org.json.JSONObject
  *
  * The deck is a data-only `widgets` section: eight read-only cards the host draws with its own
  * Compose renderer. The `widgets { }` section raises the manifest api to [Sdk.API_V3] (3) and
- * declares the section, both asserted below; `minHostVersion` stays the SDK default (28), so the
+ * declares the section, both asserted below; `icon {}` raises `minHostVersion` to 37 (the 3.15.0 icon host), so the
  * manifest and the feature it needs can never disagree.
  *
  * The flatten at the end is where the bundled-vs-sideloaded asymmetry is made real: the host's
@@ -87,28 +87,32 @@ class DashboardComposerPackageTest {
         assertEquals("gamecore.plugin", m.getString("format"), "format")
         assertEquals("com.dreamucxe.gamecore.dashboardcomposer", m.getString("id"), "id")
         assertEquals("Dashboard Composer", m.getString("name"), "name")
-        assertEquals(1, m.getInt("version"), "version")
-        assertEquals("1.0.0", m.getString("versionName"), "versionName")
+        assertEquals(2, m.getInt("version"), "version")
+        assertEquals("1.1.0", m.getString("versionName"), "versionName")
         assertEquals(Sdk.API_V3, m.getInt("api"), "api is 3 — the widgets section is a 3.x host feature")
         assertEquals(3, m.getInt("api"), "api is literally 3, so the bump is not an alias drifting")
         assertEquals(
-            Sdk.HOST_VERSION_CODE, m.getInt("minHostVersion"),
-            "minHostVersion keeps the SDK default (28); the api bump is the widgets section's job alone",
+            Sdk.HOST_VERSION_CODE_ICON, m.getInt("minHostVersion"),
+            "the icon section needs the 3.15.0 host (37); the widgets section alone needed 28",
         )
-        assertEquals(28, m.getInt("minHostVersion"), "minHostVersion is literally 28")
+        assertEquals(37, m.getInt("minHostVersion"), "minHostVersion is literally the icon host")
         assertEquals("Dream", m.getString("developer"), "developer")
         assertEquals("Initial release.", m.getString("changelog"), "changelog")
 
-        // Two permissions: ADD_DASHBOARD_WIDGETS registers the cards; READ_APPROVED_DATA opens the
-        // two apertures the live tiles read — the union of every stat node's scope across the deck.
+        // Three permissions: ADD_DASHBOARD_WIDGETS registers the cards; READ_APPROVED_DATA opens the
+        // two apertures the live tiles read — the union of every stat node's scope across the deck;
+        // CHANGE_ICON asks for the launcher icon.
         val perms = m.getJSONArray("permissions")
-        assertEquals(2, perms.length(), "exactly two permissions")
+        assertEquals(3, perms.length(), "exactly three permissions")
         val byId = (0 until perms.length())
             .map { perms.getJSONObject(it) }
             .associateBy { it.getString("id") }
 
         val add = byId.getValue("add_dashboard_widgets")
         assertTrue(!add.has("scopes"), "add_dashboard_widgets carries no scopes")
+
+        val changeIcon = byId.getValue("change_icon")
+        assertTrue(!changeIcon.has("scopes"), "change_icon carries no scopes")
 
         val read = byId.getValue("read_approved_data")
         val scopes = read.getJSONArray("scopes")
@@ -119,8 +123,11 @@ class DashboardComposerPackageTest {
         )
 
         val declares = m.getJSONArray("declares")
-        assertEquals(1, declares.length(), "declares exactly one section")
-        assertEquals("widgets", declares.getString(0), "declares widgets")
+        assertEquals(
+            listOf("widgets", "icon"),
+            (0 until declares.length()).map { declares.getString(it) },
+            "declares widgets, then the icon section",
+        )
     }
 
     @Test
@@ -128,9 +135,9 @@ class DashboardComposerPackageTest {
         // One widgets/<id>.json per card, and only those — nothing extra on disk, nothing declared
         // with no file behind it.
         assertEquals(
-            widgetIds.map { "widgets/$it.json" }.toSet(),
+            widgetIds.map { "widgets/$it.json" }.toSet() + "icon.json",
             def.sectionFiles.keys.toSet(),
-            "the deck emits exactly its eight widget files",
+            "the deck emits exactly its eight widget files plus icon.json",
         )
         assertEquals(8, widgetIds.size, "the deck is eight cards — varied, and well under the cap of 16")
         assertTrue(widgetIds.size <= WidgetBounds.MAX_WIDGETS, "the deck stays within the per-plugin cap")
@@ -221,7 +228,7 @@ class DashboardComposerPackageTest {
             }
         }
         assertEquals(
-            listOf("manifest.json") + widgetIds.map { "widgets/$it.json" },
+            listOf("manifest.json") + widgetIds.map { "widgets/$it.json" } + "icon.json",
             ordered,
             "manifest first, then each widget file in author order",
         )
@@ -251,6 +258,7 @@ class DashboardComposerPackageTest {
         val assetsDir = File(repoRoot(), "app/src/main/assets/plugins/dashboardcomposer").apply { mkdirs() }
         File(assetsDir, "manifest.json").writeBytes(def.manifestJson)
         File(assetsDir, "widgets.json").writeBytes(def.sectionFiles.getValue("widgets/$REP_WIDGET_ID.json"))
+        File(assetsDir, "icon.json").writeBytes(def.sectionFiles.getValue("icon.json"))
     }
 
     companion object {

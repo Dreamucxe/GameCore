@@ -153,6 +153,9 @@ fun SettingsScreen(
                 modifier = padded,
             )
         }
+        // Its own ViewModel: the icon is not an AppSettings field and is not in an export, so it does
+        // not belong in the settings form. See AppIconCard.
+        item { AppIconCard(modifier = padded) }
         item {
             DisplayTextCard(
                 state = state,

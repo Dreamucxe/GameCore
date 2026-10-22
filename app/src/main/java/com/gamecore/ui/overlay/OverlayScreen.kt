@@ -262,6 +262,7 @@ fun OverlayScreen(
                 onMovePin = viewModel::movePin,
                 onRemovePin = viewModel::removePin,
                 onAutoClose = viewModel::setQuickAutoClose,
+                onTapOpensPanel = viewModel::setTapOpensPanel,
                 onDoubleTap = viewModel::setDoubleTapForPanel,
                 onMacros = { onNavigate(Destination.MacroEditor) },
                 modifier = padded,
@@ -1193,7 +1194,9 @@ private fun DockCard(
  * §4's quick sheet: which toggles it holds, whether it closes itself, and how it is opened.
  *
  * Filed between the button's card and the panel's because that is the order the user meets them in — one
- * tap on the button is the sheet, and the full panel is the thing behind it. The sheet is not a window
+ * tap on the button opens the sheet by default, with the full panel behind it on "More"; when the user
+ * prefers the panel first, this card is where they say so, and the two swap gestures. The sheet is not a
+ * window
  * with a switch of its own, which is why this card has no visibility chip: it exists only while a finger
  * has just summoned it, and there is nothing on screen for the service to report on.
  *
@@ -1215,6 +1218,7 @@ private fun QuickSheetCard(
     onMovePin: (QuickToggle, Int) -> Unit,
     onRemovePin: (QuickToggle) -> Unit,
     onAutoClose: (Boolean) -> Unit,
+    onTapOpensPanel: (Boolean) -> Unit,
     onDoubleTap: (Boolean) -> Unit,
     onMacros: () -> Unit,
     modifier: Modifier = Modifier,
@@ -1226,8 +1230,14 @@ private fun QuickSheetCard(
         modifier = modifier,
     ) {
         Text(
-            text = "One tap on the floating button opens a small sheet beside it: the toggles below, the " +
-                "brightness and volume sliders, and how long this session has been running.",
+            text = if (state.button.tapOpensPanel) {
+                "One tap on the floating button opens the full control panel — the surface with every " +
+                    "control on it. The small sheet beside it, with the toggles below, the brightness and " +
+                    "volume sliders and the session clock, is a double tap away."
+            } else {
+                "One tap on the floating button opens a small sheet beside it: the toggles below, the " +
+                    "brightness and volume sliders, and how long this session has been running."
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1281,13 +1291,23 @@ private fun QuickSheetCard(
                 "from it, or open the full panel.",
         )
         SwitchRow(
-            title = "Double tap opens the full panel",
-            checked = state.button.doubleTapForPanel,
-            onCheckedChange = onDoubleTap,
-            description = "Off by default, because turning it on costs every single tap: the button has " +
-                "to wait and see whether a second one is coming before it can open the sheet. The full " +
-                "panel is on the sheet's own \"More\" either way.",
+            title = "One tap opens the full panel",
+            checked = state.button.tapOpensPanel,
+            onCheckedChange = onTapOpensPanel,
+            description = "On, a tap goes straight to the panel with every control on it, and a double tap " +
+                "opens the small sheet instead. Off, the tap opens the sheet first and the panel is its " +
+                "\"More\" button.",
         )
+        if (!state.button.tapOpensPanel) {
+            SwitchRow(
+                title = "Double tap opens the full panel",
+                checked = state.button.doubleTapForPanel,
+                onCheckedChange = onDoubleTap,
+                description = "Off by default, because turning it on costs every single tap: the button has " +
+                    "to wait and see whether a second one is coming before it can open the sheet. The full " +
+                    "panel is on the sheet's own \"More\" either way.",
+            )
+        }
     }
 }
 
