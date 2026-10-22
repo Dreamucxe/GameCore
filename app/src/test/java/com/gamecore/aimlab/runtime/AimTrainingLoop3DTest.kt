@@ -4,8 +4,11 @@ import com.gamecore.aimlab.TrainingConfig
 import com.gamecore.aimlab.TrainingFrame
 import com.gamecore.aimlab.engine.Difficulty
 import com.gamecore.aimlab.engine.FakeClock
+import com.gamecore.aimlab.engine.Scoring
 import com.gamecore.aimlab.engine.SeededRng
+import com.gamecore.aimlab.engine.SessionSummary
 import com.gamecore.aimlab.engine.TrainingMode
+import com.gamecore.aimlab.engine3d.GyroRemap
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -13,6 +16,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,10 +30,10 @@ import org.junit.Test
  * one level below the touch surface: the counters that feed the HUD's "misses = shots − hits" move for
  * exactly one reason and no other.
  *
- *  - **Looking never scores.** [onLookPixels], [onAimDelta] and [onGyro] rotate the camera and touch no
- *    counter, in every mode. So however many times a finger drags across the screen while a reaction target
- *    is still hidden, `shots` stays 0 and the HUD's `shots − hits` stays 0 — the "17 misses while WAITING"
- *    class of bug cannot be produced by looking, by construction.
+ *  - **Looking never scores.** [onLookPixels], [onAimDelta], [onGyro] and [onTilt] rotate the camera and
+ *    touch no counter, in every mode. So however many times a finger drags across the screen while a
+ *    reaction target is still hidden, `shots` stays 0 and the HUD's `shots − hits` stays 0 — the "17
+ *    misses while WAITING" class of bug cannot be produced by looking, by construction.
  *  - **A shot is the only thing that moves `shots`,** and only while the run is live. A deliberate tap
  *    during the reaction wait is a false start (a shot, no hit) — which is correct and intended, and is a
  *    different event from a look-drag. A tap on a shown target is a hit.
@@ -73,6 +77,22 @@ class AimTrainingLoop3DTest {
 
         repeat(20) {
             loop.onGyro(yawRadians = 0.05f, pitchRadians = -0.03f)
+            loop.onAimDelta(dx = 0.1f, dy = 0.1f, aiming = false)
+            tick(1)
+        }
+
+        val f = frames.last()
+        assertEquals(0, f.shots)
+        assertEquals(0, f.hits)
+    }
+
+    @Test
+    fun `tilt and aim-delta input also never move the counters`() = runTest {
+        loop.start(config(mode = TrainingMode.TILT))
+        collectFrames()
+
+        repeat(20) {
+            loop.onTilt(yawRadians = 0.05f, pitchRadians = -0.03f)
             loop.onAimDelta(dx = 0.1f, dy = 0.1f, aiming = false)
             tick(1)
         }
@@ -153,28 +173,153 @@ class AimTrainingLoop3DTest {
         assertEquals("an empty-arena tap hits nothing", 0, f.hits)
     }
 
+    // ------------------------------------------------------------------------------------ tilt
+
+    @Test
+    fun `a tilt run starts, accepts onTilt, and stops with a tilt summary scored like gyro`() = runTest {
+        loop.start(config(mode = TrainingMode.TILT, difficulty = Difficulty.EASY))
+        collectFrames()
+
+        // Follow the EASY horizontal target as closely as a gyro player would: the target's own per-tick
+        // turn in radians, applied every tick. Hardware is irrelevant — onTilt is just another look input.
+        repeat(TRACKED_TICKS) {
+            loop.onTilt(yawRadians = EASY_TRACK_YAW_PER_TICK, pitchRadians = 0f)
+            tick(1)
+        }
+        assertTrue("the run is still going", frames.last().running && !frames.last().finished)
+
+        // `!!` is the assertion: a tilt run that tracked is worth storing.
+        val summary = loop.stop()!!
+        assertEquals(TrainingMode.TILT, summary.mode)
+        assertEquals(Difficulty.EASY, summary.difficulty)
+        assertTrue("the tilt run scored nothing", summary.score > 0)
+        // Tilt reports the same stability figure gyro does, so the shared gyro measurement ran for it too.
+        assertTrue("tilt produced no stability figure", summary.gyroStability > 0f)
+        // And the score is the gyro formula — the tracking score derated by a stability factor of at most
+        // one — not the raw tracking score. Equality with a gyro run is pinned by the rotation-0 test below.
+        val trackingScore = Scoring.tracking(summary.timeOnTargetFraction, summary.trackingErrorAverage)
+        assertTrue("the tilt score exceeds the gyro formula's ceiling", summary.score <= trackingScore)
+    }
+
+    @Test
+    fun `onTilt is never remapped for display rotation while onGyro still is`() = runTest {
+        val tiltAt0 = cameraYawAfter(GyroRemap.ROTATION_0, TrainingMode.TILT) {
+            it.onTilt(yawRadians = ROTATION_TURN_YAW, pitchRadians = 0f)
+        }
+        val tiltAt90 = cameraYawAfter(GyroRemap.ROTATION_90, TrainingMode.TILT) {
+            it.onTilt(yawRadians = ROTATION_TURN_YAW, pitchRadians = 0f)
+        }
+
+        // Tilt arrives already in the screen's frame, so a display rotation must not change where the view
+        // ends up: remapping it would move the same turn to the pitch axis at 90° and drop the yaw to zero.
+        assertEquals("onTilt was remapped for display rotation", tiltAt0, tiltAt90, TOLERANCE)
+        assertTrue("the tilt turn never reached the camera", tiltAt0 > 0f)
+
+        // Control: the identical turn through onGyro at 90° *is* remapped — it becomes pitch, leaving yaw
+        // at zero. This proves the equality above comes from tilt skipping the remap, not from a dead path.
+        val gyroAt90 = cameraYawAfter(GyroRemap.ROTATION_90, TrainingMode.GYRO) {
+            it.onGyro(yawRadians = ROTATION_TURN_YAW, pitchRadians = 0f)
+        }
+        assertEquals("gyro must still be remapped at 90°", 0f, gyroAt90, TOLERANCE)
+        assertNotEquals(tiltAt0, gyroAt90)
+    }
+
+    @Test
+    fun `at rotation zero a tilt run and a gyro run driven identically produce the same score`() = runTest {
+        // Rotation 0 is GyroRemap's identity, so onGyro applies exactly the pair onTilt applies. Identical
+        // camera motion must produce identical tracking figures and the same Scoring.gyro result.
+        val tilt = trackedSummary(TrainingMode.TILT, rotation = GyroRemap.ROTATION_0) {
+            it.onTilt(yawRadians = EASY_TRACK_YAW_PER_TICK, pitchRadians = 0f)
+        }!!
+        val gyro = trackedSummary(TrainingMode.GYRO, rotation = GyroRemap.ROTATION_0) {
+            it.onGyro(yawRadians = EASY_TRACK_YAW_PER_TICK, pitchRadians = 0f)
+        }!!
+
+        // Same numbers, two modes: each summary files itself under its own mode, never under the other's.
+        assertEquals(TrainingMode.TILT, tilt.mode)
+        assertEquals(TrainingMode.GYRO, gyro.mode)
+        assertEquals(gyro.timeOnTargetFraction, tilt.timeOnTargetFraction, TOLERANCE)
+        assertEquals(gyro.trackingErrorAverage, tilt.trackingErrorAverage, TOLERANCE)
+        assertEquals(gyro.gyroStability, tilt.gyroStability, TOLERANCE)
+        assertEquals("tilt and gyro must share the scoring formula", gyro.score, tilt.score)
+        assertTrue("the comparison is vacuous unless the runs scored", tilt.score > 0)
+    }
+
     // ------------------------------------------------------------------------------ driving a run
 
-    private fun TestScope.collectFrames(): Job {
-        val job = backgroundScope.launch { loop.frames.collect { frames += it } }
+    private fun TestScope.collectFrames(
+        target: AimTrainingLoop3D = loop,
+        into: MutableList<TrainingFrame> = frames,
+    ): Job {
+        val job = backgroundScope.launch { target.frames.collect { into += it } }
         runCurrent()
         return job
     }
 
-    /** Runs [ticks] ticker iterations, moving the fake clock forward the same 16 ms the ticker delays for. */
-    private fun TestScope.tick(ticks: Int) {
+    /** Runs [ticks] ticker iterations, moving [source] forward the same 16 ms the ticker delays for. */
+    private fun TestScope.tick(ticks: Int, source: FakeClock = clock) {
         repeat(ticks) {
-            clock.advanceMillis(TICK_MILLIS)
+            source.advanceMillis(TICK_MILLIS)
             advanceTimeBy(TICK_MILLIS)
             runCurrent()
         }
+    }
+
+    /**
+     * Runs a whole EASY tracking-mode run of [mode] at [rotation], applying [input] every tick, and
+     * returns what `stop()` produced. Its own clock and loop per call keep two runs directly comparable.
+     */
+    private fun TestScope.trackedSummary(
+        mode: TrainingMode,
+        rotation: Int = GyroRemap.ROTATION_0,
+        input: (AimTrainingLoop3D) -> Unit,
+    ): SessionSummary? {
+        val runClock = FakeClock(wallMillis = WALL_START_MILLIS, monotonicNanos = MONOTONIC_START_NANOS)
+        val runLoop = AimTrainingLoop3D(runClock, ::SeededRng)
+        val collected = mutableListOf<TrainingFrame>()
+        runLoop.setDisplayRotation(rotation)
+        runLoop.start(config(mode = mode, difficulty = Difficulty.EASY, seed = SEED))
+        val job = collectFrames(runLoop, collected)
+        repeat(TRACKED_TICKS) {
+            input(runLoop)
+            tick(1, runClock)
+        }
+        val summary = runLoop.stop()
+        job.cancel()
+        runCurrent()
+        return summary
+    }
+
+    /**
+     * Starts a run at [rotation], applies [input] for [LOOK_TICKS] ticks, then reads the camera yaw the
+     * loop published to the renderer — the observable that says where the view ended up pointing.
+     */
+    private fun TestScope.cameraYawAfter(
+        rotation: Int,
+        mode: TrainingMode,
+        input: (AimTrainingLoop3D) -> Unit,
+    ): Float {
+        val runClock = FakeClock(wallMillis = WALL_START_MILLIS, monotonicNanos = MONOTONIC_START_NANOS)
+        val runLoop = AimTrainingLoop3D(runClock, ::SeededRng)
+        val collected = mutableListOf<TrainingFrame>()
+        runLoop.setDisplayRotation(rotation)
+        runLoop.start(config(mode = mode, seed = SEED))
+        val job = collectFrames(runLoop, collected)
+        repeat(LOOK_TICKS) {
+            input(runLoop)
+            tick(1, runClock)
+        }
+        val yaw = runLoop.renderState.get().cameraYawDegrees
+        job.cancel()
+        runCurrent()
+        return yaw
     }
 
     private fun config(
         mode: TrainingMode,
         difficulty: Difficulty = Difficulty.NORMAL,
         durationSeconds: Int = 60,
-        seed: Long = 7L,
+        seed: Long = SEED,
     ) = TrainingConfig(
         mode = mode,
         difficulty = difficulty,
@@ -188,6 +333,26 @@ class AimTrainingLoop3DTest {
         const val REACTION_MAX_WAIT_MS = 2_500L
         const val WALL_START_MILLIS = 1_700_000_000_000L
         const val MONOTONIC_START_NANOS = 9_000_000_000L
+
+        /** The fixed seed every run in this file starts from, so a failure replays exactly. */
+        const val SEED = 7L
+
+        /** Enough ticks to score a tracking run without reaching its 60 s time limit. */
+        const val TRACKED_TICKS = 60
+
+        /** How many tilt/gyro turns the display-rotation test applies before reading the camera. */
+        const val LOOK_TICKS = 3
+
+        /** A turn that is recognisably yaw: remapped to pitch at 90°, it would vanish from the yaw axis. */
+        const val ROTATION_TURN_YAW = 0.05f
+
+        /**
+         * The EASY tracking target's angular speed per 16 ms tick (1.2 m/s at 5.5 m depth), in radians.
+         * Feeding it back through onTilt keeps the crosshair on the target closely enough to score.
+         */
+        const val EASY_TRACK_YAW_PER_TICK = 0.0034907f
+
+        const val TOLERANCE = 1e-4f
 
         /** The first tick landing strictly after [millis] of run time — where a `>` deadline fires. */
         fun ticksToPass(millis: Long): Int = (millis / TICK_MILLIS).toInt() + 1

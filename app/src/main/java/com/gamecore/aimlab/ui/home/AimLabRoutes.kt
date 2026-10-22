@@ -83,7 +83,7 @@ object AimLabRoutes {
     /** The Aim Lab HOME screen. The one entry the main Home screen links to, and the section's back-stop. */
     const val HOME = "aimlab-home"
 
-    // --- the seven training modes (map to TrainingMode; see [AimLabDestination.mode]) ---
+    // --- the training modes (map to TrainingMode; tilt shares the gyro card — see [AimLabDestination.forMode]) ---
     const val FLICK = "aimlab-flick"
     const val TRACKING = "aimlab-tracking"
     const val REACTION = "aimlab-reaction"
@@ -127,11 +127,13 @@ object AimLabRoutes {
 
 /**
  * The thirteen entries the HOME grid shows, each with what it is called, why the user would tap it, the icon
- * it wears and — for the seven training modes — which [TrainingMode] it launches.
+ * it wears and — for the training modes — which [TrainingMode] it launches.
  *
  * [mode] is the source of truth the runtime needs: a non-null value means "this card starts a run in that
- * mode", and the mode screen the route resolves to hands that mode to the training loop. The three editors
- * and the three progress screens carry `null` — they configure or report, they do not run.
+ * mode", and the mode screen the route resolves to hands that mode to the training loop. `TILT` has no card
+ * of its own: it is the accelerometer fallback for gyro, played on the [GYRO] card, and [forMode] resolves it
+ * there. The three editors and the three progress screens carry `null` — they configure or report, they do
+ * not run.
  *
  * The order here is the order the home screen draws them in, grouped by [AimLabGroup].
  */
@@ -170,7 +172,7 @@ enum class AimLabDestination(
     GYRO(
         route = AimLabRoutes.GYRO,
         label = "Gyro training",
-        description = "Aim by tilting the device. Needs a gyroscope.",
+        description = "Aim by tilting the device. Gyro training, or tilt training on phones without a gyroscope.",
         icon = Icons.Filled.Sensors,
         group = AimLabGroup.TRAIN,
         mode = TrainingMode.GYRO,
@@ -246,6 +248,15 @@ enum class AimLabDestination(
     companion object {
         /** The home entries in one group, in display order. */
         fun inGroup(group: AimLabGroup): List<AimLabDestination> = entries.filter { it.group == group }
+
+        /**
+         * The home entry that launches [mode], or null for a mode with no card of its own.
+         *
+         * `TILT` is the accelerometer fallback served by the [GYRO] card — the screen picks gyro or tilt
+         * from the device — so it resolves to the same destination and icon rather than one of its own.
+         */
+        fun forMode(mode: TrainingMode): AimLabDestination? =
+            if (mode == TrainingMode.TILT) GYRO else entries.firstOrNull { it.mode == mode }
     }
 }
 

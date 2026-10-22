@@ -188,6 +188,8 @@ class AimTrainingLoop3D internal constructor(
         pendingBursts.clear()
         pendingDecals.clear()
         recoilCamera.reset()
+        trackingPath = null
+        trackingAcc = null
         hits = 0; shots = 0; targetsMissed = 0
         nextTargetId = 1L
         aiming = false
@@ -211,7 +213,7 @@ class AimTrainingLoop3D internal constructor(
         pausedAtNanos = 0L
 
         when (config.mode) {
-            TrainingMode.TRACKING, TrainingMode.GYRO -> {
+            TrainingMode.TRACKING, TrainingMode.GYRO, TrainingMode.TILT -> {
                 trackingPath = TargetPath3D(
                     pattern = patternFor(config),
                     depth = (params.minDistance + params.maxDistance) / 2f,
@@ -238,7 +240,7 @@ class AimTrainingLoop3D internal constructor(
             TrainingMode.FLICK, TrainingMode.MOVEMENT, TrainingMode.FREE_PRACTICE -> rayShot()
             TrainingMode.REACTION -> reactionShot()
             TrainingMode.RECOIL -> recoilShot()
-            TrainingMode.TRACKING, TrainingMode.GYRO -> Unit // hold-to-track, no discrete shot
+            TrainingMode.TRACKING, TrainingMode.GYRO, TrainingMode.TILT -> Unit // hold-to-track, no discrete shot
             null -> Unit
         }
     }
@@ -275,6 +277,24 @@ class AimTrainingLoop3D internal constructor(
         if (!running || finished) return
         val (rx, ry) = GyroRemap.remap(yawRadians, pitchRadians, displayRotation)
         val (yaw, pitch) = look.fromGyro(rx, ry, aiming)
+        val appliedPitch = camera.applyLook(yaw, pitch)
+        if (config?.mode == TrainingMode.RECOIL) recoilCamera.recordPlayerAim(yaw, appliedPitch)
+    }
+
+    /**
+     * Tilt look, from the accelerometer fallback, in radians.
+     *
+     * Unlike [onGyro] this is deliberately **not** remapped for display rotation. The reader measures the
+     * lean of the screen the player is looking at — banking within the screen plane and tipping its top
+     * edge — so the pair is already in the frame the player experiences. Passing it through [GyroRemap]
+     * would apply the rotation a second time.
+     *
+     * Everything downstream is shared with gyro: the same look pipeline, the same gyro sensitivity pair,
+     * the same camera clamp. Only the sensor that produced the two angles differs.
+     */
+    fun onTilt(yawRadians: Float, pitchRadians: Float) {
+        if (!running || finished) return
+        val (yaw, pitch) = look.fromGyro(yawRadians, pitchRadians, aiming)
         val appliedPitch = camera.applyLook(yaw, pitch)
         if (config?.mode == TrainingMode.RECOIL) recoilCamera.recordPlayerAim(yaw, appliedPitch)
     }
@@ -330,7 +350,8 @@ class AimTrainingLoop3D internal constructor(
         val reaction = ReactionStats.from(reactionTimes.toList())
         val timeOnTarget = trackingAcc?.timeOnTargetFraction() ?: 0f
         val trackingError = trackingAcc?.averageErrorDegrees() ?: 0f
-        val gyroStability = if (cfg.mode == TrainingMode.GYRO) {
+        // Tilt runs use the same aim-error measurement, so they report the same stability figure.
+        val gyroStability = if (cfg.mode == TrainingMode.GYRO || cfg.mode == TrainingMode.TILT) {
             1f / (1f + (trackingAcc?.errorStdDevDegrees() ?: 0f) * 0.1f)
         } else 0f
         val recoilComp = if (cfg.mode == TrainingMode.RECOIL) recoilCamera.compensationScore() else 0f
@@ -342,7 +363,9 @@ class AimTrainingLoop3D internal constructor(
             TrainingMode.REACTION -> Scoring.reaction(reaction, hits, shots)
             TrainingMode.TRACKING -> Scoring.tracking(timeOnTarget, trackingError)
             TrainingMode.RECOIL -> Scoring.recoil(recoilComp)
-            TrainingMode.GYRO -> Scoring.gyro(timeOnTarget, trackingError, trackingAcc?.errorStdDevDegrees() ?: 0f)
+            TrainingMode.GYRO,
+            TrainingMode.TILT,
+            -> Scoring.gyro(timeOnTarget, trackingError, trackingAcc?.errorStdDevDegrees() ?: 0f)
             TrainingMode.FREE_PRACTICE -> 0
         }
 
@@ -398,7 +421,7 @@ class AimTrainingLoop3D internal constructor(
 
         when (cfg.mode) {
             TrainingMode.FLICK, TrainingMode.MOVEMENT, TrainingMode.FREE_PRACTICE -> tickSpawns(nowNanos)
-            TrainingMode.TRACKING, TrainingMode.GYRO -> tickTracking()
+            TrainingMode.TRACKING, TrainingMode.GYRO, TrainingMode.TILT -> tickTracking()
             TrainingMode.REACTION -> tickReaction(nowNanos)
             TrainingMode.RECOIL -> tickRecoil(nowNanos)
         }

@@ -20,9 +20,10 @@ import org.junit.Test
 class TrainingModeTest {
 
     @Test
-    fun `the stored mode names are exactly the seven the app files sessions under`() {
+    fun `the stored mode names are exactly the eight the app files sessions under`() {
         assertEquals(
-            listOf("FLICK", "TRACKING", "REACTION", "GYRO", "RECOIL", "MOVEMENT", "FREE_PRACTICE"),
+            // TILT sits between GYRO and RECOIL: the accelerometer fallback is filed as its own mode.
+            listOf("FLICK", "TRACKING", "REACTION", "GYRO", "TILT", "RECOIL", "MOVEMENT", "FREE_PRACTICE"),
             TrainingMode.entries.map { it.name },
         )
     }
@@ -33,6 +34,7 @@ class TrainingModeTest {
         for (label in labels) assertTrue("blank label", label.isNotBlank())
         assertEquals(TrainingMode.entries.size, labels.distinct().size)
         assertEquals("Flick training", TrainingMode.FLICK.label)
+        assertEquals("Tilt training", TrainingMode.TILT.label)
         assertEquals("Free practice", TrainingMode.FREE_PRACTICE.label)
     }
 
@@ -40,13 +42,14 @@ class TrainingModeTest {
     fun `free practice is the only mode that does not produce a comparable score`() {
         assertFalse(TrainingMode.FREE_PRACTICE.scored)
         val scored = TrainingMode.entries.filter { it.scored }
-        assertEquals(6, scored.size)
+        assertEquals(7, scored.size)
         assertEquals(
             listOf(
                 TrainingMode.FLICK,
                 TrainingMode.TRACKING,
                 TrainingMode.REACTION,
                 TrainingMode.GYRO,
+                TrainingMode.TILT,
                 TrainingMode.RECOIL,
                 TrainingMode.MOVEMENT,
             ),

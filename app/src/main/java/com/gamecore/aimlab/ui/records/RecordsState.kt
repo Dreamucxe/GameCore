@@ -126,6 +126,7 @@ object RecordFormat {
         RecordMetric.TRACKING_SCORE,
         RecordMetric.RECOIL_SCORE,
         RecordMetric.GYRO_SCORE,
+        RecordMetric.TILT_SCORE,
         -> value.roundToInt().toString()
     }
 
@@ -149,6 +150,7 @@ object RecordFormat {
             RecordMetric.TRACKING_SCORE,
             RecordMetric.RECOIL_SCORE,
             RecordMetric.GYRO_SCORE,
+            RecordMetric.TILT_SCORE,
             -> "${margin.roundToInt()} higher"
         }
     }

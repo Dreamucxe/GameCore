@@ -10,8 +10,7 @@ import com.gamecore.aimlab.engine.Difficulty
 import com.gamecore.aimlab.engine.DifficultyParameters
 import com.gamecore.aimlab.engine.SensitivityProfile
 import com.gamecore.aimlab.engine.TrackingAccumulator
-import com.gamecore.aimlab.engine.TrainingMode
-import com.gamecore.aimlab.runtime.AimGyroReader
+import com.gamecore.aimlab.runtime.AimMotionReader
 import com.gamecore.aimlab.runtime.AimTrainingLoop3D
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -39,20 +38,22 @@ import javax.inject.Provider
  * `WhileSubscribed`, so when the screen stops collecting, the frames flow is cancelled, the loop's
  * `awaitClose` fires and the run is abandoned without being written (§19/§29).
  *
- * What is specific to this mode is the second live thing: the gyroscope. [AimGyroReader] registers its
- * sensor listener when its flow is collected and unregisters in `awaitClose`, so the sensor's lifetime is
+ * What is specific to this mode is the second live thing: the motion sensor. [AimMotionReader] registers
+ * its listener when its flow is collected and unregisters in `awaitClose`, so the sensor's lifetime is
  * exactly the lifetime of that collection — and that collection is deliberately placed *inside* [loopFrames]
  * rather than in `viewModelScope`. The difference is the whole point: a job launched into `viewModelScope`
- * outlives the screen, so a user who leaves mid-run would keep the gyroscope powered until the view model
+ * outlives the screen, so a user who leaves mid-run would keep the sensor powered until the view model
  * was destroyed, which on a screen left in the back stack can be minutes (§20/§29). Collected from inside
  * the shared graph, the sensor is unregistered by the same cancellation that stops the loop's ticker: when
  * the screen stops collecting and the grace window expires, or when [active] is nulled, whichever is first.
  *
- * So there is no gyro job field and no `stopGyro()` to forget to call. The sensor is powered only while a
- * run exists *and* someone is watching it, never while the user reads the setup card, and never after.
+ * So there is no sensor job field and no `stopSensor()` to forget to call. The sensor is powered only
+ * while a run exists *and* someone is watching it, never while the user reads the setup card, and never
+ * after.
  *
- * A device without a gyroscope is answered once, at construction, and the answer is carried in the state.
- * Nothing simulates a sample for it (§30) — the screen explains the limitation instead.
+ * The device's capability is answered once, at construction, and carried in the state. A gyroscope is used
+ * when present; an accelerometer-only phone gets the tilt fallback, labelled as tilt and filed under its
+ * own mode. A phone with neither gets an explanation instead (§30) — nothing is simulated for it.
  *
  * Nothing in here invents a number. The live figures are the loop's frames plus the engine's own
  * [TrackingAccumulator] run over them; the result card is the summary the loop produced on stop; and
@@ -62,16 +63,16 @@ import javax.inject.Provider
 class GyroViewModel @Inject constructor(
     private val repository: AimLabRepository,
     private val loops: Provider<AimTrainingLoop3D>,
-    private val gyroReader: AimGyroReader,
+    private val motionReader: AimMotionReader,
 ) : ViewModel() {
 
     /**
      * The starting state, with the capability question already answered.
      *
      * It is also `stateIn`'s initial value, so the screen never renders a frame in which the availability
-     * of the sensor is unknown — no Start button flashes up on a device that has no gyroscope.
+     * of the sensor is unknown — no Start button flashes up on a device that has no usable sensor.
      */
-    private val initial = GyroState(gyroAvailable = gyroReader.isAvailable())
+    private val initial = GyroState(inputSource = motionReader.capability())
 
     /** What the user chose and where the run has got to. Everything except the frames and the profiles. */
     private val local = MutableStateFlow(initial)
@@ -109,10 +110,10 @@ class GyroViewModel @Inject constructor(
      * Sampling and finishing are handled here rather than in the [combine] below because this is the one
      * place a frame is seen exactly once, as it arrives.
      *
-     * The gyroscope is collected in here too, as a child of the same `channelFlow` the frames are sent
+     * The motion sensor is collected in here too, as a child of the same `channelFlow` the frames are sent
      * through, because the sensor must live and die with the run rather than with the view model. Anything
      * that ends this inner flow — a new value on [active], the screen unsubscribing past the grace window,
-     * the view model being cleared — cancels that child, which closes [AimGyroReader.stream] and unregisters
+     * the view model being cleared — cancels that child, which closes [AimMotionReader.stream] and unregisters
      * the listener. The child is also cancelled explicitly once the frames flow completes, so a run that
      * ends on its own releases the sensor at that moment instead of waiting for [finishRun] to null [active].
      *
@@ -127,17 +128,21 @@ class GyroViewModel @Inject constructor(
                 flowOf<TrainingFrame?>(null)
             } else {
                 channelFlow<TrainingFrame?> {
-                    val gyro = launch {
-                        gyroReader.stream().collect { delta ->
-                            // Gyro aim is never "aiming down sights" here: this screen has no ADS control,
+                    // Read once, when the run begins. The hardware cannot change mid-run, and the state
+                    // already carries the capability answer this screen was built on.
+                    val tilt = local.value.tiltFallback
+                    val motion = launch {
+                        motionReader.stream().collect { delta ->
+                            // Motion aim is never "aiming down sights" here: this screen has no ADS control,
                             // so claiming one would apply an ADS multiplier the user never asked for.
-                            // Gyro deltas are integrated radians; onGyro runs them through the 3D look
-                            // pipeline (gyro sensitivity) to turn the device rotation into camera yaw/pitch.
-                            loop.onGyro(delta.dx, delta.dy)
+                            // Both sources hand over integrated radians; the loop runs them through the same
+                            // 3D look pipeline (gyro sensitivity) and differs only in whether the delta is
+                            // remapped for display rotation. Tilt is already measured in the screen's frame.
+                            if (tilt) loop.onTilt(delta.dx, delta.dy) else loop.onGyro(delta.dx, delta.dy)
                         }
                     }
                     loop.frames.collect { frame -> send(frame) }
-                    gyro.cancel()
+                    motion.cancel()
                 }
             }
         }
@@ -215,13 +220,13 @@ class GyroViewModel @Inject constructor(
      * the gyroscope, which begins with that same publication, can never deliver a delta to a loop that has
      * not been configured yet.
      *
-     * A device with no gyroscope is refused here as well as in the UI. The screen offers no Start button in
-     * that case, so this is belt and braces rather than a second code path: without the sensor the run
-     * would be a minute of a crosshair that cannot move, which is not a session.
+     * A device with no usable sensor is refused here as well as in the UI. The screen offers no Start
+     * button in that case, so this is belt and braces rather than a second code path: without a sensor the
+     * run would be a minute of a crosshair that cannot move, which is not a session.
      */
     fun start() {
         val current = local.value
-        if (current.phase == GyroPhase.Running || !current.gyroAvailable) return
+        if (current.phase == GyroPhase.Running || !current.hasMotionInput) return
 
         finishing = false
         // The same radius the loop will use, from the same single source, so the live "on target" rule and
@@ -232,7 +237,7 @@ class GyroViewModel @Inject constructor(
         val loop = loops.get()
         loop.start(
             TrainingConfig(
-                mode = TrainingMode.GYRO,
+                mode = current.trainingMode,
                 difficulty = current.difficulty,
                 sensitivity = current.sensitivity,
                 durationSeconds = current.durationSeconds,

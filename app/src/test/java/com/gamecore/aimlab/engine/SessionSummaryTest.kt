@@ -103,8 +103,19 @@ class SessionSummaryTest {
         // a pistol score cannot overwrite a rifle score.
         assertNotEquals(base.key, base.copy(difficulty = Difficulty.EASY).key)
         assertNotEquals(base.key, base.copy(mode = TrainingMode.TRACKING).key)
+        assertNotEquals(base.key, base.copy(mode = TrainingMode.TILT).key)
         assertNotEquals(base.key, base.copy(weaponName = "SMG").key)
         assertNotEquals(base.key, base.copy(metric = RecordMetric.ACCURACY).key)
+        // A tilt result is filed under its own mode *and* its own metric, so it can never collide with —
+        // or rank against — the gyro record measured from rotation.
+        assertEquals(
+            "TILT|HARD|AR|TILT_SCORE|v${SessionSummary.SCORING_VERSION_3D}",
+            base.copy(mode = TrainingMode.TILT, metric = RecordMetric.TILT_SCORE).key,
+        )
+        assertNotEquals(
+            base.copy(mode = TrainingMode.GYRO, metric = RecordMetric.GYRO_SCORE).key,
+            base.copy(mode = TrainingMode.TILT, metric = RecordMetric.TILT_SCORE).key,
+        )
         // The generation participates too: the same record from the 2D engine is a distinct key.
         assertNotEquals(base.key, base.copy(scoringVersion = SessionSummary.SCORING_VERSION_2D).key)
     }
@@ -127,5 +138,9 @@ class SessionSummaryTest {
     fun `reaction time is the one metric where lower is better`() {
         assertFalse(RecordMetric.FASTEST_REACTION.higherIsBetter)
         assertTrue(RecordMetric.SCORE.higherIsBetter)
+        // Tilt's score runs in the same direction as every score, and enumerating the whole set keeps that
+        // true of any metric added later instead of pinning it one assertion at a time.
+        assertTrue(RecordMetric.TILT_SCORE.higherIsBetter)
+        assertEquals(listOf(RecordMetric.FASTEST_REACTION), RecordMetric.entries.filter { !it.higherIsBetter })
     }
 }

@@ -378,4 +378,4 @@ private fun RecordEntry(record: PersonalRecord) {
  * the same mode cannot end up wearing different icons.
  */
 private fun iconFor(mode: TrainingMode): ImageVector =
-    AimLabDestination.entries.firstOrNull { it.mode == mode }?.icon ?: Icons.Filled.EmojiEvents
+    AimLabDestination.forMode(mode)?.icon ?: Icons.Filled.EmojiEvents

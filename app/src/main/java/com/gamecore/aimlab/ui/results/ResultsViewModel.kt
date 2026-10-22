@@ -18,7 +18,7 @@ import javax.inject.Inject
 /**
  * One stored session, and the rules for which of its figures are real.
  *
- * [SessionSummary] is a single flat record shared by seven modes, and every field a mode does not produce is
+ * [SessionSummary] is a single flat record shared by eight modes, and every field a mode does not produce is
  * left at zero (§18/§B). A screen that printed all of them would report a reaction test's tracking error as
  * "0.000" and a free-practice run's score as "0" — numbers the engine never measured, presented as results.
  * So each `shows…` below is the UI half of the engine's own condition for populating that field, and the
@@ -27,7 +27,8 @@ import javax.inject.Inject
  * The three kinds of rule, in order of how much they can be trusted:
  *
  *  - **Structural.** The mode decides. `TrainingMode.scored` is the engine's own answer to "does this mode
- *    produce a score", recoil compensation is computed only for `RECOIL` and gyro stability only for `GYRO`.
+ *    produce a score", recoil compensation is computed only for `RECOIL` and stability only for `GYRO` and
+ *    `TILT` — tilt reports the same figure.
  *  - **Structural and evidenced.** The mode could produce it but this run may not have: a recoil session
  *    with no residual samples still stores 0, so the mode test is paired with a value test.
  *  - **Evidenced alone.** Where the value itself is the evidence — reaction attempts, shots fired — no mode
@@ -46,14 +47,14 @@ data class ResultsState(
     /** Scored modes only. Free practice is unscored and stores a 0 that is not a result. */
     val showsScore: Boolean get() = session?.mode?.scored == true
 
-    /** Hits, shots and accuracy. Tracking and gyro hold aim rather than shoot, so they never fire one. */
+    /** Hits, shots and accuracy. Tracking, gyro and tilt hold aim rather than shoot, so they never fire one. */
     val showsShooting: Boolean get() = (session?.shots ?: 0) > 0
 
     /**
      * Targets that expired unhit.
      *
      * Structural only: in a spawn-and-expire mode a zero is a real measurement — nothing got away — while in
-     * reaction, tracking, gyro or recoil nothing can expire at all, so there is nothing to report.
+     * reaction, tracking, gyro, tilt or recoil nothing can expire at all, so there is nothing to report.
      */
     val showsTargetsMissed: Boolean get() = session?.mode?.let { it in SPAWNING_MODES } == true
 
@@ -78,8 +79,12 @@ data class ResultsState(
     val showsRecoil: Boolean
         get() = session?.mode == TrainingMode.RECOIL && (session?.recoilCompensation ?: 0f) > 0f
 
-    val showsGyro: Boolean
-        get() = session?.mode == TrainingMode.GYRO && (session?.gyroStability ?: 0f) > 0f
+    /**
+     * How steadily the device was held: the correction-spread figure gyro records, and tilt with it. The
+     * mode test is paired with a value test because a run can legitimately carry none.
+     */
+    val showsStability: Boolean
+        get() = session?.mode?.let { it in STABILITY_MODES } == true && (session?.gyroStability ?: 0f) > 0f
 
     companion object {
         /** No usable id came off the route. Distinct from 0, which is a real (if unstored) row id. */
@@ -96,7 +101,14 @@ data class ResultsState(
         val ACQUIRE_MODES: Set<TrainingMode> = setOf(TrainingMode.FLICK, TrainingMode.MOVEMENT)
 
         /** Modes that hold aim on a moving target and accumulate error against it. */
-        val TRACKING_MODES: Set<TrainingMode> = setOf(TrainingMode.TRACKING, TrainingMode.GYRO)
+        val TRACKING_MODES: Set<TrainingMode> = setOf(
+            TrainingMode.TRACKING,
+            TrainingMode.GYRO,
+            TrainingMode.TILT,
+        )
+
+        /** Modes whose aim error is also reported as correction stability: gyro and its tilt fallback. */
+        val STABILITY_MODES: Set<TrainingMode> = setOf(TrainingMode.GYRO, TrainingMode.TILT)
     }
 }
 

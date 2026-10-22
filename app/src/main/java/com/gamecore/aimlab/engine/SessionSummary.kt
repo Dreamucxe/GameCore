@@ -113,6 +113,7 @@ enum class RecordMetric(val label: String, val higherIsBetter: Boolean) {
     TRACKING_SCORE("Best tracking", higherIsBetter = true),
     RECOIL_SCORE("Best recoil control", higherIsBetter = true),
     GYRO_SCORE("Best gyro score", higherIsBetter = true),
+    TILT_SCORE("Best tilt score", higherIsBetter = true),
     LONGEST_SESSION("Longest session", higherIsBetter = true),
     ;
 

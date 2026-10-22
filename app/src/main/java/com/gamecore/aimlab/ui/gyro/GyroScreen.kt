@@ -65,19 +65,25 @@ import com.gamecore.ui.components.Tone
 import com.gamecore.ui.components.colour
 
 /**
- * Gyro training: the phone itself is the mouse, turned to keep the crosshair on a target that will not
+ * Motion training: the phone itself is the mouse, moved to keep the crosshair on a target that will not
  * hold still.
  *
  * The screen is three states and never two at once, and one device question sits in front of all of them.
- * A phone with no gyroscope cannot do this at all, so when [GyroState.gyroAvailable] is false the screen
- * says exactly that and offers no Start button — not a greyed-out one, not a run that plays out with a
- * crosshair nailed to the centre. There is no simulated motion anywhere in this feature (§5/§30); a device
- * that lacks the sensor gets an explanation, which is the honest thing to give it.
+ * When [GyroState.gyroAvailable] is true the run is gyro training. A phone with no gyroscope but with an
+ * accelerometer gets the tilt fallback: [GyroState.tiltFallback] is true, the screen says tilt in the
+ * title, the instructions and the result, and the run is filed under tilt training rather than gyro.
+ * Tilt reads a lean against gravity — bank the phone to steer, tip its top edge to aim up — and it cannot
+ * sense turning on the spot, which is exactly why it is never ranked against a gyro record.
  *
- * With the sensor present, **Setup** asks the three things that change the run: how hard, whose sensitivity
- * curve, and how long. **Live** is the whole display, because a gyro run is aimed with the hands rather
+ * Only when [GyroState.hasMotionInput] is false does the screen say the device cannot do this and offer no
+ * Start button — not a greyed-out one, not a run that plays out with a crosshair nailed to the centre.
+ * There is no simulated motion anywhere in this feature (§5/§30); a device that lacks both sensors gets an
+ * explanation, which is the honest thing to give it.
+ *
+ * With a usable sensor, **Setup** asks the three things that change the run: how hard, whose sensitivity
+ * curve, and how long. **Live** is the whole display, because a motion run is aimed with the hands rather
  * than with a thumb and any chrome is a place the target can hide behind. **Result** is the card, and it is
- * the first point at which a score exists — the loop scores a gyro session only when it ends, so the live
+ * the first point at which a score exists — the loop scores a motion session only when it ends, so the live
  * strip shows elapsed time and time on target and simply does not pretend to a score before there is one.
  *
  * @param onBack leave the screen. Also what "Done" does: a finished run has nowhere else to go.
@@ -119,8 +125,8 @@ fun GyroScreen(
 /**
  * The run itself: the arena, full bleed, with the live figures floating over it.
  *
- * The target is drawn through the shared [drawTarget] so a gyro target looks like every other mode's, and
- * it is highlighted the moment the crosshair is inside it — that ring is the only feedback a gyro run has,
+ * The target is drawn through the shared [drawTarget] so a motion target looks like every other mode's, and
+ * it is highlighted the moment the crosshair is inside it — that ring is the only feedback a motion run has,
  * because there is nothing to tap and no hit marker to flash. The crosshair itself belongs to
  * [TrainingSurface], which draws it over whatever the arena drew.
  *
@@ -138,13 +144,13 @@ private fun LiveArena(
 ) {
     val onTarget = state.onTargetNow
 
-    // Gyro aims by rotating the device; the surface still takes taps (none needed here) and the loop reads
-    // the gyroscope through the view model. The 3D arena draws the room and the tracked sphere.
+    // Motion aims by moving the device; the surface still takes taps (none needed here) and the loop reads
+    // the configured sensor through the view model. The 3D arena draws the room and the tracked sphere.
     Aim3DArena(
         loop = loop,
         crosshair = remember { CrosshairPreset(name = "aimlab") },
         quality = RenderQuality.FULL,
-        onShot = { /* gyro is hold-to-track; a tap does nothing */ },
+        onShot = { /* motion is hold-to-track; a tap does nothing */ },
         controlLayout = state.layout,
         controlOrientation = currentControlOrientation(),
         modifier = modifier,
@@ -163,7 +169,7 @@ private fun LiveArena(
 /**
  * The live figures, the on-target bar, and the on/off-target chip — all off scalar params.
  *
- * Every argument is a primitive or a nullable Float, so this subtree is skipped on the many gyro ticks
+ * Every argument is a primitive or a nullable Float, so this subtree is skipped on the many motion ticks
  * where the crosshair moved but none of these figures did. Nesting the chip here keeps everything that
  * reads a scalar in one skippable place.
  */
@@ -221,7 +227,7 @@ private fun LiveHud(
 /**
  * The live figures, each one real at the moment it is drawn.
  *
- * There is no score cell. The loop computes a gyro score when the run ends and leaves it untouched until
+ * There is no score cell. The loop computes a motion score when the run ends and leaves it untouched until
  * then, so a live "Score 0" would be an artefact of the engine's timing rather than a fact about the run
  * (§1). Time on target is the figure that does exist continuously, and it is the one this mode is about.
  */
@@ -270,10 +276,11 @@ private fun SetupAndResult(
     ) {
         item {
             ScreenHeader(
-                title = "Gyro training",
+                title = if (state.tiltFallback) "Tilt training" else "Gyro training",
                 subtitle = when {
-                    !state.gyroAvailable -> "What this needs from your device."
+                    !state.hasMotionInput -> "What this needs from your device."
                     finished -> "How that run went."
+                    state.tiltFallback -> "Tilt the phone to follow the target."
                     else -> "Turn the phone itself to follow a moving target. No thumbs involved."
                 },
                 onBack = onBack,
@@ -282,10 +289,10 @@ private fun SetupAndResult(
 
         // The device question comes before everything else, and when the answer is no it is the whole
         // screen: there is nothing below worth configuring for a run that cannot happen (§5).
-        if (!state.gyroAvailable) {
+        if (!state.hasMotionInput) {
             item {
                 NoteBanner(
-                    text = "This device has no gyroscope, so gyro training is unavailable.",
+                    text = "This device has no gyroscope or accelerometer, so motion training is unavailable.",
                     tone = Tone.Warning,
                     icon = Icons.Filled.Info,
                     modifier = padded,
@@ -293,9 +300,10 @@ private fun SetupAndResult(
             }
             item {
                 NoteBanner(
-                    text = "Gyro training works by reading the phone's angular velocity as you turn it. " +
-                        "Without that sensor there is no aim input to read, and GameCore will not invent " +
-                        "one — the other Aim Lab modes are aimed by touch and work here as normal.",
+                    text = "Motion training uses a gyroscope or an accelerometer to sense how the phone is " +
+                        "moving. This device has neither, so there is no aim input to read, and GameCore " +
+                        "will not invent one — the other Aim Lab modes are aimed by touch and work here " +
+                        "as normal.",
                     tone = Tone.Muted,
                     icon = Icons.Filled.ScreenRotation,
                     modifier = padded,
@@ -307,7 +315,7 @@ private fun SetupAndResult(
         if (finished) {
             val summary = state.result
             if (summary != null) {
-                item { ResultCard(summary = summary, modifier = padded) }
+                item { ResultCard(summary = summary, tilt = state.tiltFallback, modifier = padded) }
             }
             if (state.saving) {
                 item {
@@ -321,7 +329,7 @@ private fun SetupAndResult(
             } else if (!state.recorded) {
                 item {
                     NoteBanner(
-                        // Two different truths, and neither of them is a result card of zeroes. A gyro run
+                        // Two different truths, and neither of them is a result card of zeroes. A motion run
                         // is scored on time on target alone, so a run that never got on target genuinely
                         // has nothing in it to keep.
                         text = if (summary == null) {
@@ -348,6 +356,20 @@ private fun SetupAndResult(
                 }
             }
         } else {
+            if (state.tiltFallback) {
+                item {
+                    NoteBanner(
+                        text = "This device has no gyroscope, so tilt training reads its accelerometer. " +
+                            "Bank the phone left or right to steer, and tip its top edge away from you to " +
+                            "aim up. Turning on the spot cannot be measured, which is why a tilt run is " +
+                            "filed separately from gyro records.",
+                        tone = Tone.Muted,
+                        icon = Icons.Filled.ScreenRotation,
+                        modifier = padded,
+                    )
+                }
+            }
+
             item {
                 SectionCard(
                     title = "Difficulty",
@@ -391,7 +413,7 @@ private fun SetupAndResult(
             }
 
             // The HUD picker, offered only when the user has saved a layout to choose. "None" is a real
-            // choice — gyro needs no on-screen controls — so it heads the options.
+            // choice — motion needs no on-screen controls — so it heads the options.
             if (state.layouts.isNotEmpty()) {
                 item {
                     SectionCard(
@@ -423,7 +445,7 @@ private fun SetupAndResult(
                         ) {
                             Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Start")
+                            Text(if (state.tiltFallback) "Start tilt run" else "Start gyro run")
                         }
                     }
                 }
@@ -431,9 +453,15 @@ private fun SetupAndResult(
 
             item {
                 NoteBanner(
-                    text = "The whole screen becomes the arena once you start. Hold the phone as you would " +
-                        "in a match and turn it to move the crosshair — the gyroscope is read only while a " +
-                        "run is on screen, and stops the moment it ends.",
+                    text = if (state.tiltFallback) {
+                        "The whole screen becomes the arena once you start. Hold the phone as you would " +
+                            "in a match and bank or tip it to move the crosshair — the motion sensor is " +
+                            "read only while a run is on screen, and stops the moment it ends."
+                    } else {
+                        "The whole screen becomes the arena once you start. Hold the phone as you would " +
+                            "in a match and turn it to move the crosshair — the motion sensor is read " +
+                            "only while a run is on screen, and stops the moment it ends."
+                    },
                     tone = Tone.Muted,
                     icon = Icons.Filled.ScreenRotation,
                     modifier = padded,
@@ -446,7 +474,7 @@ private fun SetupAndResult(
 /**
  * The optional sensitivity profile.
  *
- * Optional is the point: a gyro run without a profile uses the engine's default gyro scale, which is a
+ * Optional is the point: a motion run without a profile uses the engine's default scale, which is a
  * perfectly good place to start, and most users will have no saved profiles at all when they first arrive
  * here. So an empty list is stated as a fact rather than shown as an empty control, and a chosen profile
  * can be un-chosen — a one-way choice would quietly take "the default" off the table for good.
@@ -457,6 +485,10 @@ private fun SensitivityCard(
     onSensitivity: (SensitivityProfile) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The scale is the same one for either source; only the name of it changes, so a tilt run never
+    // describes its sensitivity as a gyro setting.
+    val defaultScale = if (state.tiltFallback) "default scale" else "default gyro scale"
+
     SectionCard(
         title = "Sensitivity",
         subtitle = "Which of your saved profiles to aim with. Optional.",
@@ -465,8 +497,8 @@ private fun SensitivityCard(
     ) {
         if (state.sensitivities.isEmpty()) {
             NoteBanner(
-                text = "You have no saved sensitivity profiles yet, so this run uses the default gyro " +
-                    "scale. Profiles you create in Sensitivity setup will appear here.",
+                text = "You have no saved sensitivity profiles yet, so this run uses the $defaultScale. " +
+                    "Profiles you create in Sensitivity setup will appear here.",
                 tone = Tone.Muted,
                 icon = Icons.Filled.Info,
             )
@@ -487,8 +519,8 @@ private fun SensitivityCard(
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = state.sensitivity?.let { "Tap ${it.name} again to run at the default gyro scale instead." }
-                ?: "None selected — this run uses the default gyro scale.",
+            text = state.sensitivity?.let { "Tap ${it.name} again to run at the $defaultScale instead." }
+                ?: "None selected — this run uses the $defaultScale.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -504,15 +536,28 @@ private fun SensitivityCard(
  *
  * Aim error and stability both need a sentence: neither is a unit anyone carries around, and a bare
  * "0.08" or "62%" would be a figure the user has to guess at.
+ *
+ * @param tilt true when the run was read from the accelerometer and filed as tilt training. The heading
+ * and a note say so, and no row calls the measurement gyro, because a tilt run is not a gyro run and its
+ * score does not rank with one.
  */
 @Composable
-private fun ResultCard(summary: SessionSummary, modifier: Modifier = Modifier) {
+private fun ResultCard(summary: SessionSummary, tilt: Boolean, modifier: Modifier = Modifier) {
     SectionCard(
-        title = "Result",
+        title = if (tilt) "Tilt run result" else "Result",
         subtitle = "${summary.difficulty.label} · ${Formatters.durationCoarse(summary.durationMillis)}",
         icon = Icons.Filled.Adjust,
         modifier = modifier,
     ) {
+        if (tilt) {
+            NoteBanner(
+                text = "This run was read from the accelerometer and is filed under Tilt training. " +
+                    "Tilt runs do not rank against gyro records.",
+                tone = Tone.Muted,
+                icon = Icons.Filled.Info,
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
         StatStrip(
             entries = listOf(
                 StatEntry(label = "Score", value = summary.score.toString(), tone = Tone.Accent),
@@ -538,7 +583,7 @@ private fun ResultCard(summary: SessionSummary, modifier: Modifier = Modifier) {
         )
         KeyValueRow(
             label = "Sensitivity",
-            value = summary.sensitivityName ?: "Default gyro scale",
+            value = summary.sensitivityName ?: if (tilt) "Default scale" else "Default gyro scale",
         )
         KeyValueRow(label = "Duration", value = Formatters.durationCoarse(summary.durationMillis))
         Spacer(modifier = Modifier.height(8.dp))

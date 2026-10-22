@@ -132,9 +132,24 @@ class PersonalRecordBookTest {
     }
 
     @Test
-    fun `tracking, recoil and gyro each offer their own score metric`() {
+    fun `tracking, recoil, gyro and tilt each offer their own score metric`() {
         assertTrue(metricsOf(summary(TrainingMode.TRACKING, timeOnTargetFraction = 0.5f)).contains(RecordMetric.TRACKING_SCORE))
         assertTrue(metricsOf(summary(TrainingMode.RECOIL, shots = 10)).contains(RecordMetric.RECOIL_SCORE))
         assertTrue(metricsOf(summary(TrainingMode.GYRO, timeOnTargetFraction = 0.5f)).contains(RecordMetric.GYRO_SCORE))
+        assertTrue(metricsOf(summary(TrainingMode.TILT, timeOnTargetFraction = 0.5f)).contains(RecordMetric.TILT_SCORE))
+    }
+
+    @Test
+    fun `a tilt session files its score under tilt and never challenges gyro`() {
+        val candidates = PersonalRecordBook.candidatesFor(summary(TrainingMode.TILT, timeOnTargetFraction = 0.5f))
+
+        // The session's own score under the tilt metric, plus the length every scored mode offers — the
+        // mirror of gyro's pair, kept in the mode's own metric.
+        val tiltScore = candidates.firstOrNull { it.first == RecordMetric.TILT_SCORE }
+        assertNotNull("a tilt session must offer TILT_SCORE", tiltScore)
+        assertEquals(500f, tiltScore!!.second, 1e-4f)
+        assertTrue(candidates.any { it.first == RecordMetric.LONGEST_SESSION })
+        // The critical half: a lean cannot challenge a rotation, so no tilt session may offer GYRO_SCORE.
+        assertTrue(candidates.none { it.first == RecordMetric.GYRO_SCORE })
     }
 }

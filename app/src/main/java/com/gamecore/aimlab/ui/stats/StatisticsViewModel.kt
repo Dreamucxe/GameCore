@@ -104,7 +104,10 @@ class StatisticsViewModel @Inject constructor(
             overall = overall,
             modes = modes,
             // Modes with no sessions are named as untrained rather than listed at zero.
-            untrainedModes = TrainingMode.entries.filterNot { grouped.containsKey(it) },
+            // Tilt is the no-gyroscope fallback and is only played on hardware that needs it.
+            untrainedModes = TrainingMode.entries.filterNot {
+                it == TrainingMode.TILT || grouped.containsKey(it)
+            },
             trend = trend(sessions, metric),
         )
     }

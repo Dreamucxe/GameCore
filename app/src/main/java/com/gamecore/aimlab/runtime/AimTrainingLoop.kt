@@ -215,7 +215,7 @@ class AimTrainingLoop internal constructor(
         lastTargets = emptyList()
 
         when (config.mode) {
-            TrainingMode.TRACKING, TrainingMode.GYRO -> {
+            TrainingMode.TRACKING, TrainingMode.GYRO, TrainingMode.TILT -> {
                 val pattern = config.pattern ?: patternForDifficulty(config.difficulty)
                 trackingPath = TrackingPath(pattern, params.targetRadius, params.targetSpeed, rng)
                 trackingAcc = TrackingAccumulator(params.targetRadius)
@@ -237,7 +237,7 @@ class AimTrainingLoop internal constructor(
             TrainingMode.FLICK, TrainingMode.MOVEMENT -> flickShot(point)
             TrainingMode.REACTION -> reactionShot(point)
             TrainingMode.RECOIL -> recoilShot()
-            TrainingMode.TRACKING, TrainingMode.GYRO -> Unit // hold-to-track, no discrete shot
+            TrainingMode.TRACKING, TrainingMode.GYRO, TrainingMode.TILT -> Unit // hold-to-track, no discrete shot
             TrainingMode.FREE_PRACTICE -> {
                 shots++
                 if (targets.any { it.contains(point) }) hits++
@@ -247,7 +247,8 @@ class AimTrainingLoop internal constructor(
 
     override fun onAimDelta(dx: Float, dy: Float, aiming: Boolean) {
         if (!running || finished) return
-        val moved = sensitivity.apply(dx, dy, aiming, gyro = config?.mode == TrainingMode.GYRO)
+        val motionAim = config?.mode == TrainingMode.GYRO || config?.mode == TrainingMode.TILT
+        val moved = sensitivity.apply(dx, dy, aiming, gyro = motionAim)
         crosshair = Vec2(crosshair.x + moved.x, crosshair.y + moved.y).clampToArena()
         if (config?.mode == TrainingMode.RECOIL) {
             // The player's counter-aim reduces the standing recoil offset.
@@ -279,7 +280,8 @@ class AimTrainingLoop internal constructor(
         val reaction = ReactionStats.from(reactionTimes.toList())
         val timeOnTarget = trackingAcc?.timeOnTargetFraction() ?: 0f
         val trackingError = trackingAcc?.averageError() ?: 0f
-        val gyroStability = if (cfg.mode == TrainingMode.GYRO) {
+        // Tilt runs use the same aim-error measurement, so they report the same stability figure.
+        val gyroStability = if (cfg.mode == TrainingMode.GYRO || cfg.mode == TrainingMode.TILT) {
             // Lower correction jitter = steadier aim; report as a 0..1 stability where 1 is perfectly smooth.
             1f / (1f + correctionBuffer.standardDeviation() * 100f)
         } else {
@@ -298,7 +300,9 @@ class AimTrainingLoop internal constructor(
             TrainingMode.REACTION -> Scoring.reaction(reaction, hits, shots)
             TrainingMode.TRACKING -> Scoring.tracking(timeOnTarget, trackingError)
             TrainingMode.RECOIL -> Scoring.recoil(recoilComp)
-            TrainingMode.GYRO -> Scoring.gyro(timeOnTarget, trackingError, correctionBuffer.standardDeviation())
+            TrainingMode.GYRO,
+            TrainingMode.TILT,
+            -> Scoring.gyro(timeOnTarget, trackingError, correctionBuffer.standardDeviation())
             TrainingMode.FREE_PRACTICE -> 0
         }
 
@@ -342,7 +346,7 @@ class AimTrainingLoop internal constructor(
 
         when (cfg.mode) {
             TrainingMode.FLICK, TrainingMode.MOVEMENT -> tickFlick(nowNanos)
-            TrainingMode.TRACKING, TrainingMode.GYRO -> tickTracking()
+            TrainingMode.TRACKING, TrainingMode.GYRO, TrainingMode.TILT -> tickTracking()
             TrainingMode.REACTION -> tickReaction(nowNanos)
             TrainingMode.RECOIL -> tickRecoil()
             TrainingMode.FREE_PRACTICE -> tickFlick(nowNanos) // sandbox spawns like flick

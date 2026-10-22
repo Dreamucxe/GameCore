@@ -45,7 +45,7 @@ import kotlin.math.roundToInt
 /**
  * One stored session, in full — and only the parts of it that were measured.
  *
- * Seven modes share one [SessionSummary], so most of its fields are zero for any given session. This screen
+ * Eight modes share one [SessionSummary], so most of its fields are zero for any given session. This screen
  * asks [ResultsState] which of them the session's mode actually populates and draws nothing for the rest: a
  * reaction test has no tracking error and no time-on-target, a tracking run has no shots and therefore no
  * accuracy, a recoil run has no targets to miss, and free practice has no score. A "0.000" under a heading
@@ -125,8 +125,8 @@ fun ResultsScreen(
             item { RecoilCard(session = session, modifier = padded) }
         }
 
-        if (state.showsGyro) {
-            item { GyroCard(session = session, modifier = padded) }
+        if (state.showsStability) {
+            item { StabilityCard(session = session, modifier = padded) }
         }
 
         if (!session.mode.scored) {
@@ -190,9 +190,9 @@ private fun OverviewCard(
 /**
  * Hits, shots and what got away.
  *
- * Every row here is gated separately: tracking and gyro hold aim instead of shooting, so they have no hits
- * or shots; only the spawn-and-expire modes can let a target time out, and for those a zero is a real
- * measurement — nothing escaped — rather than an unmeasured field.
+ * Every row here is gated separately: tracking, gyro and tilt hold aim instead of shooting, so they have
+ * no hits or shots; only the spawn-and-expire modes can let a target time out, and for those a zero is a
+ * real measurement — nothing escaped — rather than an unmeasured field.
  */
 @Composable
 private fun ShootingCard(
@@ -290,7 +290,7 @@ private fun TrackingCard(
     }
 }
 
-// ----------------------------------------------------------------------------------- recoil/gyro
+// ----------------------------------------------------------------------------------- recoil/stability
 
 /** How much of the weapon's kick was pulled back out. Recoil training only. */
 @Composable
@@ -309,11 +309,11 @@ private fun RecoilCard(session: SessionSummary, modifier: Modifier = Modifier) {
     }
 }
 
-/** How steady the device was held. Gyro training only. */
+/** How steady the device was held. Gyro and tilt training. */
 @Composable
-private fun GyroCard(session: SessionSummary, modifier: Modifier = Modifier) {
+private fun StabilityCard(session: SessionSummary, modifier: Modifier = Modifier) {
     SectionCard(
-        title = "Gyro",
+        title = "Stability",
         subtitle = "Steadiness of your corrections. Less jitter is a higher figure.",
         icon = Icons.Filled.Sensors,
         modifier = modifier,
@@ -328,9 +328,12 @@ private fun GyroCard(session: SessionSummary, modifier: Modifier = Modifier) {
 
 // ----------------------------------------------------------------------------------------- bits
 
-/** The mode's own icon from the home grid, so a result looks like the card that launched it. */
+/**
+ * The mode's own icon from the home grid, so a result looks like the card that launched it. Tilt runs are
+ * launched from the gyro card, so [AimLabDestination.forMode] maps them to its icon.
+ */
 private fun iconFor(mode: TrainingMode): ImageVector =
-    AimLabDestination.entries.firstOrNull { it.mode == mode }?.icon ?: Icons.Filled.Adjust
+    AimLabDestination.forMode(mode)?.icon ?: Icons.Filled.Adjust
 
 /** Accuracy as a stat cell. With no shots there is no accuracy — an absence, not 0 %. */
 private fun accuracyEntry(fraction: Float, shots: Int): StatEntry = StatEntry(

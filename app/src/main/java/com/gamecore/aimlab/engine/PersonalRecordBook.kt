@@ -78,6 +78,11 @@ object PersonalRecordBook {
             TrainingMode.GYRO -> {
                 out += RecordMetric.GYRO_SCORE to summary.score.toFloat()
             }
+            // The loop scores tilt with the gyro formula; filing it under its own metric is what keeps a
+            // tilt run from ever challenging a gyro record.
+            TrainingMode.TILT -> {
+                out += RecordMetric.TILT_SCORE to summary.score.toFloat()
+            }
             TrainingMode.FREE_PRACTICE -> Unit
         }
         return out

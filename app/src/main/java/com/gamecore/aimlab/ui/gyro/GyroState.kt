@@ -6,6 +6,8 @@ import com.gamecore.aimlab.engine.ControlLayout
 import com.gamecore.aimlab.engine.Difficulty
 import com.gamecore.aimlab.engine.SensitivityProfile
 import com.gamecore.aimlab.engine.SessionSummary
+import com.gamecore.aimlab.engine.TrainingMode
+import com.gamecore.aimlab.runtime.AimInputSource
 
 /** The three things the gyro screen can be doing. There is no fourth, and no two at once. */
 enum class GyroPhase { Setup, Running, Result }
@@ -17,11 +19,12 @@ enum class GyroPhase { Setup, Running, Result }
  * and what the *device and the run* produced ([gyroAvailable], [frame], [result]). The first is held by the
  * view model; the second is reported by the hardware and the training loop and is never synthesised here.
  *
- * [gyroAvailable] is the answer [com.gamecore.aimlab.runtime.AimGyroReader.isAvailable] gave, carried in
- * state rather than re-asked at draw time. A device with no gyroscope cannot do this training at all, and
- * §5 says the screen must say so plainly instead of offering a Start button that could only ever produce a
- * motionless crosshair. There is no simulated fallback: a phone without the sensor gets an explanation
- * (§30).
+ * [inputSource] is the answer [com.gamecore.aimlab.runtime.AimMotionReader.capability] gave, carried in
+ * state rather than re-asked at draw time. A gyroscope is preferred and is the only source that measures
+ * rotation; a phone without one may use the accelerometer, which reads a lean against gravity and is
+ * offered as tilt — a real measurement, labelled as what it is, and filed under its own mode so it never
+ * ranks against a gyro run. A device with neither sensor gets an explanation instead of a Start button that
+ * could only ever produce a motionless crosshair (§5/§30).
  *
  * Note what is deliberately *not* here: a live score. The loop computes a gyro score only when the run ends
  * — during the run its `score` field is untouched — so putting [TrainingFrame.score] on the live HUD would
@@ -31,7 +34,7 @@ enum class GyroPhase { Setup, Running, Result }
  */
 data class GyroState(
     val phase: GyroPhase = GyroPhase.Setup,
-    val gyroAvailable: Boolean = false,
+    val inputSource: AimInputSource = AimInputSource.NONE,
     val difficulty: Difficulty = Difficulty.NORMAL,
     val durationSeconds: Int = DEFAULT_DURATION_SECONDS,
     /** The saved profiles offered in setup. Empty is normal — a profile is optional for a gyro run. */
@@ -62,8 +65,26 @@ data class GyroState(
     /** True when there is a loop and a frame from it — the only condition under which the arena is drawn. */
     val isLive: Boolean get() = phase == GyroPhase.Running && loop != null && frame != null
 
-    /** A run can only be offered on a device that has the sensor, and only when one is not already going. */
-    val canStart: Boolean get() = gyroAvailable && phase != GyroPhase.Running
+    /** True when the device has a real gyroscope. The primary source, never the fallback. */
+    val gyroAvailable: Boolean get() = inputSource == AimInputSource.GYRO
+
+    /** True when this device has no gyroscope and the run will be read from the accelerometer. */
+    val tiltFallback: Boolean get() = inputSource == AimInputSource.TILT
+
+    /** True when at least one sensor can move the view. */
+    val hasMotionInput: Boolean get() = inputSource != AimInputSource.NONE
+
+    /**
+     * The mode a run from this device is filed under.
+     *
+     * Tilt is [TrainingMode.TILT], not [TrainingMode.GYRO]: the two are different measurements, and personal
+     * records are separated by mode so one can never challenge the other.
+     */
+    val trainingMode: TrainingMode
+        get() = if (tiltFallback) TrainingMode.TILT else TrainingMode.GYRO
+
+    /** A run can be offered on a device with a usable sensor, and only when one is not already going. */
+    val canStart: Boolean get() = hasMotionInput && phase != GyroPhase.Running
 
     /** The HUD options for the picker: "None" first (no controls), then every saved layout. */
     val layoutOptions: List<ControlLayout?> get() = listOf<ControlLayout?>(null) + layouts

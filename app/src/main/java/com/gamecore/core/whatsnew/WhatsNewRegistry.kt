@@ -35,6 +35,27 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 39,
+            versionName = "3.17.0",
+            date = "2026-10-22",
+            features = listOf(
+                FeatureNote(
+                    "Tilt training for phones without a gyroscope",
+                    "A phone with no gyroscope can now run the gyro challenge as Tilt training, " +
+                        "read from the accelerometer. Bank the phone left or right in the plane of " +
+                        "the screen to steer, and tip the top edge away from you to aim up. A phone " +
+                        "that has a gyroscope is unchanged — it is still the input.",
+                ),
+                FeatureNote(
+                    "Tilt runs stay apart from gyro records",
+                    "An accelerometer cannot sense turning on the spot — gravity does not change " +
+                        "when the phone rotates about itself — so a tilt run is filed under its own " +
+                        "mode and never ranked against a gyro record. A device with neither sensor " +
+                        "gets a plain explanation instead of a Start button.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 38,
             versionName = "3.16.0",
             date = "2026-10-22",

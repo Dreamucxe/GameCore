@@ -3,10 +3,26 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.16.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.17.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
 no backend, nothing you record leaves the device
+
+---
+
+## New in 3.17.0
+
+The gyro challenge no longer needs a gyroscope. A phone without one can run it as **Tilt
+training** — a real measurement, read from the accelerometer and labelled as tilt.
+
+- **Bank to steer, tip to aim.** Tilt training reads the phone's lean against gravity: bank the
+  phone left or right in the plane of the screen to steer, and tip the top edge away from you to
+  aim up. A phone with a gyroscope is unchanged — the gyroscope is still the input.
+- **Its records stay apart from the gyro's.** An accelerometer cannot sense turning on the spot —
+  gravity does not change when the phone rotates about itself — so a tilt run is stored under its
+  own mode and is never ranked against a gyro record.
+- **No sensor, no pretend run.** A device with neither a gyroscope nor an accelerometer gets a
+  plain explanation in place of a Start button, rather than a run that could not move.
 
 ---
 
@@ -407,7 +423,10 @@ same rule as everything else: nothing it reports is invented.
   Practice sandbox. Aim error is measured in **degrees**, not pixels, so a result means the same on
   any screen. Recoil kicks the camera along the weapon's pattern and scores how well you pull it
   back; Movement walks you through the room and scatters shots taken on the move; Gyro turns the
-  view from the real gyroscope, with no simulated motion if the sensor is absent.
+  view from the real gyroscope. A phone with no gyroscope but an accelerometer runs the gyro
+  challenge as **Tilt training** — bank the phone left or right in the plane of the screen to steer
+  and tip the top edge away from you to aim up — read from the accelerometer, and filed under its
+  own mode so a tilt run is never ranked against a gyro record.
 - **Your gear drives it.** The weapon editor, sensitivity lab, control/HUD editor, statistics,
   personal records, session history and JSON/CSV export/import all carry over — and a weapon's fire
   rate, magazine, reload, spread and movement penalty are now actually felt in a run.
@@ -415,7 +434,7 @@ same rule as everything else: nothing it reports is invented.
   stay in your history, labelled as legacy, and are never ranked against the new 3D scores, because
   the two are measured differently. The database upgrade is additive — no history is dropped.
 - **It stays out of the way when you leave.** The 3D view renders only while a run is on screen; the
-  moment you leave or background the app, rendering stops, the gyroscope is released and the run is
+  moment you leave or background the app, rendering stops, the motion sensor is released and the run is
   cancelled. If a device cannot run OpenGL ES 2.0 the arena shows a plain "3D view unavailable"
   panel instead of crashing.
 

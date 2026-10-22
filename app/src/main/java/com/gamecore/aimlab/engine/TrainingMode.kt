@@ -12,6 +12,16 @@ enum class TrainingMode(val label: String, val scored: Boolean) {
     TRACKING("Tracking training", scored = true),
     REACTION("Reaction test", scored = true),
     GYRO("Gyro training", scored = true),
+
+    /**
+     * The accelerometer fallback for [GYRO], on phones that have no gyroscope.
+     *
+     * A separate mode on purpose: tilt measures a lean against gravity, not rotation, and cannot sense
+     * turning on the spot. Filing the two together would let a tilt score challenge a gyro record that was
+     * measured differently. The engine treats it exactly like [GYRO] — same target, same score formula —
+     * but the stored mode name keeps the records apart.
+     */
+    TILT("Tilt training", scored = true),
     RECOIL("Recoil training", scored = true),
     MOVEMENT("Movement training", scored = true),
     FREE_PRACTICE("Free practice", scored = false),
