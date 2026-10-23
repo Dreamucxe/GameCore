@@ -1,5 +1,6 @@
 package com.gamecore.core.model
 
+import com.gamecore.aimlab.engine.TargetPalette
 import com.gamecore.core.common.TextSanitizer
 
 /**
@@ -424,6 +425,71 @@ data class AppSettings(
      * current version so the card never appears retroactively on the very first launch.
      */
     val lastSeenWhatsNewVersionCode: Int = 0,
+
+    /**
+     * Mirror the on-screen controls horizontally for left-handed play.
+     *
+     * When true, the control layout used by the Aim Lab overlay and training surface is
+     * flipped left-to-right at draw time. The stored layout is not modified — the mirror
+     * is a pure view transform so the original coordinates are preserved and toggling back
+     * is instant.
+     */
+    val leftHandedLayout: Boolean = false,
+
+    /**
+     * The target colour palette for colour-vision accessibility.
+     *
+     * Stored by enum name; falls to [TargetPalette.STANDARD] on read. The palette propagates
+     * through the training renderer and the 2D training surface so every target draws in the
+     * chosen palette without the game logic knowing about it.
+     */
+    val targetPalette: TargetPalette = TargetPalette.STANDARD,
+
+    /**
+     * Enlarge interactive targets (buttons, sliders, list rows) to a comfortable minimum.
+     *
+     * When true, the app enforces a 56.dp minimum touch target height on navigation rows,
+     * settings toggles and the overlay panel chips — larger than the Material 48.dp baseline
+     * but still within the layout's natural spacing. It does not change text size or spacing
+     * otherwise, so the screen still fits the same amount of content.
+     */
+    val largerTouchTargets: Boolean = false,
+
+    /**
+     * How many days of session history to keep before auto-purge.
+     *
+     * Zero means keep forever. When positive, any session older than this many days is
+     * deleted on app start and after a backup restore. The purge runs in the background and
+     * never blocks the UI.
+     */
+    val retentionDays: Int = 0,
+
+    /**
+     * Packages explicitly excluded from game detection.
+     *
+     * A package in this set will never trigger a profile auto-apply, even if it matches an
+     * enabled profile. Validated in [normalised] so a hand-edited entry that is not a package
+     * name never survives the read. Additive: an entry only ever silences a detection.
+     */
+    val detectionExcludedPackages: Set<String> = emptySet(),
+
+    /**
+     * A manually pinned profile package that stays active even when the foreground app changes.
+     *
+     * When set and [autoApplyProfiles] is true, this package's profile is treated as the
+     * active one regardless of what [GameDetector] reports. Null means no pin. Validated as a
+     * package name in [normalised].
+     */
+    val pinnedPackage: String? = null,
+
+    /**
+     * Custom aspect ratios the user has added for the overlay's Aspect tile.
+     *
+     * Stored as "WxH" strings joined by [SEPARATOR]. Each is validated as a positive size on
+     * read. They appear as extra chips in the aspect-ratio row of the panel and the profile
+     * editor, alongside the built-in presets.
+     */
+    val customAspectRatios: List<String> = emptyList(),
 ) {
     /**
      * Clamps every numeric field into a range the rest of the app can rely on.
@@ -467,6 +533,13 @@ data class AppSettings(
         // hand-edited preference file, and the right answer there is a legible app, not no app.
         wallpaperScrimPercent = wallpaperScrimPercent
             .coerceIn(MIN_WALLPAPER_SCRIM, MAX_WALLPAPER_SCRIM),
+        // Validate the pinned package name if set.
+        pinnedPackage = pinnedPackage?.takeIf { TextSanitizer.validatePackageName(it) != null },
+        // Validate custom aspect ratios: parse "WxH", keep only positive sizes, dedupe.
+        customAspectRatios = customAspectRatios
+            .mapNotNull { DisplaySize.parse(it)?.let { it.argument } }
+            .distinct()
+            .take(MAX_CUSTOM_ASPECT_RATIOS),
     )
 
     companion object {
@@ -543,6 +616,9 @@ data class AppSettings(
 
         /** OR-mask that forces an ARGB int fully opaque, used to keep the custom accent readable. */
         const val ALPHA_OPAQUE = 0xFF000000.toInt()
+
+        /** Ceiling on custom aspect ratios, so a corrupted file cannot grow the chip row unbounded. */
+        const val MAX_CUSTOM_ASPECT_RATIOS = 8
     }
 }
 

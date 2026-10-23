@@ -230,6 +230,52 @@ class SessionRepository @Inject constructor(
         dao.clearHistory()
     }
 
+    // ------------------------------------------------------- backup restore & retention (§20, v2)
+
+    /**
+     * Inserts finished sessions read from a backup, minting fresh local ids.
+     *
+     * Only the session rows travel; the per-second sample rows do not. The row's [GameSession.sampleCount]
+     * still says how many samples the original recording had, so a report can be honest about what it is
+     * summarising even when the graph itself is not present. A running session (no end) is skipped: a backup
+     * is a record of history, and restoring an open row would create a session that never ends.
+     *
+     * Returns how many rows were inserted.
+     */
+    suspend fun importSessions(sessions: List<GameSession>): Int = withContext(io) {
+        var inserted = 0
+        for (session in sessions) {
+            if (session.endedAtMillis == null) continue
+            dao.insert(Mappers.toEntity(session.copy(id = 0L)))
+            inserted++
+        }
+        inserted
+    }
+
+    /** How many finished sessions ended before [cutoffMillis], for the retention card's count. */
+    suspend fun countFinishedBefore(cutoffMillis: Long): Int = withContext(io) {
+        dao.finished().count { row ->
+            row.endedAtMillis?.let { RetentionPolicy.isExpired(it, cutoffMillis) } == true
+        }
+    }
+
+    /**
+     * Deletes finished sessions that ended before [cutoffMillis], with their samples, and returns the count.
+     *
+     * Runs only from an explicit retention action (or the documented post-restore sweep). Personal records are
+     * not here and are never touched by retention.
+     */
+    suspend fun purgeFinishedBefore(cutoffMillis: Long): Int = withContext(io) {
+        var deleted = 0
+        for (row in dao.finished()) {
+            val ended = row.endedAtMillis ?: continue
+            if (!RetentionPolicy.isExpired(ended, cutoffMillis)) continue
+            dao.deleteWithSamples(row.id)
+            deleted++
+        }
+        deleted
+    }
+
     // -------------------------------------------------------------------- internals
 
     /**

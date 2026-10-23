@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsBackupRestore
@@ -50,6 +51,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -91,6 +93,7 @@ import com.gamecore.ui.components.PreLaunchWarningDialog
 import com.gamecore.ui.components.ProfileChipRow
 import com.gamecore.ui.components.Readout
 import com.gamecore.ui.components.ReadoutRow
+import com.gamecore.ui.components.RowDivider
 import com.gamecore.ui.components.ScreenBottomPadding
 import com.gamecore.ui.components.ScreenHeader
 import com.gamecore.ui.components.ScreenPadding
@@ -206,6 +209,17 @@ fun HomeScreen(
                     action = { WatchPill(state.watch) },
                 )
             }
+        }
+
+        // Global search, directly under the header: the fastest way to a screen or setting whose card is
+        // further down this list. It is a row rather than a field so the keyboard never opens on Home —
+        // the Search screen owns the field, its focus and its back arrow.
+        item {
+            SearchEntryRow(
+                onClick = { onNavigate(Destination.Search) },
+                compact = state.isCompact,
+                modifier = padded,
+            )
         }
 
         state.message?.let { message ->
@@ -439,6 +453,52 @@ private fun WatchPill(watch: WatchState) {
         WatchState.BLIND -> Tone.Warning
     }
     StatusChip(text = watch.label, tone = tone, icon = Icons.Filled.Visibility)
+}
+
+/**
+ * The search entry point: a rounded row with the magnifier and a prompt, not a live text field.
+ *
+ * Nothing is typed here. The tap opens [Destination.Search], which owns the field, the focus request and
+ * the results; drawing a field on Home as well would give the app two search controls with one of them
+ * unable to show what it searched. The vertical padding follows compact density, and the row itself stays
+ * at the app's touch floor.
+ */
+@Composable
+private fun SearchEntryRow(
+    onClick: () -> Unit,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier
+                .defaultMinSize(minHeight = 48.dp)
+                .padding(
+                    horizontal = Spacing.lg,
+                    vertical = if (compact) Spacing.sm else Spacing.md,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Search,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(Spacing.sm))
+            Text(
+                text = "Search screens, settings and features",
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
 }
 
 // --------------------------------------------------------------------------------------------- hero
@@ -796,7 +856,9 @@ private const val DIMMED_ALPHA = 0.6f
  * Collapsed by default, because resolution and free storage are reference figures rather than things to
  * watch — a returning user wants the live tiles above, not the screen density. Nothing is removed by the
  * collapse; the Codec & GPU scanner is the only route to [Destination.Capability] in the app, so it lives
- * here where the rest of the device facts are rather than being dropped.
+ * here where the rest of the device facts are rather than being dropped. The two diagnostics below the
+ * readouts stay visible either way: they are actions, not figures, and a card that starts collapsed should
+ * not make the only way to them a two-tap secret.
  */
 @Composable
 private fun DeviceCard(
@@ -823,7 +885,24 @@ private fun DeviceCard(
                 icon = Icons.Filled.Memory,
                 onClick = { onNavigate(Destination.Capability) },
             )
+            RowDivider()
         }
+        // The two device diagnostics, always visible rather than behind the Show action: they are things
+        // a user acts on, not readings to glance at, and burying them in a card that starts collapsed made
+        // the only route to them two taps deep. Both read the device's own state and change nothing.
+        NavRow(
+            title = "Device check",
+            description = "Sensors, permissions, display, thermal and GPU — what is ready, what is limited " +
+                "and what each gap costs.",
+            icon = Icons.Filled.Build,
+            onClick = { onNavigate(Destination.Fitness) },
+        )
+        NavRow(
+            title = "Sensor calibration",
+            description = "Ten seconds still, then the bias, noise and drift the gyroscope actually shows.",
+            icon = Icons.Filled.Sensors,
+            onClick = { onNavigate(Destination.SensorCalibration) },
+        )
     }
 }
 

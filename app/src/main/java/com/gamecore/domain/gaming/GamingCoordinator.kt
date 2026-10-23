@@ -68,6 +68,56 @@ data class GamingState(
 }
 
 /**
+ * How one profile application ended, in the four outcomes a diagnostics row can honestly report.
+ *
+ * [NOT_NEEDED] is not a failure: a profile that asks for no device change, and a game whose profile is
+ * disabled or absent, both reach the apply path and both did exactly what they were configured to do.
+ * [APPLIED] means at least one change was confirmed by the device; it is never inferred from the user
+ * saying yes to a switch.
+ */
+enum class ApplyResult {
+    APPLIED,
+    SKIPPED,
+    FAILED,
+    NOT_NEEDED,
+}
+
+/**
+ * The last real profile application, as the Games screen reports it.
+ *
+ * Built from [ProfileApplication] rather than from the request that produced it, so the result can only
+ * say what the applier actually confirmed. The Games card shows [detail] verbatim; for a partial
+ * application that sentence is [ProfileApplication.summary] and names both the changes that landed and
+ * the ones that did not.
+ */
+data class ApplyDiagnostic(
+    val packageName: String,
+    val profileName: String,
+    val result: ApplyResult,
+    val detail: String,
+    val atMillis: Long,
+) {
+    companion object {
+        /** Classifies a completed application. The only constructor the apply path uses. */
+        fun from(application: ProfileApplication): ApplyDiagnostic {
+            val result = when {
+                application.problems.isNotEmpty() -> ApplyResult.FAILED
+                application.appliedCount > 0 -> ApplyResult.APPLIED
+                application.changedNothing -> ApplyResult.NOT_NEEDED
+                else -> ApplyResult.SKIPPED
+            }
+            return ApplyDiagnostic(
+                packageName = application.packageName,
+                profileName = application.profileLabel,
+                result = result,
+                detail = application.summary(),
+                atMillis = application.appliedAtMillis,
+            )
+        }
+    }
+}
+
+/**
  * Turns detected games into applied profiles, live sampling and recorded sessions, in that order.
  *
  * The one place where the gaming pieces meet. [GameDetector] says what happened, [ProfileApplier]
@@ -111,8 +161,20 @@ class GamingCoordinator @Inject constructor(
 
     private val state = MutableStateFlow(GamingState.IDLE)
 
+    /**
+     * The last apply that actually happened, for the Games screen's "last apply" row.
+     *
+     * Kept beside [state] rather than inside it because it outlives the session: once the game stops,
+     * [GamingState.playing] is null and the screen would otherwise have no way to say what the last
+     * launch did. It is written only where the applier returns, never on the way into one.
+     */
+    private val applyState = MutableStateFlow<ApplyDiagnostic?>(null)
+
     /** What is being tracked and what was done about it. Read by the service and the dashboard. */
     val gaming: StateFlow<GamingState> = state.asStateFlow()
+
+    /** The outcome of the last real apply, including a skipped one. Null before the first detection. */
+    val applyDiagnostic: StateFlow<ApplyDiagnostic?> = applyState.asStateFlow()
 
     /** The session being written, for a live duration and drain figure. */
     val session get() = recorder.active
@@ -225,7 +287,20 @@ class GamingCoordinator @Inject constructor(
      * two of shell round trips and the notification should already name the game by then.
      */
     private suspend fun onStarted(event: GameEvent.Started, scope: CoroutineScope) {
-        val profile = profiles.profileFor(event.packageName)?.takeIf { it.isEnabled } ?: return
+        val profile = profiles.profileFor(event.packageName)?.takeIf { it.isEnabled }
+        if (profile == null) {
+            // The detector only announces enabled profiles, but a profile can be disabled between the
+            // poll and this call. Nothing was applied, and saying so is more useful than leaving the
+            // previous game's outcome on the card.
+            applyState.value = ApplyDiagnostic(
+                packageName = event.packageName,
+                profileName = "",
+                result = ApplyResult.NOT_NEEDED,
+                detail = "No enabled profile for this game.",
+                atMillis = event.atMillis,
+            )
+            return
+        }
         val settings = preferences.settings.value
 
         // The installed label wins over the stored one, so a game renamed by an update appears in
@@ -250,6 +325,14 @@ class GamingCoordinator @Inject constructor(
             null
         }
         state.value = state.value.copy(application = application)
+        applyState.value = application?.let { ApplyDiagnostic.from(it) }
+            ?: ApplyDiagnostic(
+                packageName = event.packageName,
+                profileName = profile.label,
+                result = ApplyResult.SKIPPED,
+                detail = "Automatic apply is off.",
+                atMillis = event.atMillis,
+            )
 
         if (settings.trackSessions && profile.trackSession) {
             startRecording(

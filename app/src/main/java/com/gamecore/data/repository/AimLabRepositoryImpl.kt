@@ -22,6 +22,7 @@ import com.gamecore.data.database.AimLabSessionDao
 import com.gamecore.data.database.AimLabWeaponDao
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -122,6 +123,46 @@ class AimLabRepositoryImpl @Inject constructor(
 
     override suspend fun clearHistory() = withContext(io) {
         sessionDao.clearAll()
+    }
+
+    // ------------------------------------------------------- backup restore & retention (§20, v2)
+
+    override suspend fun allSessions(): List<SessionSummary> = withContext(io) {
+        sessionDao.allSessions().map(AimLabMappers::toModel)
+    }
+
+    override suspend fun allRecords(): List<PersonalRecord> = records.first()
+
+    override suspend fun importSessions(sessions: List<SessionSummary>): Int = withContext(io) {
+        var inserted = 0
+        for (summary in sessions) {
+            sessionDao.insert(AimLabMappers.toEntity(summary.copy(id = 0L)))
+            inserted++
+        }
+        inserted
+    }
+
+    override suspend fun importRecords(records: List<PersonalRecord>): Int = withContext(io) {
+        var written = 0
+        for (record in records) {
+            sessionDao.upsertRecord(AimLabMappers.toEntity(record))
+            written++
+        }
+        written
+    }
+
+    override suspend fun countSessionsBefore(cutoffMillis: Long): Int = withContext(io) {
+        sessionDao.allSessions().count { RetentionPolicy.isExpired(it.endedAtMillis, cutoffMillis) }
+    }
+
+    override suspend fun purgeSessionsBefore(cutoffMillis: Long): Int = withContext(io) {
+        var deleted = 0
+        for (row in sessionDao.allSessions()) {
+            if (!RetentionPolicy.isExpired(row.endedAtMillis, cutoffMillis)) continue
+            sessionDao.delete(row.id)
+            deleted++
+        }
+        deleted
     }
 
     // ------------------------------------------------------------------------------ weapons

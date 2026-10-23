@@ -428,6 +428,11 @@ internal object Mappers {
         // it, and that null must survive to the row rather than becoming a 0 that reads as a measurement.
         instantReplayUsed = session.instantReplayUsed,
         clipsSaved = session.clipsSaved,
+        // Conditions at session start (v19). Pass-through: NULL means the opening snapshot did not carry
+        // the reading, and that absence must survive to the row rather than becoming `false`.
+        thermalStatus = session.thermalStatus,
+        powerSaver = session.powerSaver,
+        refreshCapped = session.refreshCapped,
     )
 
     fun toModel(entity: SessionEntity): GameSession = GameSession(
@@ -490,6 +495,11 @@ internal object Mappers {
         // count is clamped non-negative so a hand-edited negative can never read back as a real total.
         instantReplayUsed = entity.instantReplayUsed,
         clipsSaved = entity.clipsSaved?.coerceAtLeast(0),
+        // Conditions at session start (v19), read straight through. NULL stays NULL, which is what the
+        // report uses to omit the row entirely rather than claiming a condition nobody recorded.
+        thermalStatus = entity.thermalStatus?.takeIf { it.isNotBlank() },
+        powerSaver = entity.powerSaver,
+        refreshCapped = entity.refreshCapped,
     )
 
     fun toEntity(sample: SessionSample): SessionSampleEntity = SessionSampleEntity(

@@ -59,6 +59,17 @@ data class SettingsUiState(
 
     /** True when the typed host differs from the stored one, so the screen can offer to apply it. */
     val isHostEdited: Boolean get() = latencyHostDraft.trim() != settings.latencyHost
+
+    /**
+     * How many packages are silenced from game detection, for the Detection card.
+     *
+     * The list itself lives on the Games screen; this is the count that card can honestly report without
+     * claiming the editor is here.
+     */
+    val detectionExcludedCount: Int get() = settings.detectionExcludedPackages.size
+
+    /** The pinned profile's package, or null when nothing is pinned. Also edited on the Games screen. */
+    val pinnedProfile: String? get() = settings.pinnedPackage
 }
 
 /**
@@ -77,3 +88,12 @@ internal val DETECTION_SECONDS_RANGE: IntRange =
 
 internal val SAMPLE_SECONDS_RANGE: IntRange =
     (AppSettings.MIN_SAMPLE_INTERVAL / 1_000L).toInt()..(AppSettings.MAX_SAMPLE_INTERVAL / 1_000L).toInt()
+
+/**
+ * The session-retention windows the Data card offers, in days. Zero means keep everything.
+ *
+ * Shared with [SettingsViewModel] so the stored field can only be one of the values the dropdown can show;
+ * a hand-edited preference that is not in this list still displays its own day count, but selecting a
+ * choice always writes one of these.
+ */
+internal val RETENTION_DAY_OPTIONS: List<Int> = listOf(0, 30, 90, 180, 365)

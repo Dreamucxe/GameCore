@@ -11,6 +11,7 @@ import com.gamecore.core.model.LatencyLog
 import com.gamecore.core.model.LatencyVerdict
 import com.gamecore.core.model.SessionCard
 import com.gamecore.core.model.SessionSample
+import com.gamecore.core.model.ThermalStatus
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.CardResult
 import com.gamecore.data.repository.SampleExportResult
@@ -68,6 +69,17 @@ class SessionReportViewModel @Inject constructor(
     val state: StateFlow<SessionReportUiState> = editing.asStateFlow()
 
     /**
+     * The conditions the session opened in, one row per reading the opening snapshot actually carried.
+     *
+     * Kept beside [state] rather than inside it because the conditions are a separate, optional section:
+     * the rows are built once when the session loads and never change, and an empty list is what tells the
+     * screen to omit the section entirely rather than draw a heading over dashes. These are readings from
+     * the moment the session started, not explanations for anything measured later.
+     */
+    private val conditionsState = MutableStateFlow<List<Readout>>(emptyList())
+    val conditions: StateFlow<List<Readout>> = conditionsState.asStateFlow()
+
+    /**
      * The loaded session, kept for the shareable card.
      *
      * §24A.2 governs what the UI receives, and this is not that — no composable can see it. The card needs
@@ -104,6 +116,7 @@ class SessionReportViewModel @Inject constructor(
             }
             loaded = session
             val samples = repository.samples(session.id)
+            conditionsState.value = conditionsOf(session)
             editing.value = editing.value.copy(
                 isLoading = false,
                 isMissing = false,
@@ -301,6 +314,48 @@ class SessionReportViewModel @Inject constructor(
                 },
             ),
         )
+    }
+
+    /**
+     * The conditions recorded when the session opened, one row per reading that exists.
+     *
+     * Only non-null fields become rows, so a device that exposes no thermal status gets no thermal row
+     * rather than a dash claiming a reading failed now. The detail lines are deliberately descriptive:
+     * these are conditions the session started in, and nothing on this screen uses them to explain a
+     * frame rate, a drain, or anything else that happened afterwards.
+     */
+    private fun conditionsOf(session: GameSession): List<Readout> = buildList {
+        session.thermalStatus?.let { name ->
+            val status = ThermalStatus.entries.firstOrNull { it.name == name }
+            add(
+                readoutOf(
+                    label = "Thermal status",
+                    value = status?.label ?: name,
+                    detail = "The platform's own thermal status when the session opened. A reading, " +
+                        "not a cause of anything that happened later.",
+                    tone = if (status?.warrantsAlert == true) Tone.Warning else Tone.Neutral,
+                ),
+            )
+        }
+        session.powerSaver?.let { enabled ->
+            add(
+                readoutOf(
+                    label = "Battery saver",
+                    value = if (enabled) "On" else "Off",
+                    detail = "The system's power-save setting at the moment the session opened.",
+                ),
+            )
+        }
+        session.refreshCapped?.let { capped ->
+            add(
+                readoutOf(
+                    label = "Refresh rate",
+                    value = if (capped) "Below the panel's peak" else "At the panel's peak",
+                    detail = "The display's active rate against the highest rate it reports when the " +
+                        "session opened. This records the rate, not why it was at it.",
+                ),
+            )
+        }
     }
 
     /**

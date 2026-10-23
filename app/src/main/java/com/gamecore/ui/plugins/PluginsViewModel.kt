@@ -1,11 +1,21 @@
 package com.gamecore.ui.plugins
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.core.common.TextSanitizer
+import com.gamecore.core.plugin.InstalledPlugin
+import com.gamecore.core.plugin.InstallOutcome
 import com.gamecore.core.plugin.PluginOrigin
+import com.gamecore.core.plugin.PluginPackageLoader
+import com.gamecore.core.plugin.PluginPreviewResult
+import com.gamecore.core.plugin.PluginPreviewState
 import com.gamecore.core.plugin.PluginRegistry
+import com.gamecore.core.plugin.RollbackOutcome
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -13,53 +23,77 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import javax.inject.Inject
 
 /**
  * The plugin manager's brain: list what is installed, flip switches, remove things, and hold the one
  * global off switch.
  *
- * It is constructed with a [PluginRegistry] and nothing else, which is the point. That interface can
- * enumerate plugins, toggle one, remove one and clear the theme; it cannot hand out an elevated shell, a
- * writable grant store, or a package's bytes. So the whole of what this screen is able to do to a plugin
- * is the method list on that interface, and a reviewer checking "can the manager screen escalate" reads
- * one file rather than a concrete class's entire surface.
+ * It is constructed with a [PluginRegistry] (and the application context, only to read the file the
+ * user picked), which is the point. That interface can enumerate plugins, toggle one, preview and
+ * install a package, roll one back, quarantine one, remove one and clear the theme; it cannot hand out
+ * an elevated shell, a writable grant store, or the raw bytes of an installed package. So the whole of
+ * what this screen is able to do to a plugin is the method list on that interface, and a reviewer
+ * checking "can the manager screen escalate" reads one file rather than a concrete class's entire
+ * surface.
  *
- * Four decisions worth stating:
+ * Five decisions worth stating:
  *
  *  - **Registry state and transient state are separate flows.** [fromRegistry] is rebuilt from scratch on
- *    every registry emission; [transient] holds the banner text and the pending-removal dialog. Merging
- *    them into one `MutableStateFlow` would mean every registry emission read the current value and wrote
- *    a copy — and a plugin that suspends itself, or a `refresh()` landing a few milliseconds after the
- *    user long-pressed a row, would take the open confirmation dialog down with it. A dialog the user is
- *    reading must not be at the mercy of a background re-read.
- *  - **Nothing is reported that was not observed (§24).** [setEnabled], [clearSuspension] and
- *    [resetToDefaultTheme] do not write an optimistic row: the switch moves when the registry emits the
- *    plugin with its new state, so a `setEnabled` the store refused leaves the switch where it was rather
- *    than showing the user a value that is not stored anywhere. [confirmRemove] is the same shape — it
- *    reports what `remove` returned, not what it asked for.
- *  - **The combine is one coroutine.** Four flows, one [combine], one collector. Four separate collectors
- *    writing into the same state would recompose the screen up to four times for four facts that arrive
- *    in the same instant on load, and would briefly publish a list of rows alongside the *previous*
- *    active theme — long enough for the "supplies the current theme" badge to sit on the wrong row.
+ *    every registry emission; [transient] holds the banner text, the preview, and the pending
+ *    removal/rollback dialogs. Merging them into one `MutableStateFlow` would mean every registry
+ *    emission read the current value and wrote a copy — and a plugin that suspends itself, or a
+ *    `refresh()` landing a few milliseconds after the user long-pressed a row, would take the open
+ *    confirmation dialog down with it. A dialog the user is reading must not be at the mercy of a
+ *    background re-read.
+ *  - **Nothing is reported that was not observed (§24).** [setEnabled] and [resetToDefaultTheme] do not
+ *    write an optimistic row: the switch moves when the registry emits the plugin with its new state,
+ *    so a `setEnabled` the store refused leaves the switch where it was rather than showing the user a
+ *    value that is not stored anywhere. [confirmRemove] and [confirmRollback] report what the registry
+ *    returned, not what they asked for.
+ *  - **A picked package is previewed, never installed.** [previewInstall] reads and validates the file
+ *    into a [PluginPreviewState] and stops. [confirmInstall] installs exactly those bytes, so the user's
+ *    yes is to the package they were shown. The bytes are held in this ViewModel, not in the UI state,
+ *    so a recomposition cannot lose them and a preview cannot be confused with an install.
+ *  - **The combine is one coroutine.** Five registry flows, one [combine], one collector. Separate
+ *    collectors would recompose the screen up to five times for facts that arrive in the same instant
+ *    on load, and would briefly publish rows beside the *previous* active theme — long enough for the
+ *    "supplies the current theme" badge to sit on the wrong row.
  *  - **No plugin text is logged.** Nothing here writes a manifest string, a grant or an install detail to
  *    the log; the only place plugin-supplied text goes is a `Text` on the screen, via [rowFor].
  */
 @HiltViewModel
 class PluginsViewModel @Inject constructor(
     private val registry: PluginRegistry,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     /**
      * The parts of the screen that are this ViewModel's own rather than the registry's.
      *
-     * A nested private class instead of two fields so that one `update` call changes them together, and
-     * so [state] has exactly one other input to merge.
+     * A nested private class instead of several fields so that one `update` call changes them together,
+     * and so [state] has exactly one other input to merge.
      */
     private data class Transient(
         val message: String? = null,
+        val preview: PluginPreviewState? = null,
+        val previewing: Boolean = false,
+        val previewError: String? = null,
         val pendingRemoval: PluginRow? = null,
+        val pendingRollback: PluginRow? = null,
     )
+
+    /**
+     * The bytes the preview described.
+     *
+     * Kept here rather than in [PluginsUiState] because a byte array is not presentation state and
+     * because `confirmInstall` must install exactly what the user approved. Cleared on confirm, cancel
+     * and dismissal; it is never held after the operation.
+     */
+    private var previewBytes: ByteArray? = null
 
     private val fromRegistry = MutableStateFlow(PluginsUiState())
 
@@ -80,7 +114,11 @@ class PluginsViewModel @Inject constructor(
             rows = sortedRows(observed.rows, order),
             sort = order,
             message = own.message,
+            preview = own.preview,
+            isPreviewing = own.previewing,
+            previewError = own.previewError,
             pendingRemoval = own.pendingRemoval,
+            pendingRollback = own.pendingRollback,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, PluginsUiState())
 
@@ -216,25 +254,230 @@ class PluginsViewModel @Inject constructor(
         sort.value = order
     }
 
+    // ------------------------------------------------------------------------------- previewing
+
     /**
-     * Validates and stores a package the user picked.
+     * Reads a picked document and turns it into a preview. **Nothing is installed here.**
      *
-     * [PluginOrigin.SIDELOADED] is passed explicitly rather than left to the default, because "bundled"
-     * is a claim about where bytes came from and only the app's own start-up loader is in a position to
-     * make it. A file the user chose is sideloaded whatever its manifest says about itself — and since
-     * nothing in the system grants a bundled plugin anything extra, the distinction is here for the
-     * sentence the row prints, not for a privilege.
-     *
-     * The bytes are already capped by the caller; the registry caps them again.
+     * The read is capped while streaming, on [Dispatchers.IO], for the reason the old manager screen had:
+     * a content provider is another app, and a stream that never ends must cost the cap rather than the
+     * heap. The validated bytes are kept in [previewBytes] so [confirmInstall] installs the exact package
+     * the user was shown, not whatever the URI happens to serve on a second read.
      */
-    fun installFromBytes(bytes: ByteArray) {
+    fun previewInstall(uri: Uri) {
+        viewModelScope.launch {
+            previewBytes = null
+            transient.update {
+                it.copy(preview = null, previewing = true, previewError = null, message = null)
+            }
+            when (val read = withContext(Dispatchers.IO) { readPicked(uri) }) {
+                is PickedPackage.Read -> when (val result = registry.previewInstall(read.bytes)) {
+                    is PluginPreviewResult.Ready -> {
+                        previewBytes = read.bytes
+                        transient.update {
+                            it.copy(
+                                previewing = false,
+                                preview = result.preview,
+                                previewError = null,
+                            )
+                        }
+                    }
+
+                    is PluginPreviewResult.Refused -> transient.update {
+                        it.copy(
+                            previewing = false,
+                            preview = null,
+                            previewError = messageFor(result),
+                        )
+                    }
+
+                    is PluginPreviewResult.Unavailable -> transient.update {
+                        it.copy(
+                            previewing = false,
+                            preview = null,
+                            previewError = result.message,
+                        )
+                    }
+                }
+
+                PickedPackage.TooLarge -> transient.update {
+                    it.copy(previewing = false, preview = null, previewError = TOO_LARGE_NOTE)
+                }
+
+                PickedPackage.Unreadable -> transient.update {
+                    it.copy(previewing = false, preview = null, previewError = UNREADABLE_NOTE)
+                }
+            }
+        }
+    }
+
+    /**
+     * Installs the previewed package.
+     *
+     * The outcome is whatever [PluginRegistry.install] returned. A quarantine on the copy being replaced
+     * is not cleared by an update, and the message says so rather than letting the user believe a new
+     * version earned its way back.
+     */
+    fun confirmInstall() {
+        val bytes = previewBytes ?: return
+        val preview = transient.value.preview ?: return
+        if (!preview.canInstall) return
+        previewBytes = null
+        transient.update {
+            it.copy(preview = null, previewing = false, previewError = null, message = null)
+        }
         viewModelScope.launch {
             val outcome = registry.install(bytes, PluginOrigin.SIDELOADED)
+            val message = buildString {
+                append(messageFor(outcome))
+                if (outcome is InstallOutcome.Installed && preview.replaces?.quarantined == true) {
+                    append(" It is still quarantined from before, so it stays stopped until you " +
+                        "release it.")
+                }
+            }
+            transient.update { it.copy(message = message) }
+        }
+    }
+
+    /** Throws the preview away. The bytes are dropped with it; nothing was written. */
+    fun cancelPreview() {
+        previewBytes = null
+        transient.update {
+            it.copy(preview = null, previewing = false, previewError = null)
+        }
+    }
+
+    // ------------------------------------------------------------------------------- rollback
+
+    /** Asks before replacing the installed bytes with the stored previous version. */
+    fun askRollback(row: PluginRow) {
+        if (!row.canRollback) {
+            transient.update { it.copy(message = NO_PREVIOUS_VERSION) }
+            return
+        }
+        transient.update { it.copy(pendingRollback = row, message = null) }
+    }
+
+    /**
+     * Performs the rollback and reports the registry's real outcome.
+     *
+     * No optimistic row and no optimistic message: [registry.rollback] goes back through the ordinary
+     * install path, clears the grant and switches the plugin off, and the installed flow re-emits the
+     * version that was actually read back.
+     */
+    fun confirmRollback() {
+        val target = transient.value.pendingRollback ?: return
+        transient.update { it.copy(pendingRollback = null) }
+        viewModelScope.launch {
+            val outcome = registry.rollback(target.id)
             transient.update { it.copy(message = messageFor(outcome)) }
         }
     }
 
+    fun cancelRollback() {
+        transient.update { it.copy(pendingRollback = null) }
+    }
+
+    // ----------------------------------------------------------------------------- quarantine
+
+    /**
+     * Persistently stops a plugin until the user releases it.
+     *
+     * The success sentence is written only after reading the registry back: if the store could not
+     * persist the quarantine — a broken Keystore, a test double that does not implement it — the user is
+     * told the stop did not take, rather than shown a badge the next launch would contradict.
+     */
+    fun quarantine(pluginId: String, name: String) {
+        viewModelScope.launch {
+            registry.quarantine(pluginId, QUARANTINE_USER_DETAIL)
+            val stored = registry.installed.value.firstOrNull { it.id == pluginId }
+            val label = TextSanitizer.sanitizeName(name).ifBlank { pluginId }
+            val message = if (stored?.quarantined == true) {
+                "$label is quarantined. It is listed here but will not load — not after a restart " +
+                    "either. Release it when you want to try it again; it stays off until you turn it on."
+            } else {
+                QUARANTINE_FAILED
+            }
+            transient.update { it.copy(message = message) }
+        }
+    }
+
+    /** Lifts the persistent stop. Nothing starts by itself; the plugin remains switched off. */
+    fun releaseQuarantine(pluginId: String, name: String) {
+        viewModelScope.launch {
+            registry.releaseQuarantine(pluginId)
+            val stored = registry.installed.value.firstOrNull { it.id == pluginId }
+            val label = TextSanitizer.sanitizeName(name).ifBlank { pluginId }
+            val message = if (stored != null && !stored.quarantined) {
+                "$label is released. It is still off — turn it on when you are ready to try it again."
+            } else {
+                RELEASE_FAILED
+            }
+            transient.update { it.copy(message = message) }
+        }
+    }
+
+    /**
+     * Streams up to [PluginPackageLoader.MAX_PACKAGE_BYTES], returning null the moment it is exceeded.
+     *
+     * Same shape as the old manager helper: the cap is applied to bytes actually read, not to a size the
+     * provider claims, and a failure is a typed outcome rather than an exception escaping the coroutine.
+     */
+    private fun readPicked(uri: Uri): PickedPackage = try {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val bytes = readCapped(input, PluginPackageLoader.MAX_PACKAGE_BYTES)
+            if (bytes == null) PickedPackage.TooLarge else PickedPackage.Read(bytes)
+        } ?: PickedPackage.Unreadable
+    } catch (_: Throwable) {
+        PickedPackage.Unreadable
+    }
+
+    private fun readCapped(input: InputStream, maxBytes: Int): ByteArray? {
+        val out = ByteArrayOutputStream()
+        val chunk = ByteArray(READ_CHUNK_BYTES)
+        var total = 0
+        while (true) {
+            val read = input.read(chunk)
+            if (read < 0) break
+            total += read
+            if (total > maxBytes) return null
+            out.write(chunk, 0, read)
+        }
+        return out.toByteArray()
+    }
+
+    private sealed interface PickedPackage {
+        class Read(val bytes: ByteArray) : PickedPackage
+
+        data object TooLarge : PickedPackage
+
+        data object Unreadable : PickedPackage
+    }
+
     private companion object {
+
+        const val READ_CHUNK_BYTES = 8 * 1024
+
+        const val TOO_LARGE_NOTE =
+            "That file is larger than a plugin package is allowed to be, so GameCore stopped reading " +
+                "part way through instead of loading it. Nothing was installed."
+
+        const val UNREADABLE_NOTE =
+            "That file could not be read. The app it came from may have withdrawn access, or the file " +
+                "may have been moved since you picked it. Nothing was installed."
+
+        const val NO_PREVIOUS_VERSION =
+            "There is no previous version stored for that plugin, so there is nothing to restore."
+
+        const val QUARANTINE_USER_DETAIL = "Quarantined by you from the plugin manager."
+
+        const val QUARANTINE_FAILED =
+            "That plugin could not be quarantined. It is still installed and its current stop state is " +
+                "unchanged."
+
+        const val RELEASE_FAILED =
+            "The quarantine could not be lifted. The plugin is still stopped, and nothing about it was " +
+                "changed."
 
         const val KILL_SWITCH_ON =
             "Plugins are off. Nothing any plugin asked for runs while this is on — no theme, no Pill " +

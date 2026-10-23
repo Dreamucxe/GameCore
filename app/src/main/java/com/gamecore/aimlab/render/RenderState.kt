@@ -1,5 +1,6 @@
 package com.gamecore.aimlab.render
 
+import com.gamecore.aimlab.engine.TargetPalette
 import com.gamecore.aimlab.engine.WeaponCategory
 import com.gamecore.aimlab.engine3d.Target3D
 import com.gamecore.aimlab.engine3d.Vec3
@@ -39,6 +40,8 @@ data class RenderState(
     val decals: List<Vec3> = emptyList(),
     /** World positions to spawn a hit particle burst at this frame; consumed once by the renderer. */
     val hitBursts: List<Vec3> = emptyList(),
+    /** The target colour palette for this frame. Defaults to standard; the loop copies it from config. */
+    val targetPalette: TargetPalette = TargetPalette.STANDARD,
 ) {
     companion object {
         /** A safe empty state to draw before the first real frame arrives (camera at the origin). */

@@ -53,6 +53,18 @@ data class InstalledPlugin(
     val suspensionDetail: String? = null,
     val grant: PluginGrant,
     val installedAtMillis: Long = 0L,
+    /**
+     * Whether the user (or the supervisor) has persistently quarantined this plugin.
+     *
+     * Unlike [suspended], which is a this-run observation, quarantine survives a restart and keeps the
+     * plugin out of every runtime surface until it is explicitly released. A quarantined plugin is still
+     * listed so the user can inspect it and choose Release.
+     */
+    val quarantined: Boolean = false,
+    /** Why it was quarantined, sanitised before it reaches this record. Null when the user did it. */
+    val quarantineDetail: String? = null,
+    /** True when a previous `.gcplugin` is stored for this id and may be restored. */
+    val canRollback: Boolean = false,
 ) {
     val id: String get() = manifest.id
 
@@ -61,8 +73,9 @@ data class InstalledPlugin(
     /** Bundled plugins live in the APK, so there is nothing on disk to delete. */
     val canBeRemoved: Boolean get() = origin != PluginOrigin.BUNDLED
 
-    /** True only when the plugin is both allowed to run and actually running. */
-    val isActive: Boolean get() = enabled && !suspended && manifest.compatibility.isRunnable
+    /** True only when the plugin is allowed to run and is not stopped by a suspension or quarantine. */
+    val isActive: Boolean
+        get() = enabled && !suspended && !quarantined && manifest.compatibility.isRunnable
 
     /**
      * The state the permission gate and the broker take.
@@ -97,6 +110,64 @@ sealed interface InstallOutcome {
 
     /** The bytes were readable but could not be stored — no space, or the plugin directory is gone. */
     data class StorageFailed(val detail: String) : InstallOutcome
+}
+
+/**
+ * What a package would do if it were installed, computed without installing it.
+ *
+ * Every field is derived from the parsed manifest/plan and from files already on disk. Nothing here is
+ * a promise about what the plugin can do: [declaredPermissions] is exactly the manifest's requested
+ * set, and a preview never adds a capability the package did not declare.
+ */
+data class PluginPreviewState(
+    val plan: PluginInstallPlan,
+    val sizeBytes: Long,
+    /** The copy currently installed under this id, or null for a fresh install. */
+    val replaces: InstalledPlugin? = null,
+    /** True when the id belongs to a plugin bundled inside the APK, which a file cannot replace. */
+    val replacingBundled: Boolean = false,
+) {
+    val id: String get() = plan.id
+
+    val name: String get() = plan.name
+
+    val versionName: String get() = plan.versionName
+
+    /** The exact permissions the manifest requested, highest tier first. Never a superset. */
+    val declaredPermissions: List<PluginPermission> get() = plan.permissionsByTier.values.flatten()
+
+    val declaredSections: Set<PluginSection> get() = plan.declaredSections
+
+    val replacesExisting: Boolean get() = replaces != null
+
+    /** False when the host cannot run it, or when the id belongs to a bundled plugin. */
+    val canInstall: Boolean get() = plan.canInstall && !replacingBundled
+}
+
+/** The answer to [PluginRegistry.previewInstall]. */
+sealed interface PluginPreviewResult {
+    data class Ready(val preview: PluginPreviewState) : PluginPreviewResult
+
+    /** The loader refused the bytes. The reason and detail are the loader's own. */
+    data class Refused(val reason: PluginPackageLoader.Reason, val detail: String?) : PluginPreviewResult
+
+    /** A registry implementation that cannot preview packages (for example a test double). */
+    data class Unavailable(val message: String) : PluginPreviewResult
+}
+
+/** The answer to [PluginRegistry.rollback]. */
+sealed interface RollbackOutcome {
+    /** The previous bytes were reinstalled through the ordinary install path. */
+    data class Restored(val plugin: InstalledPlugin, val replaced: InstalledPlugin?) : RollbackOutcome
+
+    /** No previous package is stored for this id, or the id is not installed. */
+    data object NoPreviousVersion : RollbackOutcome
+
+    /** A previous package existed but the normal install path refused or could not store it. */
+    data class Failed(val outcome: InstallOutcome) : RollbackOutcome
+
+    /** A registry implementation that cannot roll back (for example a test double). */
+    data class Unavailable(val message: String) : RollbackOutcome
 }
 
 /**
@@ -208,6 +279,43 @@ interface PluginRegistry {
      * the user grants it on the detail screen. Installing is deliberately not consenting.
      */
     suspend fun install(bytes: ByteArray, origin: PluginOrigin = PluginOrigin.SIDELOADED): InstallOutcome
+
+    /**
+     * Parses and validates [bytes] exactly as [install] would, and changes nothing.
+     *
+     * The result carries the manifest's own id, name, version and declared permissions, the package's
+     * byte size, and whether an installed copy would be replaced. It performs no write, no grant and no
+     * enable, which is what makes it safe to call as soon as a file is picked. A loader refusal comes
+     * back as [PluginPreviewResult.Refused] with the loader's real reason.
+     *
+     * The default exists for test doubles and for any older [PluginRegistry] implementation: a registry
+     * that cannot preview says so rather than pretending a package is safe.
+     */
+    suspend fun previewInstall(bytes: ByteArray): PluginPreviewResult =
+        PluginPreviewResult.Unavailable("This registry cannot preview plugin packages.")
+
+    /**
+     * Reinstalls the one previous package stored for [pluginId], through the normal install path.
+     *
+     * The restored plugin arrives switched off with its grant cleared, exactly as a fresh install
+     * would. A missing backup is [RollbackOutcome.NoPreviousVersion], never a silent success.
+     */
+    suspend fun rollback(pluginId: String): RollbackOutcome = RollbackOutcome.NoPreviousVersion
+
+    /**
+     * Persistently stops [pluginId] from loading until [releaseQuarantine] is called.
+     *
+     * A quarantined plugin is still listed and inspectable, but [InstalledPlugin.isActive] is false, so
+     * it is dropped from every theme, overlay, widget, icon and automation resolver. [detail] is a
+     * human-readable reason; it is sanitised before it is shown.
+     *
+     * The defaults are no-ops so existing test doubles keep compiling; a real registry must persist the
+     * decision.
+     */
+    suspend fun quarantine(pluginId: String, detail: String? = null) = Unit
+
+    /** Clears a persistent quarantine. The plugin remains off until the user enables it. */
+    suspend fun releaseQuarantine(pluginId: String) = Unit
 
     /** Deletes a sideloaded plugin and its grant, its namespace keys and its theme selection. No-op for bundled. */
     suspend fun remove(pluginId: String): Boolean

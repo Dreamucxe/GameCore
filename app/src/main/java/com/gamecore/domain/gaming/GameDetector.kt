@@ -15,6 +15,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
@@ -22,6 +24,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * One detection decision and when it was made.
+ *
+ * The decision itself is pure and lives in [DetectionPolicy]; this pairs it with the clock reading the
+ * Games screen needs for "last decision at 21:14". The time only moves when the answer changes, so a
+ * game left in the foreground for an hour does not keep rewriting the row.
+ */
+data class DetectionDecisionRecord(
+    val decision: DetectionDecision,
+    val atMillis: Long,
+)
 
 /**
  * Watches for the games GameCore has profiles for, and says when one starts and stops.
@@ -69,6 +83,18 @@ class GameDetector @Inject constructor(
      */
     private val stopRequests = Channel<StopReason>(Channel.CONFLATED)
 
+    /**
+     * The last package the poll loop judged, for the Games screen's diagnostics.
+     *
+     * Deliberately separate from [events]: the screen reads this state, while the detection service is
+     * the one collector of the cold event flow. The value survives the service being stopped, so the
+     * screen can still say what happened on the last run rather than falling back to "no decision".
+     */
+    private val lastDecisionState = MutableStateFlow<DetectionDecisionRecord?>(null)
+
+    /** The last detection decision, or null until the foreground has been read at least once. */
+    val lastDecision: StateFlow<DetectionDecisionRecord?> = lastDecisionState.asStateFlow()
+
     /** Whether the foreground can be read at all, and what would fix it if not. */
     suspend fun availability(): DetectionAvailability = foreground.availability()
 
@@ -106,10 +132,15 @@ class GameDetector @Inject constructor(
         graceMillis: Long = GameWatch.DEFAULT_GRACE_MILLIS,
         blindMillis: Long = GameWatch.DEFAULT_BLIND_MILLIS,
     ): Flow<GameEvent> = channelFlow {
-        val tracked = MutableStateFlow(enabledPackages())
+        // Primed with a direct read before the flow has emitted: a game already in the foreground when
+        // collection starts should be noticed on the first tick, not the second.
+        val enabled = MutableStateFlow(profilePackages())
         launch {
+            // The enabled set is observed rather than re-queried each tick. The exclusions layered on top
+            // of it are read fresh in [sight], so adding one while a game is already running takes effect
+            // on the next poll instead of waiting for the next profile edit.
             profiles.profiles.collect { list ->
-                tracked.value = list.filter { it.isEnabled }.map { it.packageName }.toSet()
+                enabled.value = list.filter { it.isEnabled }.map { it.packageName }.toSet()
             }
         }
 
@@ -122,7 +153,16 @@ class GameDetector @Inject constructor(
             watch = if (requested != null) {
                 watch.stopped(requested, nowMillis)
             } else {
-                watch.saw(sight(tracked.value), nowMillis, graceMillis, blindMillis)
+                watch.saw(
+                    sight(
+                        enabled = enabled.value,
+                        settings = preferences.settings.value,
+                        atMillis = nowMillis,
+                    ),
+                    nowMillis,
+                    graceMillis,
+                    blindMillis,
+                )
             }
             for (event in watch.events) send(event)
             watch = watch.consumed()
@@ -136,22 +176,46 @@ class GameDetector @Inject constructor(
     // ------------------------------------------------------------------------- one reading
 
     /**
-     * Turns one foreground reading into a [Sighting].
+     * Turns one foreground reading into a [Sighting], and records the decision behind it.
      *
-     * [Observed.Restricted] and [Observed.Failed] both become [Sighting.Unreadable] — the difference
-     * between them matters to a permissions screen, not to a state machine that must either believe
-     * the game left or admit it cannot tell. The detail is kept because it ends up in the session
-     * record as the reason a session was cut short.
+     * The decision is published even when it is [Sighting.Other]: "no enabled profile" is the answer a
+     * user looking at a game they forgot to configure needs to see. GameCore's own package is skipped
+     * before that, because opening GameCore to read this screen is not a statement about any game.
+     *
+     * The tracked set is derived here from the same [DetectionPolicy] and the same settings snapshot as
+     * the decision, rather than from a set cached when settings last changed. That makes an exclusion
+     * effective on the very next poll, and a pin on a profile that has since been disabled a badge
+     * problem rather than a session: the tracked set starts from enabled profiles only.
      */
-    private suspend fun sight(tracked: Set<String>): Sighting {
+    private suspend fun sight(
+        enabled: Set<String>,
+        settings: AppSettings,
+        atMillis: Long,
+    ): Sighting {
         val reading = foreground.current()
         val app = (reading as? Observed.Value)?.value
             ?: return Sighting.Unreadable(detailOf(reading))
-        return when {
-            app.packageName == context.packageName -> Sighting.Inspecting
-            app.packageName in tracked -> Sighting.Tracked(app.packageName)
-            else -> Sighting.Other
+        if (app.packageName == context.packageName) return Sighting.Inspecting
+
+        val decision = DetectionPolicy.decide(
+            packageName = app.packageName,
+            enabledProfilePackages = enabled,
+            excluded = settings.detectionExcludedPackages,
+            pinned = settings.pinnedPackage,
+        )
+        publish(decision, atMillis)
+
+        return if (app.packageName in trackedPackages(enabled, settings)) {
+            Sighting.Tracked(app.packageName)
+        } else {
+            Sighting.Other
         }
+    }
+
+    /** Publishes a changed answer; an unchanged one keeps the time it was first reached. */
+    private fun publish(decision: DetectionDecision, atMillis: Long) {
+        if (lastDecisionState.value?.decision == decision) return
+        lastDecisionState.value = DetectionDecisionRecord(decision, atMillis)
     }
 
     private fun detailOf(reading: Observed<*>): String = when (reading) {
@@ -160,8 +224,27 @@ class GameDetector @Inject constructor(
         else -> ""
     }.ifBlank { reading.unavailabilityText() ?: UNKNOWN_REASON }
 
-    private suspend fun enabledPackages(): Set<String> =
+    /** Every enabled profile package, before the user's exclusion list is applied. */
+    private suspend fun profilePackages(): Set<String> =
         profiles.enabledProfiles().map { it.packageName }.toSet()
+
+    /**
+     * The packages the detector may act on.
+     *
+     * The same [DetectionPolicy] the diagnostics report is used here, so the reason on the Games screen
+     * and the decision to track cannot disagree. Pins contribute no new packages: this list starts from
+     * enabled profiles, and a pin only changes the reason for one that is already in it.
+     */
+    private fun trackedPackages(enabled: Set<String>, settings: AppSettings): Set<String> = enabled
+        .filter {
+            DetectionPolicy.decide(
+                packageName = it,
+                enabledProfilePackages = enabled,
+                excluded = settings.detectionExcludedPackages,
+                pinned = settings.pinnedPackage,
+            ).shouldTrack
+        }
+        .toSet()
 
     /**
      * How long to wait before the next reading.

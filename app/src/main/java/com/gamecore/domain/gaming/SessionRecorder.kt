@@ -1,6 +1,7 @@
 package com.gamecore.domain.gaming
 
 import com.gamecore.core.common.Observed
+import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.GameSession
 import com.gamecore.core.model.LatencyProbe
@@ -123,6 +124,12 @@ class SessionRecorder @Inject constructor(
             colorPresetName = colorPresetName,
             colorCorrection = colorCorrection,
             resolutionApplied = resolution,
+            // Captured once, from the opening snapshot, and never re-read. A later sample would describe
+            // the device after the game had already started heating it or after a charger changed the
+            // power state, which is a different claim from "the conditions the session opened in".
+            thermalStatus = opening.thermal.status.valueOrNull?.name,
+            powerSaver = opening.battery.isPowerSaveMode,
+            refreshCapped = opening.refreshCapped,
         )
 
         val session = started.copy(id = sessions.begin(started))

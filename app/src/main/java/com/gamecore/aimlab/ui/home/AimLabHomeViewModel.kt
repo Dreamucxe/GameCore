@@ -3,6 +3,7 @@ package com.gamecore.aimlab.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.aimlab.AimLabRepository
+import com.gamecore.aimlab.engine.TrainingPlan
 import com.gamecore.data.preferences.SecurePreferenceStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,7 +27,8 @@ import javax.inject.Inject
  * configuration change and a hop to a detail screen and back, and are released shortly after the screen
  * stops collecting. Every figure it exposes is derived by [AimLabSummary.from] from real sessions and
  * records — there is no synthetic data path, so an empty history yields the empty state rather than a strip
- * of zeroes (§1/§30).
+ * of zeroes (§1/§30). The same two lists feed [TrainingPlan.recommend], so today's card and the summary can
+ * never disagree about what was recorded.
  *
  * The settings flow is read for one field, [com.gamecore.core.model.AppSettings.compactDensity], so the tab
  * spaces its cards the way the user asked the rest of the app to (§8). Nothing else is taken from it: Aim
@@ -47,6 +49,7 @@ class AimLabHomeViewModel @Inject constructor(
         AimLabHomeState(
             loading = false,
             summary = AimLabSummary.from(sessions = sessions, records = records, count = count),
+            plan = TrainingPlan.recommend(sessions = sessions, records = records),
             isCompact = settings.compactDensity,
         )
     }.stateIn(

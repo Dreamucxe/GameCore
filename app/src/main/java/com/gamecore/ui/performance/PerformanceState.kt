@@ -5,6 +5,7 @@ import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.CapabilityStatus
 import com.gamecore.core.model.DeviceCapabilities
 import com.gamecore.core.model.FrameRateCapability
+import com.gamecore.core.model.FrameRateSample
 import com.gamecore.core.model.OptimizationAction
 import com.gamecore.core.model.OptimizationResult
 import com.gamecore.core.model.RefreshRateMechanism
@@ -135,6 +136,16 @@ data class PerformanceLive(
     val displayRows: List<Readout> = emptyList(),
     /** The measured frame figures, present only when a real per-frame source produced them. */
     val frameRateRows: List<Readout> = emptyList(),
+    /**
+     * The 95th percentile frame duration in milliseconds, or null when the sample carried none.
+     *
+     * A duration, not a rate: it is how long the slowest five percent of frames took, so a larger
+     * number is worse. Null below [FrameRateSample.MIN_FRAMES] intervals, and the screen prints a
+     * dash rather than substituting a figure.
+     */
+    val p95FrameMillis: Float? = null,
+    /** The 99th percentile frame duration in milliseconds, or null. See [p95FrameMillis]. */
+    val p99FrameMillis: Float? = null,
     /**
      * Why the last frame-rate read produced nothing, when the capability says it should have.
      *

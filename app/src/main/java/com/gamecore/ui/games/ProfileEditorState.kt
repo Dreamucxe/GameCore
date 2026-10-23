@@ -4,6 +4,7 @@ import com.gamecore.core.common.AccessLevel
 import com.gamecore.core.common.Observed
 import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.AspectChoice
+import com.gamecore.core.model.AspectPreset
 import com.gamecore.core.model.CapabilityStatus
 import com.gamecore.core.model.CpuAffinityChoice
 import com.gamecore.core.model.CpuClusterLayout
@@ -91,6 +92,17 @@ data class ProfileEditorUiState(
      */
     val pendingResolutionScale: ResolutionScale? = null,
     /**
+     * The custom shapes the user has saved for the Aspect tile, as `WxH` strings.
+     *
+     * Seeded from [com.gamecore.core.model.AppSettings.customAspectRatios] when the editor opens and written
+     * back through [com.gamecore.data.preferences.SecurePreferenceStore.updateSettings] by the add and
+     * remove actions. Kept in this state as well as in settings because the list is edited on this screen:
+     * a chip added here has to appear immediately, without waiting for the settings flow to re-emit.
+     *
+     * Order is the order they were added, which is the order they appear in the panel after the built-ins.
+     */
+    val customAspectRatios: List<String> = emptyList(),
+    /**
      * From settings: whether the §3.6 one-time Instant Replay disclaimer is still armed.
      *
      * Seeded once from [com.gamecore.core.model.AppSettings.showInstantReplayNotice] when the editor opens,
@@ -151,12 +163,23 @@ data class ProfileEditorUiState(
     /**
      * The shapes this display can be stretched to, or empty when its size could not be read.
      *
-     * Empty rather than a guess, for the reason [display] gives. A row of ratios computed from an assumed
-     * 1080×2400 would offer sizes larger than the panel on a smaller device, and the profile would carry
-     * them until a session refused them.
+     * The built-ins first, then [customAspectRatios], which is the same order and the same choices the
+     * overlay panel draws. Empty rather than a guess, for the reason [display] gives. A row of ratios
+     * computed from an assumed 1080×2400 would offer sizes larger than the panel on a smaller device, and
+     * the profile would carry them until a session refused them.
      */
     val aspectChoices: List<AspectChoice>
-        get() = display.valueOrNull?.options ?: emptyList()
+        get() = display.valueOrNull?.optionsWith(customAspectRatios) ?: emptyList()
+
+    /**
+     * The saved custom shapes, already parsed, oriented and filtered against this panel.
+     *
+     * The editor's own chips use this rather than reading [customAspectRatios] directly, so a stored string
+     * that no longer fits this display is not shown as a saved shape the user can tap — it is dropped by
+     * the same [AspectPreset.customChoices] the panel uses.
+     */
+    val customAspectChoices: List<AspectChoice>
+        get() = physicalSize?.let { AspectPreset.customChoices(it, customAspectRatios) } ?: emptyList()
 
     /**
      * The resolution downscales worth offering on this panel, or empty when its size could not be read.

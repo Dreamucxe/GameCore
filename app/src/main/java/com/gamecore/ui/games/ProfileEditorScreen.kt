@@ -35,6 +35,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,6 +56,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.common.unavailabilityText
 import com.gamecore.core.common.valueOrNull
+import com.gamecore.core.model.AppSettings
+import com.gamecore.core.model.AspectChoice
 import com.gamecore.core.model.AspectPreset
 import com.gamecore.core.model.CapabilityStatus
 import com.gamecore.core.model.CpuAffinityPreset
@@ -214,6 +217,8 @@ fun ProfileEditorScreen(
                 state = state,
                 onEdit = viewModel::edit,
                 onRequestResolution = viewModel::requestResolutionOverride,
+                onAddCustomAspect = viewModel::addCustomAspectRatio,
+                onRemoveCustomAspect = viewModel::removeCustomAspectRatio,
                 onNavigate = onNavigate,
                 modifier = padded,
             )
@@ -406,6 +411,8 @@ private fun DisplaySection(
     state: ProfileEditorUiState,
     onEdit: ((GameProfile) -> GameProfile) -> Unit,
     onRequestResolution: (ResolutionScale?) -> Unit,
+    onAddCustomAspect: (String) -> Unit,
+    onRemoveCustomAspect: (String) -> Unit,
     onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -455,6 +462,8 @@ private fun DisplaySection(
             profile = profile,
             onEdit = onEdit,
             onRequestResolution = onRequestResolution,
+            onAddCustomAspect = onAddCustomAspect,
+            onRemoveCustomAspect = onRemoveCustomAspect,
             onNavigate = onNavigate,
         )
 
@@ -553,6 +562,8 @@ private fun DisplaySizeRows(
     profile: GameProfile,
     onEdit: ((GameProfile) -> GameProfile) -> Unit,
     onRequestResolution: (ResolutionScale?) -> Unit,
+    onAddCustomAspect: (String) -> Unit,
+    onRemoveCustomAspect: (String) -> Unit,
     onNavigate: (Destination) -> Unit,
 ) {
     Text(text = "Display size", style = MaterialTheme.typography.bodyLarge)
@@ -591,7 +602,11 @@ private fun DisplaySizeRows(
             }
         },
         label = { size ->
-            if (size == null) "Leave alone" else AspectPreset.of(size, physical)?.label ?: "Custom"
+            if (size == null) {
+                "Leave alone"
+            } else {
+                AspectPreset.of(size, physical)?.label ?: size.aspectLabel
+            }
         },
         perRow = 3,
     )
@@ -608,6 +623,12 @@ private fun DisplaySizeRows(
         )
     }
     CustomSizeFields(physical = physical, chosen = chosen, onEdit = onEdit)
+    CustomShapeRows(
+        physical = physical,
+        saved = state.customAspectChoices,
+        onAdd = onAddCustomAspect,
+        onRemove = onRemoveCustomAspect,
+    )
 
     Spacer(modifier = Modifier.height(12.dp))
     RowDivider()
@@ -791,6 +812,162 @@ private fun CustomSizeFields(
         tone = if (rejection == null) Tone.Muted else Tone.Warning,
         icon = Icons.Filled.Info,
     )
+}
+
+/**
+ * The saved shapes that sit beside the four presets in the in-game Aspect tile.
+ *
+ * This is not the row above. [CustomSizeFields] writes `profile.displaySize`, a size that applies to one
+ * game; this writes [com.gamecore.core.model.AppSettings.customAspectRatios], the list the overlay's Aspect
+ * tile offers for every game. Keeping them apart is the point: a user can want 4:3 available in-game without
+ * forcing it on the profile they are editing.
+ *
+ * The same three rules as the presets apply to a saved shape, and the reasons are [DisplaySize.rejectionFor]'s
+ * own: shorter than the panel, wide enough to leave Android usable, and not a sliver. The checks run here so
+ * the box can show the sentence before Add is tapped; the view model runs them again before it writes, because
+ * a chip list is not a security boundary and a hand-edited preference file reaches the same path.
+ *
+ * The fields are text rather than a stored number for the reason [CustomSizeFields] gives: a half-typed width
+ * is not a size, and writing each keystroke would save one.
+ */
+@Composable
+private fun CustomShapeRows(
+    physical: DisplaySize,
+    saved: List<AspectChoice>,
+    onAdd: (String) -> Unit,
+    onRemove: (String) -> Unit,
+) {
+    var width by remember { mutableStateOf("") }
+    var height by remember { mutableStateOf("") }
+
+    val typed = if (width.isBlank() || height.isBlank()) {
+        null
+    } else {
+        DisplaySize.parse("${width}x$height")?.orientedLike(physical)
+    }
+    val rejection = when {
+        width.isBlank() && height.isBlank() -> null
+        typed == null -> "A saved shape needs two positive numbers. Type both, or leave them empty."
+        saved.size >= AppSettings.MAX_CUSTOM_ASPECT_RATIOS ->
+            "GameCore keeps up to ${AppSettings.MAX_CUSTOM_ASPECT_RATIOS} shapes. Remove one to add another."
+        saved.any { it.size.matches(typed) } -> "${typed.label} is already saved as a shape."
+        typed.longSide >= physical.longSide -> typed.rejectionFor(physical)
+            ?: "${typed.label} is this display's own size under another name. A saved shape has to be " +
+            "shorter than the panel, or it has nothing to stretch."
+        else -> typed.rejectionFor(physical)
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+    Text(text = "Custom shapes", style = MaterialTheme.typography.bodyLarge)
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        text = "Saved shapes appear in the in-game Aspect tile beside the four presets. They are not " +
+            "applied to this profile — the row above is the profile's own size.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        TextFieldRow(
+            label = "Shape width",
+            value = width,
+            onValueChange = { width = it.filter(Char::isDigit) },
+            placeholder = physical.widthPixels.toString(),
+            maxLength = SIZE_FIELD_DIGITS,
+            keyboardType = KeyboardType.Number,
+            modifier = Modifier.weight(1f),
+        )
+        TextFieldRow(
+            label = "Shape height",
+            value = height,
+            onValueChange = { height = it.filter(Char::isDigit) },
+            placeholder = physical.heightPixels.toString(),
+            maxLength = SIZE_FIELD_DIGITS,
+            keyboardType = KeyboardType.Number,
+            modifier = Modifier.weight(1f),
+        )
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(
+            onClick = {
+                val size = typed
+                if (size != null && rejection == null) {
+                    onAdd(size.argument)
+                    width = ""
+                    height = ""
+                }
+            },
+            enabled = typed != null && rejection == null,
+        ) {
+            Text("Add shape")
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = "${saved.size}/${AppSettings.MAX_CUSTOM_ASPECT_RATIOS} saved",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    rejection?.let {
+        NoteBanner(text = it, tone = Tone.Warning, icon = Icons.Filled.Info)
+    }
+    if (saved.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(4.dp))
+        saved.chunked(2).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                row.forEach { choice ->
+                    SavedShapeChip(
+                        choice = choice,
+                        onRemove = { onRemove(choice.size.argument) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                repeat(2 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+        }
+    }
+}
+
+/**
+ * One saved shape, with the × that forgets it.
+ *
+ * The two lines match the in-game chip, so the shape the user adds here is recognisable as the shape the
+ * panel will draw: the reduced ratio over the exact pixel pair. The detail is monospace for the same reason
+ * the overlay's is — it is a number to compare, not a sentence to read.
+ */
+@Composable
+private fun SavedShapeChip(
+    choice: AspectChoice,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
+            ) {
+                Text(text = choice.label, style = MaterialTheme.typography.labelLarge)
+                Text(
+                    text = choice.detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = onRemove, modifier = Modifier.size(36.dp)) {
+                Text(text = "×", style = MaterialTheme.typography.titleMedium)
+            }
+        }
+    }
 }
 
 /**

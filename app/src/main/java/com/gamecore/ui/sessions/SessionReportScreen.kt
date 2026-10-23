@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -41,6 +42,7 @@ import com.gamecore.ui.components.EmptyState
 import com.gamecore.ui.components.GraphCard
 import com.gamecore.ui.components.NoteBanner
 import com.gamecore.ui.components.PlainCard
+import com.gamecore.ui.components.Readout
 import com.gamecore.ui.components.ReadoutRow
 import com.gamecore.ui.components.RowDivider
 import com.gamecore.ui.components.ScreenBottomPadding
@@ -67,6 +69,7 @@ fun SessionReportScreen(
     viewModel: SessionReportViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val conditions by viewModel.conditions.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // Deleting the session is done from here, and there is nothing left to show afterwards.
@@ -172,6 +175,10 @@ fun SessionReportScreen(
                 }
             }
 
+            if (conditions.isNotEmpty()) {
+                item { ConditionsCard(conditions = conditions, modifier = padded) }
+            }
+
             item { FiguresCard(state = state, modifier = padded) }
 
             items(state.graphs.size) { index ->
@@ -225,6 +232,27 @@ private fun HeadlineCard(state: SessionReportUiState, modifier: Modifier = Modif
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/**
+ * The conditions the session opened in, and only the ones the opening snapshot actually carried.
+ *
+ * This card has no dash rows and no "unknown" placeholder: the ViewModel drops every null field, so a
+ * device that exposes no thermal status simply has no thermal row. The subtitle says what the section is
+ * not — an explanation — because a warm device or a display below its peak is a recorded circumstance,
+ * not evidence that it caused a frame rate or a battery figure elsewhere on the page.
+ */
+@Composable
+private fun ConditionsCard(conditions: List<Readout>, modifier: Modifier = Modifier) {
+    SectionCard(
+        title = "Conditions at start",
+        subtitle = "Recorded once when the session opened. They describe the device at that moment, " +
+            "not what caused anything later.",
+        icon = Icons.Filled.Thermostat,
+        modifier = modifier,
+    ) {
+        conditions.forEach { ReadoutRow(it) }
     }
 }
 

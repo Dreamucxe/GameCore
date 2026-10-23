@@ -6,8 +6,13 @@ import com.gamecore.core.plugin.InstallOutcome
 import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.PluginOrigin
 import com.gamecore.core.plugin.PluginPackageLoader
+import com.gamecore.core.plugin.PluginPermission
+import com.gamecore.core.plugin.PluginPreviewResult
+import com.gamecore.core.plugin.PluginPreviewState
 import com.gamecore.core.plugin.PluginSection
 import com.gamecore.core.plugin.RiskTier
+import com.gamecore.core.plugin.RollbackOutcome
+import java.util.Locale
 
 /**
  * The plugin manager's screen state, and the pure functions that produce it.
@@ -74,6 +79,11 @@ data class PluginRow(
     val enabled: Boolean = false,
     val suspended: Boolean = false,
     val suspensionDetail: String? = null,
+    /** Persistent quarantine: listed, but never loaded until explicitly released. */
+    val quarantined: Boolean = false,
+    val quarantineDetail: String? = null,
+    /** True only when a previous package is stored for this id, so the action is never a dead tap. */
+    val canRollback: Boolean = false,
     val compatibility: Compatibility = Compatibility.Supported,
     val declares: Set<PluginSection> = emptySet(),
     val highestTier: RiskTier? = null,
@@ -116,7 +126,15 @@ data class PluginsUiState(
     val killSwitchOn: Boolean = false,
     val activeThemeName: String? = null,
     val message: String? = null,
+    /** A validated package waiting for the user's yes. Null means nothing is pending. */
+    val preview: PluginPreviewState? = null,
+    /** True while the picked file is being read and parsed. The preview appears only when it ends. */
+    val isPreviewing: Boolean = false,
+    /** A read or parse failure for the picked file, shown beside the install button. */
+    val previewError: String? = null,
     val pendingRemoval: PluginRow? = null,
+    /** A rollback the user has been asked to confirm. */
+    val pendingRollback: PluginRow? = null,
 ) {
     val hasPlugins: Boolean get() = rows.isNotEmpty()
 
@@ -128,7 +146,9 @@ data class PluginsUiState(
      * switch is on would be describing an intention rather than what the device is doing.
      */
     val hasAnyActive: Boolean
-        get() = !killSwitchOn && rows.any { it.enabled && !it.suspended && it.compatibility.isRunnable }
+        get() = !killSwitchOn && rows.any {
+            it.enabled && !it.suspended && !it.quarantined && it.compatibility.isRunnable
+        }
 }
 
 /**
@@ -159,6 +179,11 @@ internal fun rowFor(plugin: InstalledPlugin, activeThemeId: String?): PluginRow 
         suspensionDetail = plugin.suspensionDetail
             ?.let { TextSanitizer.sanitizeName(it, MAX_DETAIL_LENGTH) }
             ?.takeIf { it.isNotBlank() },
+        quarantined = plugin.quarantined,
+        quarantineDetail = plugin.quarantineDetail
+            ?.let { TextSanitizer.sanitizeName(it, MAX_DETAIL_LENGTH) }
+            ?.takeIf { it.isNotBlank() },
+        canRollback = plugin.canRollback,
         compatibility = manifest.compatibility,
         declares = manifest.declares,
         // Null rather than LOW when nothing was requested — see [PluginRow.highestTier].
@@ -328,4 +353,96 @@ private fun rejectionText(reason: PluginPackageLoader.Reason): String = when (re
 
     PluginPackageLoader.Reason.DISALLOWED_FILE ->
         "That package carries a file that belongs to none of the sections a plugin may contain."
+}
+
+/**
+ * What the preview says, in the user's terms.
+ *
+ * Every capability line comes from the manifest's own declared permission set
+ * ([PluginPreviewState.declaredPermissions]) and is worded with GameCore's [PluginPermission.title],
+ * never a string the plugin supplied. A package that declared nothing says so; the function cannot
+ * invent a capability to warn about, and it cannot hide one that was declared.
+ */
+internal fun previewSummary(preview: PluginPreviewState): String {
+    val builder = StringBuilder()
+    builder.append(preview.name.ifBlank { preview.id }).append('\n')
+    builder.append("Package id: ").append(preview.id).append('\n')
+    builder.append("Version: ").append(preview.versionName.ifBlank { "not stated" }).append('\n')
+    builder.append("Package size: ").append(sizeText(preview.sizeBytes)).append('\n')
+
+    val permissions = preview.declaredPermissions.distinct()
+    builder.append('\n')
+    if (permissions.isEmpty()) {
+        builder.append("It declares no permissions. It can be listed, and that is all it can do.")
+    } else {
+        builder.append("It declares these permissions:\n")
+        permissions.forEach { permission ->
+            builder.append("• ").append(permission.title).append('\n')
+        }
+        builder.append("Nothing is granted by installing it. Each one is yours to approve on its own " +
+            "screen, and all of them start off.")
+    }
+
+    val replaced = preview.replaces
+    if (replaced != null) {
+        builder.append("\n\nIt replaces ").append(replaced.name.ifBlank { replaced.id })
+        builder.append(" version ").append(replaced.manifest.versionName.ifBlank { "not stated" })
+        builder.append(" already on this device.")
+    } else {
+        builder.append("\n\nNothing is installed under this id yet.")
+    }
+    if (preview.replacingBundled) {
+        builder.append("\n\nThat id belongs to a plugin bundled inside GameCore, so this package cannot " +
+            "replace it.")
+    }
+    if (!preview.plan.compatibility.isRunnable) {
+        builder.append("\n\n").append(preview.plan.compatibility.reason)
+    }
+    return builder.toString()
+}
+
+/** The sentence beside the install card for a preview that could not be produced. */
+internal fun messageFor(result: PluginPreviewResult): String = when (result) {
+    is PluginPreviewResult.Ready ->
+        // Not a failure. The caller shows the dialog instead; this branch keeps the function total.
+        ""
+
+    is PluginPreviewResult.Refused ->
+        messageFor(InstallOutcome.Rejected(result.reason, result.detail))
+
+    is PluginPreviewResult.Unavailable -> result.message
+}
+
+/**
+ * What the manager says after a rollback attempt.
+ *
+ * The restored branch names the version the registry actually read back, not the one the user asked
+ * for, and repeats that the install path cleared the grant and switched it off. The failure branches
+ * reuse [messageFor] for an install outcome so a rollback refusal and an install refusal cannot drift
+ * into saying different things about the same loader reason.
+ */
+internal fun messageFor(outcome: RollbackOutcome): String = when (outcome) {
+    is RollbackOutcome.Restored -> {
+        val name = TextSanitizer.sanitizeName(outcome.plugin.name).ifBlank { outcome.plugin.id }
+        val version = TextSanitizer.sanitizeName(outcome.plugin.manifest.versionName, MAX_VERSION_LENGTH)
+            .ifBlank { "the stored version" }
+        "$name $version is back. It is off and its permissions were cleared, exactly as a fresh " +
+            "install would be — turn it on and grant what it needs again."
+    }
+
+    RollbackOutcome.NoPreviousVersion ->
+        "There is no previous version stored for that plugin, so nothing was restored. The plugin " +
+            "on the device was not changed."
+
+    is RollbackOutcome.Failed -> messageFor(outcome.outcome)
+
+    is RollbackOutcome.Unavailable -> outcome.message
+}
+
+/** Bytes as a short, locale-independent figure. `1048576` becomes `1.0 MB`. */
+internal fun sizeText(bytes: Long): String {
+    if (bytes < 1024L) return "$bytes bytes"
+    val kib = bytes / 1024.0
+    if (kib < 1024.0) return String.format(Locale.ROOT, "%.1f KB", kib)
+    return String.format(Locale.ROOT, "%.1f MB", kib / 1024.0)
 }

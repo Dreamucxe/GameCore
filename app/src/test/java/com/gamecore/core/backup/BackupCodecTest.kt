@@ -1,5 +1,11 @@
 package com.gamecore.core.backup
 
+import com.gamecore.aimlab.engine.Difficulty
+import com.gamecore.aimlab.engine.PersonalRecord
+import com.gamecore.aimlab.engine.ReactionStats
+import com.gamecore.aimlab.engine.RecordMetric
+import com.gamecore.aimlab.engine.SessionSummary
+import com.gamecore.aimlab.engine.TrainingMode
 import com.gamecore.core.model.AccentChoice
 import com.gamecore.core.model.AnimationsMode
 import com.gamecore.core.model.AppSettings
@@ -13,6 +19,7 @@ import com.gamecore.core.model.DockActions
 import com.gamecore.core.model.DockConfig
 import com.gamecore.core.model.FloatingButtonConfig
 import com.gamecore.core.model.GammaMode
+import com.gamecore.core.model.GameSession
 import com.gamecore.core.model.HudDisplayMode
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
@@ -494,6 +501,170 @@ class BackupCodecTest {
             .joinToString(",") { """{"id":"w$it","stat":"CPU_USAGE"}""" }
         val decoded = restored(envelope(""","layouts":[{"name":"L","widgets":[$widgets]}]"""))
         assertEquals(HudLayout.MAX_WIDGETS, decoded.layouts!!.single().widgets.size)
+    }
+
+    // --- Version 2 history ------------------------------------------------------------------------
+
+    /** A finished game session with every field the conditions feature added actually set. */
+    private val finishedGameSession = GameSession(
+        id = 42L,
+        packageName = "com.example.game",
+        gameLabel = "Example Game",
+        startedAtMillis = 1_700_000_000_000L,
+        endedAtMillis = 1_700_000_600_000L,
+        batteryStartPercent = 80,
+        batteryEndPercent = 64,
+        wasCharging = false,
+        averageCpuPercent = 41.5f,
+        averageTemperatureDeciCelsius = 395,
+        averageRefreshRate = 120f,
+        averageFrameRate = 118.5f,
+        profileApplied = true,
+        sampleCount = 300,
+        thermalStatus = "MODERATE",
+        powerSaver = true,
+        refreshCapped = false,
+    )
+
+    private val finishedAimLabRun = SessionSummary(
+        id = 7L,
+        mode = TrainingMode.FLICK,
+        difficulty = Difficulty.NORMAL,
+        startedAtMillis = 1_700_000_700_000L,
+        endedAtMillis = 1_700_000_760_000L,
+        weaponName = "Rifle",
+        score = 1234,
+        hits = 88,
+        shots = 100,
+        targetsMissed = 5,
+        reactionStats = ReactionStats(
+            attempts = 3,
+            fastestMillis = 210L,
+            slowestMillis = 380L,
+            averageMillis = 280f,
+            medianMillis = 275f,
+        ),
+        averageAcquireMillis = 0.5f,
+        trackingErrorAverage = 0.25f,
+        timeOnTargetFraction = 0.75f,
+        recoilCompensation = 0.5f,
+        gyroStability = 0.25f,
+    )
+
+    private val personalRecord = PersonalRecord(
+        mode = TrainingMode.FLICK,
+        difficulty = Difficulty.NORMAL,
+        weaponName = "Rifle",
+        metric = RecordMetric.SCORE,
+        value = 1234f,
+        previousValue = 1000f,
+        achievedAtMillis = 1_700_000_760_000L,
+    )
+
+    @Test
+    fun `a version 2 file round trips finished history and the conditions it ran under`() {
+        val json = BackupCodec.encode(
+            settings = AppSettings(),
+            overlay = OverlayConfig(),
+            button = FloatingButtonConfig(),
+            dock = DockConfig(),
+            colour = ColorCorrection(),
+            layouts = emptyList(),
+            crosshairs = emptyList(),
+            colours = emptyList(),
+            macros = JSONArray(),
+            profiles = JSONObject(),
+            sessions = listOf(finishedGameSession),
+            aimLabSessions = listOf(finishedAimLabRun),
+            personalRecords = listOf(personalRecord),
+        )
+
+        val data = restored(json)
+
+        assertEquals(BackupCodec.VERSION, data.version)
+        assertEquals(listOf(finishedGameSession), data.sessions)
+        assertEquals(listOf(finishedAimLabRun), data.aimLabSessions)
+        assertEquals(listOf(personalRecord), data.personalRecords)
+    }
+
+    @Test
+    fun `a version 2 file with no history writes empty sections and reads them back as empty`() {
+        val json = BackupCodec.encode(
+            settings = AppSettings(),
+            overlay = OverlayConfig(),
+            button = FloatingButtonConfig(),
+            dock = DockConfig(),
+            colour = ColorCorrection(),
+            layouts = emptyList(),
+            crosshairs = emptyList(),
+            colours = emptyList(),
+            macros = JSONArray(),
+            profiles = JSONObject(),
+        )
+
+        val data = restored(json)
+
+        assertTrue(data.sessions.isEmpty())
+        assertTrue(data.aimLabSessions.isEmpty())
+        assertTrue(data.personalRecords.isEmpty())
+    }
+
+    @Test
+    fun `a version 1 file carries no history and decodes with empty history rather than failing`() {
+        // The whole of a version 1 document that matters here: the format tag and its version. Every
+        // section it predates must default to absent-or-empty, not throw — an old backup is still a backup.
+        val data = restored("""{"format":"${BackupCodec.FORMAT}","version":1}""")
+
+        assertEquals(1, data.version)
+        assertTrue(data.sessions.isEmpty())
+        assertTrue(data.aimLabSessions.isEmpty())
+        assertTrue(data.personalRecords.isEmpty())
+    }
+
+    @Test
+    fun `history rows that never finished are dropped rather than restored as running`() {
+        val data = restored(
+            envelope(
+                ""","sessions":[{"packageName":"com.example.game","startedAtMillis":1700000000000},""" +
+                    """{"packageName":"com.example.game","startedAtMillis":1700000500000,""" +
+                    """"endedAtMillis":1700000400000}]""",
+            ),
+        )
+
+        // One has no finish time and the other ends before it starts; neither is a finished session, and
+        // a loader that let either through would create a permanently "running" row from a hand-edited file.
+        assertTrue(data.sessions.isEmpty())
+    }
+
+    @Test
+    fun `absent condition fields decode as null rather than fabricated defaults`() {
+        val data = restored(
+            envelope(
+                ""","sessions":[{"packageName":"com.example.game","startedAtMillis":1700000000000,""" +
+                    """"endedAtMillis":1700000060000,"batteryStartPercent":50}]""",
+            ),
+        )
+
+        val session = data.sessions.single()
+        // The device that recorded this file exposed no thermal or power reading; null is that truth, and
+        // false would be a claim the device never made.
+        assertNull(session.thermalStatus)
+        assertNull(session.powerSaver)
+        assertNull(session.refreshCapped)
+    }
+
+    @Test
+    fun `an unknown Aim Lab mode drops the row rather than guessing one`() {
+        val data = restored(
+            envelope(
+                ""","aimLabSessions":[{"mode":"NOT_A_MODE","startedAtMillis":1700000000000,""" +
+                    """"endedAtMillis":1700000060000}]""",
+            ),
+        )
+
+        // A mode this build does not know cannot be mapped to one it does; dropping the row is the only
+        // option that does not invent a training result.
+        assertTrue(data.aimLabSessions.isEmpty())
     }
 
     private companion object {

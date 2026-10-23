@@ -2,6 +2,7 @@ package com.gamecore.aimlab.render
 
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
+import com.gamecore.aimlab.engine.TargetPalette
 import com.gamecore.aimlab.engine.WeaponCategory
 import com.gamecore.aimlab.engine3d.Camera3D
 import com.gamecore.aimlab.engine3d.Room
@@ -161,7 +162,7 @@ class TrainingRenderer(
             GLES20.glUniformMatrix4fv(p.uniform("uMvp"), 1, false, mvp, 0)
             GLES20.glUniformMatrix4fv(p.uniform("uModel"), 1, false, model, 0)
             GLES20.glUniformMatrix4fv(p.uniform("uNormal"), 1, false, normalMat, 0)
-            val c = colourFor(t.kind)
+            val c = colourFor(state, t.kind)
             GLES20.glUniform3f(p.uniform("uBaseColor"), c[0], c[1], c[2])
             drawMesh(mesh, p.attribute("aPos"), p.attribute("aNormal"), posSize = 3, secondSize = 3)
         }
@@ -277,11 +278,8 @@ class TrainingRenderer(
         )
     }
 
-    private fun colourFor(kind: com.gamecore.aimlab.engine3d.TargetKind): FloatArray = when (kind) {
-        com.gamecore.aimlab.engine3d.TargetKind.STANDARD -> floatArrayOf(0.1f, 0.8f, 0.9f)
-        com.gamecore.aimlab.engine3d.TargetKind.SMALL -> floatArrayOf(0.2f, 0.9f, 0.7f)
-        com.gamecore.aimlab.engine3d.TargetKind.FAR -> floatArrayOf(0.3f, 0.7f, 1.0f)
-    }
+    private fun colourFor(state: RenderState, kind: com.gamecore.aimlab.engine3d.TargetKind): FloatArray =
+        state.targetPalette.rgbFor(kind)
 
     /** Draws an interleaved mesh with a position attribute and one secondary (normal or uv) attribute. */
     private fun drawMesh(mesh: Mesh, posLoc: Int, secondLoc: Int, posSize: Int, secondSize: Int) {

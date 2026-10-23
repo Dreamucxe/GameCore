@@ -16,16 +16,20 @@ import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.LoadedPlugin
 import com.gamecore.core.plugin.PluginAutomationHistoryStore
 import com.gamecore.core.plugin.PluginGrant
+import com.gamecore.core.plugin.PluginInstallPlan
 import com.gamecore.core.plugin.PluginManifest
 import com.gamecore.core.plugin.PluginManifestCodec
 import com.gamecore.core.plugin.PluginOrigin
 import com.gamecore.core.plugin.PluginPackageLoader
 import com.gamecore.core.plugin.PluginPermission
 import com.gamecore.core.plugin.PluginPermissionGate
+import com.gamecore.core.plugin.PluginPreviewResult
+import com.gamecore.core.plugin.PluginPreviewState
 import com.gamecore.core.plugin.PluginRegistry
 import com.gamecore.core.plugin.PluginRuntimeState
 import com.gamecore.core.plugin.PluginSection
 import com.gamecore.core.plugin.PluginSections
+import com.gamecore.core.plugin.RollbackOutcome
 import com.gamecore.core.plugin.content.AutomationEngine
 import com.gamecore.core.plugin.content.AutomationRule
 import com.gamecore.core.plugin.content.RulesCodec
@@ -160,6 +164,17 @@ class PluginRegistryImpl @Inject constructor(
     /** Serialises the read-modify-publish sequences; without it two toggles can publish out of order. */
     private val lock = Mutex()
 
+    /**
+     * The one previous package per plugin id.
+     *
+     * A plain [File] handle, not a directory read: constructing the registry must stay free of I/O for
+     * the reason the class comment gives. The store creates the directory only when it records a
+     * backup.
+     */
+    private val previousVersions = PluginPreviousVersionStore(
+        File(File(context.filesDir, DIRECTORY_NAME), PREVIOUS_DIRECTORY_NAME),
+    )
+
     /** Plugin id to its record. Held under [lock]; holds no bytes and no parsed sections. */
     private var records: Map<String, PluginRecord> = emptyMap()
 
@@ -257,6 +272,13 @@ class PluginRegistryImpl @Inject constructor(
             suspensionDetail = store.suspensionDetail(id)?.let { TextSanitizer.sanitizeName(it, MAX_DETAIL_LENGTH) },
             grant = store.grantFor(id),
             installedAtMillis = installedAtMillis,
+            quarantined = store.isQuarantined(id),
+            quarantineDetail = store.quarantineDetail(id)
+                ?.let { TextSanitizer.sanitizeName(it, MAX_DETAIL_LENGTH) },
+            // Only a sideloaded package has bytes that a rollback can restore. The existence check is
+            // one stat per sideloaded plugin on each publish, which is cheaper than a flow of its own
+            // and keeps "the action is shown only when a backup exists" literally true.
+            canRollback = origin == PluginOrigin.SIDELOADED && previousVersions.has(id),
         )
     }
 
@@ -467,17 +489,34 @@ class PluginRegistryImpl @Inject constructor(
         }
 
         val replaced = installedState.value.firstOrNull { it.id == id }
+        val replacedRecord = records[id]
         val directory = pluginDirectory()
             ?: return InstallOutcome.StorageFailed("the plugin directory could not be created")
 
+        // Keep exactly one previous package, copied before the current file is overwritten. When the
+        // copy cannot be made, any older backup is dropped rather than left to claim it is the
+        // immediate previous version: a rollback that restores the wrong bytes is worse than no
+        // rollback action at all.
+        val backupStored = replacedRecord != null &&
+            replacedRecord.origin == PluginOrigin.SIDELOADED &&
+            backupCurrent(replacedRecord)
+        if (!backupStored) previousVersions.clear(id)
+
         when (val written = writePackage(File(directory, packageFileName(id)), bytes)) {
             is WriteResult.Written -> Unit
-            is WriteResult.Failed -> return InstallOutcome.StorageFailed(written.detail)
+            is WriteResult.Failed -> {
+                // Nothing was overwritten, so the backup taken above is the currently installed
+                // version rather than a previous one. Drop it instead of offering a no-op rollback.
+                if (backupStored) previousVersions.clear(id)
+                return InstallOutcome.StorageFailed(written.detail)
+            }
         }
 
         // Installing is deliberately not consenting: no grant, switched off, and any suspension left
         // over from a previous version of the same id cleared so the new bytes start from a clean
-        // state the user is asked about on the detail screen.
+        // state the user is asked about on the detail screen. A quarantine is deliberately *not*
+        // cleared: it is the user's (or supervisor's) persistent stop, and an update does not earn it
+        // back. Releasing it stays an explicit act.
         store.clearGrant(id)
         store.setEnabled(id, false)
         store.clearSuspension(id)
@@ -490,6 +529,115 @@ class PluginRegistryImpl @Inject constructor(
         val stored = installedState.value.firstOrNull { it.id == id }
             ?: return InstallOutcome.StorageFailed("the stored package could not be read back")
         return InstallOutcome.Installed(stored, replaced)
+    }
+
+    /**
+     * Copies the currently installed package into the previous-version slot.
+     *
+     * Only a sideloaded package has a file to copy. The size is checked against the loader's cap
+     * before reading, so a file tampered with on disk cannot make this allocate an unbounded array.
+     * A failure here is reported as false and the caller removes any stale backup; the install itself
+     * still proceeds.
+     */
+    /**
+     * Validates [bytes] without writing anything.
+     *
+     * It runs the same loader the install path runs, so a preview cannot accept a package an install
+     * would refuse (or vice versa). The installed/records snapshot is taken under the lock; parsing
+     * happens outside it, the same rule [sectionsOf] follows.
+     */
+    override suspend fun previewInstall(bytes: ByteArray): PluginPreviewResult = withContext(io) {
+        val loaded = when (val result = PluginPackageLoader.load(bytes)) {
+            is PluginPackageLoader.Result.Rejected ->
+                return@withContext PluginPreviewResult.Refused(
+                    result.reason,
+                    result.detail.takeIf { it.isNotEmpty() },
+                )
+            is PluginPackageLoader.Result.Loaded -> result.plugin
+        }
+        val manifest = loaded.manifest
+        val id = TextSanitizer.validatePackageName(manifest.id)
+            ?: return@withContext PluginPreviewResult.Refused(
+                PluginPackageLoader.Reason.UNSAFE_PATH,
+                "the plugin id cannot be used as a file name",
+            )
+        val (existing, bundled) = lock.withLock {
+            installedState.value.firstOrNull { it.id == id } to
+                (records[id]?.origin == PluginOrigin.BUNDLED)
+        }
+        PluginPreviewResult.Ready(
+            PluginPreviewState(
+                plan = PluginInstallPlan.from(manifest, loaded.sha256),
+                sizeBytes = bytes.size.toLong(),
+                replaces = existing,
+                replacingBundled = bundled,
+            ),
+        )
+    }
+
+    /**
+     * Restores the one previous package for [pluginId] through [installLocked].
+     *
+     * No special write path exists for rollback: the old bytes go back through the same loader, the
+     * same compatibility check, the same storage write and the same grant reset as any install. The
+     * normal install path then backs up the version being replaced, so the action remains a true
+     * one-step toggle.
+     */
+    override suspend fun rollback(pluginId: String): RollbackOutcome = withContext(io) {
+        lock.withLock {
+            val installedCopy = installedState.value.firstOrNull { it.id == pluginId }
+                ?: return@withLock RollbackOutcome.NoPreviousVersion
+            if (installedCopy.origin == PluginOrigin.BUNDLED) {
+                return@withLock RollbackOutcome.NoPreviousVersion
+            }
+            val bytes = previousVersions.read(pluginId)
+                ?: return@withLock RollbackOutcome.NoPreviousVersion
+            when (val outcome = installLocked(bytes, PluginOrigin.SIDELOADED)) {
+                is InstallOutcome.Installed -> RollbackOutcome.Restored(outcome.plugin, outcome.replaced)
+                else -> RollbackOutcome.Failed(outcome)
+            }
+        }
+    }
+
+    /**
+     * Persistently stops a plugin and records why.
+     *
+     * The plugin is switched off in the same write so the manager cannot show an enabled switch beside
+     * a quarantined badge. Its grant is left intact: releasing restores the plugin's ability to run,
+     * but it stays off until the user turns it back on, so a release cannot silently restart anything.
+     */
+    override suspend fun quarantine(pluginId: String, detail: String?) {
+        withContext(io) {
+            lock.withLock {
+                if (!records.containsKey(pluginId)) return@withLock
+                store.quarantine(pluginId, detail)
+                store.setEnabled(pluginId, false)
+                store.clearSuspension(pluginId)
+                publish()
+            }
+        }
+    }
+
+    /** Clears the persistent stop. The plugin remains off; enabling it is a separate user action. */
+    override suspend fun releaseQuarantine(pluginId: String) {
+        withContext(io) {
+            lock.withLock {
+                if (!records.containsKey(pluginId)) return@withLock
+                store.releaseQuarantine(pluginId)
+                store.clearSuspension(pluginId)
+                publish()
+            }
+        }
+    }
+
+    private fun backupCurrent(record: PluginRecord): Boolean {
+        val source = record.source as? PluginSource.Package ?: return false
+        return runCatching {
+            if (!source.file.isFile || source.file.length() > PluginPackageLoader.MAX_PACKAGE_BYTES) {
+                return false
+            }
+            previousVersions.record(record.manifest.id, source.file.readBytes())
+        }.getOrDefault(false)
     }
 
     private fun writePackage(file: File, bytes: ByteArray): WriteResult = try {
@@ -520,6 +668,8 @@ class PluginRegistryImpl @Inject constructor(
             store.clearNamespace(pluginId)
             store.setEnabled(pluginId, false)
             store.clearSuspension(pluginId)
+            store.releaseQuarantine(pluginId)
+            previousVersions.clear(pluginId)
             if (store.selectedThemePluginId() == pluginId) store.setSelectedThemePluginId(null)
             if (store.selectedIconPluginId() == pluginId) store.setSelectedIconPluginId(null)
 
@@ -534,6 +684,10 @@ class PluginRegistryImpl @Inject constructor(
         withContext(io) {
             lock.withLock {
                 if (!records.containsKey(pluginId)) return@withLock
+                // A quarantined plugin never loads, so recording "enabled" would leave the switch on
+                // while the plugin is stopped — the exact state the manager's honesty rule forbids.
+                // Release is the only way out, and it leaves the plugin off for the user to start.
+                if (enabled && store.isQuarantined(pluginId)) return@withLock
                 store.setEnabled(pluginId, enabled)
                 // Switching a plugin back on is the user's "try again": the supervisor's suspension is
                 // a this-run observation, and keeping it would leave them toggling a switch that does
@@ -1220,6 +1374,9 @@ class PluginRegistryImpl @Inject constructor(
         /** `filesDir/plugins/` — one `.gcplugin` file per sideloaded plugin, named from its id. */
         const val DIRECTORY_NAME = "plugins"
 
+        /** `filesDir/plugins/previous/` — at most one `.gcplugin` per id, the version being replaced. */
+        const val PREVIOUS_DIRECTORY_NAME = "previous"
+
         const val PACKAGE_EXTENSION = ".gcplugin"
 
         const val READ_CHUNK_BYTES = 64 * 1024
@@ -1254,5 +1411,73 @@ class PluginRegistryImpl @Inject constructor(
             { it.name.lowercase() },
             { it.id },
         )
+    }
+}
+
+/**
+ * The previous-version slot: at most one `.gcplugin` per plugin id, under `filesDir/plugins/previous/`.
+ *
+ * Separated from [PluginRegistryImpl] so its one interesting property — "exactly one previous version,
+ * never a chain" — is a JVM unit test over a temporary directory rather than something only observable
+ * by installing two builds on a device. The directory is created lazily, only when a real backup is
+ * recorded.
+ *
+ * An id is validated as a package name before it becomes a file name, for the same path-traversal
+ * reason the registry validates before writing a package. A failure is a refusal, never a cleanup.
+ */
+internal class PluginPreviousVersionStore(private val directory: File) {
+
+    /** The one backup file for [pluginId], or null when the id is not a safe file name. */
+    fun fileFor(pluginId: String): File? {
+        val safeId = TextSanitizer.validatePackageName(pluginId) ?: return null
+        return File(directory, "$safeId.gcplugin")
+    }
+
+    /** True when a readable backup slot exists. Used to show the rollback action only when real. */
+    fun has(pluginId: String): Boolean = runCatching { fileFor(pluginId)?.isFile == true }.getOrDefault(false)
+
+    /**
+     * Replaces the one previous version with [bytes].
+     *
+     * Empty, oversized and unsafe-id writes are refused rather than truncated: a truncated package is
+     * not a rollback, and a file name that escapes [directory] is a path traversal. The temporary file
+     * lives beside the target so the rename is on the same filesystem; a crash can leave a `.tmp`, which
+     * [has] and [read] ignore, and [clear] removes.
+     */
+    fun record(pluginId: String, bytes: ByteArray): Boolean {
+        if (bytes.isEmpty() || bytes.size > PluginPackageLoader.MAX_PACKAGE_BYTES) return false
+        val target = fileFor(pluginId) ?: return false
+        return runCatching {
+            val parent = target.parentFile ?: return false
+            if (!parent.exists() && !parent.mkdirs()) return false
+            if (!parent.isDirectory) return false
+            val temp = File(parent, "${target.name}.tmp")
+            temp.writeBytes(bytes)
+            if (temp.renameTo(target)) {
+                return true
+            }
+            // Some filesystems refuse rename-over-existing. Writing in place keeps the one-file
+            // invariant; a half-written target will fail the loader on the rollback attempt, which is
+            // reported as a real failure rather than silently restored.
+            target.writeBytes(bytes)
+            runCatching { temp.delete() }
+            target.isFile
+        }.getOrDefault(false)
+    }
+
+    /** The previous bytes, or null when absent, unreadable, oversized or named unsafely. */
+    fun read(pluginId: String, maxBytes: Int = PluginPackageLoader.MAX_PACKAGE_BYTES): ByteArray? {
+        val file = fileFor(pluginId) ?: return null
+        return runCatching {
+            if (!file.isFile || file.length() > maxBytes) return null
+            file.readBytes()
+        }.getOrNull()
+    }
+
+    /** Deletes the backup (and any interrupted temporary file). True when the slot is empty afterwards. */
+    fun clear(pluginId: String): Boolean {
+        val file = fileFor(pluginId) ?: return false
+        runCatching { File(file.parentFile, "${file.name}.tmp").delete() }
+        return runCatching { !file.exists() || file.delete() }.getOrDefault(false)
     }
 }

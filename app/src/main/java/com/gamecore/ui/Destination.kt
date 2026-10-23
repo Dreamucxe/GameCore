@@ -202,6 +202,38 @@ sealed interface Destination {
         override val route = "tools"
     }
 
+    /**
+     * Global search over the app's screens, settings and features.
+     *
+     * A leaf reached from the search row at the top of Home. It resolves a result to an existing route
+     * rather than owning any screen of its own, so it is deliberately not in [external] — nothing outside
+     * the app has a reason to open a search field.
+     */
+    data object Search : Destination {
+        override val route = "search"
+    }
+
+    /**
+     * The device fitness check: what this device needs for GameCore's features, and what each gap costs.
+     *
+     * A sibling of [SetupHealth] in that it reports rather than changes — every row that can be fixed opens
+     * the Android settings page for it — and reached from Home's Device card. Not in [external].
+     */
+    data object Fitness : Destination {
+        override val route = "fitness"
+    }
+
+    /**
+     * Sensor calibration: a still capture of the gyroscope and accelerometer, then the bias, noise and
+     * drift those readings actually show.
+     *
+     * Reached from Home's Device card and a leaf that only needs a way back. It reads the device's own
+     * sensors through the same sampler the rest of the app uses; nothing here is in [external].
+     */
+    data object SensorCalibration : Destination {
+        override val route = "sensor_calibration"
+    }
+
     data object Overlay : Destination {
         override val route = "overlay"
     }

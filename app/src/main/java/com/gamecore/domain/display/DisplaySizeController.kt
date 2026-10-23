@@ -4,6 +4,7 @@ import com.gamecore.core.common.DataSource
 import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.common.Observed
 import com.gamecore.core.common.valueOrNull
+import com.gamecore.core.model.AspectChoice
 import com.gamecore.core.model.AspectPreset
 import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.DisplaySizeOutcome
@@ -103,6 +104,17 @@ class DisplaySizeController @Inject constructor(
                 )
             apply(size, packageName)
         }
+
+    /**
+     * Applies a chip from the Aspect row, whichever kind it is.
+     *
+     * A built-in chip goes through the [AspectPreset] overload; a saved custom shape is a literal size the
+     * user chose, so it goes through [apply] with the same orientation, rejection and read-back rules as a
+     * typed pair. The distinction is [AspectChoice.custom], not the preset placeholder the custom choice
+     * carries — a custom size has no preset and [AspectPreset.NATIVE] is only standing in for "none".
+     */
+    suspend fun apply(choice: AspectChoice, packageName: String? = null): DisplaySizeOutcome =
+        if (choice.custom) apply(choice.size, packageName) else apply(choice.preset, packageName)
 
     /**
      * Runs the display at [scale] of its own resolution (§B2).

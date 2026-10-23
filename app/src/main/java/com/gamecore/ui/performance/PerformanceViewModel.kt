@@ -408,6 +408,7 @@ private fun liveOf(
     val memory = snapshot.memory
     val battery = snapshot.battery
     val thermal = snapshot.thermal.status.valueOrNull
+    val frameRate = snapshot.frameRate.valueOrNull
 
     return PerformanceLive(
         tiles = listOf(
@@ -449,6 +450,8 @@ private fun liveOf(
         networkRows = networkRowsOf(snapshot),
         displayRows = displayRowsOf(snapshot),
         frameRateRows = frameRateRowsOf(snapshot.frameRate),
+        p95FrameMillis = frameRate?.p95FrameMillis,
+        p99FrameMillis = frameRate?.p99FrameMillis,
         frameRateNote = snapshot.frameRate.unavailabilityText(),
         // Only the levels at which the platform is actually clamping performance. A banner that is
         // always there is a banner nobody reads.

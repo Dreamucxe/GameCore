@@ -2,6 +2,7 @@ package com.gamecore.core.model
 
 import com.gamecore.core.common.AccessLevel
 import com.gamecore.core.common.Observed
+import com.gamecore.core.common.valueOrNull
 
 /**
  * One pass over everything GameCore measures, taken at one moment.
@@ -36,6 +37,17 @@ data class PerformanceSnapshot(
     /** Only ever a value when the device exposes a readable GPU-load counter. */
     val gpu: Observed<GpuLoadSample>,
     val accessLevel: AccessLevel,
+    /**
+     * Whether the display was running below the highest rate it reports when this snapshot was taken.
+     *
+     * A reading, not proof of a configured cap: a variable-rate panel legitimately sits below its peak on
+     * a still screen. It is computed from the snapshot's own [display] reading — current rate against peak
+     * supported rate — and is null when either of those was unreadable, which is the same absence the
+     * display card shows. The session recorder stores this once at `begin()`; no later inference is made.
+     */
+    val refreshCapped: Boolean? = display.currentRefreshRate.valueOrNull?.let { current ->
+        display.peakRefreshRate?.let { peak -> current < peak - REFRESH_RATE_TOLERANCE_HZ }
+    },
 ) {
 
     /**
@@ -123,3 +135,11 @@ data class HistoryPoint(
     val frameRate: Float? = null,
     val latencyMillis: Int? = null,
 )
+
+/**
+ * How far below the panel's peak a current rate may sit and still count as the same mode.
+ *
+ * A 119.998 Hz reading is the 120 Hz mode, and an exact float comparison would mark every such panel as
+ * "capped". One hertz is the same tolerance the live screen uses to fill in a rate chip.
+ */
+private const val REFRESH_RATE_TOLERANCE_HZ = 1f

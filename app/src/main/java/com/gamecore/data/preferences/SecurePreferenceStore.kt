@@ -26,6 +26,7 @@ import com.gamecore.core.model.PillDisplayMode
 import com.gamecore.core.model.QuickTriggerAction
 import com.gamecore.core.model.QuickTriggerMethod
 import com.gamecore.core.model.QuickTriggerSettings
+import com.gamecore.aimlab.engine.TargetPalette
 import com.gamecore.core.model.RecordingQuality
 import com.gamecore.core.model.ThemeChoice
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -284,6 +285,17 @@ class SecurePreferenceStore @Inject constructor(
             dockCustomizationEnabled =
                 p.getBoolean(KEY_DOCK_CUSTOMIZATION_ENABLED, defaults.dockCustomizationEnabled),
             quickActionsEnabled = p.getBoolean(KEY_QUICK_ACTIONS_ENABLED, defaults.quickActionsEnabled),
+            leftHandedLayout = p.getBoolean(KEY_LEFT_HANDED, defaults.leftHandedLayout),
+            targetPalette = enumOrDefault(
+                p.getString(KEY_TARGET_PALETTE, null),
+                TargetPalette.entries,
+                defaults.targetPalette,
+            ),
+            largerTouchTargets = p.getBoolean(KEY_LARGER_TOUCH_TARGETS, defaults.largerTouchTargets),
+            retentionDays = p.getInt(KEY_RETENTION_DAYS, defaults.retentionDays),
+            detectionExcludedPackages = readDetectionExcludedPackages(p),
+            pinnedPackage = p.getString(KEY_PINNED_PACKAGE, null)?.takeIf { it.isNotBlank() },
+            customAspectRatios = readCustomAspectRatios(p),
             lastSeenWhatsNewVersionCode =
                 p.getInt(KEY_LAST_SEEN_WHATSNEW, defaults.lastSeenWhatsNewVersionCode),
         ).normalised()
@@ -376,6 +388,13 @@ class SecurePreferenceStore @Inject constructor(
             putBoolean(KEY_VOLUME_POINT_TRIGGER_ENABLED, value.volumePointTriggerEnabled)
             putBoolean(KEY_DOCK_CUSTOMIZATION_ENABLED, value.dockCustomizationEnabled)
             putBoolean(KEY_QUICK_ACTIONS_ENABLED, value.quickActionsEnabled)
+            putBoolean(KEY_LEFT_HANDED, value.leftHandedLayout)
+            putString(KEY_TARGET_PALETTE, value.targetPalette.name)
+            putBoolean(KEY_LARGER_TOUCH_TARGETS, value.largerTouchTargets)
+            putInt(KEY_RETENTION_DAYS, value.retentionDays)
+            putString(KEY_DETECTION_EXCLUDED, value.detectionExcludedPackages.joinToString(SEPARATOR))
+            putString(KEY_PINNED_PACKAGE, value.pinnedPackage ?: "")
+            putString(KEY_CUSTOM_ASPECT_RATIOS, value.customAspectRatios.joinToString(SEPARATOR))
             putInt(KEY_LAST_SEEN_WHATSNEW, value.lastSeenWhatsNewVersionCode)
         }?.apply()
     }
@@ -405,6 +424,28 @@ class SecurePreferenceStore @Inject constructor(
             ?.split(SEPARATOR)
             ?.filter { it.isNotBlank() }
             ?.toSet()
+            .orEmpty()
+
+    /**
+     * The game-detection exclusion list, as package names joined by [SEPARATOR] — a set, since order
+     * and duplicates carry no meaning for "don't auto-apply for this package". Validated in
+     * `AppSettings.normalised()`, so a hand-edited entry that is not a package name never survives the read.
+     */
+    private fun readDetectionExcludedPackages(p: SharedPreferences): Set<String> =
+        p.getString(KEY_DETECTION_EXCLUDED, null)
+            ?.split(SEPARATOR)
+            ?.filter { it.isNotBlank() }
+            ?.toSet()
+            .orEmpty()
+
+    /**
+     * Custom aspect ratios the user added, as "WxH" strings joined by [SEPARATOR]. Each is validated
+     * as a positive size on read. They appear as extra chips alongside the built-in presets.
+     */
+    private fun readCustomAspectRatios(p: SharedPreferences): List<String> =
+        p.getString(KEY_CUSTOM_ASPECT_RATIOS, null)
+            ?.split(SEPARATOR)
+            ?.filter { it.isNotBlank() }
             .orEmpty()
 
     // -------------------------------------------------------------------- overlay
@@ -1137,6 +1178,13 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_VOLUME_POINT_TRIGGER_ENABLED = "volume_point_trigger_enabled"
         const val KEY_DOCK_CUSTOMIZATION_ENABLED = "dock_customization_enabled"
         const val KEY_QUICK_ACTIONS_ENABLED = "quick_actions_enabled"
+        const val KEY_LEFT_HANDED = "left_handed_layout"
+        const val KEY_TARGET_PALETTE = "target_palette"
+        const val KEY_LARGER_TOUCH_TARGETS = "larger_touch_targets"
+        const val KEY_RETENTION_DAYS = "retention_days"
+        const val KEY_DETECTION_EXCLUDED = "detection_excluded_packages"
+        const val KEY_PINNED_PACKAGE = "pinned_package"
+        const val KEY_CUSTOM_ASPECT_RATIOS = "custom_aspect_ratios"
         const val KEY_LAST_SEEN_WHATSNEW = "last_seen_whatsnew_version"
 
         const val KEY_SHOW_PILL = "pill_show"

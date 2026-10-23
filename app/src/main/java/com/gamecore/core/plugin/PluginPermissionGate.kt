@@ -223,6 +223,19 @@ interface PluginGrantStore {
     fun suspend(pluginId: String, detail: String)
     fun clearSuspension(pluginId: String)
 
+    /**
+     * Persistent quarantine. Unlike [isSuspended], which answers "did this plugin fail in this run",
+     * a quarantined plugin stays stopped across restarts until [releaseQuarantine] is called.
+     *
+     * Defaults are provided so older in-memory test stores keep compiling. A real store must persist
+     * these values; an implementation that does not is allowed to leave them at the defaults, but the
+     * manager then truthfully reports the plugin as not quarantined.
+     */
+    fun isQuarantined(pluginId: String): Boolean = false
+    fun quarantine(pluginId: String, detail: String? = null) = Unit
+    fun releaseQuarantine(pluginId: String) = Unit
+    fun quarantineDetail(pluginId: String): String? = null
+
     /** The global "Revoke all plugin system access" state. */
     fun isSystemKillSwitchOn(): Boolean
     fun setSystemKillSwitch(on: Boolean)

@@ -1,5 +1,11 @@
 package com.gamecore.core.backup
 
+import com.gamecore.aimlab.engine.Difficulty
+import com.gamecore.aimlab.engine.PersonalRecord
+import com.gamecore.aimlab.engine.ReactionStats
+import com.gamecore.aimlab.engine.RecordMetric
+import com.gamecore.aimlab.engine.SessionSummary
+import com.gamecore.aimlab.engine.TrainingMode
 import com.gamecore.core.common.TextSanitizer
 import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.ColorCorrection
@@ -9,13 +15,18 @@ import com.gamecore.core.model.DockActionId
 import com.gamecore.core.model.DockActions
 import com.gamecore.core.model.DockConfig
 import com.gamecore.core.model.FloatingButtonConfig
+import com.gamecore.core.model.GameSession
 import com.gamecore.core.model.HudDisplayMode
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HudWidget
+import com.gamecore.core.model.LatencyLog
+import com.gamecore.core.model.NetworkTransport
 import com.gamecore.core.model.OverlayConfig
 import com.gamecore.core.model.PillDisplayMode
 import com.gamecore.core.model.QuickTriggerSettings
+import com.gamecore.core.model.ResolutionScale
+import com.gamecore.core.model.StopReason
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -23,16 +34,25 @@ import org.json.JSONObject
 /**
  * The §20 config backup's on-disk shape, and the one place it is written and read.
  *
- * A backup is *configuration*, never session history: appearance and settings, the overlay windows'
+ * A backup is *configuration and history*: appearance and settings, the overlay windows'
  * configs (the floating button and, since §3.7.1, the dock with the user's own action arrangement), the
  * quick-sheet pins and macros, the HUD layouts, and — handed in already built by the profile
  * layer — the game profiles and the presets they reference. The crosshair and colour presets a profile does
  * *not* reference (the standalone ones the user made but never assigned) travel in their own top-level
  * sections, so a preset is backed up whether or not a profile points at it, and each referenced one still
  * travels exactly once via the profile layer rather than being duplicated here (the orchestrator hands this
- * codec only the standalone remainder). What a user has *measured* (sessions, Aim Lab runs) is deliberately
- * left out; it is a log, not a setting, and a restore that overwrote it would be destroying the very thing
- * the user opened the app to keep.
+ * codec only the standalone remainder).
+ *
+ * Version 2 adds the measured history the version 1 envelope deliberately left out: every finished game
+ * session row (including the thermal / power-saver / refresh-cap readings at session start and the latency
+ * and colour summaries), the Aim Lab session summaries, and the personal records derived from them. The
+ * high-frequency per-second sample rows still do not travel — they are a graph, not a setting, and keeping
+ * them out is what bounds a history backup to a size a user can move between devices. Plugins and the APK
+ * are not part of this envelope either; the restore screen says so in plain words.
+ *
+ * Version 1 files remain readable: the history sections simply default to empty, so an old file restores
+ * every configuration section exactly as it always did and carries no history to merge. The version gate
+ * accepts the whole supported range rather than only the newest value.
  *
  * This object is **pure** — `org.json` and the core models only, no Android — so the round trip and the
  * hostile-input rejection below are unit-testable on a JVM with a real `org.json` on the test classpath,
@@ -51,11 +71,20 @@ object BackupCodec {
     /** The envelope's format tag. A file whose `format` is not exactly this is not ours and is refused. */
     const val FORMAT = "gamecore.backup"
 
-    /** The only envelope version this build reads or writes. Any other value is [RejectReason.UNSUPPORTED_VERSION]. */
-    const val VERSION = 1
+    /** The only envelope version this build writes. Version 1 files are still read (see [MIN_VERSION]). */
+    const val VERSION = 2
+
+    /** The oldest envelope this build still restores. Version 1 had configuration only. */
+    const val MIN_VERSION = 1
 
     /** A ceiling on array walks, so a pathological hand-edited file cannot be scanned end to end. */
     private const val SCAN_LIMIT = 512
+
+    /**
+     * A separate ceiling for history arrays: a long-lived install can genuinely hold thousands of sessions,
+     * and [SCAN_LIMIT] exists to bound tiny configuration lists, not a user's history.
+     */
+    private const val MAX_HISTORY_ENTRIES = 20_000
 
     // ------------------------------------------------------------------------------------ the result
 
@@ -90,6 +119,11 @@ object BackupCodec {
      * ones (a referenced preset travels inside [profiles] instead); the orchestrator restores them by
      * create-or-match on content, never by blind insert. [macros] and [profiles] stay as raw `org.json` for
      * the two codecs that own those shapes — `MacroCodec` and the profile layer — to decode at their boundary.
+     *
+     * [sessions], [aimLabSessions] and [personalRecords] are history and default to empty rather than null:
+     * every version 1 file is silent about them, and silence there means "this file has none to merge", not
+     * "clear the device's history". They are always additive on restore; no policy deletes rows the file
+     * does not mention.
      */
     data class BackupData(
         val settings: AppSettings?,
@@ -108,6 +142,14 @@ object BackupCodec {
         val colours: List<ColorPreset>?,
         val macros: JSONArray?,
         val profiles: JSONObject?,
+        /** Finished game sessions from schema v2 onward. Empty for a version 1 file. */
+        val sessions: List<GameSession> = emptyList(),
+        /** Aim Lab training summaries from schema v2 onward. Empty for a version 1 file. */
+        val aimLabSessions: List<SessionSummary> = emptyList(),
+        /** Aim Lab personal records travelling with [aimLabSessions]. Never derived on restore. */
+        val personalRecords: List<PersonalRecord> = emptyList(),
+        /** The envelope version the file declared, for the restore preview's copy. */
+        val version: Int = VERSION,
     )
 
     // ------------------------------------------------------------------------------------------ encode
@@ -121,6 +163,10 @@ object BackupCodec {
      * carried opaque; [profiles] is the `{ "profiles": [...], "presets": {...} }` object the profile layer
      * built, whose two members are lifted to the envelope's top level. Passing empties simply writes empty
      * sections — a backup with no profiles or presets is still a valid backup of everything else.
+     *
+     * [sessions], [aimLabSessions] and [personalRecords] are always written, even when empty: version 2 is
+     * the first envelope that can carry history, so writing the arrays makes "this file has no history" an
+     * explicit statement rather than an absence a reader has to guess at.
      */
     fun encode(
         settings: AppSettings,
@@ -133,6 +179,9 @@ object BackupCodec {
         colours: List<ColorPreset>,
         macros: JSONArray,
         profiles: JSONObject,
+        sessions: List<GameSession> = emptyList(),
+        aimLabSessions: List<SessionSummary> = emptyList(),
+        personalRecords: List<PersonalRecord> = emptyList(),
     ): String = JSONObject().apply {
         put("format", FORMAT)
         put("version", VERSION)
@@ -154,6 +203,11 @@ object BackupCodec {
         put("crosshairs", JSONArray().apply { crosshairs.forEach { put(encodeCrosshair(it)) } })
         put("colours", JSONArray().apply { colours.forEach { put(encodeColourPreset(it)) } })
         put("macros", macros)
+        // Version 2 history. Each array is written even when empty, so a reader can tell a fresh install
+        // from a v1 file that predates these sections.
+        put("sessions", JSONArray().apply { sessions.forEach { put(encodeSession(it)) } })
+        put("aimLabSessions", JSONArray().apply { aimLabSessions.forEach { put(encodeAimLabSession(it)) } })
+        put("personalRecords", JSONArray().apply { personalRecords.forEach { put(encodePersonalRecord(it)) } })
     }.toString()
 
     // ------------------------------------------------------- standalone selection & content signatures
@@ -382,6 +436,100 @@ object BackupCodec {
         put("correction", encodeColour(p.correction))
     }
 
+    // ---------------------------------------------------------------- version 2 history (encode)
+
+    /**
+     * One finished game session, every field of the model.
+     *
+     * Nulls are omitted rather than written as JSON `null`: absence is how this codec represents "the device
+     * did not expose that reading", and it is the same convention the session mapper uses. `thermalStatus`,
+     * `powerSaver` and `refreshCapped` are carried as their own keys so a restored session says what the
+     * device was doing at session start rather than silently losing the reading.
+     */
+    private fun encodeSession(s: GameSession): JSONObject = JSONObject().apply {
+        put("id", s.id)
+        put("packageName", s.packageName)
+        put("gameLabel", s.gameLabel)
+        put("startedAtMillis", s.startedAtMillis)
+        s.endedAtMillis?.let { put("endedAtMillis", it) }
+        put("batteryStartPercent", s.batteryStartPercent)
+        s.batteryEndPercent?.let { put("batteryEndPercent", it) }
+        put("wasCharging", s.wasCharging)
+        s.averageCpuPercent?.let { put("averageCpuPercent", it.toDouble()) }
+        s.peakCpuPercent?.let { put("peakCpuPercent", it.toDouble()) }
+        s.averageMemoryPercent?.let { put("averageMemoryPercent", it.toDouble()) }
+        s.peakMemoryPercent?.let { put("peakMemoryPercent", it.toDouble()) }
+        s.averageTemperatureDeciCelsius?.let { put("averageTemperatureDeciCelsius", it) }
+        s.peakTemperatureDeciCelsius?.let { put("peakTemperatureDeciCelsius", it) }
+        s.averageRefreshRate?.let { put("averageRefreshRate", it.toDouble()) }
+        s.averageFrameRate?.let { put("averageFrameRate", it.toDouble()) }
+        s.averageLatencyMillis?.let { put("averageLatencyMillis", it) }
+        put("profileApplied", s.profileApplied)
+        put("sampleCount", s.sampleCount)
+        s.stopReason?.let { put("stopReason", it.name) }
+        s.colorPresetName?.let { put("colorPresetName", it) }
+        s.colorCorrection?.let { put("colorCorrection", encodeColour(it)) }
+        s.latencyLog?.let { put("latencyLog", encodeLatencyLog(it)) }
+        s.thermalStatus?.let { put("thermalStatus", it) }
+        s.powerSaver?.let { put("powerSaver", it) }
+        s.refreshCapped?.let { put("refreshCapped", it) }
+        s.downshiftCount?.let { put("downshiftCount", it) }
+        s.lowestRateHz?.let { put("lowestRateHz", it.toDouble()) }
+        s.transport?.let { put("transport", it.name) }
+        s.fullPerformanceOverridden?.let { put("fullPerformanceOverridden", it) }
+        s.systemReenabledSaver?.let { put("systemReenabledSaver", it) }
+        s.resolutionApplied?.let { put("resolutionApplied", it.name) }
+        s.instantReplayUsed?.let { put("instantReplayUsed", it) }
+        s.clipsSaved?.let { put("clipsSaved", it) }
+    }
+
+    private fun encodeLatencyLog(l: LatencyLog): JSONObject = JSONObject().apply {
+        put("completedProbes", l.completedProbes)
+        put("failedProbes", l.failedProbes)
+        put("spikes", l.spikes)
+        l.worstMillis?.let { put("worstMillis", it) }
+        l.jitterMillis?.let { put("jitterMillis", it) }
+        put("longestFailureRun", l.longestFailureRun)
+    }
+
+    /** One Aim Lab summary; flat, matching the row's fields so nothing is lost in a nested shape. */
+    private fun encodeAimLabSession(s: SessionSummary): JSONObject = JSONObject().apply {
+        put("id", s.id)
+        put("mode", s.mode.name)
+        put("difficulty", s.difficulty.name)
+        put("startedAtMillis", s.startedAtMillis)
+        put("endedAtMillis", s.endedAtMillis)
+        s.weaponName?.let { put("weaponName", it) }
+        s.sensitivityName?.let { put("sensitivityName", it) }
+        put("score", s.score)
+        put("hits", s.hits)
+        put("shots", s.shots)
+        put("targetsMissed", s.targetsMissed)
+        put("reactionAttempts", s.reactionStats.attempts)
+        put("reactionFastest", s.reactionStats.fastestMillis)
+        put("reactionSlowest", s.reactionStats.slowestMillis)
+        put("reactionAverage", s.reactionStats.averageMillis.toDouble())
+        put("reactionMedian", s.reactionStats.medianMillis.toDouble())
+        put("averageAcquireMillis", s.averageAcquireMillis.toDouble())
+        put("trackingErrorAverage", s.trackingErrorAverage.toDouble())
+        put("timeOnTargetFraction", s.timeOnTargetFraction.toDouble())
+        put("recoilCompensation", s.recoilCompensation.toDouble())
+        put("gyroStability", s.gyroStability.toDouble())
+        put("scoringVersion", s.scoringVersion)
+    }
+
+    /** One personal record. Records are restorable evidence, so every field travels, including what it beat. */
+    private fun encodePersonalRecord(r: PersonalRecord): JSONObject = JSONObject().apply {
+        put("mode", r.mode.name)
+        put("difficulty", r.difficulty.name)
+        r.weaponName?.let { put("weaponName", it) }
+        put("metric", r.metric.name)
+        put("value", r.value.toDouble())
+        r.previousValue?.let { put("previousValue", it.toDouble()) }
+        put("achievedAtMillis", r.achievedAtMillis)
+        put("scoringVersion", r.scoringVersion)
+    }
+
     // ------------------------------------------------------------------------------------------ decode
 
     /**
@@ -400,17 +548,18 @@ object BackupCodec {
             return BackupResult.Rejected(RejectReason.MALFORMED)
         }
         if (root.optString("format") != FORMAT) return BackupResult.Rejected(RejectReason.WRONG_FORMAT)
-        if (root.optInt("version", 0) != VERSION) {
+        val version = root.optInt("version", 0)
+        if (version < MIN_VERSION || version > VERSION) {
             return BackupResult.Rejected(RejectReason.UNSUPPORTED_VERSION)
         }
         return try {
-            BackupResult.Restored(readBackup(root))
+            BackupResult.Restored(readBackup(root, version))
         } catch (_: Throwable) {
             BackupResult.Rejected(RejectReason.MALFORMED)
         }
     }
 
-    private fun readBackup(root: JSONObject): BackupData {
+    private fun readBackup(root: JSONObject, version: Int): BackupData {
         val settings = root.optJSONObject("settings")
         return BackupData(
             settings = settings?.optJSONObject("app")?.let(::readSettings),
@@ -423,6 +572,12 @@ object BackupCodec {
             colours = root.optJSONArray("colours")?.let(::readColourPresets),
             macros = root.optJSONArray("macros"),
             profiles = readProfiles(root),
+            // Absent means empty, never null: v1 is silent about history, and silence is not a command to
+            // clear the device's own rows.
+            sessions = root.optJSONArray("sessions")?.let(::readSessions) ?: emptyList(),
+            aimLabSessions = root.optJSONArray("aimLabSessions")?.let(::readAimLabSessions) ?: emptyList(),
+            personalRecords = root.optJSONArray("personalRecords")?.let(::readPersonalRecords) ?: emptyList(),
+            version = version,
         )
     }
 
@@ -720,6 +875,148 @@ object BackupCodec {
         return out
     }
 
+    // ----------------------------------------------------------------- version 2 history (decode)
+
+    /**
+     * Reads the finished game sessions.
+     *
+     * A row without a valid package name, a start time or a finish time is dropped: history is a record of a
+     * session that actually ran to an end, and a hand-edited row cannot be allowed to create a permanently
+     * "running" session. Every aggregate keeps its null, every enum is resolved by name with an unknown one
+     * dropped rather than defaulted, and the text fields are sanitised because they are drawn in the app.
+     */
+    private fun readSessions(array: JSONArray): List<GameSession> {
+        val out = ArrayList<GameSession>()
+        val scan = minOf(array.length(), MAX_HISTORY_ENTRIES)
+        for (i in 0 until scan) {
+            val o = array.optJSONObject(i) ?: continue
+            val packageName = TextSanitizer.validatePackageName(o.optString("packageName")) ?: continue
+            val started = readLongOrNull(o, "startedAtMillis") ?: continue
+            val ended = readLongOrNull(o, "endedAtMillis") ?: continue
+            if (started <= 0L || ended < started) continue
+            out += GameSession(
+                id = o.optLong("id", 0L),
+                packageName = packageName,
+                gameLabel = TextSanitizer.sanitizeName(o.optString("gameLabel"))
+                    .ifBlank { packageName },
+                startedAtMillis = started,
+                endedAtMillis = ended,
+                batteryStartPercent = o.optInt("batteryStartPercent", 0).coerceIn(0, 100),
+                batteryEndPercent = readIntOrNull(o, "batteryEndPercent")?.coerceIn(0, 100),
+                wasCharging = o.optBoolean("wasCharging", false),
+                averageCpuPercent = readFloatOrNull(o, "averageCpuPercent"),
+                peakCpuPercent = readFloatOrNull(o, "peakCpuPercent"),
+                averageMemoryPercent = readFloatOrNull(o, "averageMemoryPercent"),
+                peakMemoryPercent = readFloatOrNull(o, "peakMemoryPercent"),
+                averageTemperatureDeciCelsius = readIntOrNull(o, "averageTemperatureDeciCelsius"),
+                peakTemperatureDeciCelsius = readIntOrNull(o, "peakTemperatureDeciCelsius"),
+                averageRefreshRate = readFloatOrNull(o, "averageRefreshRate"),
+                averageFrameRate = readFloatOrNull(o, "averageFrameRate"),
+                averageLatencyMillis = readIntOrNull(o, "averageLatencyMillis"),
+                profileApplied = o.optBoolean("profileApplied", false),
+                sampleCount = o.optInt("sampleCount", 0).coerceAtLeast(0),
+                stopReason = o.optString("stopReason").let { name ->
+                    StopReason.entries.firstOrNull { it.name == name }
+                },
+                colorPresetName = o.optString("colorPresetName").takeIf { it.isNotBlank() },
+                colorCorrection = o.optJSONObject("colorCorrection")?.let(::readColour),
+                latencyLog = o.optJSONObject("latencyLog")?.let(::readLatencyLog),
+                thermalStatus = o.optString("thermalStatus").takeIf { it.isNotBlank() },
+                powerSaver = readBooleanOrNull(o, "powerSaver"),
+                refreshCapped = readBooleanOrNull(o, "refreshCapped"),
+                downshiftCount = readIntOrNull(o, "downshiftCount")?.coerceAtLeast(0),
+                lowestRateHz = readFloatOrNull(o, "lowestRateHz")?.takeIf { it in 1f..480f },
+                transport = o.optString("transport").let { name ->
+                    NetworkTransport.entries.firstOrNull { it.name == name }
+                },
+                fullPerformanceOverridden = readBooleanOrNull(o, "fullPerformanceOverridden"),
+                systemReenabledSaver = readBooleanOrNull(o, "systemReenabledSaver"),
+                resolutionApplied = o.optString("resolutionApplied").let { name ->
+                    ResolutionScale.entries.firstOrNull { it.name == name }
+                },
+                instantReplayUsed = readBooleanOrNull(o, "instantReplayUsed"),
+                clipsSaved = readIntOrNull(o, "clipsSaved")?.coerceAtLeast(0),
+            )
+        }
+        return out
+    }
+
+    private fun readLatencyLog(o: JSONObject): LatencyLog = LatencyLog(
+        completedProbes = o.optInt("completedProbes", 0).coerceAtLeast(0),
+        failedProbes = o.optInt("failedProbes", 0).coerceAtLeast(0),
+        spikes = o.optInt("spikes", 0).coerceAtLeast(0),
+        worstMillis = readIntOrNull(o, "worstMillis"),
+        jitterMillis = readIntOrNull(o, "jitterMillis"),
+        longestFailureRun = o.optInt("longestFailureRun", 0).coerceAtLeast(0),
+    )
+
+    /**
+     * Reads the Aim Lab summaries. An unknown mode is dropped rather than guessed, because a summary is
+     * grouped by mode for records and history; a difficulty falls back the way the row mapper's does.
+     */
+    private fun readAimLabSessions(array: JSONArray): List<SessionSummary> {
+        val out = ArrayList<SessionSummary>()
+        val scan = minOf(array.length(), MAX_HISTORY_ENTRIES)
+        for (i in 0 until scan) {
+            val o = array.optJSONObject(i) ?: continue
+            val mode = TrainingMode.fromName(o.optString("mode")) ?: continue
+            val started = readLongOrNull(o, "startedAtMillis") ?: continue
+            val ended = readLongOrNull(o, "endedAtMillis") ?: continue
+            if (started <= 0L || ended < started) continue
+            out += SessionSummary(
+                id = o.optLong("id", 0L),
+                mode = mode,
+                difficulty = Difficulty.fromName(o.optString("difficulty")),
+                startedAtMillis = started,
+                endedAtMillis = ended,
+                weaponName = o.optString("weaponName").takeIf { it.isNotBlank() },
+                sensitivityName = o.optString("sensitivityName").takeIf { it.isNotBlank() },
+                score = o.optInt("score", 0).coerceAtLeast(0),
+                hits = o.optInt("hits", 0).coerceAtLeast(0),
+                shots = o.optInt("shots", 0).coerceAtLeast(0),
+                targetsMissed = o.optInt("targetsMissed", 0).coerceAtLeast(0),
+                reactionStats = readReactionStats(o),
+                averageAcquireMillis = readFloatOrNull(o, "averageAcquireMillis") ?: 0f,
+                trackingErrorAverage = readFloatOrNull(o, "trackingErrorAverage") ?: 0f,
+                timeOnTargetFraction = readFloatOrNull(o, "timeOnTargetFraction")?.coerceIn(0f, 1f) ?: 0f,
+                recoilCompensation = readFloatOrNull(o, "recoilCompensation") ?: 0f,
+                gyroStability = readFloatOrNull(o, "gyroStability") ?: 0f,
+                scoringVersion = o.optInt("scoringVersion", SessionSummary.SCORING_VERSION_3D),
+            )
+        }
+        return out
+    }
+
+    private fun readReactionStats(o: JSONObject): ReactionStats = ReactionStats(
+        attempts = o.optInt("reactionAttempts", 0).coerceAtLeast(0),
+        fastestMillis = o.optLong("reactionFastest", 0L).coerceAtLeast(0L),
+        slowestMillis = o.optLong("reactionSlowest", 0L).coerceAtLeast(0L),
+        averageMillis = readFloatOrNull(o, "reactionAverage") ?: 0f,
+        medianMillis = readFloatOrNull(o, "reactionMedian") ?: 0f,
+    )
+
+    /** Reads personal records, dropping a row whose metric or mode this build does not know. */
+    private fun readPersonalRecords(array: JSONArray): List<PersonalRecord> {
+        val out = ArrayList<PersonalRecord>()
+        val scan = minOf(array.length(), MAX_HISTORY_ENTRIES)
+        for (i in 0 until scan) {
+            val o = array.optJSONObject(i) ?: continue
+            val mode = TrainingMode.fromName(o.optString("mode")) ?: continue
+            val metric = RecordMetric.fromName(o.optString("metric")) ?: continue
+            out += PersonalRecord(
+                mode = mode,
+                difficulty = Difficulty.fromName(o.optString("difficulty")),
+                weaponName = o.optString("weaponName").takeIf { it.isNotBlank() },
+                metric = metric,
+                value = readFloatOrNull(o, "value") ?: continue,
+                previousValue = readFloatOrNull(o, "previousValue"),
+                achievedAtMillis = o.optLong("achievedAtMillis", 0L).coerceAtLeast(0L),
+                scoringVersion = o.optInt("scoringVersion", SessionSummary.SCORING_VERSION_3D),
+            )
+        }
+        return out
+    }
+
     // ------------------------------------------------------------------------------------------ helpers
 
     /** An enum value by its stored `name`, or [default] for an absent, blank or unknown one. */
@@ -756,6 +1053,25 @@ object BackupCodec {
     /** A stored position fraction, or null when the key is absent — half a pair cannot place a window. */
     private fun readFractionOrNull(o: JSONObject, key: String): Float? =
         if (o.has(key) && !o.isNull(key)) o.optDouble(key).toFloat() else null
+
+    /** A nullable integer that distinguishes an absent key from a stored zero. */
+    private fun readIntOrNull(o: JSONObject, key: String): Int? =
+        if (o.has(key) && !o.isNull(key)) o.optInt(key) else null
+
+    /** A nullable long that distinguishes an absent key from a stored zero. */
+    private fun readLongOrNull(o: JSONObject, key: String): Long? =
+        if (o.has(key) && !o.isNull(key)) o.optLong(key) else null
+
+    /** A finite nullable float; NaN and infinities are not measurements and are dropped. */
+    private fun readFloatOrNull(o: JSONObject, key: String): Float? {
+        if (!o.has(key) || o.isNull(key)) return null
+        val value = o.optDouble(key, Double.NaN)
+        return if (value.isFinite()) value.toFloat() else null
+    }
+
+    /** A nullable boolean that distinguishes an absent reading from a recorded `false`. */
+    private fun readBooleanOrNull(o: JSONObject, key: String): Boolean? =
+        if (o.has(key) && !o.isNull(key)) o.optBoolean(key) else null
 
     /** What a nameless layout becomes, rather than being dropped for the sake of a blank field. */
     private const val DEFAULT_LAYOUT_NAME = "Layout"

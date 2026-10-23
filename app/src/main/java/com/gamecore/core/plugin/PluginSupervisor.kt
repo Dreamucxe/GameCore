@@ -28,15 +28,34 @@ class PluginSupervisor(
     private val crashLoopThreshold: Int = 2,
     private val failureThreshold: Int = 10,
     private val failureWindowMs: Long = 60_000L,
+    /**
+     * How many consecutive runtime failures quarantine a plugin.
+     *
+     * Quarantine is stronger than the this-run suspension at [failureThreshold]: it persists across
+     * restarts and is only cleared by the user. Three is deliberately lower than the suspension
+     * threshold because a plugin that has failed three times in a row is not having a transient
+     * moment, and the user should not have to wait for ten before the host protects itself.
+     */
+    private val quarantineThreshold: Int = 3,
 ) {
     private val consecutiveStartupCrashes = HashMap<String, Int>()
     private data class FailWindow(var start: Long, var count: Int)
     private val failures = HashMap<String, FailWindow>()
 
+    /**
+     * Runtime failures since the last clean start or [reset], independent of the rolling window.
+     *
+     * The window answers "how fast is it failing"; this answers "how many times in a row". A plugin
+     * that fails three times across three windows is still failing on every attempt, which is the
+     * pattern quarantine exists for.
+     */
+    private val consecutiveFailures = HashMap<String, Int>()
+
     /** Call when a plugin is about to start. Pair with [onStartupSucceeded]/[onStartupCrashed]. */
     @Synchronized
     fun onStartupSucceeded(pluginId: String) {
         consecutiveStartupCrashes.remove(pluginId)
+        consecutiveFailures.remove(pluginId)
     }
 
     /**
@@ -56,11 +75,13 @@ class PluginSupervisor(
     }
 
     /**
-     * Record an API/broker failure or rate-limit. Returns true and suspends the plugin if it
-     * has failed [failureThreshold] times inside [failureWindowMs].
+     * Record an API/broker failure or rate-limit. Returns true when this call stopped the plugin,
+     * either by suspending it for this run ([failureThreshold] within [failureWindowMs]) or by
+     * quarantining it after [quarantineThreshold] consecutive failures.
      */
     @Synchronized
     fun onRuntimeFailure(pluginId: String, detail: String): Boolean {
+        val quarantined = recordConsecutiveFailure(pluginId, detail)
         val t = now()
         val w = failures[pluginId]
         if (w == null || t - w.start >= failureWindowMs) {
@@ -71,7 +92,7 @@ class PluginSupervisor(
             // and never be suspended. Failing closed is also the right default for this class,
             // which exists to stop a plugin, not to keep it running.
             failures[pluginId] = FailWindow(t, 1)
-            if (1 < failureThreshold) return false
+            if (1 < failureThreshold) return quarantined
             store.suspend(pluginId, "Auto-suspended after repeated failures: ${detail.take(80)}")
             failures.remove(pluginId)
             return true
@@ -82,12 +103,31 @@ class PluginSupervisor(
             failures.remove(pluginId)
             return true
         }
-        return false
+        return quarantined
+    }
+
+    /**
+     * Counts a failure across windows and quarantines on the configured streak.
+     *
+     * The detail is host text plus a bounded slice of the failure description; the registry sanitises
+     * it again before it reaches a row.
+     */
+    private fun recordConsecutiveFailure(pluginId: String, detail: String): Boolean {
+        val n = (consecutiveFailures[pluginId] ?: 0) + 1
+        consecutiveFailures[pluginId] = n
+        if (n < quarantineThreshold) return false
+        store.quarantine(
+            pluginId,
+            "Auto-quarantined after $n consecutive failures: ${detail.take(80)}",
+        )
+        consecutiveFailures.remove(pluginId)
+        return true
     }
 
     @Synchronized
     fun reset(pluginId: String) {
         consecutiveStartupCrashes.remove(pluginId)
         failures.remove(pluginId)
+        consecutiveFailures.remove(pluginId)
     }
 }

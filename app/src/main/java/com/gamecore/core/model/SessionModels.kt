@@ -69,6 +69,22 @@ data class GameSession(
      */
     val latencyLog: LatencyLog? = null,
 
+    /**
+     * The device's condition at the moment the session opened, recorded from the opening snapshot.
+     *
+     * All three are nullable because the opening snapshot may not have carried the reading: [thermalStatus]
+     * is the platform's thermal status name and is null when the device exposes none, [powerSaver] is the
+     * system power-save flag, and [refreshCapped] is true when the active display mode was below the
+     * highest rate the panel reports at that instant. Null is the honest value for a session recorded
+     * before these fields existed, and none of them is ever filled with a guessed default.
+     *
+     * These describe the moment, not a cause. A session that opened with the panel below its peak is a
+     * recorded reading, not evidence that the cap caused anything that happened later.
+     */
+    val thermalStatus: String? = null,
+    val powerSaver: Boolean? = null,
+    val refreshCapped: Boolean? = null,
+
     // ---- 3.5 summary fields (§B6/§C7/§D8). All nullable, and null is the honest reading for a session
     // recorded before the feature ran or one where the feature was off — never a zero that would read as
     // a real measurement, the same rule the latency and colour fields above follow.

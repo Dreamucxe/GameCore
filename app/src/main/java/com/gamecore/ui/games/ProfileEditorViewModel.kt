@@ -5,8 +5,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.core.common.Formatters
+import com.gamecore.core.model.AppSettings
+import com.gamecore.core.model.AspectPreset
 import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.ColorVisionFilter
+import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.FractionPoint
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.ResolutionScale
@@ -95,6 +98,7 @@ class ProfileEditorViewModel @Inject constructor(
             confirmOnDiscard = preferences.settings.value.confirmBeforeDiscard,
             showResolutionNotice = preferences.settings.value.showResolutionOverrideNotice,
             showInstantReplayNotice = preferences.settings.value.showInstantReplayNotice,
+            customAspectRatios = preferences.settings.value.customAspectRatios,
         ),
     )
 
@@ -418,6 +422,51 @@ class ProfileEditorViewModel @Inject constructor(
             if (scale == null) it.copy(resolutionOverride = null)
             else it.copy(resolutionOverride = scale, displaySize = null)
         }
+    }
+
+    /**
+     * Saves [raw] as a custom shape for the Aspect tile, or leaves the list alone when it is not one.
+     *
+     * This is a settings edit, not a profile edit, so it writes through
+     * [SecurePreferenceStore.updateSettings] and does not mark the profile dirty. The shape is parsed and
+     * oriented against the panel exactly as [DisplaySizeController.apply] will parse it later, and it is
+     * held to the same two rules as the panel's chips: it must be shorter than the panel and must pass
+     * [DisplaySize.rejectionFor]. A duplicate or a ninth shape is dropped silently here because the editor
+     * has already told the user why; the screen validates with the same helpers before calling this.
+     */
+    fun addCustomAspectRatio(raw: String) {
+        val current = editing.value
+        val physical = current.physicalSize ?: return
+        val size = DisplaySize.parse(raw)?.orientedLike(physical) ?: return
+        if (size.longSide >= physical.longSide) return
+        if (size.rejectionFor(physical) != null) return
+        val saved = AspectPreset.customChoices(physical, current.customAspectRatios)
+        if (saved.size >= AppSettings.MAX_CUSTOM_ASPECT_RATIOS) return
+        if (saved.any { it.size.matches(size) }) return
+
+        val updated = AspectPreset.customChoices(physical, current.customAspectRatios + size.argument)
+            .map { it.size.argument }
+        editing.value = current.copy(customAspectRatios = updated)
+        preferences.updateSettings { it.copy(customAspectRatios = updated) }
+    }
+
+    /**
+     * Forgets the saved shape [value], matching it either way round so a chip removed is the one on screen.
+     *
+     * Like [addCustomAspectRatio] this is a settings write and leaves the profile and its dirty flag alone.
+     * Removing a shape does not clear a profile that points at the same pixel pair: the profile's own
+     * `displaySize` is a literal value and remains applicable even when it is no longer offered as a chip.
+     */
+    fun removeCustomAspectRatio(value: String) {
+        val current = editing.value
+        val removed = DisplaySize.parse(value)
+        val updated = current.customAspectRatios.filterNot { saved ->
+            val size = DisplaySize.parse(saved)
+            if (removed != null && size != null) size.matches(removed) else saved == value
+        }
+        if (updated == current.customAspectRatios) return
+        editing.value = current.copy(customAspectRatios = updated)
+        preferences.updateSettings { it.copy(customAspectRatios = updated) }
     }
 
     /**

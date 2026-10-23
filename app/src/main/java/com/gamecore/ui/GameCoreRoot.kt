@@ -48,6 +48,7 @@ import com.gamecore.aimlab.ui.gyro.GyroScreen
 import com.gamecore.aimlab.ui.history.HistoryScreen
 import com.gamecore.aimlab.ui.input.ApplyAimLabOrientation
 import com.gamecore.aimlab.ui.home.AimLabHomeScreen
+import com.gamecore.aimlab.ui.home.AimLabRoutes
 import com.gamecore.aimlab.ui.hud.ControlEditorScreen
 import com.gamecore.aimlab.ui.movement.MovementScreen
 import com.gamecore.aimlab.ui.practice.PracticeScreen
@@ -83,6 +84,7 @@ import com.gamecore.ui.dashboard.DashboardComposerRoute
 import com.gamecore.ui.developer.DeveloperScreen
 import com.gamecore.ui.dock.DockCustomizationScreen
 import com.gamecore.ui.extraction.ScreenExtractionScreen
+import com.gamecore.ui.fitness.FitnessScreen
 import com.gamecore.ui.games.GamesScreen
 import com.gamecore.ui.games.ProfileEditorScreen
 import com.gamecore.ui.glass.GlassCentreScreen
@@ -104,6 +106,8 @@ import com.gamecore.ui.plugins.PluginScreenRoute
 import com.gamecore.ui.plugins.PluginsScreen
 import com.gamecore.ui.quickapps.QuickAppsScreen
 import com.gamecore.ui.scout.ScoutScreen
+import com.gamecore.ui.search.SearchScreen
+import com.gamecore.ui.sensors.SensorCalibrationScreen
 import com.gamecore.ui.sessions.SessionReportScreen
 import com.gamecore.ui.sessions.SessionsScreen
 import com.gamecore.ui.settings.NeverCloseScreen
@@ -460,6 +464,27 @@ private fun GameCoreNav(
 
         composable(Destination.Settings.route) {
             SettingsScreen(onNavigate = open)
+        }
+
+        // Global search. A result names an existing route rather than a new screen, so the helper below
+        // resolves it to the same navigator a card tap uses: tabs replace each other, everything else is
+        // pushed, and every Aim Lab result lands on the section's front door (the section is gated as a
+        // whole, so a mode screen is not a stable thing to open from a search that outlives the switch).
+        composable(Destination.Search.route) {
+            SearchScreen(
+                onOpen = { route -> navController.openSearchResult(route, open, aimLabEnabled) },
+                onBack = back,
+            )
+        }
+
+        // The two device diagnostics, both reached from Home's Device card. Leaves that need only a way
+        // back; Fitness opens Android's own settings pages for anything it cannot fix itself.
+        composable(Destination.Fitness.route) {
+            FitnessScreen(onBack = back)
+        }
+
+        composable(Destination.SensorCalibration.route) {
+            SensorCalibrationScreen(onBack = back)
         }
 
         composable(Destination.Performance.route) {
@@ -1029,6 +1054,63 @@ private fun NavHostController.openUnguarded(destination: Destination) {
 private fun NavHostController.back() {
     if (!isSettled()) return
     popBackStack()
+}
+
+/**
+ * Opens one route named by [com.gamecore.ui.search.SearchScreen].
+ *
+ * Search keeps its index deliberately free of navigation policy: it hands back a route string, and this
+ * is the one place that knows what each kind of route means. The rules are the app's existing ones,
+ * reused rather than re-decided —
+ *
+ *  - a tab route goes through [open], so the bar and the back stack treat a search tap exactly like the
+ *    tab it names;
+ *  - an Aim Lab route lands on [AimLabRoutes.HOME], the section's front door, because the section names
+ *    its own routes and the search index outlives the Aim Lab switch. With the section off, that route is
+ *    not in the graph at all, so the tap goes to the Settings screen that owns the switch instead of
+ *    throwing on an unknown destination;
+ *  - an argument-carrying route in the index is a template (a plugin id, a config path), and opening the
+ *    template itself would match nothing. Each resolves to the list that can supply its argument;
+ *  - everything else is a flat, registered destination and is pushed like any other row.
+ */
+private fun NavHostController.openSearchResult(
+    route: String,
+    open: (Destination) -> Unit,
+    aimLabEnabled: Boolean,
+) {
+    val aimLabRoute = route == AimLabRoutes.HOME ||
+        route in AimLabRoutes.flatRoutes ||
+        route.startsWith("${AimLabRoutes.RESULTS}/")
+    if (aimLabRoute) {
+        if (aimLabEnabled) push(AimLabRoutes.HOME) else open(Destination.Settings)
+        return
+    }
+
+    val tab = Destination.top.firstOrNull { it.route == route }
+    if (tab != null) {
+        open(tab)
+        return
+    }
+
+    val parent = when (route) {
+        Destination.ConfigBrowser.route,
+        Destination.ConfigEditor.route,
+        Destination.ProfileEditor.route -> Destination.Games
+
+        Destination.PluginDetail.route,
+        Destination.PluginScreen.route,
+        Destination.PluginAutomationHistory.route -> Destination.Plugins
+
+        Destination.HudEditor.route -> Destination.Hud
+        Destination.SessionReport.route -> Destination.Sessions
+        else -> null
+    }
+    if (parent != null) {
+        open(parent)
+        return
+    }
+
+    push(route)
 }
 
 /** The bar's rise and the cross-fade between screens: short enough to read as a response (§27). */

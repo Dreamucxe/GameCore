@@ -3,6 +3,7 @@ package com.gamecore.ui.games
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,6 +17,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
@@ -30,6 +33,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,6 +54,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamecore.core.common.Formatters
+import com.gamecore.core.common.TextSanitizer
 import com.gamecore.core.model.DetectionRemedy
 import com.gamecore.core.model.DELETE_PROFILE_TITLE
 import com.gamecore.core.model.GameCardState
@@ -57,15 +64,19 @@ import com.gamecore.core.model.deleteProfileMessage
 import com.gamecore.core.model.profileClaimNote
 import com.gamecore.core.model.shownChips
 import com.gamecore.data.repository.ProfileCollisionPolicy
+import com.gamecore.domain.gaming.ApplyDiagnostic
+import com.gamecore.domain.gaming.ApplyResult
 import com.gamecore.ui.Destination
 import com.gamecore.ui.components.ActionRow
 import com.gamecore.ui.components.ConfirmDialog
 import com.gamecore.ui.components.EmptyState
+import com.gamecore.ui.components.NavRow
 import com.gamecore.ui.components.NoteBanner
 import com.gamecore.ui.components.OnResume
 import com.gamecore.ui.components.PlainCard
 import com.gamecore.ui.components.PreLaunchWarningDialog
 import com.gamecore.ui.components.ProfileChipRow
+import com.gamecore.ui.components.RowDivider
 import com.gamecore.ui.components.ScreenBottomPadding
 import com.gamecore.ui.components.ScreenHeader
 import com.gamecore.ui.components.ScreenPadding
@@ -163,6 +174,9 @@ fun GamesScreen(
             DetectionCard(
                 state = state,
                 onSetAutoApply = viewModel::setAutoApply,
+                onSetPinned = viewModel::setPinnedPackage,
+                onRemoveExcluded = viewModel::removeExcludedPackage,
+                onAddExcluded = viewModel::addExcludedPackage,
                 onNavigate = onNavigate,
                 modifier = padded,
             )
@@ -245,21 +259,30 @@ fun GamesScreen(
 }
 
 /**
- * Whether anything is watching for a game, and whether profiles are applied automatically.
+ * Whether anything is watching for a game, and what the last detection and apply actually did.
  *
  * The switch is offered even when detection is unavailable, rather than hidden or forced off. The user
  * may be about to grant the access, and a switch that silently turned itself off would be a second
  * mystery on top of the first.
+ *
+ * The diagnostics below it are readings, not advice. "No decision yet" and "No apply yet" are the
+ * truthful states before the detector has run; nothing here guesses that a game probably started, and
+ * the pin only reorders and badges the list rather than claiming a session.
  */
 @Composable
 private fun DetectionCard(
     state: GamesUiState,
     onSetAutoApply: (Boolean) -> Unit,
+    onSetPinned: (String?) -> Unit,
+    onRemoveExcluded: (String) -> Unit,
+    onAddExcluded: (String) -> Unit,
     onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var addingApp by remember { mutableStateOf(false) }
+
     SectionCard(
-        title = "Automatic",
+        title = "Detection & apply",
         icon = Icons.Filled.Visibility,
         modifier = modifier,
         action = {
@@ -269,40 +292,349 @@ private fun DetectionCard(
             )
         },
     ) {
+        NoteBanner(
+            text = state.detectionNote
+                ?: "GameCore checks the foreground app and acts only on the profiles you have enabled.",
+            tone = if (state.isConfiguredButBlind) Tone.Warning else Tone.Muted,
+            icon = Icons.Filled.Info,
+            action = {
+                val remedy = state.detectionRemedy
+                if (remedy != null) {
+                    TextButton(
+                        onClick = {
+                            onNavigate(
+                                when (remedy) {
+                                    DetectionRemedy.GRANT_USAGE_ACCESS -> Destination.Permissions
+                                    DetectionRemedy.START_SHIZUKU -> Destination.Shizuku
+                                },
+                            )
+                        },
+                    ) {
+                        Text(remedy.label)
+                    }
+                }
+            },
+        )
+
+        Spacer(modifier = Modifier.height(Spacing.sm))
         SwitchRow(
             title = "Apply a profile when its game starts",
             checked = state.autoApply,
             onCheckedChange = onSetAutoApply,
             description = "And put the settings back when it stops.",
         )
-        val note = state.detectionNote
-        if (note != null) {
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            NoteBanner(
-                text = note,
-                tone = if (state.isConfiguredButBlind) Tone.Warning else Tone.Muted,
-                icon = Icons.Filled.Info,
-                action = {
-                    val remedy = state.detectionRemedy
-                    if (remedy != null) {
-                        TextButton(
-                            onClick = {
-                                onNavigate(
-                                    when (remedy) {
-                                        DetectionRemedy.GRANT_USAGE_ACCESS -> Destination.Permissions
-                                        DetectionRemedy.START_SHIZUKU -> Destination.Shizuku
-                                    },
-                                )
-                            },
-                        ) {
-                            Text(remedy.label)
-                        }
-                    }
+
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        RowDivider()
+        LastDecision(state.lastDecision)
+        RowDivider()
+        LastApply(state.lastApply)
+        RowDivider()
+        PinnedProfileControl(
+            pinnedPackage = state.pinnedPackage,
+            profiles = state.profiles,
+            onSetPinned = onSetPinned,
+        )
+        RowDivider()
+        ExcludedApps(apps = state.excludedApps, onRemove = onRemoveExcluded)
+        NavRow(
+            title = "Add app",
+            description = "Exclude an app from detection by package name.",
+            onClick = { addingApp = true },
+        )
+    }
+
+    if (addingApp) {
+        AddExcludedAppDialog(
+            existing = state.excludedApps.map { it.packageName }.toSet(),
+            onAdd = {
+                onAddExcluded(it)
+                addingApp = false
+            },
+            onDismiss = { addingApp = false },
+        )
+    }
+}
+
+/** The last foreground package the detector judged, with the policy's own reason and the time. */
+@Composable
+private fun LastDecision(decision: DetectionDecisionView?) {
+    Text(
+        text = "Last decision",
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    if (decision == null) {
+        Text(
+            text = "No decision yet",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+    Spacer(modifier = Modifier.height(Spacing.xs))
+    Row(verticalAlignment = Alignment.Top) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = decision.label,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = decision.reason,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (decision.shouldTrack) {
+                    Tone.Good.colour()
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
                 },
             )
         }
+        Spacer(modifier = Modifier.width(Spacing.sm))
+        Text(
+            text = Formatters.clockTime(decision.atMillis),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
+
+/** The last real application, never a guess that one happened because a game is in front. */
+@Composable
+private fun LastApply(application: ApplyDiagnostic?) {
+    Text(
+        text = "Last apply",
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    if (application == null) {
+        Text(
+            text = "No apply yet",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+    Spacer(modifier = Modifier.height(Spacing.xs))
+    Row(verticalAlignment = Alignment.Top) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = application.profileName.ifBlank { application.packageName },
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "${application.result.label} · ${application.detail.ifBlank { "No detail." }}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = application.result.tone.colour(),
+            )
+        }
+        Spacer(modifier = Modifier.width(Spacing.sm))
+        Text(
+            text = Formatters.clockTime(application.atMillis),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** A pin is a view preference: it badges and sorts a profile, and explicitly starts nothing. */
+@Composable
+private fun PinnedProfileControl(
+    pinnedPackage: String?,
+    profiles: List<GameRow>,
+    onSetPinned: (String?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val enabled = profiles.filter { it.isEnabled }
+    val selected = enabled.firstOrNull { it.packageName == pinnedPackage }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
+        Text(
+            text = "Pinned profile",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = "Shown first with a badge. A pin does not start the game or a session.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Box {
+            OutlinedButton(onClick = { expanded = true }) {
+                Text(
+                    text = selected?.label ?: "None",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Icon(imageVector = Icons.Filled.ArrowDropDown, contentDescription = null)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                DropdownMenuItem(
+                    text = { Text("None") },
+                    onClick = {
+                        expanded = false
+                        onSetPinned(null)
+                    },
+                )
+                enabled.forEach { row ->
+                    DropdownMenuItem(
+                        text = { Text(row.label) },
+                        onClick = {
+                            expanded = false
+                            onSetPinned(row.packageName)
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** The allowlist, with the same remove affordance the app uses on its other protection lists. */
+@Composable
+private fun ExcludedApps(apps: List<ExcludedAppRow>, onRemove: (String) -> Unit) {
+    Text(
+        text = "Excluded apps",
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    if (apps.isEmpty()) {
+        Text(
+            text = "Nothing excluded. Every enabled profile is watched.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+    Text(
+        text = "These apps are never watched, even if they have an enabled profile.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    apps.forEach { app ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = app.label,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = app.packageName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            IconButton(onClick = { onRemove(app.packageName) }) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Stop excluding ${app.label}",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The allowlist's one text field, validated against Android's package grammar before anything is saved.
+ *
+ * The dialog stays open on a rejection, with the reason under the field, because closing it would look
+ * like the app had been excluded and leave the user to discover otherwise later. A duplicate is treated
+ * as an error for the same reason: the entry is already doing what the user asked, so saying so is more
+ * honest than closing on a no-op.
+ */
+@Composable
+private fun AddExcludedAppDialog(
+    existing: Set<String>,
+    onAdd: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var input by remember { mutableStateOf("") }
+    var submitted by remember { mutableStateOf(false) }
+    val validated = TextSanitizer.validatePackageName(input)
+    val error = when {
+        !submitted -> null
+        validated == null -> "That is not a package name. Use letters, digits, underscores and dots, " +
+            "with at least one dot."
+        validated in existing -> "That app is already excluded."
+        else -> null
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "Exclude an app", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column {
+                Text(
+                    text = "Enter the package name Android reports for the app, for example " +
+                        "com.example.game.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = {
+                        input = it.take(MAX_PACKAGE_INPUT)
+                        submitted = false
+                    },
+                    label = { Text("Package name") },
+                    singleLine = true,
+                    isError = error != null,
+                    supportingText = if (error != null) {
+                        { Text(text = error) }
+                    } else {
+                        null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    submitted = true
+                    val packageName = TextSanitizer.validatePackageName(input)
+                    if (packageName != null && packageName !in existing) onAdd(packageName)
+                },
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.large,
+    )
+}
+
+/** The word an apply result is reported with; the enum names are not user-facing. */
+private val ApplyResult.label: String
+    get() = when (this) {
+        ApplyResult.APPLIED -> "Applied"
+        ApplyResult.SKIPPED -> "Skipped"
+        ApplyResult.FAILED -> "Failed"
+        ApplyResult.NOT_NEEDED -> "Not needed"
+    }
+
+private val ApplyResult.tone: Tone
+    get() = when (this) {
+        ApplyResult.APPLIED -> Tone.Good
+        ApplyResult.SKIPPED -> Tone.Muted
+        ApplyResult.FAILED -> Tone.Warning
+        ApplyResult.NOT_NEEDED -> Tone.Muted
+    }
+
+/** Android caps a package name at 255 characters; the field stops at the same point. */
+private const val MAX_PACKAGE_INPUT = 255
 
 /**
  * One profile: its icon, what it will do as chips, whether it is on, and what the user can do to it.
@@ -359,6 +691,10 @@ private fun ProfileCard(
                 )
             }
             Spacer(modifier = Modifier.width(Spacing.sm))
+            if (row.isPinned) {
+                StatusChip(text = "Pinned", tone = Tone.Accent)
+                Spacer(modifier = Modifier.width(Spacing.sm))
+            }
             StateChip(row.state)
             Spacer(modifier = Modifier.width(Spacing.sm))
             // Uninstalled: the switch cannot change what an absent game does, so it is disabled — but the

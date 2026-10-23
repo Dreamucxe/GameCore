@@ -667,6 +667,29 @@ internal object GameCoreMigrations {
         }
     }
 
+    /**
+     * Version 18 → 19: the conditions the session opened in.
+     *
+     * Three nullable columns on `sessions` and nothing else touched — every one an
+     * `ALTER TABLE … ADD COLUMN`, no table rebuilt, no row rewritten, no index changed. Template is
+     * [MIGRATION_13_14]'s sessions half: nullable with no default, because absence is a complete answer.
+     * A session recorded before the opening snapshot carried these readings has nothing to report and
+     * reads NULL, which the mappers keep distinct from a `false` that would read as "the condition was
+     * measured and was off". `thermal_status` holds a [com.gamecore.core.model.ThermalStatus] name,
+     * `power_saver` the system power-save flag, and `refresh_capped` whether the display's active mode was
+     * below the peak it reported at that instant.
+     *
+     * The column names and types match [SessionEntity] exactly, so Room's schema validation against
+     * `19.json` passes without a rebuild.
+     */
+    val MIGRATION_18_19 = object : Migration(18, 19) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `thermal_status` TEXT")
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `power_saver` INTEGER")
+            db.execSQL("ALTER TABLE `sessions` ADD COLUMN `refresh_capped` INTEGER")
+        }
+    }
+
     /** Every migration, in order, for [androidx.room.RoomDatabase.Builder.addMigrations]. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
@@ -686,5 +709,6 @@ internal object GameCoreMigrations {
         MIGRATION_15_16,
         MIGRATION_16_17,
         MIGRATION_17_18,
+        MIGRATION_18_19,
     )
 }

@@ -14,6 +14,7 @@ import com.gamecore.aimlab.engine.Scoring
 import com.gamecore.aimlab.engine.SensitivityMath
 import com.gamecore.aimlab.engine.SensitivityProfile
 import com.gamecore.aimlab.engine.SessionSummary
+import com.gamecore.aimlab.engine.TargetPalette
 import com.gamecore.aimlab.engine.TrainingMode
 import com.gamecore.aimlab.engine.Vec2
 import com.gamecore.aimlab.engine3d.Camera3D
@@ -69,6 +70,7 @@ class AimTrainingLoop3D internal constructor(
     // ---- run state, touched only from the ticker or from input on the UI thread ----
 
     @Volatile private var config: TrainingConfig? = null
+    private var targetPalette: TargetPalette = TargetPalette.STANDARD
     @Volatile private var rng: Rng = rngFactory(0L)
     @Volatile private var params = Difficulty3DParameters.forLevel(Difficulty.NORMAL)
     private var sensitivity = SensitivityMath(SensitivityProfile(name = "default"))
@@ -174,6 +176,7 @@ class AimTrainingLoop3D internal constructor(
 
     override fun start(config: TrainingConfig) {
         this.config = config
+        targetPalette = config.targetPalette
         val seed = if (config.seed != 0L) config.seed else clock.elapsedNanos()
         rng = rngFactory(seed)
         params = Difficulty3DParameters.forLevel(config.difficulty)
@@ -684,6 +687,7 @@ class AimTrainingLoop3D internal constructor(
                 hitMarker = nowNanos < hitMarkerUntilNanos,
                 decals = decals,
                 hitBursts = bursts,
+                targetPalette = targetPalette,
             ),
         )
     }

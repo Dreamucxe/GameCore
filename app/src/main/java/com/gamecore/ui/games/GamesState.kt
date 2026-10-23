@@ -7,7 +7,30 @@ import com.gamecore.core.model.ProfileClaim
 import com.gamecore.core.model.gameCardState
 import com.gamecore.core.model.gamesSubtitle
 import com.gamecore.core.model.profileClaim
+import com.gamecore.domain.gaming.ApplyDiagnostic
 import com.gamecore.ui.components.PendingLaunch
+
+/**
+ * One detection decision as the Games screen prints it.
+ *
+ * [label] is resolved from the installed app at the moment the decision arrives, so a package the user
+ * has never configured is still recognisable by name. [shouldTrack] and [reason] come from
+ * [com.gamecore.domain.gaming.DetectionPolicy] unchanged — the screen never re-derives why a game was
+ * or was not watched.
+ */
+data class DetectionDecisionView(
+    val packageName: String,
+    val label: String,
+    val shouldTrack: Boolean,
+    val reason: String,
+    val atMillis: Long,
+)
+
+/** An app the user has silenced, with the launcher label when the app is still installed. */
+data class ExcludedAppRow(
+    val packageName: String,
+    val label: String,
+)
 
 /**
  * The Games screen: the user's profiles, and whether the app can tell when one of them starts.
@@ -43,6 +66,14 @@ data class GamesUiState(
      */
     val pendingLaunch: PendingLaunch? = null,
     val message: String? = null,
+    /** The most recent foreground package the detector judged, or null before its first reading. */
+    val lastDecision: DetectionDecisionView? = null,
+    /** The most recent real application, automatic or manual, or null before the first one. */
+    val lastApply: ApplyDiagnostic? = null,
+    /** Apps the user has excluded from detection, ready for the removable list. */
+    val excludedApps: List<ExcludedAppRow> = emptyList(),
+    /** The profile the user pinned for a badge and top-of-list ordering. Null means none. */
+    val pinnedPackage: String? = null,
 ) {
     val isEmpty: Boolean get() = isLoaded && profiles.isEmpty()
 
@@ -85,6 +116,8 @@ data class GameRow(
     /** Read straight off the profile. Never derived from [chips] being empty. */
     val changesNothing: Boolean,
     val isPlaying: Boolean,
+    /** A pin is a badge and an ordering choice, never a claim that this game is running. */
+    val isPinned: Boolean = false,
 ) {
     /** The word the card prints beside the dimming, so state is never conveyed by alpha alone. */
     val state: GameCardState get() = gameCardState(isEnabled, isInstalled, isPlaying)

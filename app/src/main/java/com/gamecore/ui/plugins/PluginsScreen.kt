@@ -1,6 +1,5 @@
 package com.gamecore.ui.plugins
 
-import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -47,7 +46,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gamecore.core.plugin.PluginPackageLoader
 import com.gamecore.core.plugin.RiskTier
 import com.gamecore.ui.components.ActionRow
 import com.gamecore.ui.components.ChoiceRow
@@ -65,10 +63,6 @@ import com.gamecore.ui.components.StatusChip
 import com.gamecore.ui.components.SwitchRow
 import com.gamecore.ui.components.Tone
 import com.gamecore.ui.theme.Spacing
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
-import java.io.InputStream
 
 /**
  * The plugin manager: everything installed, what each one is allowed to do, and the way out.
@@ -86,10 +80,9 @@ import java.io.InputStream
  *  - **The safety card comes first, above the list.** A user who arrives here because something is
  *    wrong should not have to scroll past the plugins to find the switch that stops them.
  *  - **The picked file is capped while it is read, not after.** A content URI can be served by any app
- *    on the device, including one that streams forever. [readPicked] copies in chunks and abandons the
- *    read the instant it passes [PluginPackageLoader.MAX_PACKAGE_BYTES], so a hostile or broken
- *    provider costs the cap and not the heap. It runs on [Dispatchers.IO] inside a [LaunchedEffect], so
- *    leaving the screen cancels it.
+ *    on the device, including one that streams forever. The ViewModel's reader copies in chunks and
+ *    abandons the read the instant it passes the loader's byte cap, so a hostile or broken provider
+ *    costs the cap and not the heap. It runs on the injected IO dispatcher, off the main thread.
  *  - **Plugin text is only ever a `Text`.** Names, developers, summaries and suspension details arrive
  *    sanitised from [rowFor] and go straight into [Text]. Nothing here builds an `AnnotatedString`
  *    from plugin input, resolves a plugin-named URL, or makes plugin text clickable.
@@ -101,9 +94,6 @@ import java.io.InputStream
 
 /** [StatusChip] takes no modifier, so badges are boxed into fixed columns — see `BadgeRow`. */
 private const val CHIPS_PER_ROW = 2
-
-/** Matches `BackupManager.READ_CHUNK_BYTES`: large enough to be cheap, small enough to stop early. */
-private const val READ_CHUNK_BYTES = 8 * 1024
 
 /** Rows cap their description, so a long one is trimmed here rather than allowed to own the list. */
 private const val SUMMARY_MAX_LINES = 3
@@ -149,14 +139,6 @@ private const val ORDER_DESCRIPTION =
         "has no file of its own, so it dates from when the app was installed; a plugin whose file time " +
         "the device will not report sorts last rather than pretending to be old."
 
-private const val TOO_LARGE_NOTE =
-    "That file is larger than a plugin package is allowed to be, so GameCore stopped reading part way " +
-        "through instead of loading it. Nothing was installed."
-
-private const val UNREADABLE_NOTE =
-    "That file could not be read. The app it came from may have withdrawn access, or the file may have " +
-        "been moved since you picked it. Nothing was installed."
-
 private const val STILL_READING_TITLE = "Reading the plugin folder"
 
 private const val STILL_READING_MESSAGE =
@@ -173,23 +155,9 @@ private const val SUSPENDED_GENERIC =
     "GameCore stopped this plugin during this run after it repeatedly failed. Your settings for it are " +
         "untouched."
 
-/**
- * What came back from reading the file the user picked.
- *
- * Three outcomes rather than a nullable [ByteArray], because "too large" and "could not be read" need
- * different sentences: one is the user's file being wrong, the other is the device or the source app
- * being unavailable, and a single "could not install that" would leave them guessing which.
- *
- * [Read] is a plain class and not a `data class` on purpose — a generated `equals` over a [ByteArray]
- * compares references, which is a trap waiting for whoever first compares two of these.
- */
-private sealed interface PickedPackage {
-    class Read(val bytes: ByteArray) : PickedPackage
-
-    data object TooLarge : PickedPackage
-
-    data object Unreadable : PickedPackage
-}
+private const val QUARANTINED_GENERIC =
+    "This plugin is quarantined. It is still listed so you can inspect it, but GameCore will not load " +
+        "it — not after a restart either — until you release it."
 
 @Composable
 fun PluginsScreen(
@@ -199,27 +167,20 @@ fun PluginsScreen(
     viewModel: PluginsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val padded = Modifier.padding(horizontal = ScreenPadding)
     var picked by remember { mutableStateOf<Uri?>(null) }
-    var pickNote by remember { mutableStateOf<String?>(null) }
 
     // The picker callback runs on the main thread, so it only records the URI. A cancelled pick returns
     // null and simply does nothing.
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        pickNote = null
         picked = uri
     }
 
+    // The ViewModel reads the file on IO, validates it and holds the resulting preview. No install call
+    // is made until the user confirms the dialog below, and clearing the URI does not cancel that work.
     LaunchedEffect(picked) {
         val uri = picked ?: return@LaunchedEffect
-        when (val result = withContext(Dispatchers.IO) { readPicked(context, uri) }) {
-            is PickedPackage.Read -> viewModel.installFromBytes(result.bytes)
-            PickedPackage.TooLarge -> pickNote = TOO_LARGE_NOTE
-            PickedPackage.Unreadable -> pickNote = UNREADABLE_NOTE
-        }
-        // Cleared last so picking the same file twice reads it twice, and so the bytes are not held by
-        // the composition after the registry has them.
+        viewModel.previewInstall(uri)
         picked = null
     }
 
@@ -273,7 +234,8 @@ fun PluginsScreen(
 
         item {
             InstallCard(
-                note = pickNote,
+                note = state.previewError,
+                isPreviewing = state.isPreviewing,
                 onPick = { picker.launch(PLUGIN_MIME_TYPES) },
                 modifier = padded,
             )
@@ -321,6 +283,8 @@ fun PluginsScreen(
                     onOpen = { onOpenPlugin(row.id) },
                     onSetEnabled = { enabled -> viewModel.setEnabled(row.id, enabled) },
                     onClearSuspension = { viewModel.clearSuspension(row.id) },
+                    onReleaseQuarantine = { viewModel.releaseQuarantine(row.id, row.name) },
+                    onAskRollback = { viewModel.askRollback(row) },
                     onAskRemove = { viewModel.askRemove(row) },
                     modifier = padded,
                 )
@@ -339,6 +303,49 @@ fun PluginsScreen(
             onConfirm = viewModel::confirmRemove,
             onDismiss = viewModel::cancelRemove,
         )
+    }
+
+    val pendingRollback = state.pendingRollback
+    if (pendingRollback != null) {
+        ConfirmDialog(
+            title = "Restore the previous ${pendingRollback.name}?",
+            message = "The version installed now is overwritten by the copy GameCore kept from the " +
+                "install before it. The restored version arrives switched off with its permissions " +
+                "cleared, exactly as a fresh install would; you will need to grant them again if you " +
+                "turn it on.",
+            confirmLabel = "Restore",
+            onConfirm = viewModel::confirmRollback,
+            onDismiss = viewModel::cancelRollback,
+        )
+    }
+
+    val preview = state.preview
+    if (preview != null) {
+        if (preview.canInstall) {
+            ConfirmDialog(
+                title = if (preview.replacesExisting) {
+                    "Replace ${preview.name}?"
+                } else {
+                    "Install ${preview.name}?"
+                },
+                message = previewSummary(preview),
+                confirmLabel = if (preview.replacesExisting) "Replace" else "Install",
+                onConfirm = viewModel::confirmInstall,
+                onDismiss = viewModel::cancelPreview,
+                isDestructive = false,
+            )
+        } else {
+            // The preview is still shown, because the reason it cannot be installed is the useful part.
+            // There is deliberately no button that would call install anyway.
+            ConfirmDialog(
+                title = "This package cannot be installed",
+                message = previewSummary(preview),
+                confirmLabel = "Close",
+                onConfirm = viewModel::cancelPreview,
+                onDismiss = viewModel::cancelPreview,
+                isDestructive = false,
+            )
+        }
     }
 }
 
@@ -424,6 +431,7 @@ private fun SafetyCard(
 @Composable
 private fun InstallCard(
     note: String?,
+    isPreviewing: Boolean,
     onPick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -438,13 +446,22 @@ private fun InstallCard(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (isPreviewing) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            NoteBanner(
+                text = "Reading the package. Nothing has been installed — you will see what it asks " +
+                    "for before anything is written.",
+                tone = Tone.Muted,
+                icon = Icons.Filled.Info,
+            )
+        }
         if (note != null) {
             Spacer(modifier = Modifier.height(Spacing.sm))
             NoteBanner(text = note, tone = Tone.Warning, icon = Icons.Filled.Warning)
         }
         Spacer(modifier = Modifier.height(Spacing.sm))
         ActionRow {
-            Button(onClick = onPick) { Text("Choose a file") }
+            Button(onClick = onPick, enabled = !isPreviewing) { Text("Choose a file") }
         }
     }
 }
@@ -502,6 +519,8 @@ private fun PluginCard(
     onOpen: () -> Unit,
     onSetEnabled: (Boolean) -> Unit,
     onClearSuspension: () -> Unit,
+    onReleaseQuarantine: () -> Unit,
+    onAskRollback: () -> Unit,
     onAskRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -525,7 +544,9 @@ private fun PluginCard(
             Switch(
                 checked = row.enabled,
                 onCheckedChange = onSetEnabled,
-                enabled = row.compatibility.isRunnable,
+                // A quarantined plugin can be switched off, but not on: the registry would refuse the
+                // write and the switch would stay put, which is a dead tap. Release is the way back.
+                enabled = row.compatibility.isRunnable && !row.quarantined,
             )
         }
 
@@ -561,9 +582,26 @@ private fun PluginCard(
             Spacer(modifier = Modifier.height(Spacing.sm))
         }
 
+        if (row.quarantined) {
+            NoteBanner(
+                text = row.quarantineDetail ?: QUARANTINED_GENERIC,
+                tone = Tone.Danger,
+                icon = Icons.Filled.Block,
+            )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+        }
+
         ActionRow {
             if (row.suspended) {
                 TextButton(onClick = onClearSuspension) { Text("Let it try again") }
+            }
+            if (row.quarantined) {
+                TextButton(onClick = onReleaseQuarantine) { Text("Release") }
+            }
+            // Shown only when the registry found a previous package on disk, so this is never a tap
+            // that discovers there is nothing to restore.
+            if (row.canRollback) {
+                TextButton(onClick = onAskRollback) { Text("Roll back") }
             }
             // Disabled rather than absent for a bundled plugin, with its origin badge directly above
             // saying why: the rows stay the same shape down the list, and a disabled button is not a
@@ -585,6 +623,7 @@ private fun PluginCard(
 private fun BadgeRow(row: PluginRow, killSwitchOn: Boolean) {
     val badges: List<Pair<String, Tone>> = buildList {
         if (!row.compatibility.isRunnable) add("Incompatible" to Tone.Danger)
+        if (row.quarantined) add("Quarantined" to Tone.Danger)
         if (row.suspended) add("Stopped this run" to Tone.Warning)
         // Only worth saying on a plugin the user switched on: on an already-off row it would be a
         // second badge for a state the switch already shows.
@@ -622,46 +661,4 @@ private fun toneOf(tier: RiskTier): Tone = when (tier) {
     RiskTier.LOW -> Tone.Muted
     RiskTier.MEDIUM -> Tone.Accent
     RiskTier.HIGH -> Tone.Warning
-}
-
-/**
- * Reads the picked document, or decides it cannot be read.
- *
- * A content URI is served by another app, so none of the usual assumptions hold: the stream may be
- * shorter than advertised, longer than any plugin should be, or endless. Everything is a
- * [PickedPackage] rather than an exception, and the broad `catch` is deliberate — a provider can throw
- * anything from `SecurityException` to its own unchecked type, and every one of them means the same
- * thing to the user.
- *
- * Nothing about the failure is logged. The URI names a file on the user's device and the bytes are
- * untrusted content, neither of which belongs in a log.
- */
-private fun readPicked(context: Context, uri: Uri): PickedPackage = try {
-    context.contentResolver.openInputStream(uri)?.use { input ->
-        val bytes = readCapped(input, PluginPackageLoader.MAX_PACKAGE_BYTES)
-        if (bytes == null) PickedPackage.TooLarge else PickedPackage.Read(bytes)
-    } ?: PickedPackage.Unreadable
-} catch (_: Throwable) {
-    PickedPackage.Unreadable
-}
-
-/**
- * Streams up to [maxBytes], returning null the moment it is exceeded so an outsized file is not held.
- *
- * The cap is checked before the chunk is written, which is what makes this a real limit rather than a
- * check after the fact: a stream that never ends cannot grow the buffer past one chunk beyond the cap.
- * Same shape as `BackupManager.readCapped`, for the same reason.
- */
-private fun readCapped(input: InputStream, maxBytes: Int): ByteArray? {
-    val out = ByteArrayOutputStream()
-    val chunk = ByteArray(READ_CHUNK_BYTES)
-    var total = 0
-    while (true) {
-        val read = input.read(chunk)
-        if (read < 0) break
-        total += read
-        if (total > maxBytes) return null
-        out.write(chunk, 0, read)
-    }
-    return out.toByteArray()
 }

@@ -3,10 +3,45 @@
 An Android gaming overlay, performance monitor and per-game profile manager — built on the
 rule that every number it shows is one Android actually reported.
 
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.17.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
+[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.18.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
 
 Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
 no backend, nothing you record leaves the device
+
+---
+
+## New in 3.18.0
+
+This release is about knowing what the phone and the app are actually doing — and finding the
+control that changes it.
+
+- **Search the whole app.** A search row under the Home header finds screens, features and settings
+  by name or by what they do, and opens the result directly.
+- **Device Fitness Check.** One checkup of sensors, special permissions, display rate, thermal and
+  power state and the GPU. Each gap says what it costs, and every gap the device can close opens
+  the Android settings page that closes it.
+- **Sensor calibration.** A ten-second still capture of the gyroscope and accelerometer, the live
+  trace while it runs, then the bias, noise and drift those readings actually show.
+- **Frame-time percentiles, with conditions.** Session reports now show p95 and p99 frame times
+  beside the average, recorded with the thermal status, power-saver state and refresh-capped state
+  they were measured under. A thermal guard warns once when the system starts throttling and clears
+  the warning when the device recovers.
+- **Plugin preview, rollback and quarantine.** See what a plugin changes before installing it, roll
+  back to the previous version in one tap, and quarantine one that misbehaves — switched off with
+  the reason kept, not uninstalled.
+- **A training plan from your own history.** Aim Lab Home recommends today's run from the sessions
+  and records you have actually made, and says in a sentence which figure earned it.
+- **Backups carry history.** Finished game sessions, Aim Lab runs and personal records now travel in
+  the same backup file. Restore merges them, and a retention window removes sessions older than the
+  period you choose.
+- **Accessibility and detection.** Pick an Aim Lab target palette, mirror its controls for a
+  left-handed grip, and enlarge touch targets; choose which apps are never treated as a game, and
+  pin the profile detection should use.
+- **Custom aspect ratios.** Save your own display shapes beside the four presets. A saved ratio
+  appears as its own chip in the GamePill's Aspect tile and as a row in the profile editor.
+
+Also in this release: profile-apply diagnostics on the Games screen say how the last application
+ended, so a profile that did not take effect is a named outcome instead of a silent miss.
 
 ---
 

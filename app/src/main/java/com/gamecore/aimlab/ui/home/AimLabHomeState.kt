@@ -4,6 +4,7 @@ import com.gamecore.aimlab.engine.PersonalRecord
 import com.gamecore.aimlab.engine.RecordMetric
 import com.gamecore.aimlab.engine.SessionSummary
 import com.gamecore.aimlab.engine.TrainingMode
+import com.gamecore.aimlab.engine.TrainingPlanRecommendation
 
 /**
  * Everything the Aim Lab home screen draws, already reduced from the repository's flows.
@@ -21,10 +22,16 @@ import com.gamecore.aimlab.engine.TrainingMode
  * screen stays testable and so Aim Lab spaces its cards exactly as the rest of the app does (§8: the tab
  * keeps all of its content and takes the design tokens). It is a display preference and nothing else — it
  * changes no Aim Lab behaviour, no orientation handling and no dormancy rule.
+ *
+ * [plan] is today's recommended run, derived by [com.gamecore.aimlab.engine.TrainingPlan] from the same
+ * sessions and records as the summary. It is null only before the first combine emits; once loaded there
+ * is always an honest recommendation, even when the history is empty and the answer is the cold-start
+ * flick run.
  */
 data class AimLabHomeState(
     val loading: Boolean = true,
     val summary: AimLabSummary = AimLabSummary.NONE,
+    val plan: TrainingPlanRecommendation? = null,
     val isCompact: Boolean = false,
 ) {
     /** True once at least one valid session has been recorded — the gate between the strip and the banner. */

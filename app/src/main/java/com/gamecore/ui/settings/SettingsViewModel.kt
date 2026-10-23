@@ -215,6 +215,19 @@ class SettingsViewModel @Inject constructor(
         it.copy(sampleIntervalMillis = seconds.coerceIn(SAMPLE_SECONDS_RANGE) * 1_000L)
     }
 
+    /**
+     * Stores a session-retention window, in days. Zero keeps everything.
+     *
+     * Only the five offered values are accepted: the field is an int in the preferences file, and a value
+     * that is not one of the dropdown's choices would leave the control showing a window the user cannot
+     * see or select. This writes the setting only — there is no purge call to make from here, so no tap
+     * on the dropdown deletes anything behind the user's back.
+     */
+    fun setRetentionDays(days: Int) {
+        if (days !in RETENTION_DAY_OPTIONS) return
+        update { it.copy(retentionDays = days) }
+    }
+
     // --------------------------------------------------------------------------------- network
 
     fun setLatencyHost(value: String) {

@@ -42,6 +42,7 @@ import com.gamecore.core.common.unavailabilityText
 import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.CapabilityStatus
+import com.gamecore.core.model.FrameRateSample
 import com.gamecore.core.model.OptimizationAction
 import com.gamecore.core.model.OptimizationResult
 import com.gamecore.core.model.PerformanceMode
@@ -68,6 +69,7 @@ import com.gamecore.ui.components.TileRow
 import com.gamecore.ui.components.Tone
 import com.gamecore.ui.components.capabilityTone
 import com.gamecore.ui.components.readoutOf
+import java.util.Locale
 import kotlin.math.abs
 
 /**
@@ -377,6 +379,28 @@ private fun FrameRateCard(
         )
         if (measuring) {
             live.frameRateRows.forEach { ReadoutRow(it) }
+            ReadoutRow(
+                frameTimeRow(
+                    label = "p95 frame time",
+                    millis = live.p95FrameMillis,
+                    caption = "the slowest 5% of frames",
+                ),
+            )
+            ReadoutRow(
+                frameTimeRow(
+                    label = "p99 frame time",
+                    millis = live.p99FrameMillis,
+                    caption = "the slowest 1% of frames",
+                ),
+            )
+            Text(
+                text = "Percentiles are frame durations, not frame rates: the slowest 5% / 1% of " +
+                    "frames. They need at least ${FrameRateSample.MIN_FRAMES} real intervals and " +
+                    "read as a dash below that.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
         } else {
             live.frameRateNote?.let { note ->
                 Text(
@@ -396,6 +420,20 @@ private fun FrameRateCard(
         }
     }
 }
+
+/**
+ * One percentile frame-duration row, or a dash when the sample had too few intervals to carry one.
+ *
+ * The unit is milliseconds and the direction is the opposite of a frame rate: 22 ms is a worse frame
+ * than 12 ms. The caption names the slice rather than saying "percentile", so the row cannot be read
+ * as another FPS figure in a card that already prints two of them.
+ */
+private fun frameTimeRow(label: String, millis: Float?, caption: String): Readout = readoutOf(
+    label = label,
+    value = millis?.let { String.format(Locale.US, "%.1f ms", it) } ?: ABSENT,
+    detail = "Frame duration for $caption.",
+    tone = if (millis == null) Tone.Muted else Tone.Neutral,
+)
 
 /**
  * The network figures, plus the burst that produces the jitter reading.

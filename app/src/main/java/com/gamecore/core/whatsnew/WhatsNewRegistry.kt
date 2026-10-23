@@ -35,6 +35,81 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 40,
+            versionName = "3.18.0",
+            date = "2026-10-23",
+            features = listOf(
+                FeatureNote(
+                    "Search the whole app",
+                    "A search row under the Home header finds screens, features and settings by " +
+                        "name or by what they do, and opens the result directly.",
+                ),
+                FeatureNote(
+                    "Device Fitness Check",
+                    "One checkup of the sensors, special permissions, display rate, thermal and " +
+                        "power state, and the GPU. Each gap says what it costs, and every gap the " +
+                        "device can close opens the Android settings page that closes it.",
+                ),
+                FeatureNote(
+                    "Sensor calibration",
+                    "A ten-second still capture of the gyroscope and accelerometer, the live trace " +
+                        "while it runs, and then the bias, noise and drift those readings actually " +
+                        "show.",
+                ),
+                FeatureNote(
+                    "Frame-time percentiles",
+                    "Session reports now show p95 and p99 frame times beside the average, recorded " +
+                        "with the thermal status, power-saver state and refresh-capped state they " +
+                        "were measured under.",
+                ),
+                FeatureNote(
+                    "Thermal guard",
+                    "GameCore warns once when the system starts throttling, using the platform's own " +
+                        "explanation, and clears the warning when the device recovers. Hysteresis " +
+                        "keeps a reading that bounces at the threshold from repeating the alert.",
+                ),
+                FeatureNote(
+                    "Profile-apply diagnostics",
+                    "The Games screen reports how the last profile application ended, so a profile " +
+                        "that did not take effect is a named outcome instead of a silent miss.",
+                ),
+                FeatureNote(
+                    "Plugin preview, rollback and quarantine",
+                    "See what a plugin changes before installing it, roll back to the previous " +
+                        "version in one tap, and quarantine a plugin that misbehaves — it is switched " +
+                        "off with the reason kept, not uninstalled.",
+                ),
+                FeatureNote(
+                    "A training plan from your own history",
+                    "Aim Lab Home recommends today's run from the sessions and records you have " +
+                        "actually made, and says in a sentence which figure earned the recommendation.",
+                ),
+                FeatureNote(
+                    "Backups carry history, and history has a retention window",
+                    "A backup now includes finished game sessions, Aim Lab runs and personal " +
+                        "records. Restore merges them without deleting anything, and the retention " +
+                        "setting removes sessions older than the window you choose.",
+                ),
+                FeatureNote(
+                    "Accessibility options",
+                    "Choose a target palette for Aim Lab, mirror its on-screen controls for a " +
+                        "left-handed grip, and raise the minimum height of navigation rows, settings " +
+                        "switches and overlay panel chips.",
+                ),
+                FeatureNote(
+                    "Game detection exclusions",
+                    "Choose which apps are never treated as a game, and pin the profile detection " +
+                        "should use. Every enabled profile is still watched for the apps you leave " +
+                        "alone.",
+                ),
+                FeatureNote(
+                    "Custom aspect ratios",
+                    "Save your own display shapes beside the four presets. A saved ratio appears as " +
+                        "its own chip in the GamePill's Aspect tile and as a row in the profile editor.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 39,
             versionName = "3.17.0",
             date = "2026-10-22",

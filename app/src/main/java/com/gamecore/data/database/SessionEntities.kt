@@ -198,6 +198,29 @@ data class SessionEntity(
     val instantReplayUsed: Boolean? = null,
     @ColumnInfo(name = "clips_saved")
     val clipsSaved: Int? = null,
+
+    // ---- conditions at session start (schema v19). All nullable, no default: a session recorded before
+    // the opening snapshot carried them reads NULL, which the mapper keeps distinct from `false`.
+
+    /**
+     * The platform thermal status name at the moment the session opened, or NULL when the device exposes
+     * none or the session predates this column. Stored by name and matched defensively on read, like every
+     * other enum here.
+     */
+    @ColumnInfo(name = "thermal_status")
+    val thermalStatus: String? = null,
+
+    /** The system power-save flag at the moment the session opened, or NULL when not recorded. */
+    @ColumnInfo(name = "power_saver")
+    val powerSaver: Boolean? = null,
+
+    /**
+     * Whether the display was below the peak rate it reports at the moment the session opened, or NULL
+     * when either rate was unreadable. A recorded reading, never a claim about what caused a later frame
+     * rate.
+     */
+    @ColumnInfo(name = "refresh_capped")
+    val refreshCapped: Boolean? = null,
 )
 
 /**

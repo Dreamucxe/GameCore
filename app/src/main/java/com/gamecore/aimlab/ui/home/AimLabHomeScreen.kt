@@ -6,10 +6,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -17,6 +21,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.aimlab.engine.SessionSummary
+import com.gamecore.aimlab.engine.TrainingMode
+import com.gamecore.aimlab.engine.TrainingPlanRecommendation
 import com.gamecore.core.common.Formatters
 import com.gamecore.ui.components.EmptyState
 import com.gamecore.ui.components.NavRow
@@ -34,10 +40,11 @@ import com.gamecore.ui.theme.Spacing
  * The front door to Aim Lab: what the thirteen things you can do are, and how you have done so far.
  *
  * The order is deliberate and matches the rest of the app's screens. The summary of real progress is at the
- * top — the reason a returning user opens the section is to see it — and the thirteen entries follow, grouped
- * into Training, Setup and Progress so a grid of a dozen bare rows does not read as one undifferentiated
- * list. Every card is a [NavRow] that hands its route back through [onOpen]; this screen navigates nothing
- * itself, which keeps the whole section's routing in the graph the orchestrator owns.
+ * top — the reason a returning user opens the section is to see it — followed by today's plan, which turns
+ * that progress into one concrete run. The thirteen entries follow, grouped into Training, Setup and
+ * Progress so a grid of a dozen bare rows does not read as one undifferentiated list. Every card is a
+ * [NavRow] that hands its route back through [onOpen]; this screen navigates nothing itself, which keeps
+ * the whole section's routing in the graph the orchestrator owns.
  *
  * The summary is the honesty rule of §1/§30 made concrete. Before any session exists there is nothing true
  * to put in a stat strip, so the top of the screen is an inviting [EmptyState] banner rather than a row of
@@ -83,6 +90,13 @@ fun AimLabHomeScreen(
         if (!state.loading) {
             item {
                 SummaryCard(summary = state.summary, hasHistory = state.hasHistory, modifier = padded)
+            }
+            // Today's recommendation follows the summary because it is the action the figures point at.
+            // It is hidden until the plan exists, so the cold-start card never appears on the loading frame.
+            state.plan?.let { plan ->
+                item {
+                    PlanCard(plan = plan, onOpen = onOpen, modifier = padded)
+                }
             }
         }
 
@@ -161,6 +175,68 @@ private fun SummaryCard(
             ),
         )
     }
+}
+
+/**
+ * Today's recommended run, with the measured reason it was chosen and one button to start it.
+ *
+ * The card is deliberately the bridge from the figures above to the actions below: the summary says what
+ * happened, the plan says what to do about it, and the button goes straight to that mode's route. [plan]
+ * already carries the difficulty and the evidence, so this composable adds no judgement of its own — it
+ * only lays the recommendation out and resolves the mode's route.
+ */
+@Composable
+private fun PlanCard(
+    plan: TrainingPlanRecommendation,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Today's plan",
+        icon = Icons.Filled.AutoAwesome,
+        modifier = modifier,
+    ) {
+        Text(
+            text = "${plan.modeLabel} · ${plan.difficulty.label}",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = plan.reason,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+        Text(
+            text = plan.detail,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+        Button(
+            onClick = { onOpen(plan.mode.route()) },
+            modifier = Modifier.padding(top = Spacing.md),
+        ) {
+            Text("Start ${plan.modeLabel}")
+        }
+    }
+}
+
+/**
+ * The route that starts [mode].
+ *
+ * Tilt shares the gyro card — the mode screen picks the sensor the device actually has — so both resolve
+ * to [AimLabRoutes.GYRO]. Free practice is the unscored sandbox at [AimLabRoutes.PRACTICE]. Keeping the
+ * mapping here means the button never spells a route literal of its own.
+ */
+private fun TrainingMode.route(): String = when (this) {
+    TrainingMode.FLICK -> AimLabRoutes.FLICK
+    TrainingMode.TRACKING -> AimLabRoutes.TRACKING
+    TrainingMode.REACTION -> AimLabRoutes.REACTION
+    TrainingMode.GYRO, TrainingMode.TILT -> AimLabRoutes.GYRO
+    TrainingMode.RECOIL -> AimLabRoutes.RECOIL
+    TrainingMode.MOVEMENT -> AimLabRoutes.MOVEMENT
+    TrainingMode.FREE_PRACTICE -> AimLabRoutes.PRACTICE
 }
 
 /**

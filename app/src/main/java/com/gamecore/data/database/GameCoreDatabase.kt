@@ -48,6 +48,11 @@ import androidx.room.RoomDatabase
  * remembering about it — that GameCore still owes a process its previous mask — is a restore-ledger row
  * that clears itself. [GameCoreMigrations.MIGRATION_5_6].
  *
+ * **Version 19** adds three nullable columns on `sessions` for the conditions the session opened in:
+ * the platform thermal status, the system power-save flag, and whether the display was below the peak
+ * rate it reports. All nullable with no default, because a session that predates them has nothing to
+ * report and NULL is distinct from `false`. [GameCoreMigrations.MIGRATION_18_19].
+ *
  * There are no `@TypeConverter`s registered anywhere in this class, deliberately. Enums are stored
  * as their names and parsed back defensively in [Mappers]; a converter would move that parsing
  * into generated code where the fallback for an unrecognised name is a thrown exception rather
@@ -74,7 +79,7 @@ import androidx.room.RoomDatabase
         DashboardLayoutEntity::class,
         DashboardItemEntity::class,
     ],
-    version = 18,
+    version = 19,
     exportSchema = true,
 )
 abstract class GameCoreDatabase : RoomDatabase() {

@@ -1386,6 +1386,11 @@ internal fun PresetChips(
  * An empty list is a device whose panel size could not be read, which in practice means no elevated
  * shell. The tile above is already dimmed with that reason, so this row says the part the tile cannot: the
  * shapes are missing because the size is unknown, not because the display has none.
+ *
+ * The row is the built-ins followed by whatever shapes the user saved. A custom chip carries the same two
+ * lines — its reduced ratio and its pixel pair — because [AspectChoice.label] answers with the ratio for it
+ * rather than with a preset name. A custom shape is marked active by the size [DisplaySizeState.optionsWith]
+ * matched, since it has no preset for [AspectChips] to compare against [OverlayPanelState.activeAspect].
  */
 @Composable
 internal fun AspectChips(
@@ -1417,7 +1422,9 @@ internal fun AspectChips(
                 row.forEach { choice ->
                     AspectChip(
                         choice = choice,
-                        active = choice.preset == state.activeAspect,
+                        // A built-in still falls back to its preset so a manually assembled state highlights
+                        // it; a custom has no preset and is only active when the size it carries was matched.
+                        active = choice.active || (!choice.custom && choice.preset == state.activeAspect),
                         accent = accent,
                         onClick = { onAspect(choice) },
                         modifier = Modifier.weight(1f),

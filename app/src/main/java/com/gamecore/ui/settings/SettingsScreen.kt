@@ -7,11 +7,13 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.Animation
 import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.Bolt
@@ -41,8 +43,11 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,6 +62,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamecore.aimlab.engine.TargetPalette
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.model.AccentChoice
 import com.gamecore.core.model.AnimationsMode
@@ -165,6 +171,13 @@ fun SettingsScreen(
                 modifier = padded,
             )
         }
+        item {
+            AccessibilityCard(
+                state = state,
+                onEdit = viewModel::update,
+                modifier = padded,
+            )
+        }
         item { BehaviorCard(state = state, onEdit = viewModel::update, modifier = padded) }
         item { OverlaysCard(state = state, onEdit = viewModel::update, onNavigate = onNavigate, modifier = padded) }
         item {
@@ -172,6 +185,13 @@ fun SettingsScreen(
                 state = state,
                 onEdit = viewModel::update,
                 onStepDetection = viewModel::stepDetectionInterval,
+                onNavigate = onNavigate,
+                modifier = padded,
+            )
+        }
+        item {
+            DetectionCard(
+                state = state,
                 onNavigate = onNavigate,
                 modifier = padded,
             )
@@ -217,6 +237,7 @@ fun SettingsScreen(
                 onDismissExport = viewModel::dismissExport,
                 onClearHistory = viewModel::askClearHistory,
                 onResetSettings = viewModel::askResetSettings,
+                onSetRetention = viewModel::setRetentionDays,
                 onNavigate = onNavigate,
                 modifier = padded,
             )
@@ -471,6 +492,60 @@ private fun DisplayTextCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+/**
+ * Accessibility options that are about how Aim Lab looks and how the interface receives a touch.
+ *
+ * The palette is a dropdown rather than a row of swatches: the enum carries five named palettes and the
+ * label is the decision ("Deuteranopia"), not a colour chip the user has to decode. Left-handed and the
+ * larger-target switch each say only what they do — the note under them repeats the three limits once, so
+ * no switch here can be read as changing anything outside its own sentence.
+ */
+@Composable
+private fun AccessibilityCard(
+    state: SettingsUiState,
+    onEdit: ((AppSettings) -> AppSettings) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Accessibility",
+        icon = Icons.Filled.Accessibility,
+        subtitle = "Colour, handedness and touch-target size",
+        modifier = modifier,
+    ) {
+        DropdownRow(
+            title = "Target palette",
+            description = "The colours Aim Lab targets draw in. The rest of the app keeps the theme's " +
+                "colours.",
+            value = state.settings.targetPalette.label,
+            options = TargetPalette.entries.toList(),
+            label = { it.label },
+            onSelect = { palette -> onEdit { it.copy(targetPalette = palette) } },
+        )
+        RowDivider()
+        SwitchRow(
+            title = "Left-handed layout",
+            checked = state.settings.leftHandedLayout,
+            onCheckedChange = { enabled -> onEdit { it.copy(leftHandedLayout = enabled) } },
+            description = "Mirrors the on-screen Aim Lab controls left to right at draw time. The saved " +
+                "layout is not modified, so switching back is instant.",
+        )
+        SwitchRow(
+            title = "Larger touch targets",
+            checked = state.settings.largerTouchTargets,
+            onCheckedChange = { enabled -> onEdit { it.copy(largerTouchTargets = enabled) } },
+            description = "Raises the minimum height of navigation rows, settings switches and overlay " +
+                "panel chips.",
+        )
+        Text(
+            text = "The palette affects Aim Lab targets only; left-handed mirrors Aim Lab's on-screen " +
+                "controls; larger touch targets change row height only. None of the three changes the " +
+                "app's text size or spacing.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -746,6 +821,54 @@ private fun GamesCard(
             description = "Off turns the whole feature off: its screens leave the app's navigation rather " +
                 "than being hidden, so nothing in the section is reachable. Aim Lab data you have already " +
                 "saved is kept either way.",
+        )
+    }
+}
+
+/**
+ * Detection's two lists, reported here and edited on the Games screen.
+ *
+ * The count and the pin are facts about the same device-wide settings [GamesCard] already links to, but
+ * they are not reproduced as controls: the exclusion list is toggled row by row on Games, and the pin is
+ * a dropdown of installed profiles there. A second editor in Settings would be a second place to change
+ * one thing, so this card says what is set and sends the user to the screen that owns it.
+ */
+@Composable
+private fun DetectionCard(
+    state: SettingsUiState,
+    onNavigate: (Destination) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val excluded = state.detectionExcludedCount
+    SectionCard(
+        title = "Detection",
+        icon = Icons.Filled.Visibility,
+        subtitle = "Which apps GameCore may treat as a game",
+        modifier = modifier,
+    ) {
+        KeyValueRow(
+            label = "Excluded packages",
+            value = if (excluded == 0) "None" else Formatters.count(excluded, "app"),
+            tone = if (excluded == 0) Tone.Muted else Tone.Neutral,
+        )
+        NavRow(
+            title = "Manage exclusions",
+            onClick = { onNavigate(Destination.Games) },
+            description = "Choose which apps never trigger a profile, and which profile stays pinned when " +
+                "the app in front changes.",
+            icon = Icons.Filled.SportsEsports,
+            trailing = "Manage",
+        )
+        KeyValueRow(
+            label = "Pinned profile",
+            value = state.pinnedProfile ?: "None",
+            tone = if (state.pinnedProfile == null) Tone.Muted else Tone.Neutral,
+        )
+        Text(
+            text = "The Games screen owns both editors: the per-app exclusions and the pinned profile. " +
+                "Nothing here changes detection on its own.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -1078,6 +1201,7 @@ private fun DataCard(
     onDismissExport: () -> Unit,
     onClearHistory: () -> Unit,
     onResetSettings: () -> Unit,
+    onSetRetention: (Int) -> Unit,
     onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1092,11 +1216,28 @@ private fun DataCard(
         KeyValueRow(label = "Game profiles", value = Formatters.count(state.profileCount, "profile"))
         KeyValueRow(label = "HUD layouts", value = Formatters.count(state.layoutCount, "layout"))
         RowDivider()
+        DropdownRow(
+            title = "Keep session history",
+            description = "Sessions older than this window are removed automatically. Keep forever stores " +
+                "everything.",
+            value = retentionLabel(state.settings.retentionDays),
+            options = RETENTION_DAY_OPTIONS,
+            label = { days -> retentionLabel(days) },
+            onSelect = { days -> onSetRetention(days) },
+        )
+        Text(
+            text = "Retention is applied by GameCore itself — when it starts and after a restore — and " +
+                "Backup & restore has a Delete now action for doing it immediately. Clear history below " +
+                "still removes every recorded session unconditionally.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        RowDivider()
         NavRow(
             title = "Backup & restore",
             onClick = { onNavigate(Destination.BackupRestore) },
-            description = "Save your appearance, settings, profiles, presets, HUD layouts and macros to a " +
-                "file, or bring them back. Session history is never included.",
+            description = "Save your appearance, settings, profiles, presets, HUD layouts, macros and " +
+                "your recorded history to a file, or bring them back.",
             icon = Icons.Filled.SettingsBackupRestore,
         )
         RowDivider()
@@ -1225,6 +1366,53 @@ private fun AboutCard(
             icon = Icons.Filled.Person,
         )
     }
+}
+
+/**
+ * A row whose value opens a Material dropdown, built from the screen's existing row and menu parts.
+ *
+ * Deliberately local to Settings: the two controls that want it (target palette and retention) are both
+ * "pick one of a short fixed list", and a shared component with one caller shape would only move the same
+ * six lines into another file. The row is a [NavRow] so it looks and reads like every other row that goes
+ * somewhere; the menu is anchored to it rather than to the whole card.
+ */
+@Composable
+private fun <T> DropdownRow(
+    title: String,
+    value: String,
+    options: List<T>,
+    label: (T) -> String,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    description: String? = null,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        NavRow(
+            title = title,
+            onClick = { expanded = true },
+            description = description,
+            trailing = value,
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(label(option)) },
+                    onClick = {
+                        expanded = false
+                        onSelect(option)
+                    },
+                )
+            }
+        }
+    }
+}
+
+/** A retention window in the words the dropdown uses. Zero is "keep forever"; odd values still read true. */
+private fun retentionLabel(days: Int): String = when (days) {
+    0 -> "Keep forever"
+    30, 90, 180, 365 -> "$days days"
+    else -> Formatters.count(days, "day")
 }
 
 /** The host field's own limit. A DNS name cannot exceed 253 characters, so neither can this. */

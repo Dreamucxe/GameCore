@@ -3684,7 +3684,8 @@ class GamingOverlayService : GameCoreService() {
             activePresetId = preferences.activeColorPresetId,
             // Empty on a device whose panel size could not be read, which is the honest answer: every shape
             // here is computed from that size, so without it there is not even a native chip to offer.
-            aspects = sizeState?.options ?: emptyList(),
+            // The saved customs follow the built-ins, in the order the user added them.
+            aspects = sizeState?.optionsWith(preferences.settings.value.customAspectRatios) ?: emptyList(),
             // Carried over for the same reason [presetsExpanded] is.
             aspectsExpanded = panel.value.aspectsExpanded,
             activeAspect = sizeState?.activePreset,
@@ -4081,12 +4082,16 @@ class GamingOverlayService : GameCoreService() {
      * and silently ignored is the specific failure §3 names — some builds decline an override for the
      * built-in screen — and the chip row would otherwise sit there with nothing filled and nothing said.
      *
+     * A saved custom shape takes the same path through [DisplaySizeController.apply]'s choice overload: it
+     * is a literal size, so it is checked against the panel and read back exactly as a typed pair is. The
+     * only difference is that it has no preset to route through.
+     *
      * Re-probed afterwards for the same reason the colour chips are: the plate on the tile, the filled
      * chip and the note under the row are all read from the display, not from what was just requested.
      */
     private fun onAspect(choice: AspectChoice) {
         lifecycleScope.launch {
-            val outcome = displaySize.apply(choice.preset, coordinator.gaming.value.playing)
+            val outcome = displaySize.apply(choice, coordinator.gaming.value.playing)
             if (!outcome.isSuccess) toast(outcome.message)
             if (panelOpen.value) probePanel()
         }

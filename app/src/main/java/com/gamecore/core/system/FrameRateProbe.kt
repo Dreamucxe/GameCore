@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.ceil
 
 /**
  * The frame-rate probe, which mostly answers "no".
@@ -175,6 +176,8 @@ class FrameRateProbe @Inject constructor(
         if (!averageFps.isFinite() || averageFps <= 0f) return null
 
         val onePercentLow = onePercentLowFps(intervals)
+        val p95 = frameTimePercentileMillis(intervals, P95_PERCENT)
+        val p99 = frameTimePercentileMillis(intervals, P99_PERCENT)
         val budgetNanos = (NANOS_PER_SECOND / averageFps).toLong()
         val jank = ordered.count { it.totalDurationNanos > budgetNanos }
 
@@ -184,6 +187,8 @@ class FrameRateProbe @Inject constructor(
             frameCount = ordered.size,
             windowMillis = spanNanos / 1_000_000L,
             jankFrames = jank,
+            p95FrameMillis = p95,
+            p99FrameMillis = p99,
         )
     }
 
@@ -216,5 +221,29 @@ class FrameRateProbe @Inject constructor(
          * than reporting a rate from three frames.
          */
         const val MIN_FRESH_FRAMES = 10
+
+        const val P95_PERCENT = 95f
+        const val P99_PERCENT = 99f
     }
+}
+
+/**
+ * The nearest-rank percentile of real frame intervals, in milliseconds.
+ *
+ * Durations, not rates: each interval is the time between two consecutive vsyncs, so a
+ * larger value is a slower frame. The rank is `ceil(p / 100 * n)` over the ascending
+ * sorted intervals, which is the standard nearest-rank definition — no interpolation,
+ * because a percentile of real frame durations should be one of the durations that
+ * actually happened.
+ *
+ * Null below [FrameRateSample.MIN_FRAMES] intervals. At 20 samples the 99th percentile is
+ * already the slowest frame; below that it would be the slowest one or two frames wearing
+ * a percentile's name, which is exactly the noise this figure exists to avoid.
+ */
+internal fun frameTimePercentileMillis(intervals: List<Long>, percentile: Float): Float? {
+    if (intervals.size < FrameRateSample.MIN_FRAMES) return null
+    if (percentile !in 0f..100f) return null
+    val sorted = intervals.sorted()
+    val rank = ceil(sorted.size * (percentile / 100.0)).toInt().coerceIn(1, sorted.size)
+    return sorted[rank - 1] / 1_000_000f
 }

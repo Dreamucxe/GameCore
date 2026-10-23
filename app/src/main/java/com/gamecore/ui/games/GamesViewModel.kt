@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.core.common.Formatters
+import com.gamecore.core.common.TextSanitizer
 import com.gamecore.core.model.DetectionAvailability
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.profileChips
@@ -18,6 +19,8 @@ import com.gamecore.data.repository.ProfileExportResult
 import com.gamecore.data.repository.ProfileImportOutcome
 import com.gamecore.data.repository.ProfileImportStaging
 import com.gamecore.data.repository.ProfileTransfer
+import com.gamecore.domain.gaming.ApplyDiagnostic
+import com.gamecore.domain.gaming.DetectionPolicy
 import com.gamecore.domain.gaming.GameDetector
 import com.gamecore.domain.gaming.GamingCoordinator
 import com.gamecore.domain.gaming.ProfileApplier
@@ -28,9 +31,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import javax.inject.Inject
@@ -54,7 +60,7 @@ class GamesViewModel @Inject constructor(
     private val preLaunchCheck: PreLaunchNetworkCheck,
     private val preferences: SecurePreferenceStore,
     private val transfer: ProfileTransfer,
-    coordinator: GamingCoordinator,
+    private val coordinator: GamingCoordinator,
 ) : ViewModel() {
 
     private val local = MutableStateFlow(LocalState())
@@ -81,14 +87,44 @@ class GamesViewModel @Inject constructor(
 
     private val rows = profiles.profiles.map { saved -> saved.map { rowFor(it) } }
 
+    /**
+     * The exclusion list, resolved to labels once per settings change.
+     *
+     * Kept as its own flow rather than a lookup inside the main [combine] because resolving a label is a
+     * suspend package-manager call; the combine transform is neither suspend nor a place to make one call
+     * per excluded package on every gaming-state tick.
+     */
+    private val excludedApps = preferences.settings
+        .map { it.detectionExcludedPackages.sorted() }
+        .distinctUntilChanged()
+        .map { packages ->
+            packages.map { packageName ->
+                ExcludedAppRow(
+                    packageName = packageName,
+                    label = installedApps.describe(packageName)?.label ?: packageName,
+                )
+            }
+        }
+
     val state: StateFlow<GamesUiState> = combine(
         rows,
         coordinator.gaming,
         preferences.settings,
         local,
-    ) { list, gaming, settings, own ->
+        excludedApps,
+    ) { list, gaming, settings, own, excluded ->
+        val pinned = settings.pinnedPackage
         GamesUiState(
-            profiles = list.map { it.copy(isPlaying = it.packageName == gaming.playing) },
+            profiles = list
+                .map {
+                    it.copy(
+                        isPlaying = it.packageName == gaming.playing,
+                        isPinned = it.packageName == pinned,
+                    )
+                }
+                // A pin is ordering only. The playing flag above still comes from the coordinator's real
+                // tracked session, so a pinned profile is never drawn as running unless it is.
+                .sortedByDescending { if (it.isPinned) 1 else 0 },
             isLoaded = true,
             detectionAvailable = own.detection?.isAvailable ?: false,
             detectionNote = (own.detection as? DetectionAvailability.Unavailable)?.reason,
@@ -98,6 +134,10 @@ class GamesViewModel @Inject constructor(
             busyPackage = own.busyPackage,
             pendingLaunch = own.pendingLaunch,
             message = own.message,
+            lastDecision = own.lastDecision,
+            lastApply = own.lastApply,
+            excludedApps = excluded,
+            pinnedPackage = pinned,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -107,6 +147,28 @@ class GamesViewModel @Inject constructor(
 
     init {
         refreshDetection()
+        viewModelScope.launch {
+            coordinator.applyDiagnostic.collect { diagnostic ->
+                local.update { it.copy(lastApply = diagnostic) }
+            }
+        }
+        viewModelScope.launch {
+            // collectLatest: resolving a label touches the package manager, and a decision for a newer
+            // package should not queue behind the previous one's lookup.
+            detector.lastDecision.collectLatest { record ->
+                val view = record?.let { latest ->
+                    DetectionDecisionView(
+                        packageName = latest.decision.packageName,
+                        label = installedApps.describe(latest.decision.packageName)?.label
+                            ?: latest.decision.packageName,
+                        shouldTrack = latest.decision.shouldTrack,
+                        reason = latest.decision.reason,
+                        atMillis = latest.atMillis,
+                    )
+                }
+                local.update { it.copy(lastDecision = view) }
+            }
+        }
     }
 
     /**
@@ -239,6 +301,46 @@ class GamesViewModel @Inject constructor(
     }
 
     /**
+     * Adds one package to the detection exclusion list.
+     *
+     * Validation happens here as well as in the dialog because a ViewModel is reachable from more than
+     * one call site, and a package name that fails [TextSanitizer.validatePackageName] must never reach
+     * storage just because a future caller skipped the field's own check.
+     */
+    fun addExcludedPackage(packageName: String) {
+        setExcluded(packageName, exclude = true)
+    }
+
+    /** Removes one package from the exclusion list, so detection watches it again. */
+    fun removeExcludedPackage(packageName: String) {
+        setExcluded(packageName, exclude = false)
+    }
+
+    private fun setExcluded(packageName: String, exclude: Boolean) {
+        val valid = TextSanitizer.validatePackageName(packageName) ?: return
+        preferences.updateSettings { settings ->
+            settings.copy(
+                detectionExcludedPackages = DetectionPolicy.excludedAfterToggle(
+                    current = settings.detectionExcludedPackages,
+                    packageName = valid,
+                    exclude = exclude,
+                ),
+            )
+        }
+    }
+
+    /**
+     * Pins a profile, or clears the pin with null.
+     *
+     * The pin is a view preference: the Games list puts it first and the card badges it. It is not a
+     * detection input, so pinning a game that is not running does not make it appear to be.
+     */
+    fun setPinnedPackage(packageName: String?) {
+        val valid = packageName?.let(TextSanitizer::validatePackageName)
+        preferences.updateSettings { it.copy(pinnedPackage = valid) }
+    }
+
+    /**
      * Applies one profile now, without waiting for the game to start.
      *
      * Every settings write it attempts is reported back verbatim through
@@ -261,6 +363,7 @@ class GamesViewModel @Inject constructor(
             val application = applier.apply(profile)
             local.value = local.value.copy(
                 busyPackage = null,
+                lastApply = ApplyDiagnostic.from(application),
                 message = when {
                     application.changedNothing -> "This profile has nothing to apply yet."
                     else -> ApplyDiff.summarize(application.results) ?: application.summary()
@@ -449,6 +552,8 @@ private data class LocalState(
     val busyPackage: String? = null,
     val pendingLaunch: PendingLaunch? = null,
     val message: String? = null,
+    val lastDecision: DetectionDecisionView? = null,
+    val lastApply: ApplyDiagnostic? = null,
 )
 
 /**

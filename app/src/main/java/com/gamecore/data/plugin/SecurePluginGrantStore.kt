@@ -43,6 +43,12 @@ import javax.inject.Singleton
  * kill switch and the selected theme id *are* persisted, because each of those is a decision the user
  * made rather than an observation about one run.
  *
+ * **Quarantine is persisted.** It is the stronger, deliberate stop: the user (or the supervisor after
+ * consecutive failures) has decided these bytes must not load again until explicitly released. It is
+ * stored under its own key prefix, so it cannot collide with a grant, an enabled flag or a plugin value
+ * and it survives a restart. [isSuspended] and [isQuarantined] stay separate so the manager can say
+ * which of the two stopped a plugin.
+ *
  * All parsing and all key/value validation belong to [PluginGrantCodec]; this class holds bytes and
  * nothing else, so the rules are testable without a device.
  */
@@ -117,6 +123,48 @@ class SecurePluginGrantStore @Inject constructor(
 
     /** What stopped the plugin, for the row that would otherwise just look dead. Null when running. */
     fun suspensionDetail(pluginId: String): String? = suspensions[pluginId]
+
+    // ------------------------------------------------------------------------------- quarantine
+
+    /**
+     * True when the user or the supervisor has persistently stopped this plugin.
+     *
+     * A missing record is false. On a broken Keystore [prefs] is null, so this also reads false; that
+     * is safe because the same failure makes every plugin disabled and the kill switch on, so nothing
+     * can run in the state where quarantine cannot be read.
+     */
+    override fun isQuarantined(pluginId: String): Boolean =
+        prefs?.getBoolean(PREFIX_QUARANTINE + pluginId, false) ?: false
+
+    /**
+     * Records the quarantine and its reason in one edit.
+     *
+     * The reason is plain host text from the supervisor or a fixed string from the manager; it is
+     * sanitised by the registry before it is drawn. A null reason removes any stale detail so a later
+     * user-initiated quarantine cannot inherit a previous failure's explanation.
+     */
+    override fun quarantine(pluginId: String, detail: String?) {
+        edit {
+            putBoolean(PREFIX_QUARANTINE + pluginId, true)
+            if (detail == null) {
+                remove(PREFIX_QUARANTINE_DETAIL + pluginId)
+            } else {
+                putString(PREFIX_QUARANTINE_DETAIL + pluginId, detail)
+            }
+        }
+    }
+
+    /** Removes the quarantine and its reason. The plugin stays switched off until the user enables it. */
+    override fun releaseQuarantine(pluginId: String) {
+        edit {
+            remove(PREFIX_QUARANTINE + pluginId)
+            remove(PREFIX_QUARANTINE_DETAIL + pluginId)
+        }
+    }
+
+    /** Why it was quarantined, or null when the user quarantined it without a reason. */
+    override fun quarantineDetail(pluginId: String): String? =
+        readString(PREFIX_QUARANTINE_DETAIL + pluginId)
 
     /** On a broken Keystore this reads true, and [setSystemKillSwitch] cannot turn it off. */
     override fun isSystemKillSwitchOn(): Boolean =
@@ -277,11 +325,14 @@ class SecurePluginGrantStore @Inject constructor(
         /** Its own alias too, so losing the plugin keyset does not lose the user's settings. */
         const val MASTER_KEY_ALIAS = "gamecore_plugins_master_key"
 
-        // Three mutually exclusive key prefixes: none is a prefix of another, so a plugin id or a
-        // namespaced key can never be read as an entry of a different kind.
+        // Mutually exclusive key prefixes: none is a prefix of another, so a plugin id or a
+        // namespaced key can never be read as an entry of a different kind. Quarantine has two keys
+        // (the flag and its reason), and both are removed together.
         const val PREFIX_GRANT = "grant."
         const val PREFIX_ENABLED = "enabled."
         const val PREFIX_VALUE = "value."
+        const val PREFIX_QUARANTINE = "quarantine."
+        const val PREFIX_QUARANTINE_DETAIL = "quarantine_detail."
 
         const val KEY_KILL_SWITCH = "kill_switch"
         const val KEY_SELECTED_THEME = "selected_theme"

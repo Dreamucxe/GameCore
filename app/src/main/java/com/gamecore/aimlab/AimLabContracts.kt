@@ -6,6 +6,7 @@ import com.gamecore.aimlab.engine.PersonalRecord
 import com.gamecore.aimlab.engine.SensitivityProfile
 import com.gamecore.aimlab.engine.SessionSummary
 import com.gamecore.aimlab.engine.TrainingMode
+import com.gamecore.aimlab.engine.TargetPalette
 import com.gamecore.aimlab.engine.Weapon
 import kotlinx.coroutines.flow.Flow
 
@@ -45,6 +46,31 @@ interface AimLabRepository {
     suspend fun deleteSession(id: Long)
 
     suspend fun clearHistory()
+
+    // --- backup & retention (the same additive history rules game sessions follow) ---
+
+    /** Every stored Aim Lab session, read once, for a backup export. */
+    suspend fun allSessions(): List<SessionSummary>
+
+    /** Every stored personal record, read once, for a backup export. */
+    suspend fun allRecords(): List<PersonalRecord>
+
+    /**
+     * Inserts summaries read from a backup with fresh ids, without re-running record derivation.
+     *
+     * The records travel in their own section, so importing a session must not silently challenge or
+     * overwrite a record the file did not carry.
+     */
+    suspend fun importSessions(sessions: List<SessionSummary>): Int
+
+    /** Writes the file's personal records, never deleting one the device already has. */
+    suspend fun importRecords(records: List<PersonalRecord>): Int
+
+    /** How many sessions ended before [cutoffMillis], for the retention card's count. */
+    suspend fun countSessionsBefore(cutoffMillis: Long): Int
+
+    /** Deletes sessions older than [cutoffMillis]. Personal records are deliberately untouched. */
+    suspend fun purgeSessionsBefore(cutoffMillis: Long): Int
 
     // --- weapons ---
     val weapons: Flow<List<Weapon>>
@@ -92,6 +118,14 @@ data class TrainingConfig(
      * mode that does not care about it (flick, reaction, recoil) can leave it unset.
      */
     val pattern: com.gamecore.aimlab.engine.TrackingPattern? = null,
+
+    /**
+     * The target colour palette for colour-vision accessibility.
+     *
+     * Defaults to standard. The screen reads this from AppSettings and passes it down so the renderer
+     * can colour every target without the loop knowing about settings.
+     */
+    val targetPalette: TargetPalette = TargetPalette.STANDARD,
 )
 
 /**

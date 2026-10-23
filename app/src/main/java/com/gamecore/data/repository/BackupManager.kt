@@ -3,12 +3,16 @@ package com.gamecore.data.repository
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.gamecore.aimlab.AimLabRepository
+import com.gamecore.aimlab.engine.PersonalRecord
+import com.gamecore.aimlab.engine.SessionSummary
 import com.gamecore.core.backup.BackupCodec
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.model.ColorPreset
 import com.gamecore.core.model.CrosshairPreset
 import com.gamecore.core.model.GameProfile
+import com.gamecore.core.model.GameSession
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.overlay.MacroCodec
 import com.gamecore.data.preferences.SecurePreferenceStore
@@ -28,18 +32,20 @@ import javax.inject.Singleton
  * [BackupCodec], writes the file through the shared [FileShareStore], and — on the way back — reads a file
  * the user picked with the Storage Access Framework and applies it.
  *
- * It touches configuration only. Sessions and Aim Lab runs are never read here and never written back, so a
- * restore cannot overwrite the history the user recorded; the screen says as much in plain words. Everything
- * a foreign file carries is validated by [BackupCodec] before it reaches a store, and the profile half of it
- * is neither built nor parsed here — that is [profileTransfer]'s job, isolated to [exportProfiles] and
- * [importProfiles] so the whole cross-feature seam is two call sites rather than a thread through this class.
+ * Since v2 the envelope also carries the measured history: finished game sessions, Aim Lab session summaries
+ * and the personal records that belong to them. History is **additive in both restore policies** — a session
+ * already on the device is matched by its identity (package, start and end for a game; mode, start, end and
+ * score for Aim Lab) and skipped, so a second import of the same file changes nothing and neither mode ever
+ * deletes a row the file does not mention. Personal records are written only when the file's value beats the
+ * record already here, or when none exists. Plugins and the APK never enter this envelope; the screen says so
+ * in plain words.
  *
  * The import is deliberately non-destructive by default: [BackupPolicy.MERGE] adds what is missing — profiles,
  * layouts and presets are matched to what is already here by content and only the genuinely new ones are
  * written, so a re-import changes nothing — and folds macros in beside the user's own. [BackupPolicy.REPLACE],
- * reached only from an explicit confirmation on the screen, differs just where a conflict exists: the file's
- * version wins on a profile for a game the device also has, and its macros replace the user's rather than
- * merging. Neither mode deletes anything the file does not mention, and neither touches session history.
+ * reached only from an explicit confirmation on the screen, differs just where a configuration conflict exists:
+ * the file's version wins on a profile for a game the device also has, and its macros replace the user's rather
+ * than merging. Neither mode deletes anything the file does not mention.
  */
 @Singleton
 class BackupManager @Inject constructor(
@@ -52,23 +58,30 @@ class BackupManager @Inject constructor(
     private val colours: ColorPresetRepository,
     private val fileShareStore: FileShareStore,
     private val profileTransfer: ProfileTransfer,
+    private val sessions: SessionRepository,
+    private val aimLab: AimLabRepository,
 ) {
 
     // ------------------------------------------------------------------------------------------ export
 
     /**
-     * Gathers every configuration store into one document and writes it to `filesDir/exports`, returning a
-     * share intent for it.
+     * Gathers every configuration store and the finished session history into one document and writes it to
+     * `filesDir/exports`, returning a share intent for it.
      *
      * The profiles are read once and drive two things: the profile layer builds its bundle from them (with the
      * presets they reference embedded), and their referenced layout / crosshair / colour ids are the set this
      * class *excludes* from its own top-level sections — so every referenced preset travels exactly once (via
-     * the profile layer) and the standalone remainder travels here. Nothing leaves the device; the file sits in
-     * the app's own storage and only the user picking a share target moves it.
+     * the profile layer) and the standalone remainder travels here. History is read separately: game sessions
+     * through [SessionRepository.snapshot] and Aim Lab through [AimLabRepository.allSessions] / [allRecords].
+     * Nothing leaves the device; the file sits in the app's own storage and only the user picking a share
+     * target moves it.
      */
     suspend fun export(): BackupExport = withContext(io) {
         val overlay = preferences.overlay.value
         val profiles = gameProfiles.profiles.first()
+        val gameHistory = sessions.snapshot()
+        val aimLabHistory = aimLab.allSessions()
+        val personalRecords = aimLab.allRecords()
         val json = BackupCodec.encode(
             settings = preferences.settings.value,
             overlay = overlay,
@@ -80,6 +93,9 @@ class BackupManager @Inject constructor(
             colours = BackupCodec.standaloneColours(colours.all(), profiles.referenced { it.colorPresetId }),
             macros = macrosArray(overlay.macrosJson),
             profiles = exportProfiles(profiles),
+            sessions = gameHistory,
+            aimLabSessions = aimLabHistory,
+            personalRecords = personalRecords,
         )
         when (val written = fileShareStore.writeText(
             subdir = EXPORT_SUBDIR,
@@ -112,6 +128,35 @@ class BackupManager @Inject constructor(
     // ------------------------------------------------------------------------------------------ restore
 
     /**
+     * Reads the file the user picked and reports what it contains **without applying anything**.
+     *
+     * This is the restore screen's preview: the four figures it asks the user to confirm (profiles, game
+     * sessions, Aim Lab sessions and personal records), plus the configuration-section counts so the card can
+     * be honest about a file that is settings-only. Decoding is the same gate [restore] uses; a file that is
+     * refused here would be refused there, with the same typed reason.
+     */
+    suspend fun preview(uri: Uri): BackupPreview = withContext(io) {
+        val text = readCapped(uri) ?: return@withContext BackupPreview.Failed(BackupImport.Reason.UNREADABLE)
+        when (val result = BackupCodec.decode(text)) {
+            is BackupCodec.BackupResult.Rejected -> BackupPreview.Failed(reasonOf(result.reason))
+            is BackupCodec.BackupResult.Restored -> {
+                val data = result.data
+                BackupPreview.Ready(
+                    version = data.version,
+                    profiles = data.profiles?.optJSONArray("profiles")?.length() ?: 0,
+                    layouts = data.layouts?.size ?: 0,
+                    crosshairs = data.crosshairs?.size ?: 0,
+                    colours = data.colours?.size ?: 0,
+                    macros = data.macros?.length() ?: 0,
+                    gameSessions = data.sessions.size,
+                    aimLabSessions = data.aimLabSessions.size,
+                    personalRecords = data.personalRecords.size,
+                )
+            }
+        }
+    }
+
+    /**
      * Reads the file the user picked, validates it, and applies it under [policy].
      *
      * The read is capped at [MAX_IMPORT_BYTES] before a byte is parsed — a hostile file cannot make the app
@@ -138,12 +183,98 @@ class BackupManager @Inject constructor(
         val crosshairCount = data.crosshairs?.let { importCrosshairs(it, policy) } ?: 0
         val colourCount = data.colours?.let { importColours(it, policy) } ?: 0
         val profileCount = data.profiles?.let { importProfiles(it, policy) } ?: 0
+        // History is additive whatever the policy: a restore must never delete a session the file does not
+        // mention. A v1 file carries no history at all, so these three calls are no-ops for it.
+        val gameSessionsAdded = importGameSessions(data.sessions)
+        val aimLabSessionsAdded = importAimLabSessions(data.aimLabSessions)
+        val recordsAdded = importPersonalRecords(data.personalRecords)
+        // The retention setting promises a purge after a restore as well as at launch. Run it after history
+        // has been added so a restored old session is judged by the same rule as one recorded here.
+        val purged = purgeExpired(System.currentTimeMillis()).total
         return BackupImport.Restored(
             layoutsAdded = layoutCount,
             crosshairsAdded = crosshairCount,
             coloursAdded = colourCount,
             profilesImported = profileCount,
+            gameSessionsAdded = gameSessionsAdded,
+            aimLabSessionsAdded = aimLabSessionsAdded,
+            recordsAdded = recordsAdded,
+            purgedSessions = purged,
         )
+    }
+
+    // ---------------------------------------------------------------------------------- history restore
+
+    /**
+     * Adds the file's finished game sessions, skipping any identity the device already has.
+     *
+     * [BackupMerge] owns the matching rule and is pure, so a re-import is idempotent and the count the screen
+     * reports is the number of rows actually written. The policy is deliberately absent: history merges by
+     * identity in both modes, because "replace" is about configuration conflicts, not about destroying a log.
+     */
+    private suspend fun importGameSessions(incoming: List<GameSession>): Int {
+        if (incoming.isEmpty()) return 0
+        val additions = BackupMerge.newGameSessions(sessions.snapshot(), incoming)
+        return sessions.importSessions(additions)
+    }
+
+    /** Adds the file's Aim Lab summaries, skipping sessions the device already has. See [importGameSessions]. */
+    private suspend fun importAimLabSessions(incoming: List<SessionSummary>): Int {
+        if (incoming.isEmpty()) return 0
+        val additions = BackupMerge.newAimLabSessions(aimLab.allSessions(), incoming)
+        return aimLab.importSessions(additions)
+    }
+
+    /**
+     * Writes the file's personal records that are missing or better than what the device holds.
+     *
+     * A record is evidence of a measured result, so a restore never lowers one: [BackupMerge.recordsToWrite]
+     * returns only records that fill a gap or beat the current value in the metric's own direction (reaction
+     * time is lower-is-better). The returned count is how many *new* records were written, not how many rows
+     * were updated, so the screen's "N records" reads as new evidence.
+     */
+    private suspend fun importPersonalRecords(incoming: List<PersonalRecord>): Int {
+        if (incoming.isEmpty()) return 0
+        val existing = aimLab.allRecords()
+        val writes = BackupMerge.recordsToWrite(existing, incoming)
+        if (writes.isEmpty()) return 0
+        aimLab.importRecords(writes)
+        val existingKeys = existing.mapTo(HashSet(), BackupMerge::recordKey)
+        return writes.map(BackupMerge::recordKey).filterNot { it in existingKeys }.toSet().size
+    }
+
+    // ------------------------------------------------------------------------------------ retention
+
+    /** The stored retention setting and how many sessions an explicit "Delete now" would remove. */
+    suspend fun retentionStatus(nowMillis: Long = System.currentTimeMillis()): RetentionStatus = withContext(io) {
+        val days = preferences.settings.value.retentionDays
+        val cutoff = RetentionPolicy.purgeBefore(nowMillis, days)
+        val eligible = if (cutoff == null) {
+            0
+        } else {
+            sessions.countFinishedBefore(cutoff) + aimLab.countSessionsBefore(cutoff)
+        }
+        RetentionStatus(retentionDays = days, purgeableSessions = eligible)
+    }
+
+    /** Persists the dropdown's choice. Does not purge by itself; the screen's "Delete now" is explicit. */
+    suspend fun setRetentionDays(days: Int) = withContext(io) {
+        preferences.updateSettings { it.copy(retentionDays = days.coerceAtLeast(0)) }
+    }
+
+    /**
+     * Deletes game and Aim Lab sessions older than the stored retention window and returns what went.
+     *
+     * Zero (or a negative value) does nothing. Personal records are never touched: the Aim Lab repository's
+     * purge deletes session rows only, and the game repository deletes sessions with their samples only.
+     */
+    suspend fun purgeExpired(nowMillis: Long = System.currentTimeMillis()): RetentionPurge = withContext(io) {
+        val days = preferences.settings.value.retentionDays
+        val cutoff = RetentionPolicy.purgeBefore(nowMillis, days)
+            ?: return@withContext RetentionPurge(0, 0, days)
+        val game = sessions.purgeFinishedBefore(cutoff)
+        val aim = aimLab.purgeSessionsBefore(cutoff)
+        RetentionPurge(gameSessions = game, aimLabSessions = aim, retentionDays = days)
     }
 
     /**
@@ -349,10 +480,105 @@ class BackupManager @Inject constructor(
  * here by content and only the genuinely new ones are written, macros are folded in beside the user's, and the
  * profile layer keeps the device's profile where one for the same game exists. Appearance and settings — single
  * records that always exist and so have nothing to "add" — are applied in both modes, and the screen says so.
- * [REPLACE], reached behind a confirmation, differs only where a conflict exists: the file's profile wins for a
- * game the device also has, and its macros replace the user's. Neither mode deletes what the file does not carry.
+ * [REPLACE], reached behind a confirmation, differs only where a configuration conflict exists: the file's
+ * profile wins for a game the device also has, and its macros replace the user's. Neither mode deletes what the
+ * file does not carry, and both merge session history by identity rather than deleting it.
  */
 enum class BackupPolicy { MERGE, REPLACE }
+
+/** The outcome of [BackupManager.preview]: what a picked file holds, or the same refusal [BackupManager.restore] gives. */
+sealed interface BackupPreview {
+    data class Ready(
+        val version: Int,
+        val profiles: Int,
+        val layouts: Int,
+        val crosshairs: Int,
+        val colours: Int,
+        val macros: Int,
+        val gameSessions: Int,
+        val aimLabSessions: Int,
+        val personalRecords: Int,
+    ) : BackupPreview
+
+    data class Failed(val reason: BackupImport.Reason) : BackupPreview
+}
+
+/** The retention card's two numbers: the stored window and how many sessions "Delete now" would remove. */
+data class RetentionStatus(
+    val retentionDays: Int,
+    val purgeableSessions: Int,
+)
+
+/** What [BackupManager.purgeExpired] removed, split so the message can name both histories. */
+data class RetentionPurge(
+    val gameSessions: Int,
+    val aimLabSessions: Int,
+    val retentionDays: Int,
+) {
+    val total: Int get() = gameSessions + aimLabSessions
+}
+
+/**
+ * Pure matching rules for restoring history, kept out of the Android orchestration so they are unit-testable.
+ *
+ * Game sessions and Aim Lab summaries are identified by what they are, not by their local row id: a file
+ * written on another device has ids that mean nothing here. Records are identified by the same key the
+ * database's unique index uses, and a record is only replaced by a value that actually beats it in the
+ * metric's own direction — restoring an older backup must never lower a personal best.
+ */
+object BackupMerge {
+
+    /** Identity of a game session: the game, and when the recorded run started and ended. */
+    fun gameSessionKey(session: GameSession): String =
+        "${session.packageName}|${session.startedAtMillis}|${session.endedAtMillis ?: -1L}"
+
+    /** Identity of an Aim Lab summary. Score is included so two runs starting in one tick stay distinct. */
+    fun aimLabSessionKey(summary: SessionSummary): String =
+        "${summary.mode.name}|${summary.difficulty.name}|${summary.startedAtMillis}|" +
+            "${summary.endedAtMillis}|${summary.weaponName.orEmpty()}|${summary.score}"
+
+    /** Identity of a personal record, matching the unique key on the Aim Lab records table. */
+    fun recordKey(record: PersonalRecord): String = record.key
+
+    /** The incoming game sessions the device does not already hold, in file order. */
+    fun newGameSessions(existing: List<GameSession>, incoming: List<GameSession>): List<GameSession> {
+        val seen = existing.mapTo(HashSet(), ::gameSessionKey)
+        return incoming.filter { it.endedAtMillis != null && seen.add(gameSessionKey(it)) }
+    }
+
+    /** The incoming Aim Lab summaries the device does not already hold, in file order. */
+    fun newAimLabSessions(existing: List<SessionSummary>, incoming: List<SessionSummary>): List<SessionSummary> {
+        val seen = existing.mapTo(HashSet(), ::aimLabSessionKey)
+        return incoming.filter { seen.add(aimLabSessionKey(it)) }
+    }
+
+    /**
+     * The records worth writing: a missing key, or a value that beats the current record.
+     *
+     * A lower value wins for [com.gamecore.aimlab.engine.RecordMetric.FASTEST_REACTION], because that metric
+     * is lower-is-better; every other metric is higher-is-better. Equal values are skipped, so importing the
+     * same backup twice writes nothing the second time.
+     */
+    fun recordsToWrite(
+        existing: List<PersonalRecord>,
+        incoming: List<PersonalRecord>,
+    ): List<PersonalRecord> {
+        val current = existing.associateByTo(HashMap(), ::recordKey)
+        val writes = ArrayList<PersonalRecord>()
+        for (record in incoming) {
+            val held = current[recordKey(record)]
+            if (held == null || beats(record, held)) {
+                current[recordKey(record)] = record
+                writes += record
+            }
+        }
+        return writes
+    }
+
+    private fun beats(candidate: PersonalRecord, current: PersonalRecord): Boolean =
+        if (candidate.metric.higherIsBetter) candidate.value > current.value
+        else candidate.value < current.value
+}
 
 /** The outcome of [BackupManager.export]. Mirrors the sibling exporters' Written / Failed shape. */
 sealed interface BackupExport {
@@ -375,6 +601,14 @@ sealed interface BackupImport {
         val crosshairsAdded: Int,
         val coloursAdded: Int,
         val profilesImported: Int,
+        /** New game sessions added; duplicates already on the device are not counted. */
+        val gameSessionsAdded: Int = 0,
+        /** New Aim Lab sessions added; duplicates already on the device are not counted. */
+        val aimLabSessionsAdded: Int = 0,
+        /** New personal records added; a record the file did not beat is not counted. */
+        val recordsAdded: Int = 0,
+        /** Sessions removed by the post-restore retention sweep, when a window is set. */
+        val purgedSessions: Int = 0,
     ) : BackupImport
 
     data class Failed(val reason: Reason) : BackupImport

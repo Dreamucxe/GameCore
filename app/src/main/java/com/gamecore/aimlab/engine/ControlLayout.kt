@@ -91,6 +91,18 @@ data class ControlLayout(
 }
 
 /**
+ * Returns a horizontally mirrored copy of this layout for left-handed play.
+ *
+ * The mirror is a pure view transform: xFraction becomes (1 - xFraction) for every control,
+ * so a left-thumb stick at 0.15 becomes a right-thumb stick at 0.85. The stored layout is not
+ * modified; the caller applies this at draw time when [AppSettings.leftHandedLayout] is true.
+ */
+fun ControlLayout.mirroredHorizontally(): ControlLayout = copy(
+    controls = controls.map { it.copy(xFraction = 1f - it.xFraction) },
+    landscapeControls = landscapeControls.map { it.copy(xFraction = 1f - it.xFraction) },
+)
+
+/**
  * The two screen orientations a layout stores a separate control arrangement for (§4).
  *
  * Name is the stable stored key (the `orientation` column on a control row). A layout carries one set of

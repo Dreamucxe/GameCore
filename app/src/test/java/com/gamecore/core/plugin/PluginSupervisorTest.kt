@@ -48,7 +48,13 @@ class PluginSupervisorTest {
     fun `enough runtime failures in the window suspends the plugin`() {
         var t = 0L
         val store = FakeStore()
-        val sup = PluginSupervisor(store, now = { t }, failureThreshold = 3, failureWindowMs = 1000)
+        val sup = PluginSupervisor(
+            store,
+            now = { t },
+            failureThreshold = 3,
+            failureWindowMs = 1000,
+            quarantineThreshold = 100,
+        )
         assertFalse(sup.onRuntimeFailure("p", "x"))
         assertFalse(sup.onRuntimeFailure("p", "x"))
         assertTrue(sup.onRuntimeFailure("p", "x"))
@@ -59,7 +65,13 @@ class PluginSupervisorTest {
     fun `failures spread beyond the window do not suspend`() {
         var t = 0L
         val store = FakeStore()
-        val sup = PluginSupervisor(store, now = { t }, failureThreshold = 3, failureWindowMs = 1000)
+        val sup = PluginSupervisor(
+            store,
+            now = { t },
+            failureThreshold = 3,
+            failureWindowMs = 1000,
+            quarantineThreshold = 100,
+        )
         sup.onRuntimeFailure("p", "x")
         t = 2000
         sup.onRuntimeFailure("p", "x")

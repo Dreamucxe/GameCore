@@ -95,6 +95,13 @@ sealed interface FrameRateCapability {
  * to what a player notices. An average of 60 with a one-percent low of 22 stutters
  * visibly; an average of 45 with a low of 43 feels smooth. It is computed from the
  * slowest 1% of real frame intervals in the window, not modelled.
+ *
+ * [p95FrameMillis] and [p99FrameMillis] are **frame durations, not rates**. They answer
+ * "how long did a frame take at the ninety-fifth and ninety-ninth percentile", whereas
+ * [averageFps] and [onePercentLowFps] answer "how many frames per second". They are
+ * computed by nearest rank over the real inter-vsync intervals and are null below
+ * [MIN_FRAMES] intervals, where a percentile would describe one scheduler hiccup rather
+ * than a distribution.
  */
 data class FrameRateSample(
     val averageFps: Float,
@@ -104,6 +111,16 @@ data class FrameRateSample(
     val windowMillis: Long,
     /** Frames whose total duration exceeded the display's frame budget. */
     val jankFrames: Int,
+    /**
+     * The 95th percentile frame duration in milliseconds, or null below [MIN_FRAMES]
+     * intervals. This is a duration: larger is worse, and it is never an FPS figure.
+     */
+    val p95FrameMillis: Float? = null,
+    /**
+     * The 99th percentile frame duration in milliseconds, or null below [MIN_FRAMES]
+     * intervals. This is a duration: larger is worse, and it is never an FPS figure.
+     */
+    val p99FrameMillis: Float? = null,
 ) {
     val jankPercent: Float
         get() = if (frameCount <= 0) 0f else (jankFrames.toFloat() / frameCount.toFloat()) * 100f

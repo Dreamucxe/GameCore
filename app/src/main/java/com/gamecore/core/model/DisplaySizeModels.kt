@@ -1,5 +1,6 @@
 package com.gamecore.core.model
 
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -29,13 +30,18 @@ data class DisplaySize(val widthPixels: Int, val heightPixels: Int) {
     val aspect: Float get() = if (shortSide <= 0) 0f else longSide.toFloat() / shortSide
 
     /**
-     * "20:9" where the reduced ratio is small enough to recognise, "2.22:1" where it is not. Reduced from
-     * the pixel counts rather than matched against a table, because there is no table of screen shapes that
-     * covers every panel a phone has shipped with.
+     * "20:9" where the reduced ratio is small enough to recognise, "2.22:1" where it is not. A shape that
+     * matches one of the preset ratios keeps the name its chip uses — 2160×1080 is 2:1 mathematically, but
+     * every other surface calls that shape 18:9. Everything else is reduced from the pixel counts, because
+     * there is no table of screen shapes that covers every panel a phone has shipped with.
      */
     val aspectLabel: String
         get() {
             if (shortSide <= 0) return "—"
+            val named = AspectPreset.entries.firstOrNull {
+                it.longToShort != null && abs(it.longToShort - aspect) < 0.0001f
+            }
+            if (named != null) return named.label
             val divisor = gcd(longSide, shortSide)
             val short = shortSide / divisor
             if (short <= MAX_RECOGNISABLE_SHORT) return "${longSide / divisor}:$short"
@@ -157,12 +163,54 @@ enum class AspectPreset(val label: String, val longToShort: Float?, val summary:
         /** The preset [size] is on this panel, or null when it is a custom size. */
         fun of(size: DisplaySize, physical: DisplaySize): AspectPreset? =
             entries.firstOrNull { it.sizeFor(physical)?.matches(size) == true }
+
+        /**
+         * The user's saved shapes, in the order they were added and after the built-ins.
+         *
+         * Each entry is a `WxH` string from [com.gamecore.core.model.AppSettings.customAspectRatios]. It is
+         * parsed, turned to match [physical] so a pair typed the other way round still means one display, and
+         * then held to exactly the rules a preset is: it must be smaller than the panel and pass
+         * [DisplaySize.rejectionFor]. A shape that is not shorter than the panel is dropped rather than
+         * offered and refused on the tap — the same reason [AspectPreset.sizeFor] returns null there.
+         *
+         * Duplicates collapse to the first spelling, preserving the order the user saved them in. Eight is
+         * the storage limit, and dropping the rest here as well means a hand-edited preference file cannot
+         * draw an unbounded row of chips.
+         */
+        fun customChoices(physical: DisplaySize, customs: List<String>): List<AspectChoice> {
+            val accepted = LinkedHashMap<String, DisplaySize>()
+            for (raw in customs) {
+                val parsed = DisplaySize.parse(raw) ?: continue
+                val size = parsed.orientedLike(physical)
+                if (size.longSide >= physical.longSide) continue
+                if (size.rejectionFor(physical) != null) continue
+                if (accepted.containsKey(size.argument)) continue
+                accepted[size.argument] = size
+                if (accepted.size >= AppSettings.MAX_CUSTOM_ASPECT_RATIOS) break
+            }
+            return accepted.values.map {
+                AspectChoice(preset = NATIVE, size = it, custom = true)
+            }
+        }
     }
 }
 
-/** One chip: a shape, and what that shape is in pixels on this device. */
-data class AspectChoice(val preset: AspectPreset, val size: DisplaySize) {
-    val label: String get() = preset.label
+/**
+ * One chip: a shape, and what that shape is in pixels on this device.
+ *
+ * [custom] is true for a shape the user saved themselves. It has no [AspectPreset] of its own, so [preset]
+ * carries [AspectPreset.NATIVE] only as a placeholder and must not be read while [custom] is set; [label]
+ * is the reduced ratio instead. [active] is filled by [DisplaySizeState.optionsWith], which is the only
+ * place that knows the size currently on screen — a custom chip has no preset to compare against, so the
+ * panel marks it by size rather than by [AspectPreset].
+ */
+data class AspectChoice(
+    val preset: AspectPreset,
+    val size: DisplaySize,
+    val custom: Boolean = false,
+    val active: Boolean = false,
+) {
+    val label: String get() = if (custom) size.aspectLabel else preset.label
     val detail: String get() = size.label
 }
 
@@ -187,6 +235,25 @@ data class DisplaySizeState(val physical: DisplaySize, val override: DisplaySize
     val isCustom: Boolean get() = isOverridden && activePreset == null
 
     val options: List<AspectChoice> get() = AspectPreset.optionsFor(physical)
+
+    /**
+     * The built-in chips plus the user's saved shapes, with the one currently on screen marked.
+     *
+     * The model cannot read settings, so the caller passes [customs] — the `WxH` strings from
+     * [com.gamecore.core.model.AppSettings.customAspectRatios]. Marking by size rather than by preset is
+     * what makes a saved custom shape fill its chip: it has no [AspectPreset] to compare, and
+     * [activePreset] is deliberately null for it, so the size is the only thing that identifies it.
+     */
+    fun optionsWith(customs: List<String>): List<AspectChoice> {
+        val onScreen = active
+        val customOnScreen = isCustom
+        return (options + AspectPreset.customChoices(physical, customs)).map {
+            // A saved shape that happens to equal a preset is still a second chip, but only the preset is
+            // marked when that size is on screen: [activePreset] identifies it, so calling the custom one
+            // active too would light two chips for one display.
+            it.copy(active = it.size.matches(onScreen) && (!it.custom || customOnScreen))
+        }
+    }
 }
 
 /**
