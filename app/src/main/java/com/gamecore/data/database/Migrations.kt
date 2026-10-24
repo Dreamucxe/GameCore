@@ -690,6 +690,39 @@ internal object GameCoreMigrations {
         }
     }
 
+    /**
+     * Version 19 → 20: the session event timeline.
+     *
+     * One new table and one index, strictly additive — no column on a populated table is touched and
+     * no row is rewritten. A user updating from 19 has no events for their old sessions, which is the
+     * truth about those sessions: the feature did not exist while they ran, and an empty timeline is
+     * what the report should show rather than a back-filled guess.
+     *
+     * The DDL matches [SessionEventEntity] and the generated `20.json` exactly: a column that differs
+     * in name, affinity or nullability fails Room's schema validation on open. `detail` and `value`
+     * are nullable with no default because absence is a complete answer for both; `kind` is the
+     * [com.gamecore.core.model.SessionEventKind] name, not an ordinal. The index is on `session_id`
+     * alone, which is the only predicate the read side uses; ordering by `elapsed_millis` happens
+     * within that small subset and does not need a covering index.
+     */
+    val MIGRATION_19_20 = object : Migration(19, 20) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `session_events` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`session_id` INTEGER NOT NULL, " +
+                    "`elapsed_millis` INTEGER NOT NULL, " +
+                    "`kind` TEXT NOT NULL, " +
+                    "`detail` TEXT, " +
+                    "`value` REAL)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_session_events_session_id` " +
+                    "ON `session_events` (`session_id`)",
+            )
+        }
+    }
+
     /** Every migration, in order, for [androidx.room.RoomDatabase.Builder.addMigrations]. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
@@ -710,5 +743,6 @@ internal object GameCoreMigrations {
         MIGRATION_16_17,
         MIGRATION_17_18,
         MIGRATION_18_19,
+        MIGRATION_19_20,
     )
 }

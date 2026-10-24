@@ -7,6 +7,8 @@ import com.gamecore.core.model.GameSession
 import com.gamecore.core.model.LatencyProbe
 import com.gamecore.core.model.PerformanceSnapshot
 import com.gamecore.core.model.ResolutionScale
+import com.gamecore.core.model.SessionEvent
+import com.gamecore.core.model.SessionEventKind
 import com.gamecore.core.model.SessionSample
 import com.gamecore.core.model.StopReason
 import com.gamecore.data.repository.SessionRepository
@@ -65,6 +67,16 @@ class SessionRecorder @Inject constructor(
      */
     private var latency = LatencyLogger.EMPTY
 
+    /**
+     * The transition detector behind the session's event timeline.
+     *
+     * Reset in [begin] so an event from the previous game can never be filed under this one. The
+     * tracker itself is pure and has no clock; [offer] supplies the elapsed offset, which is the same
+     * one the sample gets, so the timeline and the graphs cannot disagree about when something
+     * happened.
+     */
+    private var conditions = SessionConditionTracker()
+
     private val state = MutableStateFlow<GameSession?>(null)
 
     /**
@@ -112,6 +124,7 @@ class SessionRecorder @Inject constructor(
         // After the switch above, not before: the outgoing session's log belongs to the row that was
         // just written, and clearing it first would file this game's probes under the last game.
         latency = LatencyLogger.EMPTY
+        conditions = SessionConditionTracker()
 
         val started = GameSession.starting(
             packageName = packageName,
@@ -167,7 +180,51 @@ class SessionRecorder @Inject constructor(
             batteryEndPercent = snapshot.battery.levelPercent,
             wasCharging = session.wasCharging || snapshot.battery.isCharging,
         )
+        // Events are written immediately rather than batched with the samples. They are a handful of
+        // rows for a whole session, and the one case they matter most — the process dying on a device
+        // that is too hot or too slow — is exactly the case where a batch still in memory is lost.
+        val events = conditions.eventsFor(
+            sessionId = session.id,
+            elapsedMillis = elapsed,
+            thermalStatus = snapshot.thermal.status.valueOrNull,
+            refreshCapped = snapshot.refreshCapped,
+            powerSaver = snapshot.battery.isPowerSaveMode,
+            frameRate = snapshot.frameRate.valueOrNull,
+        )
+        if (events.isNotEmpty()) sessions.appendEvents(events)
         if (pending.size >= FLUSH_EVERY) flushLocked()
+    }
+
+    /**
+     * Adds one event that this class cannot infer from a sample.
+     *
+     * The coordinator uses this for the profile outcome and the network probe uses it for its own
+     * results. Both happen at a wall-clock instant rather than on the sampler's cadence, and neither
+     * is a reading the condition tracker could reconstruct from `PerformanceSnapshot`.
+     *
+     * The event is stamped with [nowMillis] relative to the session's start, under the same mutex as
+     * the samples that will sit beside it. A call made after the session closed is dropped, which is
+     * the right outcome for a probe that returned a moment too late to belong to it.
+     */
+    suspend fun recordEvent(
+        kind: SessionEventKind,
+        detail: String? = null,
+        value: Double? = null,
+        nowMillis: Long = System.currentTimeMillis(),
+    ): Unit = mutex.withLock {
+        val session = state.value ?: return
+        val elapsed = (nowMillis - session.startedAtMillis).coerceAtLeast(0L)
+        sessions.appendEvents(
+            listOf(
+                SessionEvent(
+                    sessionId = session.id,
+                    elapsedMillis = elapsed,
+                    kind = kind,
+                    detail = detail,
+                    value = value,
+                ),
+            ),
+        )
     }
 
     /**

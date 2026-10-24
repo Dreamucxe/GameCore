@@ -50,6 +50,13 @@ import org.json.JSONObject
  * them out is what bounds a history backup to a size a user can move between devices. Plugins and the APK
  * are not part of this envelope either; the restore screen says so in plain words.
  *
+ * Version 3 adds one optional section: which device the file was written on, so the restore preview can
+ * say where a backup came from and name the settings that may not mean the same thing on the device being
+ * restored onto. It is optional and *additive in the reading sense* — a v1/v2 file simply has no `device`
+ * key and reads as unknown origin, and a v3 file without one does too. History still does not carry the
+ * per-second samples or the event timelines; those stay on the device that recorded them, and the restore
+ * preview says so rather than implying a move that cannot happen.
+ *
  * Version 1 files remain readable: the history sections simply default to empty, so an old file restores
  * every configuration section exactly as it always did and carries no history to merge. The version gate
  * accepts the whole supported range rather than only the newest value.
@@ -72,7 +79,7 @@ object BackupCodec {
     const val FORMAT = "gamecore.backup"
 
     /** The only envelope version this build writes. Version 1 files are still read (see [MIN_VERSION]). */
-    const val VERSION = 2
+    const val VERSION = 3
 
     /** The oldest envelope this build still restores. Version 1 had configuration only. */
     const val MIN_VERSION = 1
@@ -148,6 +155,15 @@ object BackupCodec {
         val aimLabSessions: List<SessionSummary> = emptyList(),
         /** Aim Lab personal records travelling with [aimLabSessions]. Never derived on restore. */
         val personalRecords: List<PersonalRecord> = emptyList(),
+        /**
+         * The device this file was written on, or null for every version before 3.
+         *
+         * Absent for v1 and v2 files, and for a v3 file hand-edited or truncated. Null is the honest
+         * reading of "unknown origin", which the migration report and the restore screen both treat as
+         * "cannot compare" rather than as "same device" — guessing would either invent a compatibility
+         * verdict or hide one.
+         */
+        val device: DeviceSnapshot? = null,
         /** The envelope version the file declared, for the restore preview's copy. */
         val version: Int = VERSION,
     )
@@ -182,6 +198,7 @@ object BackupCodec {
         sessions: List<GameSession> = emptyList(),
         aimLabSessions: List<SessionSummary> = emptyList(),
         personalRecords: List<PersonalRecord> = emptyList(),
+        device: DeviceSnapshot? = null,
     ): String = JSONObject().apply {
         put("format", FORMAT)
         put("version", VERSION)
@@ -206,6 +223,10 @@ object BackupCodec {
         // Version 2 history. Each array is written even when empty, so a reader can tell a fresh install
         // from a v1 file that predates these sections.
         put("sessions", JSONArray().apply { sessions.forEach { put(encodeSession(it)) } })
+        // Optional on purpose. A build that does not know the section, and a file written by one, both
+        // read it as absent — so adding it here cannot break a v1/v2 reader that simply looks for a key
+        // it does not know about.
+        device?.let { put("device", encodeDevice(it)) }
         put("aimLabSessions", JSONArray().apply { aimLabSessions.forEach { put(encodeAimLabSession(it)) } })
         put("personalRecords", JSONArray().apply { personalRecords.forEach { put(encodePersonalRecord(it)) } })
     }.toString()
@@ -483,6 +504,47 @@ object BackupCodec {
         s.clipsSaved?.let { put("clipsSaved", it) }
     }
 
+    /**
+     * The device snapshot, as the version-3 envelope carries it.
+     *
+     * [DeviceSnapshot.manufacturer] and [DeviceSnapshot.model] are written even when blank is all there
+     * was, because a section with no model at all is indistinguishable from "no section" on the way
+     * back — and the restore screen needs to tell those apart. Everything else is optional, so a
+     * device whose panel could not be read writes a snapshot without panel numbers rather than a
+     * `0 × 0` that would fail every comparison in [DeviceMigration].
+     */
+    private fun encodeDevice(d: DeviceSnapshot): JSONObject = JSONObject().apply {
+        put("manufacturer", TextSanitizer.sanitizeName(d.manufacturer, MAX_DEVICE_FIELD_LENGTH))
+        put("model", TextSanitizer.sanitizeName(d.model, MAX_DEVICE_FIELD_LENGTH))
+        d.sdkInt?.let { put("sdkInt", it) }
+        d.panelWidthPixels?.let { put("panelWidth", it) }
+        d.panelHeightPixels?.let { put("panelHeight", it) }
+        d.peakRefreshRateHz?.let { put("peakRefreshHz", it.toDouble()) }
+    }
+
+    /**
+     * Reads the device snapshot, or null when the section is absent or carries nothing usable.
+     *
+     * Null on the empty fields rather than a `DeviceSnapshot("", "")` an empty object would otherwise
+     * build: a snapshot with no manufacturer and no model has nothing to compare and reads as absent.
+     * Non-negative and finite for the numbers, because a negative panel size is not a size and NaN is
+     * not a rate.
+     */
+    private fun readDevice(o: JSONObject): DeviceSnapshot? {
+        val manufacturer =
+            TextSanitizer.sanitizeName(o.optString("manufacturer"), MAX_DEVICE_FIELD_LENGTH)
+        val model = TextSanitizer.sanitizeName(o.optString("model"), MAX_DEVICE_FIELD_LENGTH)
+        if (manufacturer.isBlank() && model.isBlank()) return null
+        return DeviceSnapshot(
+            manufacturer = manufacturer,
+            model = model,
+            sdkInt = readIntOrNull(o, "sdkInt"),
+            panelWidthPixels = readIntOrNull(o, "panelWidth")?.coerceAtLeast(0),
+            panelHeightPixels = readIntOrNull(o, "panelHeight")?.coerceAtLeast(0),
+            peakRefreshRateHz = readFloatOrNull(o, "peakRefreshHz")?.coerceAtLeast(0f),
+        )
+    }
+
     private fun encodeLatencyLog(l: LatencyLog): JSONObject = JSONObject().apply {
         put("completedProbes", l.completedProbes)
         put("failedProbes", l.failedProbes)
@@ -577,6 +639,7 @@ object BackupCodec {
             sessions = root.optJSONArray("sessions")?.let(::readSessions) ?: emptyList(),
             aimLabSessions = root.optJSONArray("aimLabSessions")?.let(::readAimLabSessions) ?: emptyList(),
             personalRecords = root.optJSONArray("personalRecords")?.let(::readPersonalRecords) ?: emptyList(),
+            device = root.optJSONObject("device")?.let(::readDevice),
             version = version,
         )
     }
@@ -1075,6 +1138,15 @@ object BackupCodec {
 
     /** What a nameless layout becomes, rather than being dropped for the sake of a blank field. */
     private const val DEFAULT_LAYOUT_NAME = "Layout"
+
+    /**
+     * The longest a manufacturer or model string may run in the backup file.
+     *
+     * These are the fields the restore screen prints as "Coming from <device>", so they are bounded by
+     * the same sanitiser every other printed name uses rather than by a bespoke limit — a hand-edited
+     * file with a 40 KB model string should not become a 40 KB notification.
+     */
+    private const val MAX_DEVICE_FIELD_LENGTH = 48
 
     /** The same fallback for a nameless standalone preset, mirroring each model's own default name. */
     private const val DEFAULT_CROSSHAIR_NAME = "Crosshair"

@@ -182,4 +182,29 @@
     <string name="capture_replay_failed">Instant Replay could not start on this device</string>
     <string name="capture_replay_saved">Replay saved</string>
     <string name="capture_replay_save_failed">Replay could not be saved</string>
+
+    <!--
+      The display-override dead-man's switch.
+
+      A display size change survives a reboot, so the one surface the user cannot dismiss is also the one
+      that has to be worded exactly: what was changed, what is about to happen to it, and that nothing
+      about the picture is stretched beyond what the app can put back.
+
+      Titles and the two button labels live here, because they are short and a translation reaches them.
+      The *sentences* do not: they are composed by DisplayOverrideGuard and are unit-tested, which is the
+      only place in this app where the copy is checked by a machine as well as by a reader. These strings
+      are the plinth, not the copy.
+
+      Nothing here says "field of view". `wm size` changes the logical display size the system reports to
+      apps; a game handed a different shape draws the same view it always drew, across more of the panel.
+    -->
+    <string name="display_guard_ask_title">Keep this display size?</string>
+    <string name="display_guard_ask_countdown">Reverting in %1$d s unless you say keep.</string>
+    <string name="display_guard_action_keep">Keep it</string>
+    <string name="display_guard_action_revert">Revert</string>
+    <string name="display_guard_reverted_title">Display size put back</string>
+    <string name="display_guard_not_reverted_title">Display size not put back</string>
+    <string name="display_guard_offered_title">A display change was left unconfirmed</string>
+    <string name="display_guard_unreadable_title">GameCore could not read its display change record</string>
+    <string name="display_guard_unreadable_text">GameCore\'s own record of the display change could not be read, so nothing was changed and nothing was claimed. The Recovery screen can clear the display size override by hand.</string>
 </resources>

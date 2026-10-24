@@ -9,6 +9,7 @@ import com.gamecore.core.model.OptimizationAction
 import com.gamecore.core.model.ProfileApplication
 import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.RestoreReport
+import com.gamecore.core.model.SessionEventKind
 import com.gamecore.core.model.StopReason
 import com.gamecore.core.system.InstalledAppLister
 import com.gamecore.core.system.ScreenCaptureController
@@ -156,6 +157,7 @@ class GamingCoordinator @Inject constructor(
     private val preferences: SecurePreferenceStore,
     private val smartFeatures: SmartFeatureRunner,
     private val networkAlertMonitor: NetworkAlertMonitor,
+    private val networkEvents: NetworkEventRecorder,
     private val capture: ScreenCaptureController,
 ) {
 
@@ -343,6 +345,7 @@ class GamingCoordinator @Inject constructor(
                 // device was optimized when GameCore could not read the change back would be exactly
                 // the invented statistic §24 forbids.
                 applied = (application?.appliedCount ?: 0) > 0,
+                application = application,
                 colour = appliedColour(profile, application),
                 resolution = appliedResolution(profile, application),
                 scope = scope,
@@ -363,7 +366,10 @@ class GamingCoordinator @Inject constructor(
         // snapshot and the shared probe stream — so it opens no socket of its own and has nothing to
         // unregister on stop. Dormant unless the profile opted in; the monitor writes and emits nothing then.
         networkActive = profile.networkCheckEnabled
-        if (networkActive) networkAlertMonitor.onSessionStart(profile)
+        if (networkActive) {
+            networkAlertMonitor.onSessionStart(profile)
+            networkEvents.reset()
+        }
 
         // Instant Replay's session tally (§3.6) is reset here so the summary at stop counts only this
         // game's use of the buffer. Nothing is armed automatically — the buffer runs only when the
@@ -481,6 +487,7 @@ class GamingCoordinator @Inject constructor(
         event: GameEvent.Started,
         label: String,
         applied: Boolean,
+        application: ProfileApplication?,
         colour: ColorPreset?,
         resolution: ResolutionScale?,
         scope: CoroutineScope,
@@ -507,14 +514,41 @@ class GamingCoordinator @Inject constructor(
                 resolution = resolution,
             )
 
+            // The profile outcome is the first line of the session's event timeline. Recorded after
+            // `begin` because the event needs a row to belong to, and only when an application was
+            // actually attempted — auto-apply off is not an event, it is a setting.
+            application?.let {
+                recorder.recordEvent(
+                    kind = if (it.problems.isEmpty()) {
+                        SessionEventKind.PROFILE_APPLIED
+                    } else {
+                        SessionEventKind.PROFILE_APPLY_FAILED
+                    },
+                    detail = it.summary(),
+                    nowMillis = opening.capturedAtMillis,
+                )
+            }
+
             launch {
                 monitor.latencyProbes.collect { probe ->
                     recorder.offerProbe(probe)
                     // The same probe the latency log is folded from, handed to the §C5 alert check. The
                     // clock is elapsedRealtime, not wall time, so the one-a-minute rate limit holds even if
                     // the system clock is changed mid-session. Does nothing unless the profile armed alerts.
-                    if (networkActive) networkAlertMonitor.onProbe(probe, SystemClock.elapsedRealtime())
+                    if (networkActive) {
+                        networkAlertMonitor.onProbe(probe, SystemClock.elapsedRealtime())
+                        // The session's upstream lane (§3.7). The same handshake the latency log
+                        // already paid for, written into the event timeline so the report can compare
+                        // a frame spike against it — no second connection is opened.
+                        networkEvents.onUpstreamProbe(probe)
+                    }
                 }
+            }
+
+            // The router lane (§3.7), alongside the upstream one. Cancelled with the sampling job,
+            // so it never probes past the end of the record it writes into.
+            if (networkActive) {
+                launch { networkEvents.runLocalLane() }
             }
 
             var recordedUpTo = opening.capturedAtMillis

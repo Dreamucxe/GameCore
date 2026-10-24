@@ -80,6 +80,16 @@ class SessionReportViewModel @Inject constructor(
     val conditions: StateFlow<List<Readout>> = conditionsState.asStateFlow()
 
     /**
+     * The session's own rows, for the cards that correlate rather than summarise.
+     *
+     * Separate from [state] because most of the report never needs them — see [SessionReportDetail].
+     * It is loaded in the same pass as the samples the graphs already use, so there is no second
+     * query for the same rows.
+     */
+    private val detailState = MutableStateFlow(SessionReportDetail())
+    val detail: StateFlow<SessionReportDetail> = detailState.asStateFlow()
+
+    /**
      * The loaded session, kept for the shareable card.
      *
      * §24A.2 governs what the UI receives, and this is not that — no composable can see it. The card needs
@@ -116,6 +126,10 @@ class SessionReportViewModel @Inject constructor(
             }
             loaded = session
             val samples = repository.samples(session.id)
+            detailState.value = SessionReportDetail(
+                samples = samples,
+                events = repository.events(session.id),
+            )
             conditionsState.value = conditionsOf(session)
             editing.value = editing.value.copy(
                 isLoading = false,

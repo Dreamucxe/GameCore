@@ -7,6 +7,9 @@ import com.gamecore.aimlab.AimLabRepository
 import com.gamecore.aimlab.engine.PersonalRecord
 import com.gamecore.aimlab.engine.SessionSummary
 import com.gamecore.core.backup.BackupCodec
+import com.gamecore.core.backup.DeviceMigration
+import com.gamecore.core.backup.DeviceSnapshot
+import com.gamecore.core.backup.MigrationCheck
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.model.ColorPreset
@@ -15,6 +18,7 @@ import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.GameSession
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.overlay.MacroCodec
+import com.gamecore.core.system.DeviceSnapshotReader
 import com.gamecore.data.preferences.SecurePreferenceStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
@@ -60,6 +64,7 @@ class BackupManager @Inject constructor(
     private val profileTransfer: ProfileTransfer,
     private val sessions: SessionRepository,
     private val aimLab: AimLabRepository,
+    private val deviceSnapshot: DeviceSnapshotReader,
 ) {
 
     // ------------------------------------------------------------------------------------------ export
@@ -96,6 +101,7 @@ class BackupManager @Inject constructor(
             sessions = gameHistory,
             aimLabSessions = aimLabHistory,
             personalRecords = personalRecords,
+            device = deviceSnapshot.read(),
         )
         when (val written = fileShareStore.writeText(
             subdir = EXPORT_SUBDIR,
@@ -141,9 +147,19 @@ class BackupManager @Inject constructor(
             is BackupCodec.BackupResult.Rejected -> BackupPreview.Failed(reasonOf(result.reason))
             is BackupCodec.BackupResult.Restored -> {
                 val data = result.data
+                val profileCount = data.profiles?.optJSONArray("profiles")?.length() ?: 0
+                // Computed here rather than on the screen so the preview the user confirms and the
+                // report they read are one reading of the same file. A file with no device section
+                // produces an empty report, which the card draws as "origin unknown" instead of a
+                // compatibility verdict it cannot support.
+                val migration = DeviceMigration.report(
+                    backup = data.device,
+                    current = deviceSnapshot.read(),
+                    profileCount = profileCount,
+                )
                 BackupPreview.Ready(
                     version = data.version,
-                    profiles = data.profiles?.optJSONArray("profiles")?.length() ?: 0,
+                    profiles = profileCount,
                     layouts = data.layouts?.size ?: 0,
                     crosshairs = data.crosshairs?.size ?: 0,
                     colours = data.colours?.size ?: 0,
@@ -151,6 +167,8 @@ class BackupManager @Inject constructor(
                     gameSessions = data.sessions.size,
                     aimLabSessions = data.aimLabSessions.size,
                     personalRecords = data.personalRecords.size,
+                    device = data.device,
+                    migration = migration,
                 )
             }
         }
@@ -498,6 +516,16 @@ sealed interface BackupPreview {
         val gameSessions: Int,
         val aimLabSessions: Int,
         val personalRecords: Int,
+        /** Where the file was written, or null for a file that predates the device section. */
+        val device: DeviceSnapshot? = null,
+        /**
+         * What the device comparison found, in the order the screen prints it.
+         *
+         * Empty means "cannot compare", not "compatible": a v1/v2 file carries no snapshot and a
+         * device whose panel could not be read has none either. The card says the origin is unknown
+         * rather than turning an absent comparison into a reassuring verdict.
+         */
+        val migration: List<MigrationCheck> = emptyList(),
     ) : BackupPreview
 
     data class Failed(val reason: BackupImport.Reason) : BackupPreview

@@ -100,6 +100,7 @@ import com.gamecore.ui.network.NetworkStabilityScreen
 import com.gamecore.ui.overlay.OverlayScreen
 import com.gamecore.ui.performance.PerformanceScreen
 import com.gamecore.ui.permissions.PermissionsScreen
+import com.gamecore.ui.recovery.RecoveryScreen
 import com.gamecore.ui.plugins.PluginAutomationHistoryRoute
 import com.gamecore.ui.plugins.PluginDetailScreen
 import com.gamecore.ui.plugins.PluginScreenRoute
@@ -574,6 +575,13 @@ private fun GameCoreNav(
 
         composable(Destination.Permissions.route) {
             PermissionsScreen(onBack = back)
+        }
+
+        // §15. The display-override recovery console. It reads its own state rather than taking an
+        // argument: a route argument could resurrect a confirmation the user already answered, and the
+        // pending row is the one source of truth about what is waiting.
+        composable(Destination.Recovery.route) {
+            RecoveryScreen(onBack = back)
         }
 
         // §A2. The wizard pops itself rather than taking a back callback: every way out of it — Finish,

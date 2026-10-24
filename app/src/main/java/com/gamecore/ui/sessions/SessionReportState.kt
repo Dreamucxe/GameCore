@@ -1,5 +1,7 @@
 package com.gamecore.ui.sessions
 
+import com.gamecore.core.model.SessionEvent
+import com.gamecore.core.model.SessionSample
 import com.gamecore.ui.components.Readout
 import com.gamecore.ui.components.Tone
 
@@ -54,6 +56,26 @@ data class SessionReportUiState(
     val message: String? = null,
 ) {
     val hasGraphs: Boolean get() = graphs.any { it.isPlottable }
+}
+
+/**
+ * The session's raw rows, kept beside [SessionReportUiState] rather than inside it.
+ *
+ * A session can be 1,800 samples, and the report's cards that draw figures and graphs do not need
+ * them: they were reduced to strings and floats before they left the ViewModel. The cards added
+ * later — the event timeline, the stutter attribution, the network split — do need the rows to
+ * correlate a spike with what the device was doing at that moment, so they get this one object and
+ * nothing else does. Keeping it out of the state that every Composable collects is the same
+ * §24A.2 rule the graphs follow, applied to the one screen where the raw rows are genuinely needed.
+ *
+ * Both lists are read once with the session: a finished record does not change, so this is not a
+ * flow that will emit again.
+ */
+data class SessionReportDetail(
+    val samples: List<SessionSample> = emptyList(),
+    val events: List<SessionEvent> = emptyList(),
+) {
+    val hasEvents: Boolean get() = events.isNotEmpty()
 }
 
 /**

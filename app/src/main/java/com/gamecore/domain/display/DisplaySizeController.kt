@@ -51,12 +51,24 @@ import javax.inject.Singleton
  * And what the feature is not, which the copy has to say out loud: this stretches the image the game
  * renders across the panel. It is not a wider field of view. A game handed a 4:3 logical display draws
  * a 4:3 frame, and the compositor spreads it over the whole screen.
+ *
+ * The fourth rule is the one the first three cannot catch, and it belongs beside them: **every
+ * override is armed against a pending record before it is written, and the user is asked afterwards
+ * whether to keep it.** A restore point is only useful if somebody opens GameCore and asks for a
+ * restore. The user whose screen is now unreadable cannot do that — cannot even see the app to swipe to
+ * — so the undo cannot wait for them to navigate to the control that made the change. The record holds
+ * what the display was doing before, which is the one thing that cannot be recovered afterwards, and the
+ * question is asked wherever the write came from: [DisplayOverrideStore] holds the row,
+ * [DisplayOverrideGuard] decides what silence means, and the answer goes through the restore path this
+ * class already used rather than through anything new.
  */
 @Singleton
 class DisplaySizeController @Inject constructor(
     private val shell: ElevatedShell,
     private val display: DisplayReader,
     private val restorePoints: RestorePointRepository,
+    private val overrideStore: DisplayOverrideStore,
+    private val confirmer: DisplayOverrideConfirmer,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) {
 
@@ -164,8 +176,31 @@ class DisplaySizeController @Inject constructor(
      *
      * [packageName] is the game the change was made for, stored with the restore point so session
      * history can attribute a display that is still stretched.
+     *
+     * Once the write has been accepted, the user is asked whether to keep it: the screen, or the
+     * notification carrying the same two answers when a screen cannot be started from here. Keeping is
+     * the only thing that clears the pending record; the countdown expiring, a process death before the
+     * answer, and the next launch after either all restore through the same restore point this method
+     * records above. The three preset/scale overloads funnel through this one, so there is exactly one
+     * place the switch is armed and no call site can skip it.
      */
     suspend fun apply(requested: DisplaySize, packageName: String? = null): DisplaySizeOutcome =
+        applyWriting(requested, packageName, armGuard = true)
+
+    /**
+     * The write itself, with the dead-man's switch's arming taken out for the restore path.
+     *
+     * [armGuard] is false exactly when this write *is* the undo. A restore writes the previous size back,
+     * which is a size on the display, and arming a pending row for it would ask the user to keep what the
+     * countdown is in the middle of putting back — and would do so on every launch, forever, because
+     * each restore re-arms the next one. So the restore writes, reads back and reports, and the caller
+     * that ordered it clears the row once the read-back confirms.
+     */
+    private suspend fun applyWriting(
+        requested: DisplaySize,
+        packageName: String?,
+        armGuard: Boolean,
+    ): DisplaySizeOutcome =
         withContext(io) {
             val current = readState().valueOrNull ?: return@withContext unreadable()
             val size = requested.orientedLike(current.physical)
@@ -190,18 +225,51 @@ class DisplaySizeController @Inject constructor(
 
             // Already there. Reported as applied without spending a write, because the panel's preset
             // chips apply on tap and re-issuing an override the display is already running is a window
-            // manager round trip and a configuration change for no change at all.
+            // manager round trip and a configuration change for no change at all. No dead-man's row
+            // either: nothing was written, so there is nothing to be asked about or to put back.
             if (current.active.matches(size)) {
                 return@withContext DisplaySizeOutcome.Applied(size, DataSource.SHELL_SHIZUKU.label)
             }
 
+            // The dead-man's switch's row, written at the same moment as the restore point above and for
+            // the same reason: before the write, because afterwards the panel reports GameCore's own
+            // number as its own and there is nothing left to put back. It holds the restore point's own
+            // value verbatim — null when the display had no override — so the revert replays exactly the
+            // row `OptimizationManager.restoreOne` would replay, and "nothing on" means the one thing
+            // that unsets an override, `wm size reset`, rather than an override equal to the panel.
+            val pending = if (armGuard) {
+                overrideStore.record(
+                    previousValue = current.override?.argument,
+                    requested = size,
+                    // The countdown is derived from this, so it is passed rather than defaulted: the
+                    // switch's clock is the moment of the write, and nothing else.
+                    appliedAtMillis = System.currentTimeMillis(),
+                )
+            } else {
+                null
+            }
+
             val result = shell.execute(command)
             if (!result.isSuccess) {
+                // Nothing was written, so the question is not asked. The row is dropped rather than left
+                // to expire into a revert of a change that never happened.
+                if (pending != null) overrideStore.clear()
                 return@withContext DisplaySizeOutcome.Failed(
                     "The display size could not be set: ${result.failureReason()}",
                 )
             }
-            verify(target = size)
+            val outcome = verify(target = size)
+
+            // A size the window manager refused to take leaves the display as it was, so it is not a
+            // change to confirm. An accepted-but-unverified write stays under the switch: the display
+            // may well have moved, and a countdown that only runs when everything went right is not a
+            // dead man's switch.
+            if (outcome is DisplaySizeOutcome.NotHonoured) {
+                if (pending != null) overrideStore.clear()
+            } else if (pending != null) {
+                confirmer.confirm(pending)
+            }
+            outcome
         }
 
     /**
@@ -216,10 +284,18 @@ class DisplaySizeController @Inject constructor(
      * an override the user had set by hand. The user asking for the panel's own size is a decision that
      * supersedes the recorded one, and leaving the row pending would mean the next restore silently
      * re-applying the very override they just asked to be rid of.
+     *
+     * The dead-man's switch's row goes with it, and for a stronger reason: a pending row exists only to
+     * protect against an override the user has not answered for, and this is the user answering — to
+     * "the panel's own size", which is where the careful revert was heading anyway. Leaving it would mean
+     * a countdown that expires and reverts a display the user has already put back.
      */
     suspend fun resetToNative(): DisplaySizeOutcome = withContext(io) {
         val outcome = reset()
-        if (outcome.isSuccess) restorePoints.clear(RestorePointRepository.NON_SETTING_NAMESPACE, KEY)
+        if (outcome.isSuccess) {
+            restorePoints.clear(RestorePointRepository.NON_SETTING_NAMESPACE, KEY)
+            overrideStore.clear()
+        }
         outcome
     }
 
@@ -235,6 +311,10 @@ class DisplaySizeController @Inject constructor(
      * instead of being quietly forgotten. Re-recording inside [apply] on the way through is a no-op for
      * the same reason it is safe everywhere else: the insert is first-value-wins, and this row exists —
      * it is the one being restored.
+     *
+     * Nor does it ask the user whether to keep the restored size. This *is* the answer to that question,
+     * arrived at by the dead-man's switch instead of by a tap, and a restore that armed a second
+     * countdown would ask the same question on every launch forever.
      */
     suspend fun restore(previousValue: String?): DisplaySizeOutcome = withContext(io) {
         if (previousValue == null) return@withContext reset()
@@ -243,7 +323,7 @@ class DisplaySizeController @Inject constructor(
                 "GameCore recorded a display size it cannot read back, so it left the display alone. " +
                     "Clearing the override by hand is `wm size reset`.",
             )
-        apply(recorded)
+        applyWriting(recorded, packageName = null, armGuard = false)
     }
 
     /**

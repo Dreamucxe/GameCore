@@ -667,6 +667,116 @@ class BackupCodecTest {
         assertTrue(data.aimLabSessions.isEmpty())
     }
 
+    // --- Version 3 device snapshot ---------------------------------------------------------------------
+
+    /** The minimum encode call: every configuration section present but empty, so only the device varies. */
+    private fun encodeWith(device: DeviceSnapshot? = null): String = BackupCodec.encode(
+        AppSettings(),
+        OverlayConfig(),
+        FloatingButtonConfig(),
+        DockConfig(),
+        ColorCorrection(),
+        emptyList(),
+        emptyList(),
+        emptyList(),
+        JSONArray(),
+        JSONObject(),
+        device = device,
+    )
+
+    @Test
+    fun `a device snapshot survives an encode and decode`() {
+        val device = DeviceSnapshot(
+            manufacturer = "Google",
+            model = "Pixel 7",
+            sdkInt = 34,
+            panelWidthPixels = 1080,
+            panelHeightPixels = 2400,
+            peakRefreshRateHz = 120f,
+        )
+
+        val data = restored(encodeWith(device = device))
+
+        val decoded = data.device
+        assertNotNull(decoded)
+        assertEquals("Google", decoded!!.manufacturer)
+        assertEquals("Pixel 7", decoded.model)
+        assertEquals(34, decoded.sdkInt)
+        assertEquals(1080, decoded.panelWidthPixels)
+        assertEquals(2400, decoded.panelHeightPixels)
+        assertEquals(120f, decoded.peakRefreshRateHz!!, DELTA)
+        assertEquals(3, data.version)
+    }
+
+    @Test
+    fun `a file with no device section reads as unknown origin rather than a guessed one`() {
+        // The v1/v2 shape: no `device` key at all.
+        val data = restored(envelope(""))
+
+        assertNull(data.device)
+    }
+
+    @Test
+    fun `a v2 file still restores its history with an unknown origin`() {
+        val json = """{"format":"${BackupCodec.FORMAT}","version":2,"sessions":[]}"""
+
+        val data = restored(json)
+
+        assertNull(data.device)
+        assertTrue(data.sessions.isEmpty())
+    }
+
+    @Test
+    fun `encoding without a snapshot writes no device key`() {
+        val json = encodeWith()
+
+        assertTrue(!JSONObject(json).has("device"))
+    }
+
+    @Test
+    fun `a device section with neither name nor model reads as absent`() {
+        val data = restored(envelope(""","device":{"sdkInt":34}"""))
+
+        assertNull(data.device)
+    }
+
+    @Test
+    fun `a hostile device model is bounded and stripped`() {
+        val longModel = "A".repeat(400) + "\u0000\n"
+        val json = encodeWith(DeviceSnapshot(manufacturer = "M", model = longModel))
+
+        val decoded = restored(json).device
+        assertNotNull(decoded)
+        assertTrue(decoded!!.model.length <= 48)
+        assertTrue(!decoded.model.contains("\u0000"))
+        assertTrue(!decoded.model.contains("\n"))
+    }
+
+    @Test
+    fun `a negative or non-finite panel reading is not carried as a measurement`() {
+        val json = envelope(
+            ""","device":{"manufacturer":"M","model":"X","panelWidth":-1080,""" +
+                """"panelHeight":-2400,"peakRefreshHz":"NaN"}""",
+        )
+
+        val decoded = restored(json).device
+        assertNotNull(decoded)
+        assertEquals(0, decoded!!.panelWidthPixels)
+        assertEquals(0, decoded.panelHeightPixels)
+        assertNull(decoded.peakRefreshRateHz)
+    }
+
+    @Test
+    fun `the device section does not disturb the other sections`() {
+        val device = DeviceSnapshot(manufacturer = "M", model = "X", sdkInt = 33)
+        val json = encodeWith(device)
+
+        val parsed = JSONObject(json)
+        assertEquals(BackupCodec.VERSION, parsed.getInt("version"))
+        assertEquals(BackupCodec.FORMAT, parsed.getString("format"))
+        assertTrue(parsed.has("settings") || parsed.has("profiles"))
+    }
+
     private companion object {
         /** The dock's opacity comes off a coerceIn, so compare with a delta rather than bit-exactly. */
         const val DELTA = 1e-6f

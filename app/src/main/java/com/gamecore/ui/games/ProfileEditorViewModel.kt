@@ -20,6 +20,7 @@ import com.gamecore.core.model.VolumeTriggerPressMode
 import com.gamecore.core.shizuku.ShizukuManager
 import com.gamecore.core.system.AppLauncher
 import com.gamecore.core.system.InstalledAppLister
+import com.gamecore.core.system.MetricsReader
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.ColorPresetRepository
 import com.gamecore.data.repository.CrosshairRepository
@@ -28,6 +29,7 @@ import com.gamecore.data.repository.HudLayoutRepository
 import com.gamecore.data.repository.SessionRepository
 import com.gamecore.domain.cpu.CpuAffinityController
 import com.gamecore.domain.display.DisplaySizeController
+import com.gamecore.domain.energy.EnergyBudget
 import com.gamecore.domain.gaming.ProfileSuggester
 import com.gamecore.domain.network.PreLaunchNetworkCheck
 import com.gamecore.domain.optimization.DeviceCapabilityChecker
@@ -76,6 +78,7 @@ class ProfileEditorViewModel @Inject constructor(
     private val triggerCoordinator: QuickTriggerCoordinator,
     private val shizuku: ShizukuManager,
     private val pointTaps: PointTapController,
+    private val metrics: MetricsReader,
 ) : ViewModel() {
 
     /** The package this editor was opened for, or [Destination.NEW_PROFILE] for a new one. */
@@ -171,9 +174,6 @@ class ProfileEditorViewModel @Inject constructor(
         }
         val existing = profiles.profileFor(argument)
         val installed = installedApps.isInstalled(argument)
-        // A game with no saved profile that arrived through Home's suggestion card: fill the form with the
-        // derived draft rather than the "no longer saved" message, which would be false — this game never
-        // had a profile, and the point of the card was to offer it one.
         if (existing == null && isSeeded) {
             loadSuggested(installed)
             return
@@ -185,6 +185,7 @@ class ProfileEditorViewModel @Inject constructor(
             isGameInstalled = installed,
             message = if (existing == null) "That profile is no longer saved." else null,
         )
+        refreshEnergyEstimate()
     }
 
     /**
@@ -307,6 +308,30 @@ class ProfileEditorViewModel @Inject constructor(
                 shizukuGranted = shizuku.isConnected,
             ),
         )
+    }
+
+    /**
+     * Reads the finished sessions for this game and updates the energy estimate in the state.
+     *
+     * The current level is read from the same [MetricsReader] the rest of the app measures with, and
+     * only used when the device is not charging: a projected playtime while plugged in would describe
+     * a battery that is going up, which is the opposite of what the projection is for. When the level
+     * cannot be read, or the device is charging, the estimate still carries the measured rate and says
+     * the projection is unavailable rather than inventing a level.
+     */
+    fun refreshEnergyEstimate() {
+        val current = editing.value
+        val profile = current.profile ?: return
+        viewModelScope.launch {
+            val finished = sessions.sessionsFor(profile.packageName).first()
+                .filter { it.endedAtMillis != null }
+            val battery = runCatching { metrics.readBattery() }.getOrNull()
+            val currentPercent = battery
+                ?.takeUnless { it.isCharging }
+                ?.levelPercent
+            val estimate = EnergyBudget.estimate(finished, currentPercent = currentPercent)
+            editing.value = editing.value.copy(energyEstimate = estimate)
+        }
     }
 
     /** The system accessibility screen, so the user can turn GameCore's service on. Reuses the coordinator. */

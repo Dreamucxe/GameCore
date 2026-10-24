@@ -267,6 +267,44 @@
             android:theme="@style/Theme.GameCore.Transparent" />
 
         <!--
+          The dead-man's switch's confirmation, as a full screen.
+
+          Started from wherever a display size override was applied — a settings screen, a game
+          profile, the floating panel's aspect tile, and on the next launch after a process that
+          died without an answer. It finishes itself on every path.
+
+          Config changes are handled in place rather than by recreating the activity: the
+          countdown is derived from the row's own timestamp, so a rotation (or a recreation, on
+          a device that ignores the flag) continues from the right number of seconds rather
+          than restarting. The override it is asking about changes the size of this window while
+          it is up, which is a configuration change the activity must therefore survive.
+
+          excludeFromRecents and the empty taskAffinity keep a confirmation nobody answered out
+          of the recents list and out of GameCore's own task, which is the same pair
+          CaptureConsentActivity uses for the same reason: this is a question, not a place.
+        -->
+        <activity
+            android:name=".ui.display.DisplaySizeConfirmActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density|fontScale"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:taskAffinity=""
+            android:theme="@style/Theme.GameCore" />
+
+        <!--
+          The two buttons on that confirmation's fallback notification.
+
+          Not exported: only GameCore delivers it, because it is the target of PendingIntents
+          this app builds itself, and an exported receiver here would let another app answer a
+          question about this device's display on the user's behalf. Every intent carries the
+          pending row's own token, and the receiver checks it against the row that is waiting
+          before doing anything, so a stale or duplicated tap is a no-op.
+        -->
+        <receiver
+            android:name=".ui.display.DisplayOverrideActionReceiver"
+            android:exported="false" />
+
+        <!--
           Overlay host: the floating button, the control panel, the performance pill,
           the crosshair and the HUD are all windows added by this service.
 

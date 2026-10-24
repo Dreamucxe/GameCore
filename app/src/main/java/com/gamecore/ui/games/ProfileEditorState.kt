@@ -16,6 +16,7 @@ import com.gamecore.core.model.RefreshRateMechanism
 import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.ResolutionScaleChoice
 import com.gamecore.core.model.VolumeTriggerButton
+import com.gamecore.domain.energy.EnergyEstimate
 import com.gamecore.ui.components.PendingLaunch
 import com.gamecore.ui.trigger.VolumeTriggerAvailability
 
@@ -145,6 +146,15 @@ data class ProfileEditorUiState(
         accessibilityEnabled = false,
         shizukuGranted = false,
     ),
+
+    /**
+     * The estimated energy budget for this game, or null when it has not been computed yet.
+     *
+     * Computed from finished sessions by [EnergyBudget]; not observed because sessions are
+     * immutable once finished and the battery level changes slowly. The ViewModel refreshes it on
+     * screen open and when the battery level changes.
+     */
+    val energyEstimate: EnergyEstimate? = null,
 ) {
     val canSave: Boolean get() = profile != null && !isSaving
 

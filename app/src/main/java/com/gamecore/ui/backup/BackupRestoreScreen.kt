@@ -353,6 +353,25 @@ private fun previewMessage(preview: BackupPreview.Ready, policy: BackupPolicy): 
         " Nothing is written until you confirm, and a restore only ever adds sessions — anything removed " +
             "afterwards comes solely from your retention window."
     )
+
+    // §20. Where the file came from, and what may not mean the same thing here. A v1/v2 file has no
+    // snapshot at all, and that is said as "unknown origin" rather than dressed up as compatibility:
+    // an absent comparison is not a reassuring one.
+    val device = preview.device
+    if (device == null) {
+        append("\n\nOrigin: not recorded. This file predates device snapshots, so it cannot be " +
+            "checked against this device. Display sizes and refresh rates in it may not exist here.")
+    } else {
+        append("\n\nOrigin: ${device.label}.")
+        val checks = preview.migration
+        if (checks.isEmpty()) {
+            append(" No display or refresh-rate differences were found against this device.")
+        } else {
+            checks.forEach { check ->
+                append("\n• ${check.title}: ${check.detail}")
+            }
+        }
+    }
 }
 
 /** A retention window in the words the dropdown uses. Zero is "keep forever"; odd values still read true. */

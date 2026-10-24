@@ -67,6 +67,7 @@ import androidx.room.RoomDatabase
         ColorPresetEntity::class,
         SessionEntity::class,
         SessionSampleEntity::class,
+        SessionEventEntity::class,
         RestorePointEntity::class,
         AimLabSessionEntity::class,
         AimLabWeaponEntity::class,
@@ -79,7 +80,7 @@ import androidx.room.RoomDatabase
         DashboardLayoutEntity::class,
         DashboardItemEntity::class,
     ],
-    version = 19,
+    version = 20,
     exportSchema = true,
 )
 abstract class GameCoreDatabase : RoomDatabase() {

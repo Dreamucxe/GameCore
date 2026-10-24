@@ -3,6 +3,7 @@ package com.gamecore.data.repository
 import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.model.BatteryDrain
 import com.gamecore.core.model.GameSession
+import com.gamecore.core.model.SessionEvent
 import com.gamecore.core.model.SessionSample
 import com.gamecore.core.model.SessionSort
 import com.gamecore.core.model.SessionStatistics
@@ -60,6 +61,11 @@ class SessionRepository @Inject constructor(
         dao.samples(sessionId).map(Mappers::toModel)
     }
 
+    /** One session's timeline, oldest first. An empty list is a valid, honest answer. */
+    suspend fun events(sessionId: Long): List<SessionEvent> = withContext(io) {
+        dao.events(sessionId).mapNotNull(Mappers::toModel)
+    }
+
     /** The packages that appear in history, for the filter dropdown. */
     suspend fun recordedPackages(): List<String> = withContext(io) {
         dao.recordedPackages()
@@ -87,6 +93,18 @@ class SessionRepository @Inject constructor(
     suspend fun appendSamples(samples: List<SessionSample>) {
         if (samples.isEmpty()) return
         withContext(io) { dao.insertSamples(samples.map(Mappers::toEntity)) }
+    }
+
+    /**
+     * Writes a session's events.
+     *
+     * Called from the recorder while it holds its own mutex, so this stays a plain IO hop with no
+     * further coordination. The empty case is a no-op for the same reason [appendSamples] is: a
+     * sample that produced no transition should not cost a transaction.
+     */
+    suspend fun appendEvents(events: List<SessionEvent>) {
+        if (events.isEmpty()) return
+        withContext(io) { dao.insertEvents(events.map(Mappers::toEntity)) }
     }
 
     /** Updates the row in place: aggregates as they accumulate, `ended_at` when it finishes. */

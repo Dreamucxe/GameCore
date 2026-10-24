@@ -90,6 +90,7 @@ import com.gamecore.ui.components.TextFieldRow
 import com.gamecore.ui.components.Tone
 import com.gamecore.ui.components.colour
 import com.gamecore.ui.components.startIntentSafely
+import com.gamecore.ui.games.GameEnergyCard
 import com.gamecore.ui.trigger.VolumeTriggerSection
 
 /**
@@ -246,6 +247,7 @@ fun ProfileEditorScreen(
         item { CpuSection(state, viewModel::edit, onNavigate, padded) }
         item { SmartFeaturesSection(state, viewModel::edit, onNavigate, padded) }
         item { SessionSection(state, viewModel::edit, padded) }
+        item { GameEnergyCard(state, padded) }
         // §3.6. Takes values rather than the whole state, so the call site names them: the section is a shared
         // composable in its own file, not one of this screen's privates. The opt-in goes through the gated
         // request so the first one can be held by the disclaimer below; the window is a plain edit. Audio is

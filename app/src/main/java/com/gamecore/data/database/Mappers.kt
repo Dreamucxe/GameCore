@@ -22,6 +22,8 @@ import com.gamecore.core.model.ThermalClass
 import com.gamecore.core.model.PerformanceMode
 import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.ScreenOrientationLock
+import com.gamecore.core.model.SessionEvent
+import com.gamecore.core.model.SessionEventKind
 import com.gamecore.core.model.SessionSample
 import com.gamecore.core.model.StopReason
 import com.gamecore.core.model.VolumeTriggerBinding
@@ -525,4 +527,31 @@ internal object Mappers {
         frameRate = entity.frameRate,
         latencyMillis = entity.latencyMillis,
     )
+
+    fun toEntity(event: SessionEvent): SessionEventEntity = SessionEventEntity(
+        sessionId = event.sessionId,
+        elapsedMillis = event.elapsedMillis.coerceAtLeast(0L),
+        kind = event.kind.name,
+        detail = event.detail?.takeIf { it.isNotBlank() },
+        value = event.value,
+    )
+
+    /**
+     * One event, or null when this build does not know its kind.
+     *
+     * Null rather than a fallback kind. A `SessionEventKind` is a promise about what happened, and
+     * mapping an unfamiliar name onto the nearest known one would make a timeline claim something the
+     * row does not say. The caller's `mapNotNull` drops it, which is the same choice the enum-reading
+     * mappers above make — except that here there is no safe default to choose.
+     */
+    fun toModel(entity: SessionEventEntity): SessionEvent? {
+        val kind = SessionEventKind.entries.firstOrNull { it.name == entity.kind } ?: return null
+        return SessionEvent(
+            sessionId = entity.sessionId,
+            elapsedMillis = entity.elapsedMillis,
+            kind = kind,
+            detail = entity.detail?.takeIf { it.isNotBlank() },
+            value = entity.value,
+        )
+    }
 }

@@ -70,6 +70,7 @@ fun SessionReportScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val conditions by viewModel.conditions.collectAsStateWithLifecycle()
+    val detail by viewModel.detail.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // Deleting the session is done from here, and there is nothing left to show afterwards.
@@ -196,6 +197,15 @@ fun SessionReportScreen(
                     note = graph.note,
                 )
             }
+
+            // §3.7. What the spikes in those graphs were most likely caused by, and the event timeline
+            // the session recorded. Both read the same detail the graphs do, so a session with no
+            // events says so once rather than in two different ways.
+            item { SessionAttributionCard(detail = detail, modifier = padded) }
+
+            item { SessionNetworkCard(detail = detail, modifier = padded) }
+
+            item { SessionTimelineCard(state = state, detail = detail, modifier = padded) }
 
             item { ProvenanceCard(state = state, modifier = padded) }
         }

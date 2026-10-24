@@ -965,6 +965,15 @@ private fun MonitoringCard(
             description = "The graphs, and where each reading is actually measured from.",
             icon = Icons.Filled.Insights,
         )
+        RowDivider()
+        NavRow(
+            title = "Display recovery",
+            onClick = { onNavigate(Destination.Recovery) },
+            description = "When a game has stretched the display and the screen is hard to read: " +
+                "confirm the change or put the display's own size back. Also where to go if a " +
+                "display change was left unconfirmed.",
+            icon = Icons.Filled.PhoneAndroid,
+        )
     }
 }
 

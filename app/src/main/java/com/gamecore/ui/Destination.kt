@@ -176,6 +176,25 @@ sealed interface Destination {
     }
 
     /**
+     * The display-override recovery console.
+     *
+     * Pushed from Settings, and reachable from the launch notification when a display override was
+     * applied and never confirmed. A plain leaf — no arguments, because the screen reads its one
+     * piece of state (the pending override) from the store rather than trusting the route, and a
+     * stale argument could resurrect a confirmation that was already answered.
+     *
+     * In [external] for one reason, and it is the reason this screen exists: the user who most needs
+     * it is the one whose display is stretched and who cannot read the app to swipe to it. The
+     * notification's content tap is the only way in that does not already depend on being able to
+     * see the app.
+     */
+    data object Recovery : Destination {
+        override val route = "recovery"
+
+        const val EXTERNAL = "recovery"
+    }
+
+    /**
      * The first-run setup wizard (spec §A2).
      *
      * Pushed like any other screen rather than given its own navigation graph or a pre-Activity: it is
@@ -706,6 +725,9 @@ sealed interface Destination {
             Performance.EXTERNAL to Performance,
             ScreenExtraction.EXTERNAL to ScreenExtraction,
             SamplingMonitor.EXTERNAL to SamplingMonitor,
+            // The dead-man's switch's notices. The user who taps one is looking at a display they may
+            // not be able to read GameCore through, so the tap has to land on the screen that fixes it.
+            Recovery.EXTERNAL to Recovery,
         )
 
         /** The destination an intent asked for, or null for anything unrecognised. */

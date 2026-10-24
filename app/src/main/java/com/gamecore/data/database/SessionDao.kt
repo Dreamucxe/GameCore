@@ -66,9 +66,13 @@ interface SessionDao {
     @Query("DELETE FROM session_samples WHERE session_id = :sessionId")
     suspend fun deleteSamples(sessionId: Long)
 
+    @Query("DELETE FROM session_events WHERE session_id = :sessionId")
+    suspend fun deleteEvents(sessionId: Long)
+
     @Transaction
     suspend fun deleteWithSamples(id: Long) {
         deleteSamples(id)
+        deleteEvents(id)
         deleteSession(id)
     }
 
@@ -78,9 +82,13 @@ interface SessionDao {
     @Query("DELETE FROM session_samples")
     suspend fun deleteAllSamples()
 
+    @Query("DELETE FROM session_events")
+    suspend fun deleteAllEvents()
+
     @Transaction
     suspend fun clearHistory() {
         deleteAllSamples()
+        deleteAllEvents()
         deleteAllSessions()
     }
 
@@ -104,6 +112,28 @@ interface SessionDao {
 
     @Query("SELECT COUNT(*) FROM session_samples WHERE session_id = :sessionId")
     suspend fun sampleCount(sessionId: Long): Int
+
+    // -------------------------------------------------------------------- events
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertEvent(event: SessionEventEntity)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertEvents(events: List<SessionEventEntity>)
+
+    /**
+     * One session's whole timeline, oldest first.
+     *
+     * The order is by elapsed offset rather than by id. They agree for rows this build wrote, but a
+     * backup restored from another device can carry events whose insertion order is not their
+     * session order, and a timeline that draws in insertion order would be wrong on exactly the
+     * sessions the migration feature exists for.
+     */
+    @Query(
+        "SELECT * FROM session_events WHERE session_id = :sessionId " +
+            "ORDER BY elapsed_millis ASC, id ASC",
+    )
+    suspend fun events(sessionId: Long): List<SessionEventEntity>
 
     // ----------------------------------------------------------------- aggregates
 

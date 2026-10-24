@@ -35,6 +35,59 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 41,
+            versionName = "3.19.0",
+            date = "2026-10-24",
+            features = listOf(
+                FeatureNote(
+                    "Display changes ask before they stay",
+                    "Every display-size change GameCore makes now shows a fifteen-second countdown " +
+                        "with Keep and Revert. Silence puts the previous size back, and a size left " +
+                        "unconfirmed across a restart is recovered at launch instead of waiting for " +
+                        "you to find the screen that set it.",
+                ),
+                FeatureNote(
+                    "Recovery console",
+                    "A display-recovery screen in Settings puts the panel back to its own size, " +
+                        "confirms whether the elevated shell is reachable, and can be opened from the " +
+                        "recovery notification when the app itself is hard to read.",
+                ),
+                FeatureNote(
+                    "Frame-time attribution",
+                    "Session reports now say what was happening around each frame-time spike — " +
+                        "thermal throttling, a capped refresh rate, battery saver, load, temperature " +
+                        "or a profile that did not fully apply — and name a spike nothing explains " +
+                        "as unexplained.",
+                ),
+                FeatureNote(
+                    "Session timeline and receipt",
+                    "Every session now keeps a timeline of profile applies, thermal changes, refresh " +
+                        "changes, power-saver transitions and frame-time spikes, and can render the " +
+                        "report as a shareable PNG receipt.",
+                ),
+                FeatureNote(
+                    "New-device migration",
+                    "Backups carry an optional device snapshot. Restoring one shows where the file " +
+                        "came from and names the refresh rates, display sizes and Android versions " +
+                        "that may not mean the same thing on this device. Files written before this " +
+                        "release still restore and read as unknown origin.",
+                ),
+                FeatureNote(
+                    "Energy budget per game",
+                    "The profile editor estimates a game's battery cost from its finished sessions — " +
+                        "median percent per hour, how many sessions it rests on, and the playtime " +
+                        "that leaves at the current level when the device is not charging.",
+                ),
+                FeatureNote(
+                    "Network versus device attribution",
+                    "Session reports compare frame-time spikes against two measured lanes — this " +
+                        "device to the router, and the path beyond it — and say which one answered " +
+                        "slowly at that moment, or that the network record does not support an " +
+                        "explanation. No game server is contacted or claimed.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 40,
             versionName = "3.18.0",
             date = "2026-10-23",

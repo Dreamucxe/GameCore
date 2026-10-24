@@ -72,6 +72,20 @@ object NotificationChannels {
     /** The §C5 poor-network alert. Rate-limited to one a minute by the sender, not this id. */
     const val ID_ALERT_NETWORK = 1103
 
+    /**
+     * The dead-man's switch: a display override was written and has not been confirmed.
+     *
+     * Its own id rather than one of the alert ids, because it is a different subject from a hot
+     * phone or a bad connection and the two must never replace each other — a notification that
+     * takes the place of the one carrying the user's only Keep/Revert buttons has quietly removed
+     * the decision they were about to make.
+     *
+     * Same channel as the alerts, and deliberately so: this is the second thing in this app that
+     * is allowed to interrupt, because it expires. Fifteen seconds after a display override is
+     * applied, the device goes back to its previous size whether the user has answered or not.
+     */
+    const val ID_DISPLAY_GUARD = 1104
+
     fun createAll(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
