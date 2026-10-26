@@ -359,6 +359,16 @@ object SearchIndex {
             category = SearchCategory.SETTINGS,
         ))
         add(SearchEntry(
+            title = "Emulators (experimental)",
+            description = "Detect emulators already installed, keep a library of ROM links and hand a file to one.",
+            keywords = listOf(
+                "emulator", "rom", "iso", "disc", "launcher", "experimental", "retroarch", "dolphin",
+                "ppsspp", "winlator", "aethersx2", "melonds", "duckstation", "flycast",
+            ),
+            route = Destination.Emulators.route,
+            category = SearchCategory.SETTINGS,
+        ))
+        add(SearchEntry(
             title = "Monitoring",
             description = "Performance HUD, sample intervals, latency host and recording quality.",
             keywords = listOf("monitoring", "hud", "sample", "interval", "latency", "host", "recording"),

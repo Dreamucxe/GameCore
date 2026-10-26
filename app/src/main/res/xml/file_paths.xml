@@ -28,4 +28,13 @@
     <files-path
         name="cards"
         path="cards/" />
+    <!-- Session receipts are written to the cache, because they are regenerated on demand from a
+         session that is still in the database. Without this root FileProvider.getUriForFile()
+         throws on the generated PNG and the share tap closes the app. -->
+    <cache-path
+        name="receipt-exports"
+        path="exports/" />
+    <files-path
+        name="controller-profiles"
+        path="controller-profiles/" />
 </paths>

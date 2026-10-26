@@ -87,20 +87,26 @@ suspend fun shareReceipt(
     state: SessionReportUiState,
     detail: SessionReportDetail,
 ): Boolean = withContext(Dispatchers.IO) {
-    val receipt = buildReceipt(state, detail)
-    val bitmap = drawReceipt(receipt)
-    val file = writePng(context, bitmap)
-    if (file == null) return@withContext false
+    // A receipt is a convenience, and a failed one must never close the screen that offered it.
+    // drawing can OOM, writes can run out of space, and FileProvider can reject a path: all three
+    // become `false` here, exactly as an unresolvable share intent already does.
+    try {
+        val receipt = buildReceipt(state, detail)
+        val bitmap = drawReceipt(receipt)
+        val file = writePng(context, bitmap) ?: return@withContext false
 
-    val authority = "${context.packageName}.fileprovider"
-    val uri = FileProvider.getUriForFile(context, authority, file)
-    val intent = Intent(Intent.ACTION_SEND)
-        .setType("image/png")
-        .putExtra(Intent.EXTRA_STREAM, uri)
-        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    val shared = intent.resolveActivity(context.packageManager) != null &&
-        context.startActivitySafely(intent)
-    return@withContext shared
+        val authority = "${context.packageName}.fileprovider"
+        val uri = FileProvider.getUriForFile(context, authority, file)
+        val intent = Intent(Intent.ACTION_SEND)
+            .setType("image/png")
+            .putExtra(Intent.EXTRA_STREAM, uri)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val shared = intent.resolveActivity(context.packageManager) != null &&
+            context.startActivitySafely(intent)
+        return@withContext shared
+    } catch (_: Exception) {
+        return@withContext false
+    }
 }
 
 /**

@@ -182,6 +182,20 @@ fun GamesScreen(
             )
         }
 
+        // The emulator frontend is experimental and deliberately adjacent to game detection rather than
+        // in the bottom bar: it is a launcher for apps the user installed, not part of GameCore's own
+        // performance path. The label is the first thing the row says.
+        item {
+            PlainCard(modifier = padded) {
+                NavRow(
+                    title = "Emulators · experimental",
+                    description = "Add ROMs and hand them to an emulator already installed on this device",
+                    icon = Icons.Filled.SportsEsports,
+                    onClick = { onNavigate(Destination.Emulators) },
+                )
+            }
+        }
+
         if (state.isEmpty) {
             item {
                 EmptyState(

@@ -227,7 +227,7 @@ class DeviceMigrationTest {
             current = pixel6,
             profileCount = 2,
             profileRefreshHz = listOf(120f),
-            profileResolution = listOf(ResolutionScale.HALF),
+            profileResolution = listOf(ResolutionScale.MEDIUM),
             profileDisplaySizes = listOf(DisplaySize(1200, 2666)),
         )
 

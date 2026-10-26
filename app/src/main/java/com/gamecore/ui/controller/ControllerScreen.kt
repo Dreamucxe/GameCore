@@ -167,6 +167,54 @@ fun ControllerScreen(
         }
 
         item {
+            LabChooser(
+                tool = state.labTool,
+                onTool = viewModel::setLabTool,
+                modifier = padded,
+            )
+        }
+
+        item {
+            when (state.labTool) {
+                ControllerLabTool.DRIFT -> ControllerDriftCard(
+                    device = device,
+                    state = state.drift,
+                    hasAxes = device.hasStickAxes(state.drift.stick),
+                    onStick = viewModel::setDriftStick,
+                    onDuration = viewModel::setDriftDuration,
+                    onOffsetThreshold = viewModel::setDriftOffsetThreshold,
+                    onJitterThreshold = viewModel::setDriftJitterThreshold,
+                    onStart = viewModel::startDrift,
+                    onCancel = { viewModel.cancelDrift() },
+                    onSave = viewModel::saveDrift,
+                    modifier = padded,
+                )
+
+                ControllerLabTool.CURVE -> ControllerCurveCard(
+                    device = device,
+                    snapshot = state.snapshot,
+                    state = state.curve,
+                    onStick = viewModel::setCurveStick,
+                    onDeadzone = viewModel::setCurveDeadzone,
+                    onKind = viewModel::setCurveKind,
+                    onExponent = viewModel::setCurveExponent,
+                    onReset = viewModel::resetCurve,
+                    modifier = padded,
+                )
+
+                ControllerLabTool.PROFILES -> ControllerProfilesCard(
+                    device = device,
+                    curve = state.curve.settings,
+                    thresholds = com.gamecore.core.controller.DriftThresholds(
+                        offset = state.drift.offsetThreshold,
+                        jitter = state.drift.jitterThreshold,
+                    ),
+                    modifier = padded,
+                )
+            }
+        }
+
+        item {
             VibrationCard(
                 device = device,
                 onTest = { viewModel.testVibration(device.deviceId) },
@@ -189,6 +237,44 @@ fun ControllerScreen(
         }
 
         item { NoteBanner(text = NO_LATENCY, tone = Tone.Muted, icon = Icons.Filled.Info, modifier = padded) }
+    }
+}
+
+/** Picks the one lab panel shown below it: a measurement, a simulation, or the saved record. */
+@Composable
+private fun LabChooser(
+    tool: ControllerLabTool,
+    onTool: (ControllerLabTool) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Controller lab",
+        modifier = modifier,
+        subtitle = "Drift measurement, curve simulation and saved references",
+        icon = Icons.Filled.Tune,
+    ) {
+        ChoiceRow(
+            options = ControllerLabTool.entries.toList(),
+            selected = tool,
+            onSelect = onTool,
+            label = { it.label },
+            perRow = 3,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = when (tool) {
+                ControllerLabTool.DRIFT ->
+                    "Measure the resting mean and jitter from fresh motion events. Nothing is calibrated."
+                ControllerLabTool.CURVE ->
+                    "Preview a radial dead zone and response curve against the live stick. Nothing is applied " +
+                        "to a game."
+                ControllerLabTool.PROFILES ->
+                    "Edit saved reference profiles, compare two, transfer them as JSON, or read this " +
+                        "controller's drift history."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

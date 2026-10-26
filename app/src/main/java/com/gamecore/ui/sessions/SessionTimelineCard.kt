@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Share
@@ -112,13 +110,14 @@ fun SessionTimelineCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
             )
-            LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                items(events.size) { index ->
-                    val event = events[index]
-                    val next = events.getOrNull(index + 1)
+            // A plain Column, not a LazyColumn: this card is already an item inside the report's
+            // LazyColumn. A nested vertical LazyColumn is measured with an infinite maximum height and
+            // throws as soon as the timeline is scrolled into view, which reads as the app closing.
+            Column(modifier = Modifier.fillMaxWidth()) {
+                events.forEachIndexed { index, event ->
                     TimelineRow(
                         event = event,
-                        nextEventTime = next?.elapsedMillis,
+                        nextEventTime = events.getOrNull(index + 1)?.elapsedMillis,
                         isFirst = index == 0,
                         isLast = index == events.lastIndex,
                     )
