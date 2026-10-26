@@ -3,6 +3,7 @@ package com.gamecore.domain.energy
 import com.gamecore.core.model.GameSession
 import com.gamecore.core.model.StopReason
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -51,7 +52,7 @@ class EnergyBudgetTest {
         val result = EnergyBudget.estimate(sessions, 80)
 
         assertTrue(result is EnergyEstimate.NotEnoughData)
-        assertTrue(result.reason.contains("1 more session"))
+        assertTrue((result as EnergyEstimate.NotEnoughData).reason.contains("1 more session"))
     }
 
     @Test
@@ -63,7 +64,7 @@ class EnergyBudgetTest {
         val result = EnergyBudget.estimate(sessions, 80)
 
         assertTrue(result is EnergyEstimate.NotEnoughData)
-        assertTrue(result.reason.contains("10 more minutes"))
+        assertTrue((result as EnergyEstimate.NotEnoughData).reason.contains("10 more minutes"))
     }
 
     @Test
@@ -92,7 +93,7 @@ class EnergyBudgetTest {
         val result = EnergyBudget.estimate(sessions, 80)
 
         assertTrue(result is EnergyEstimate.NotEnoughData)
-        assertTrue(result.reason.contains("1 more session"))
+        assertTrue((result as EnergyEstimate.NotEnoughData).reason.contains("1 more session"))
     }
 
     @Test
@@ -169,7 +170,7 @@ class EnergyBudgetTest {
         val reason = EnergyBudget.explainsRefusal(sessions, 80)
 
         assertNotNull(reason)
-        assertEquals(EnergyBudget.estimate(sessions, 80) as EnergyEstimate.NotEnoughData).reason, reason!!)
+        assertEquals((EnergyBudget.estimate(sessions, 80) as EnergyEstimate.NotEnoughData).reason, reason!!)
     }
 
     @Test

@@ -83,6 +83,7 @@ class SearchIndexTest {
             Destination.QuickTrigger.route,
             Destination.NeverClose.route,
             Destination.GameStorage.route,
+            Destination.Emulators.route,
             Destination.Developer.route,
             Destination.GlassCentre.route,
         )

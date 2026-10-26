@@ -1,0 +1,25 @@
+{"rules": [
+  {
+    "id": "thermal_cooldown",
+    "trigger": "THERMAL_HIGH",
+    "conditions": [{
+      "op": "GTE",
+      "variable": "temp",
+      "value": 45
+    }],
+    "actions": [
+      "set_min_refresh_rate",
+      "set_low_power"
+    ]
+  },
+  {
+    "id": "battery_saver",
+    "trigger": "BATTERY_LOW",
+    "conditions": [{
+      "op": "LTE",
+      "variable": "battery",
+      "value": 15
+    }],
+    "actions": ["set_low_power"]
+  }
+]}

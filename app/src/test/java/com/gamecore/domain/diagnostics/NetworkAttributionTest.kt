@@ -175,6 +175,28 @@ class NetworkAttributionTest {
     }
 
     @Test
+    fun `every outlier is counted even when the attribution card only explains the worst five`() {
+        val events = listOf(
+            outlier(10_000L),
+            outlier(20_000L),
+            outlier(30_000L),
+            outlier(40_000L),
+            outlier(50_000L),
+            outlier(60_000L),
+            probe(10_000L, NetworkAttribution.LANE_UPSTREAM),
+            spike(10_000L, NetworkAttribution.LANE_UPSTREAM),
+        )
+
+        val report = NetworkAttribution.attribute(
+            events = events,
+        )
+
+        assertEquals(6, report.stutterCount)
+        assertEquals(1, report.correlatedStutters)
+        assertEquals(NetworkVerdict.UPSTREAM, report.verdict)
+    }
+
+    @Test
     fun `an unlabelled spike is not counted on either lane`() {
         val report = NetworkAttribution.attribute(
             events = listOf(

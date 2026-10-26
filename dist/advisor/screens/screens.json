@@ -1,0 +1,164 @@
+{
+  "screens": [
+    {
+      "icon": "insights",
+      "id": "advice",
+      "title": "Advice",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "Local Gaming Advisor",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "Guidance drawn from your own device readings. Everything here is read-only \u2014 the advisor reports, it never changes a setting for you."
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 13,
+                  "text": "Live readings",
+                  "bold": true
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {"text": "Frame rate"}
+                  },
+                  {
+                    "type": "stat",
+                    "props": {"stat": "fps"}
+                  }
+                ],
+                "type": "row",
+                "props": {"gap": 12}
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {"text": "CPU load"}
+                  },
+                  {
+                    "type": "stat",
+                    "props": {"stat": "cpu"}
+                  }
+                ],
+                "type": "row",
+                "props": {"gap": 12}
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {"text": "Temperature"}
+                  },
+                  {
+                    "type": "stat",
+                    "props": {"stat": "temp"}
+                  }
+                ],
+                "type": "row",
+                "props": {"gap": 12}
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 12,
+              "color": "#14181F",
+              "gap": 8
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 13,
+              "text": "When the device runs hot, the cooldown automation eases the refresh rate and turns on battery saver to let it recover. Switch it off any time under Settings."
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "thermostat",
+      "id": "reference",
+      "title": "Reference",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 18,
+              "text": "Recommended thresholds",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {"text": "Warn temperature"}
+              },
+              {
+                "type": "text",
+                "props": {"text": "42 C"}
+              },
+              {
+                "type": "text",
+                "props": {"text": "Critical temperature"}
+              },
+              {
+                "type": "text",
+                "props": {"text": "48 C"}
+              },
+              {
+                "type": "text",
+                "props": {"text": "Target frame rate"}
+              },
+              {
+                "type": "text",
+                "props": {"text": "60 fps"}
+              }
+            ],
+            "type": "grid",
+            "props": {
+              "columns": 2,
+              "gap": 8
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 13,
+              "text": "Starting points for a mid-range phone. Tune them to your own device under Settings."
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    }
+  ],
+  "format": "gamecore.plugin.screens",
+  "version": 1
+}

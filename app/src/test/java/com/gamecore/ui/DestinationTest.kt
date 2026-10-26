@@ -93,6 +93,7 @@ class DestinationTest {
         assertEquals("sessions", Destination.Sessions.route)
         assertEquals("settings", Destination.Settings.route)
         assertEquals("hud", Destination.Hud.route)
+        assertEquals("emulators", Destination.Emulators.route)
         assertEquals("crosshair", Destination.Crosshair.route)
         assertEquals("colour", Destination.Colour.route)
         assertEquals("performance", Destination.Performance.route)
@@ -142,7 +143,7 @@ class DestinationTest {
         // the five tops (§9)
         Destination.Home, Destination.Games, Destination.AimLabHome, Destination.Sessions, Destination.Settings,
         // secondary, argument-less
-        Destination.Hud, Destination.Performance, Destination.Crosshair, Destination.Shizuku,
+        Destination.Emulators, Destination.Hud, Destination.Performance, Destination.Crosshair, Destination.Shizuku,
         Destination.Permissions, Destination.Tools, Destination.Overlay, Destination.Motion, Destination.Touch,
         Destination.Controller, Destination.Capability, Destination.QuickTrigger, Destination.NeverClose,
         Destination.GameStorage, Destination.QuickApps, Destination.MacroEditor,

@@ -1,0 +1,20 @@
+{
+  "onPrimary": "#1A0A14",
+  "schema": 2,
+  "onSurface": "#FFE6F3",
+  "typography": {"weight": "medium"},
+  "surface": "#241026",
+  "roles": {
+    "secondary": "#38F0E0",
+    "outline": "#5A2E52",
+    "tertiary": "#B16CFF"
+  },
+  "accent": "#38F0E0",
+  "uiScale": 1,
+  "background": "#0E0A12",
+  "name": "Anime Interface Pack",
+  "dark": true,
+  "cornerRadiusDp": 24,
+  "primary": "#FF4FA3",
+  "font": "rounded"
+}

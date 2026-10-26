@@ -1,0 +1,34 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "screens",
+    "widgets",
+    "settings",
+    "rules",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "add_dashboard_widgets"},
+    {
+      "id": "read_approved_data",
+      "scopes": [
+        "device_stats",
+        "thermals"
+      ]
+    },
+    {"id": "store_data"},
+    {"id": "run_automations"},
+    {"id": "system_actions"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Local Gaming Advisor",
+  "description": "Read-only gaming advice drawn from your own device's performance and thermal readings, with an optional cooldown automation you stay in control of. It reports; it does not tune your device for you.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.advisor",
+  "api": 3,
+  "versionName": "1.1.0",
+  "version": 2
+}

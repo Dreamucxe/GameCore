@@ -1,6 +1,6 @@
 package com.gamecore.ui.sessions
 
-import com.gamecore.core.model.Readout
+import com.gamecore.ui.components.Readout
 import com.gamecore.core.model.SessionEvent
 import com.gamecore.core.model.SessionEventKind
 import com.gamecore.core.model.SessionSample

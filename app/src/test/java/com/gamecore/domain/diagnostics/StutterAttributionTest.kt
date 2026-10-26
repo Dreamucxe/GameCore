@@ -312,5 +312,8 @@ class StutterAttributionTest {
         // The worst five (last five in elapsed order because they are already sorted by time)
         assertEquals(70_000L, report.findings[0].elapsedMillis)
         assertEquals(110_000L, report.findings.last().elapsedMillis)
+        // The report still says how many outliers the session had, so a counter somewhere else is
+        // not capped by the cap on findings.
+        assertEquals(20, report.outlierCount)
     }
 }

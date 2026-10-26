@@ -1,0 +1,45 @@
+{"settings": [
+  {
+    "default": 42,
+    "min": 30,
+    "max": 95,
+    "id": "warn_temp_c",
+    "type": "int"
+  },
+  {
+    "default": 48,
+    "min": 30,
+    "max": 99,
+    "id": "critical_temp_c",
+    "type": "int"
+  },
+  {
+    "default": 60,
+    "min": 30,
+    "max": 240,
+    "id": "target_fps",
+    "type": "int"
+  },
+  {
+    "default": 0.5,
+    "min": 0,
+    "max": 1,
+    "id": "trend_smoothing",
+    "type": "float"
+  },
+  {
+    "default": "standard",
+    "options": [
+      "brief",
+      "standard",
+      "verbose"
+    ],
+    "id": "advice_detail",
+    "type": "enum"
+  },
+  {
+    "default": true,
+    "id": "show_trend_widget",
+    "type": "bool"
+  }
+]}
