@@ -1,0 +1,24 @@
+{
+  "onPrimary": "#FFFFFF",
+  "schema": 2,
+  "onSurface": "#1C2428",
+  "typography": {"weight": "medium"},
+  "surface": "#FFFFFF",
+  "roles": {
+    "secondary": "#5E8A9C",
+    "outline": "#C4CFD4",
+    "onError": "#FFFFFF",
+    "onSurfaceVariant": "#48585F",
+    "tertiary": "#C99A86",
+    "error": "#B3261E",
+    "surfaceVariant": "#E7ECEE"
+  },
+  "accent": "#B9543A",
+  "uiScale": 1,
+  "background": "#F4F6F7",
+  "name": "Robot Core GameCore",
+  "dark": false,
+  "cornerRadiusDp": 4,
+  "primary": "#0E7C9E",
+  "font": "system"
+}

@@ -1,0 +1,39 @@
+{"settings": [
+  {
+    "default": "medium",
+    "options": [
+      "low",
+      "medium",
+      "high",
+      "pro"
+    ],
+    "id": "preset",
+    "type": "enum"
+  },
+  {
+    "default": 800,
+    "min": 100,
+    "max": 16000,
+    "id": "dpi",
+    "type": "int"
+  },
+  {
+    "default": 1,
+    "min": 0.1,
+    "max": 10,
+    "id": "multiplier",
+    "type": "float"
+  },
+  {
+    "default": 1,
+    "min": 0.1,
+    "max": 5,
+    "id": "ads_multiplier",
+    "type": "float"
+  },
+  {
+    "default": false,
+    "id": "invert_y",
+    "type": "bool"
+  }
+]}

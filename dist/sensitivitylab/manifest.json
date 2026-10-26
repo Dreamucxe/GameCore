@@ -1,0 +1,31 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "pill",
+    "screens",
+    "settings",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "create_overlay"},
+    {
+      "id": "read_approved_data",
+      "scopes": [
+        "motion",
+        "device_stats"
+      ]
+    },
+    {"id": "change_ui"},
+    {"id": "store_data"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Sensitivity Lab Pro",
+  "description": "A sensitivity and DPI reference lab: a live motion overlay to feel out aim changes, copy-ready preset tables, and saved preferences. It measures and remembers \u2014 it cannot change any game's sensitivity.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.sensitivitylab",
+  "api": 3,
+  "versionName": "1.1.0",
+  "version": 2
+}

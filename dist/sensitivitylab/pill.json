@@ -1,0 +1,118 @@
+{
+  "size": "large",
+  "anchor": {
+    "x": 0.5,
+    "y": 0.12
+  },
+  "format": "gamecore.plugin.pill",
+  "id": "sensitivity.monitor",
+  "title": "Sensitivity monitor",
+  "opacity": 85,
+  "version": 1,
+  "content": {
+    "children": [{
+      "children": [
+        {
+          "children": [
+            {
+              "type": "image",
+              "props": {
+                "size": 12,
+                "icon": "sensors"
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "color": "#CCFFFFFF",
+                "size": 11,
+                "text": "Sensitivity Lab"
+              }
+            }
+          ],
+          "type": "row",
+          "props": {
+            "gap": 6,
+            "align": "center"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "type": "stat",
+                  "props": {
+                    "stat": "rotation_rate",
+                    "size": 16
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "color": "#99FFFFFF",
+                    "size": 9,
+                    "text": "rot/s"
+                  }
+                }
+              ],
+              "type": "column",
+              "props": {"align": "center"}
+            },
+            {
+              "children": [
+                {
+                  "type": "stat",
+                  "props": {
+                    "stat": "movement",
+                    "size": 16
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "color": "#99FFFFFF",
+                    "size": 9,
+                    "text": "move"
+                  }
+                }
+              ],
+              "type": "column",
+              "props": {"align": "center"}
+            },
+            {
+              "children": [
+                {
+                  "type": "stat",
+                  "props": {
+                    "stat": "fps",
+                    "size": 16
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "color": "#99FFFFFF",
+                    "size": 9,
+                    "text": "fps"
+                  }
+                }
+              ],
+              "type": "column",
+              "props": {"align": "center"}
+            }
+          ],
+          "type": "row",
+          "props": {
+            "gap": 14,
+            "align": "center"
+          }
+        }
+      ],
+      "type": "column",
+      "props": {"gap": 6}
+    }],
+    "type": "card",
+    "props": {"padding": 8}
+  }
+}
