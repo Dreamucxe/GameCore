@@ -48,6 +48,17 @@ sealed interface Destination {
         override val icon = Icons.Filled.SportsEsports
     }
 
+    /**
+     * The experimental emulator frontend: installed-emulator detection and the ROM hand-off library.
+     *
+     * Pushed from Games rather than given a bottom-bar slot. It is a launcher for applications the user
+     * installed themselves, not a sixth section of GameCore, and marking it experimental in the route's
+     * own screen keeps the distinction visible instead of implying GameCore ships an emulator.
+     */
+    data object Emulators : Destination {
+        override val route = "emulators"
+    }
+
     data object Sessions : Top {
         override val route = "sessions"
         override val label = "Sessions"

@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Room
 import com.gamecore.data.database.ColorPresetDao
 import com.gamecore.data.database.ConfigBackupDao
+import com.gamecore.data.database.ControllerProfileDao
+import com.gamecore.data.database.ControllerTestResultDao
 import com.gamecore.data.database.CrosshairPresetDao
 import com.gamecore.data.database.DashboardDao
 import com.gamecore.data.database.GameCoreDatabase
@@ -12,6 +14,7 @@ import com.gamecore.data.database.GameProfileDao
 import com.gamecore.data.database.HudLayoutDao
 import com.gamecore.data.database.PluginAutomationEventDao
 import com.gamecore.data.database.RestorePointDao
+import com.gamecore.data.database.RomDao
 import com.gamecore.data.database.SessionDao
 import com.gamecore.data.preferences.DatabaseKeyStore
 import dagger.Module
@@ -104,6 +107,16 @@ object DatabaseModule {
 
     @Provides
     fun dashboardDao(database: GameCoreDatabase): DashboardDao = database.dashboardLayouts()
+
+    @Provides
+    fun controllerProfileDao(database: GameCoreDatabase): ControllerProfileDao = database.controllerProfiles()
+
+    @Provides
+    fun controllerTestResultDao(database: GameCoreDatabase): ControllerTestResultDao =
+        database.controllerTestResults()
+
+    @Provides
+    fun romDao(database: GameCoreDatabase): RomDao = database.romLibrary()
 
     /**
      * Loads `libsqlcipher.so`.

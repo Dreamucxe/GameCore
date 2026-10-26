@@ -53,6 +53,18 @@ import androidx.room.RoomDatabase
  * rate it reports. All nullable with no default, because a session that predates them has nothing to
  * report and NULL is distinct from `false`. [GameCoreMigrations.MIGRATION_18_19].
  *
+ * **Version 21** adds `controller_profiles` and `controller_test_results`, two new tables for the
+ * Controller Lab. Strictly additive: no existing table or row is touched, so updating from 20 keeps
+ * every session, game profile and plugin row. The profile values are a reference simulation and a
+ * drift tolerance, not a system or game setting; the result table stores one summary per completed
+ * run, never the high-frequency samples. [GameCoreMigrations.MIGRATION_20_21].
+ *
+ * **Version 22** adds `rom_library`, one new table for the emulator frontend. Strictly additive: no
+ * existing table or row is touched, so updating from 21 keeps every session, profile and controller
+ * result. The table stores a persisted document URI, the system the user confirmed, and an optional
+ * remembered emulator package. It does not store emulator binaries, ROM contents or anything GameCore
+ * did not read from the file's own metadata. [GameCoreMigrations.MIGRATION_21_22].
+ *
  * There are no `@TypeConverter`s registered anywhere in this class, deliberately. Enums are stored
  * as their names and parsed back defensively in [Mappers]; a converter would move that parsing
  * into generated code where the fallback for an unrecognised name is a thrown exception rather
@@ -79,8 +91,11 @@ import androidx.room.RoomDatabase
         PluginAutomationEventEntity::class,
         DashboardLayoutEntity::class,
         DashboardItemEntity::class,
+        ControllerProfileEntity::class,
+        ControllerTestResultEntity::class,
+        RomEntity::class,
     ],
-    version = 20,
+    version = 22,
     exportSchema = true,
 )
 abstract class GameCoreDatabase : RoomDatabase() {
@@ -110,6 +125,12 @@ abstract class GameCoreDatabase : RoomDatabase() {
     abstract fun pluginAutomationEvents(): PluginAutomationEventDao
 
     abstract fun dashboardLayouts(): DashboardDao
+
+    abstract fun controllerProfiles(): ControllerProfileDao
+
+    abstract fun controllerTestResults(): ControllerTestResultDao
+
+    abstract fun romLibrary(): RomDao
 
     companion object {
         /**

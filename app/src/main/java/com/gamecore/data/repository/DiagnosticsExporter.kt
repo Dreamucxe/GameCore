@@ -13,6 +13,7 @@ import com.gamecore.core.common.IoDispatcher
 import com.gamecore.core.common.Observed
 import com.gamecore.core.common.unavailabilityText
 import com.gamecore.core.common.valueOrNull
+import com.gamecore.core.controller.ControllerSignature
 import com.gamecore.core.input.ControllerDevice
 import com.gamecore.core.input.ControllerReader
 import com.gamecore.core.input.TouchSnapshot
@@ -724,6 +725,17 @@ class DiagnosticsExporter @Inject constructor(
 
     // ---------------------------------------------------------------- controllers
 
+    /**
+     * The same capability fingerprint the profile store keys on. It is derived from what the device
+     * declares, never from its marketing name, so a support report and a saved profile agree.
+     */
+    private fun ControllerDevice.capabilityKey(): String = ControllerSignature.of(
+        vendorId = vendorId,
+        productId = productId,
+        axisIds = axes.map { it.axis },
+        buttonCount = buttons.size,
+    )
+
     private fun controllerJson(out: Writer, devices: List<ControllerDevice>): Int {
         val json = JsonWriter(out)
         json.setIndent("  ")
@@ -738,6 +750,7 @@ class DiagnosticsExporter @Inject constructor(
             json.name("descriptor").value(device.descriptor)
             json.name("vendorId").value(device.vendorHex)
             json.name("productId").value(device.productHex)
+            json.name("capability").value(device.capabilityKey())
             json.name("controllerNumber").value(device.controllerNumber.toLong())
             json.name("classification").value(device.classification)
             json.name("sources").beginArray()
@@ -790,6 +803,7 @@ class DiagnosticsExporter @Inject constructor(
                 device.descriptor,
                 device.vendorHex,
                 device.productHex,
+                device.capabilityKey(),
                 device.controllerNumber.toString(),
                 device.classification,
                 device.sources.joinToString(separator = " | "),
@@ -814,6 +828,7 @@ class DiagnosticsExporter @Inject constructor(
             field(out, "Device id", device.deviceId.toString())
             field(out, "Descriptor", device.descriptor)
             field(out, "Vendor / product", "${device.vendorHex} / ${device.productHex}")
+            field(out, "Capability key", device.capabilityKey())
             field(out, "Controller number", device.controllerNumber.toString())
             field(out, "Classification", device.classification)
             field(out, "Sources", device.sources.joinToString(separator = ", ").ifBlank { "None reported" })
@@ -1133,6 +1148,7 @@ class DiagnosticsExporter @Inject constructor(
             "descriptor",
             "vendor_id",
             "product_id",
+            "capability",
             "controller_number",
             "classification",
             "sources",

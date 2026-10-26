@@ -62,6 +62,8 @@ data class StutterFinding(
 data class StutterReport(
     val findings: List<StutterFinding> = emptyList(),
     val hasFrameTiming: Boolean = false,
+    /** The number of outliers the session recorded, which can be more than [findings] are shown. */
+    val outlierCount: Int = findings.size,
 ) {
     val hasOutliers: Boolean get() = findings.isNotEmpty()
     val unexplainedCount: Int get() = findings.count { it.isUnexplained }
@@ -137,6 +139,7 @@ object StutterAttribution {
                 )
             },
             hasFrameTiming = true,
+            outlierCount = outliers.size,
         )
     }
 

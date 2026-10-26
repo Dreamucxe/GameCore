@@ -723,6 +723,117 @@ internal object GameCoreMigrations {
         }
     }
 
+    /**
+     * Version 20 → 21: saved controller profiles and drift-run summaries.
+     *
+     * Two new tables and four indexes, strictly additive. No column on a populated table is altered and no
+     * row is rewritten, so a user updating from 20 keeps every session, profile and plugin record. The
+     * tables are empty after the migration, which is the truth: no controller result existed before the
+     * feature did, and a back-filled row would be an invented measurement.
+     *
+     * The DDL matches [ControllerProfileEntity], [ControllerTestResultEntity] and the generated `21.json`
+     * exactly — name, affinity and nullability all have to agree or Room refuses to open the database.
+     * Repeated text values (`curve`, `stick`, `verdict`) are stored as their enum names, not ordinals, and
+     * the mappers drop an unrecognised name instead of defaulting it.
+     */
+    val MIGRATION_20_21 = object : Migration(20, 21) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `controller_profiles` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`name` TEXT NOT NULL, " +
+                    "`device_signature` TEXT NOT NULL, " +
+                    "`device_name` TEXT NOT NULL, " +
+                    "`deadzone` REAL NOT NULL, " +
+                    "`curve` TEXT NOT NULL, " +
+                    "`exponent` REAL NOT NULL, " +
+                    "`drift_offset` REAL NOT NULL, " +
+                    "`drift_jitter` REAL NOT NULL, " +
+                    "`notes` TEXT NOT NULL, " +
+                    "`created_at` INTEGER NOT NULL, " +
+                    "`updated_at` INTEGER NOT NULL)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_controller_profiles_device_signature` " +
+                    "ON `controller_profiles` (`device_signature`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_controller_profiles_updated_at` " +
+                    "ON `controller_profiles` (`updated_at`)",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `controller_test_results` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`device_signature` TEXT NOT NULL, " +
+                    "`device_name` TEXT NOT NULL, " +
+                    "`stick` TEXT NOT NULL, " +
+                    "`started_at` INTEGER NOT NULL, " +
+                    "`duration_ms` INTEGER NOT NULL, " +
+                    "`sample_count` INTEGER NOT NULL, " +
+                    "`offset_x` REAL NOT NULL, " +
+                    "`offset_y` REAL NOT NULL, " +
+                    "`offset_magnitude` REAL NOT NULL, " +
+                    "`jitter` REAL NOT NULL, " +
+                    "`stability_percent` REAL NOT NULL, " +
+                    "`peak_magnitude` REAL NOT NULL, " +
+                    "`verdict` TEXT NOT NULL, " +
+                    "`offset_threshold` REAL NOT NULL, " +
+                    "`jitter_threshold` REAL NOT NULL)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_controller_test_results_device_signature` " +
+                    "ON `controller_test_results` (`device_signature`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_controller_test_results_started_at` " +
+                    "ON `controller_test_results` (`started_at`)",
+            )
+        }
+    }
+
+    /**
+     * Version 21 → 22: the emulator frontend's ROM library.
+     *
+     * One new table and three indexes, strictly additive. No populated table is altered and no row is
+     * rewritten, so a user updating from 21 keeps every session, profile and controller result. The table
+     * starts empty, which is the truth: no ROM had been added before the feature existed.
+     *
+     * The DDL matches [RomEntity] and the generated `22.json` exactly — name, affinity and nullability all
+     * have to agree or Room refuses to open the database. `size_bytes`, `emulator_package` and
+     * `last_launched_at` are nullable with no default because absence is a real answer: the provider may
+     * not expose a size, no emulator has been chosen yet, and a file has not been launched. The unique
+     * index on `uri` is the duplicate rule the repository also checks in memory.
+     */
+    val MIGRATION_21_22 = object : Migration(21, 22) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `rom_library` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`uri` TEXT NOT NULL, " +
+                    "`display_name` TEXT NOT NULL, " +
+                    "`size_bytes` INTEGER, " +
+                    "`extension` TEXT NOT NULL, " +
+                    "`system` TEXT NOT NULL, " +
+                    "`emulator_package` TEXT, " +
+                    "`added_at` INTEGER NOT NULL, " +
+                    "`last_launched_at` INTEGER, " +
+                    "`launch_count` INTEGER NOT NULL)",
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_rom_library_uri` " +
+                    "ON `rom_library` (`uri`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_rom_library_system` " +
+                    "ON `rom_library` (`system`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_rom_library_added_at` " +
+                    "ON `rom_library` (`added_at`)",
+            )
+        }
+    }
+
     /** Every migration, in order, for [androidx.room.RoomDatabase.Builder.addMigrations]. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
@@ -744,5 +855,7 @@ internal object GameCoreMigrations {
         MIGRATION_17_18,
         MIGRATION_18_19,
         MIGRATION_19_20,
+        MIGRATION_20_21,
+        MIGRATION_21_22,
     )
 }

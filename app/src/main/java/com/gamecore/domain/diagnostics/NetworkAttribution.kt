@@ -94,7 +94,11 @@ object NetworkAttribution {
         samples: List<SessionSample> = emptyList(),
         events: List<SessionEvent> = emptyList(),
     ): NetworkReport {
-        val stutters = StutterAttribution.attribute(samples, events).findings
+        val stutterReport = StutterAttribution.attribute(samples, events)
+        val stutterCount = stutterReport.outlierCount
+        val stutterTimes = events
+            .filter { it.kind == SessionEventKind.FRAME_OUTLIER }
+            .map { it.elapsedMillis }
         val probes = events.filter { it.kind == SessionEventKind.NETWORK_PROBE }
         val spikes = events.filter { it.kind == SessionEventKind.NETWORK_SPIKE }
 
@@ -104,10 +108,10 @@ object NetworkAttribution {
         val hasUpstream = probes.any { it.lane() == LANE_UPSTREAM }
         val hasLocal = probes.any { it.lane() == LANE_LOCAL }
 
-        if (stutters.isEmpty() || probes.isEmpty()) {
+        if (stutterTimes.isEmpty() || probes.isEmpty()) {
             return NetworkReport(
                 verdict = NetworkVerdict.UNKNOWN,
-                stutterCount = stutters.size,
+                stutterCount = stutterCount,
                 upstreamSpikes = upstreamSpikes.size,
                 localSpikes = localSpikes.size,
                 probeCount = probes.size,
@@ -117,13 +121,13 @@ object NetworkAttribution {
         }
 
         // Each stutter is attributed once per lane: a spike that lines up with both is evidence for
-        // both, which is exactly why the both-spiked verdict exists rather than a tie-break.
-        val localMatches = stutters.count { stutter -> localSpikes.any { it.near(stutter.elapsedMillis) } }
-        val upstreamMatches =
-            stutters.count { stutter -> upstreamSpikes.any { it.near(stutter.elapsedMillis) } }
+        // both, which is exactly why the both-spiked verdict exists rather than a tie-break. Every
+        // outlier is counted, not only the few the attribution card chose to explain.
+        val localMatches = stutterTimes.count { time -> localSpikes.any { it.near(time) } }
+        val upstreamMatches = stutterTimes.count { time -> upstreamSpikes.any { it.near(time) } }
 
-        val correlated = stutters.count { stutter ->
-            (localSpikes + upstreamSpikes).any { it.near(stutter.elapsedMillis) }
+        val correlated = stutterTimes.count { time ->
+            (localSpikes + upstreamSpikes).any { it.near(time) }
         }
 
         val verdict = when {
@@ -135,7 +139,7 @@ object NetworkAttribution {
 
         return NetworkReport(
             verdict = verdict,
-            stutterCount = stutters.size,
+            stutterCount = stutterCount,
             correlatedStutters = correlated,
             upstreamSpikes = upstreamSpikes.size,
             localSpikes = localSpikes.size,

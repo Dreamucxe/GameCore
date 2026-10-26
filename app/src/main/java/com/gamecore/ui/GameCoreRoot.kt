@@ -83,6 +83,7 @@ import com.gamecore.ui.crosshair.CrosshairScreen
 import com.gamecore.ui.dashboard.DashboardComposerRoute
 import com.gamecore.ui.developer.DeveloperScreen
 import com.gamecore.ui.dock.DockCustomizationScreen
+import com.gamecore.ui.emulators.EmulatorScreen
 import com.gamecore.ui.extraction.ScreenExtractionScreen
 import com.gamecore.ui.fitness.FitnessScreen
 import com.gamecore.ui.games.GamesScreen
@@ -442,6 +443,10 @@ private fun GameCoreNav(
                 onOpenProfile = { name -> navController.push(Destination.ProfileEditor.routeFor(name)) },
                 onNavigate = open,
             )
+        }
+
+        composable(Destination.Emulators.route) {
+            EmulatorScreen(onBack = back)
         }
 
         composable(Destination.Hud.route) {
