@@ -1,0 +1,179 @@
+{
+  "screens": [
+    {
+      "icon": "insights",
+      "id": "visualizer",
+      "title": "Visualizer",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 18,
+              "text": "Performance visualizer",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#AEB4C0",
+              "size": 13,
+              "text": "Live readings from GameCore's own performance feed. Grant Device stats and Thermals and they fill during a session; otherwise each reads as a dash."
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#8A90A0",
+                      "size": 12,
+                      "text": "Frame rate"
+                    }
+                  },
+                  {
+                    "type": "stat",
+                    "props": {
+                      "stat": "fps",
+                      "size": 20,
+                      "label": "FPS"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {"padding": 12}
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#8A90A0",
+                      "size": 12,
+                      "text": "CPU load"
+                    }
+                  },
+                  {
+                    "type": "stat",
+                    "props": {
+                      "stat": "cpu",
+                      "size": 20,
+                      "label": "CPU"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {"padding": 12}
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#8A90A0",
+                      "size": 12,
+                      "text": "GPU load"
+                    }
+                  },
+                  {
+                    "type": "stat",
+                    "props": {
+                      "stat": "gpu",
+                      "size": 20,
+                      "label": "GPU"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {"padding": 12}
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#8A90A0",
+                      "size": 12,
+                      "text": "Temperature"
+                    }
+                  },
+                  {
+                    "type": "stat",
+                    "props": {
+                      "stat": "temp",
+                      "size": 20,
+                      "label": "Temp"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {"padding": 12}
+              }
+            ],
+            "type": "grid",
+            "props": {
+              "columns": 2,
+              "gap": 12
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "info",
+      "id": "about",
+      "title": "About",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 18,
+              "text": "About Benchmark Suite",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#AEB4C0",
+              "size": 13,
+              "text": "A read-only window onto the telemetry GameCore already samples: an in-game overlay, dashboard widgets and a rolling frame-rate chart."
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#AEB4C0",
+              "size": 13,
+              "text": "What it does: draws live FPS, CPU, GPU and temperature, plus recent history."
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#AEB4C0",
+              "size": 13,
+              "text": "What it does not do: it runs no benchmark workload, computes no score, and stores nothing."
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 10
+        }
+      }
+    }
+  ],
+  "format": "gamecore.plugin.screens",
+  "version": 1
+}

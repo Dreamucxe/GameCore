@@ -1,0 +1,31 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "pill",
+    "widgets",
+    "screens",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "create_overlay"},
+    {"id": "add_dashboard_widgets"},
+    {
+      "id": "read_approved_data",
+      "scopes": [
+        "device_stats",
+        "thermals"
+      ]
+    },
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Benchmark Suite",
+  "description": "A read-only visualizer for GameCore's performance feed \u2014 live FPS, CPU, GPU and temperature as an overlay, dashboard widgets and a rolling chart. It runs no benchmark workload and computes no score.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.benchmark",
+  "api": 3,
+  "versionName": "1.1.0",
+  "version": 2
+}

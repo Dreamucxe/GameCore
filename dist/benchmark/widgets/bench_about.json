@@ -1,0 +1,32 @@
+{
+  "size": "large",
+  "format": "gamecore.plugin.widget",
+  "id": "bench_about",
+  "title": "About",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "color": "#F2F4F8",
+          "size": 14,
+          "text": "Visualizer, not a benchmark runner"
+        }
+      },
+      {
+        "type": "text",
+        "props": {
+          "color": "#AEB4C0",
+          "size": 12,
+          "text": "Shows live host telemetry and recent history. It runs no workload and computes no score."
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 6
+    }
+  }
+}

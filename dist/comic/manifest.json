@@ -1,0 +1,20 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "theme",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Comic GameCore",
+  "description": "Bright comic-book theme \u2014 bold ink on warm paper, punch red and comic blue.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.comic",
+  "api": 1,
+  "versionName": "1.1.0",
+  "version": 2
+}
