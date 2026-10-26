@@ -1,644 +1,225 @@
-# GameCore
-
-An Android gaming overlay, performance monitor and per-game profile manager — built on the
-rule that every number it shows is one Android actually reported.
-
-[![Download APK](https://img.shields.io/badge/Download-GameCore%20v3.19.0%20APK-2962FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk)
-
-Android 8.0 (API 26) or newer · signed release build · sideload, no store listing · no account,
-no backend, nothing you record leaves the device
-
----
-
-## New in 3.19.0
-
-This release is about the two things a hard session leaves behind: a display you cannot read, and a
-stutter you cannot explain. Both now have an answer that says how sure it is.
-
-- **Display changes ask before they stay.** Every display-size change GameCore makes shows a
-  fifteen-second countdown with Keep and Revert. Silence, or a process that dies before the answer,
-  puts the previous size back. A size left unconfirmed across a restart is recovered at launch, and a
-  notification explains what happened — the undo never depends on reaching the screen that set it.
-- **Recovery console.** A display-recovery screen in Settings restores the panel's own size, shows
-  whether the elevated shell is reachable, and says plainly when nothing was recorded to put back.
-  It is also where the launch notification leads.
-- **Frame-time attribution.** Session reports name what was happening around each spike — thermal
-  throttling, a capped refresh rate, battery saver, device load, high temperature, a profile that
-  did not fully apply — and call a spike nothing explains *unexplained* instead of picking a cause.
-- **Session timeline and receipt.** Every session now keeps a timeline of profile applies, thermal
-  and refresh changes, power-saver transitions, network spikes and frame-time spikes. The whole
-  report can be rendered as a PNG receipt and shared through the same file provider as the session
-  card.
-- **New-device migration.** Backups carry an optional device snapshot, and a restore preview names
-  the refresh rates, display sizes and Android version differences that may not mean the same thing
-  on this device. Files written before this release still restore and read as unknown origin; the
-  device section is optional and additive.
-- **Energy budget per game.** The profile editor estimates a game's battery cost from its finished
-  sessions: the median percent per hour, how many sessions that rests on, and the playtime left at
-  the current level when the device is not charging. When there is not enough measured history, it
-  says how many more sessions it needs rather than inventing a figure.
-- **Network versus device attribution.** Session reports compare frame-time spikes against two
-  measured lanes — TCP handshakes to the router and to a known host beyond it — and answer
-  *beyond this device*, *device to router*, *network but not localised*, or *not supported by the
-  network record*. No game server is contacted or claimed; the probe is labelled as a handshake,
-  not a ping, everywhere it appears.
-
-## New in 3.17.0
-
-The gyro challenge no longer needs a gyroscope. A phone without one can run it as **Tilt
-training** — a real measurement, read from the accelerometer and labelled as tilt.
-
-- **Bank to steer, tip to aim.** Tilt training reads the phone's lean against gravity: bank the
-  phone left or right in the plane of the screen to steer, and tip the top edge away from you to
-  aim up. A phone with a gyroscope is unchanged — the gyroscope is still the input.
-- **Its records stay apart from the gyro's.** An accelerometer cannot sense turning on the spot —
-  gravity does not change when the phone rotates about itself — so a tilt run is stored under its
-  own mode and is never ranked against a gyro record.
-- **No sensor, no pretend run.** A device with neither a gyroscope nor an accelerometer gets a
-  plain explanation in place of a Start button, rather than a run that could not move.
-
----
-
-## New in 3.16.0
-
-A theme can ask for glass now. A plugin stays data — it never touches the canvas — but it can now
-ask the host for a material, and the host draws every frame of it.
-
-- **Themes can be made of glass.** The theme schema is now 4, and a `glass` block asks for a
-  material rather than a flat colour: a translucent surface, a specular rim along the top edge, a
-  highlight that drifts slowly down the face, and an iOS-style spring that settles a panel when the
-  material changes. A theme that declares schema 3 and carries the block is refused, not
-  downgraded — a glass theme whose transparency silently became a flat fill is not the design its
-  author wrote.
-- **The blur belongs to Android 12.** From API 31 the backdrop behind a panel is blurred as well.
-  Below that the host still draws the translucency, the rim and the gloss against a sharp
-  backdrop, and the Control Center says so — "Sharp — this Android version cannot blur one" —
-  rather than calling it frosted.
-- **One slider.** Settings → Glass Control Center holds a single control: how much of the material
-  the app is wearing, scaling the transparency, the gloss and the blur radius together. The
-  preview above it is drawn from the exact material the slider points at, through the app's own
-  renderer, so you can judge it before you let go. The row appears only while a theme with a
-  material is in force.
-- **Animation settings still win.** Settings → Animations → Off, or the system's
-  remove-animations switch, and the material is drawn at rest — the translucency, the rim and the
-  gloss stay, the highlight stops and the panels stop settling. A plugin asks for motion; it can
-  never take it.
-
-Ships with **Liquid Glass GameCore** (`dist/liquidglass/liquidglass.gcplugin`) — rewritten to ask
-for the material it is named after, version 1.2.0, and it needs GameCore 3.16 or newer. It is a
-downloadable package rather than a bundled theme: drop the `.gcplugin` file into GameCore's
-plugin installer. All twenty official plugin packages ship with the release that way, and nine
-of them are also bundled in the app.
-
----
-
-## New in 3.15.0
-
-GameCore has five launcher icons, and a plugin can choose one of them.
-
-- **The picker.** Settings → App icon shows the set: **Core**, **Mono**, **Glitch**, **Neon** and
-  **Redline**. Tapping one changes the icon your launcher shows — a real switch, not a shortcut to
-  the app, because each icon is its own launcher component and exactly one is enabled at a time.
-- **Plugins can ask.** A plugin with the `change_icon` permission ships an `icon.json` naming a
-  slot; Settings shows which plugin is setting the icon and offers a one-tap Undo back to your own
-  choice. A plugin that is disabled, uninstalled or suspended loses the icon on the next launch.
-- **Plugin artwork, honestly.** Android has no API that lets an app install a bitmap as its launcher
-  icon, so a plugin's own image cannot become the icon — and this release does not pretend it can.
-  Artwork is offered as a **pinned home-screen shortcut** instead: you confirm it in the launcher,
-  and GameCore's own icon is left alone. The picker says so in as many words.
-
----
-
-## New in 3.14.0
-
-Theme plugins can move now. A plugin stays data — it never gets to touch the canvas — but it can
-now *ask* the host to distort what it draws, and the host owns every frame of that.
-
-- **Themes can move.** A schema-3 theme may carry a `glitch` block. The app's content is recorded
-  into a layer and re-drawn as displaced horizontal bands: the frame tears, text and panels
-  together, with one-pixel fracture lines, ghost copies at the band edges and translucent block
-  noise. It is a live re-draw, not a colour filter, and it applies to the whole app.
-- **It reads the phone.** With `hardwareReactive` on, a device above 85% CPU tears about twice as
-  often, and one the platform reports as thermally throttled adds a vertical frame-drop on the
-  first frame of a burst. Off, the effect keeps a fixed rhythm and reads no sensors at all.
-- **Animation settings still win.** Settings → Animations → Off, or the system's remove-animations
-  switch, suppresses every theme effect. A plugin asks for motion; it can never take it.
-- **Off by default.** Nothing changes unless you install and select a theme that asks for it.
-  Every existing theme renders exactly as it did.
-
-Ships with **True Glitch** (`dist/trueglitch/trueglitch.gcplugin`) — cyan and red on near-black,
-monospaced, torn.
-
----
-
-## New in 3.13.0
-
-The floating button stops making you tap twice.
-
-- **One tap, the full panel.** Tapping the game button opens the control panel straight away — every
-  tab, every control — instead of the small quick sheet. The sheet has not gone anywhere: a double
-  tap on the button opens it, with the same toggles, sliders and session clock.
-- **Or keep the sheet first.** Settings → Overlay → Quick sheet has a switch. Off, a tap opens the
-  sheet first and the panel stays behind its "More" button, exactly as it used to behave.
-
----
-
-## New in 3.12.0
-
-The Theme Engine stops being something you visit and becomes the colour the app wears.
-
-- **App-wide colour.** A switch on the calibration screen hands the app's accent to the engine.
-  On, every screen is tinted by what the device is doing right now — the same ice-blue, violet and
-  molten crimson you see on the canvas — and a theme plugin keeps everything else it does but
-  stops choosing the palette. Off, a plugin's colours win exactly as they always have, which is
-  the default.
-- **The engine runs the whole time.** It starts with the app rather than with its settings screen,
-  so its colour is live everywhere and the first recolour is a transition instead of a jump.
-  Calibrating still drives it live; leaving the screen no longer stops it.
-- **Say who chooses.** The same card prints the accent in force and whether it came from your
-  settings, the engine, or nothing at all yet — no guessing which layer won.
-
----
-
-## New in 3.11.0
-
-A live backdrop painted from what your device is actually doing — and a calibration screen where
-every figure it uses is on the table.
-
-- **Theme Engine.** A canvas in Settings → Theme Engine draws a soft ice-blue drifting at half
-  speed when the device is cool and quiet, turns Aurora Violet once CPU, memory or temperature
-  cross their thresholds, and goes molten crimson at speed when it is hot or saturated. The colour
-  and the speed both follow the readings as they change.
-- **See the vector.** The calibration screen prints the mode in force, its exact
-  `rgb(r, g, b)` value and its fluid velocity beside the three readings it was drawn from — CPU,
-  memory allocation and core temperature, each labelled with what it is.
-- **Calibrate against your own thresholds.** Flat sliders stand in for each reading so you can
-  watch the backdrop answer without loading the device, and the thresholds that decide each mode
-  are adjustable.
-- **Save points.** Keep a calibration you like under a name and recall it later. Save points are
-  stored on the device and survive a restart.
-
-The engine is built into GameCore, in its own package rather than in the screens that use it. It
-is not a `.gcplugin`: those are data GameCore reads, and this one draws, so it ships with the app.
-
----
-
-## New in 3.8.1
-
-Eight plugins GameCore built itself — and the host features that let them do real work, all
-still under the rule that a plugin is data GameCore reads, never code it runs.
-
-- **Eight official plugins.** A first set you can install from a file: a Nothing-OS-style theme,
-  an anime-inspired pack, a sensitivity workspace, an automation-history view, a personal
-  dashboard, a local advisor, a benchmark readout and a dashboard composer. Each ships bundled and
-  can also be sideloaded as a `.gcplugin` file.
-- **Plugin settings you can change.** A plugin can offer its own options — switches, choices and
-  numbers — and GameCore stores and applies them for you. The controls live in GameCore; the
-  plugin still runs nothing.
-- **Your automation history, shown by a plugin.** A plugin you allow can display the record of
-  automations GameCore has already run for you. It reads that history only to show it — it is
-  handed none of your other data and runs no code of its own.
-- **Live readouts on plugin screens.** Plugin screens and dashboard widgets can show figures
-  GameCore already measures — frame rate, temperature and the like — each drawn by GameCore from
-  data you have allowed.
-
----
-
-## Version 3.8
-
-Plugins arrive — and arrive as data, not code. A plugin is a file GameCore reads to restyle
-itself and add small readouts; it never runs inside GameCore and never gets a shell, so the
-directory can grow without widening what any one install can do.
-
-- **Install a plugin from a file.** Add a plugin from a `.gcplugin` package, see exactly what it
-  asks for before anything is on, and turn it on yourself. A plugin is data GameCore interprets
-  with code it already ships — it carries no scripts, no WebView and no native libraries.
-- **Permission by permission.** Every plugin lists exactly what it wants and you grant each item
-  separately; a new plugin arrives switched off with nothing granted, and anything that touches a
-  device setting needs a second opt-in.
-- **Plugin themes.** A plugin can supply colours, corner rounding and UI scale. Unreadable colour
-  pairs are replaced automatically, and the Plugins screen always draws in GameCore's own theme —
-  so the way back is never styled by the plugin you are turning off.
-- **On-screen plugin modules.** A plugin can add a small readout that sits over your game beside
-  the Game Pill — frame rate, temperature and the like. It cannot cover the screen, cannot take
-  touches from the game, and appears only once you grant that plugin the overlay permission; up to
-  three at a time.
-- **One switch to stop them all.** A single toggle on the Plugins screen stops every plugin at
-  once, whatever each plugin's own switch says.
-- **Order the list your way.** Sort installed plugins by name, by date installed, or by version
-  number — highest first, with `1.10` correctly above `1.9`. The order only changes how the list
-  is drawn; it changes nothing about which plugins run.
-
----
-
-## Version 3.7.2
-
-The floating dock's buttons become yours to arrange, the active profile can be put back one
-field at a time without ending play, and an in-game trigger can be placed by touch — plus the fix
-for a release-blocking bug where the trigger-placement overlay swallowed every touch except the
-game's own pill.
-
-- **Dock customisation.** Rearrange the floating dock's buttons and choose which of them appear,
-  saved per game — so the dock a game raises holds exactly the controls that game needs.
-- **Quick actions on the dock.** Put shortcuts to GameCore's existing controls onto the dock for
-  one-tap access without opening the full panel; a quick action runs through the same handler the
-  panel's own tile does and invents no new capability.
-- **Revert settings mid-session.** A card on Home lists exactly what the active profile changed on
-  your device and puts any of it back without ending play — the same reading-paired restore a
-  profile does on exit, offered one field at a time while the game runs.
-- **In-game point-trigger placement.** Place a volume-key tap target by touching the spot on
-  screen, from inside the game and without opening the app. It is saved per game, and the tap it
-  later fires is the one synthetic input the app can send (see below), gated on Shizuku.
-
----
-
-## Version 3.7.0
-
-A second overlay surface and four stand-alone tools, each holding the app's one rule: what it
-cannot measure or do, it says plainly rather than faking.
-
-- **Floating Dock.** A small draggable dock over your game with its own quick control panel; it
-  snaps to the screen edge, is turned on from Settings, and sits alongside the existing floating
-  button rather than replacing it.
-- **Screen Extraction.** Capture the current screen, crop a region, then save or share the
-  result — drawn and cropped on the device and handed out through the same one-shot share grant
-  every other artefact uses.
-- **Touch Sampling Monitor.** A live read of the device's real touch input rate. Where the
-  hardware will not report it, it reads **Unavailable** rather than a plausible number — the rule
-  every reading in the app follows.
-- **Volume Button Point Trigger.** Map a volume key to tap a saved screen point for a game —
-  single, double or hold. It needs the optional accessibility service, so the key reaches GameCore
-  from inside another app, and Shizuku, so the tap can be injected; without either, the control
-  says so rather than pretending to work.
-- **What's New.** Shows the features a release introduced the first time you open the app after
-  updating, and lets you browse every past update any time from Settings.
-
----
-
-## Version 3.6.1
-
-Three leaf screens, each turned on or off from Settings, and each holding the app's one rule: a
-figure it cannot measure is shown as "Unavailable", with the reason, never as a zero.
-
-- **Network Stability Mode.** A live read of the connection you play on — transport, signal,
-  estimated link speed, device-wide download and upload, and whether the system calls it metered —
-  with a stability window built from TCP-handshake bursts. It reports ping (median handshake time)
-  and jitter (the variation between consecutive probes, the honest stand-in for the packet-loss
-  figure it will not fake), and how many probes in the window completed. Where Android allows it, it
-  also keeps the device from switching networks mid-game.
-- **Advanced Performance HUD.** A customisable heads-up display over FPS, CPU, GPU where the device
-  exposes a load node, RAM, temperature, battery, ping and session time, as a compact line or an
-  expanded card. Any stat the device will not report reads "Unavailable" rather than a made-up value.
-- **Custom Overlay Modules.** Turn individual overlay modules on and off, drag them to position,
-  resize the ones that support it, and choose exactly which information each shows — saved as an
-  overlay layout per game that a profile can raise by name.
-
----
-
-## Version 3.6
-
-The feature people ask for by name — keep the last few seconds of play, and decide to save them
-after they have already happened.
-
-- **Instant Replay.** A rolling video buffer that always holds the most recent stretch of the
-  game — 15, 30, 60 or 120 seconds, 30 by default — so a moment you did not know you would want is
-  already recorded by the time you reach for it. When you save, the buffered window is written out
-  as a single clip and nothing outside it is; the buffer itself lives in the app's own private cache
-  and is trimmed back to the length you chose as it rolls, so it never grows without bound. It is
-  **off until you turn it on**, set per game like every other profile field, and the first time you
-  enable it a one-time notice states the three things worth knowing first: the buffer records the
-  whole time the game is open, everything stays on this device, and **this version is video only** —
-  it holds no microphone permission and captures no audio, on purpose, because a "record audio"
-  switch that produced a silent track on half the games it was used with is exactly the kind of
-  control this app refuses to ship. It reuses the same screen-capture consent the recorder already
-  asks for, so it adds **no new permission**. An in-game chip shows when it is armed, and a save
-  control sits in the overlay while the game runs.
-
----
-
-## Version 3.5.4
-
-Two features about reaching past the settings a game exposes — to the files behind them, and to
-the resolution it renders at.
-
-- **A config editor.** Browse a game's own configuration files and edit one in place, with the
-  whole change shown as a line-by-line diff before a single byte is written — nothing is saved
-  until you confirm exactly what changed. The write is whole-file and atomic, so a config is never
-  left half-applied. The first time you edit a game's config its original is backed up
-  automatically; you can keep named checkpoints and restore any of them later, and if the game has
-  been updated since that backup the editor says so, because an edit made against a config the
-  update already replaced is an edit against a stale file. It reaches those files through the same
-  elevated shell the rest of the app uses, so it needs Shizuku — without it the screen says so and
-  points at the setup — and a path outside the selected game's own config is refused rather than
-  opened. A one-time notice explains the feature before the first edit, and can be shown again.
-- **Resolution override.** A per-game render resolution, set as a scale of the display's native
-  size and applied through `wm size` when the game comes to the front — then cleared and the
-  display put back exactly as it was when the game leaves, the same restore rule every other
-  profile field follows. Lowering it can lift frame rate on a GPU-bound game at the cost of
-  sharpness; it is per game, off unless you set it, and it asks once for confirmation the first
-  time because it reshapes the whole display while the game runs. An in-game status chip shows when
-  an override is active, so a changed resolution is never a mystery. Needs Shizuku, like every
-  display-size write.
-
-Also since 3.5, and until now in no release:
-
-- **A pinned magnifier.** A loupe overlay that shows the centre of the screen enlarged — a
-  crop-and-scale of a single capture frame, parked in a corner with its geometry chosen so it can
-  never fall over the region it magnifies and mirror itself. There is no detection, no tracking and
-  no aim logic: it enlarges pixels and nothing else. It uses the same screen-capture permission the
-  other overlays do.
-- **Panel macros.** A named, ordered set of overlay actions you already have, fired in sequence by
-  one tap. A macro invents no new capability — every step runs through the same handler the panel's
-  own tiles use — so all it adds is the order and the count. They live as an editable, reorderable
-  config list, not a database table.
-- **Config backup and restore.** Export every configuration store — profiles, presets, overlay
-  layouts, macros — to one file you can keep or move to another install, and restore it later. It
-  touches configuration only: your recorded sessions and Aim Lab runs are never written into the
-  file and a restore can never overwrite them, and everything a restored file carries is validated
-  before it reaches a store.
-- **Profile transfer.** Share one or more game profiles as a single file, presets and all, and
-  import them elsewhere — recreating what is missing and matching-then-remapping what already
-  exists, so an import never silently duplicates a preset or clobbers one you had.
-- **Profile suggestions.** A starting profile derived only from what a game was actually measured
-  doing, with a plain sentence behind every field it fills. A dimension the sessions did not measure
-  enough to speak to is left alone; a game with thin or contradictory history gets no suggestion at
-  all rather than a guess dressed as advice. It only drafts — nothing is saved or applied until you
-  open it in the editor.
-- **Per-sample export.** Alongside the one-row-per-session export, write one row per *sample* — the
-  raw time series a graph is drawn from — as CSV or JSON. It keeps the same honesty rule the
-  aggregate export follows: blank, never zero, for a reading a sample never took.
-
----
-
-## Version 3.5
-
-Four features about the app setting itself up, and then looking after the session on its own.
-
-- **A first-run setup wizard, and a Setup health screen.** A new install now walks through what
-  GameCore needs — which features you want, and only the permissions those features actually use —
-  instead of leaving you on an empty Home screen to work it out by trial. Nothing is granted on your
-  behalf and no step is required: skip all of it and the app still runs, minus whatever you skipped.
-  Afterwards, **Settings › Setup health** lists every item with its real state — Ready, Not set up,
-  or Unavailable with the reason Android gave — a Fix button that opens the exact system page, and a
-  re-check when you come back from it. Upgrading never re-runs the wizard over your existing
-  profiles; it offers a dismissible Home card instead, and only when something genuinely needs
-  attention.
-- **Thermal auto-downshift.** Off by default, per profile. When the device holds a temperature you
-  choose, or the thermal status Android reports crosses the floor you set, the refresh rate steps
-  down — and steps back up once it has stayed cool long enough. The hysteresis, the sustain window
-  in each direction and the minimum time between changes are all yours to set, so it cannot sit
-  there oscillating. The session records how many times it stepped down and the lowest rate it
-  reached.
-- **Network check.** Off by default, per profile. Before a launch it can warn you about the
-  connection you are about to play on; during a session it can alert you when the connection turns
-  poor — high latency, jitter, or probes that stop coming back at all. It still refuses to call any
-  of that packet loss, because a TCP handshake that times out is not a dropped packet. It reads the
-  transport, the Wi-Fi band and the link speed — **never the network name, never the BSSID, and it
-  asks for no location permission**, which is what Android would demand before handing those over.
-  Anything Android will not report shows as Unavailable with the reason.
-- **Keep full performance under battery saver.** Off by default, per profile. Battery saver caps
-  the refresh rate and the governor on most builds; with this on, a profile holds full performance
-  for that game anyway, puts the saver's own behaviour back when the game exits, and notices — and
-  records — when the system switched the saver back on behind it. No new access of any kind: it
-  goes through the same elevated shell the refresh-rate setting already uses.
-
-Also since 3.2, and until now in no release:
-
-- **A redesigned in-game overlay.** The floating button has real states — dimmed when idle, an
-  orange or red dot when the shared thermal classifier says hot or critical — three sizes and four
-  corner snaps, and it keeps its place per orientation. Tapping it opens a **quick sheet**: a narrow
-  panel on the screen edge nearest the button, holding up to six toggles you pin yourself, the
-  brightness and volume sliders and the session clock, so the things you reach for mid-game no
-  longer need the full panel and most of the game stays visible. The full panel is still there,
-  behind **More** or an optional double tap, now divided into Display, Overlays, Capture and Session
-  tabs with a hold-to-confirm End session (the older split-across-both-edges layout keeps its
-  previous design). The stats pill comes as a compact single line or a detailed card, and it stops
-  sampling the moment nothing is looking at it — including when the screen goes off, where it used
-  to keep ticking.
-- **Themes.** Follow system, Dark, Light or **AMOLED black** — a true `#000000` background that
-  switches OLED pixels off rather than dimming them — with eight accent colours or one you pick
-  yourself, applied across the app and the overlay windows alike.
-
----
-
-## Version 3.2
-
-Two additions to the Aim Lab, both about the weapon and the way you hold the phone.
-
-- **Fire modes.** A weapon now discharges in one of three ways — **single**, a fixed **burst**, or
-  full **auto** — and the training loop honours it: a burst walks up the recoil pattern at the real
-  fire-rate cadence rather than landing all at once, and the magazine and reload gate every mode the
-  same. The weapon editor picks the mode and, for burst, the round count; a built-in Burst Carbine
-  ships so the mode is there to try without building one. Older saved weapons read back as auto —
-  exactly what they already did — so nothing changes under you.
-- **On-screen controls on every mode.** The saved control layouts (HUDs) you build in the editor can
-  now be drawn over the arena during a run from any mode's setup screen, not just some — pick one, or
-  leave it on "None" for a clean view. The choice is per run and never forced.
-
-Also from 3.1: the Aim Lab runs in **landscape** with a real horizontal field-of-view setting, the
-gyro axes remap correctly per screen rotation, and control layouts are stored per orientation.
-
----
-
-## Version 3.0
-
-An offline **Aim Lab** — a first-person 3D training arena, built inside GameCore and held to the
-same rule as everything else: nothing it reports is invented.
-
-- **A real first-person 3D room, not a flat target board.** You stand inside an enclosed arena —
-  checkered floor, grey walls and ceiling, light depth fog — with a low-poly weapon held at the
-  bottom-right and glossy spheres floating at varied distances and angles. The crosshair is fixed
-  dead centre; you look by dragging, and a shot is the ray straight out of the crosshair, hit-tested
-  against the spheres in 3D. Rendered with OpenGL ES 2.0 and nothing else: no game engine, no
-  third-party 3D library, no model or texture files — the room, the spheres and every weapon are
-  built procedurally in code, and the shaders are plain source strings.
-- **Seven modes, all in the 3D view.** Flick, Tracking, Reaction, Gyro, Recoil, Movement and a Free
-  Practice sandbox. Aim error is measured in **degrees**, not pixels, so a result means the same on
-  any screen. Recoil kicks the camera along the weapon's pattern and scores how well you pull it
-  back; Movement walks you through the room and scatters shots taken on the move; Gyro turns the
-  view from the real gyroscope. A phone with no gyroscope but an accelerometer runs the gyro
-  challenge as **Tilt training** — bank the phone left or right in the plane of the screen to steer
-  and tip the top edge away from you to aim up — read from the accelerometer, and filed under its
-  own mode so a tilt run is never ranked against a gyro record.
-- **Your gear drives it.** The weapon editor, sensitivity lab, control/HUD editor, statistics,
-  personal records, session history and JSON/CSV export/import all carry over — and a weapon's fire
-  rate, magazine, reload, spread and movement penalty are now actually felt in a run.
-- **Old training data is kept, and kept separate.** Sessions recorded by the previous flat trainer
-  stay in your history, labelled as legacy, and are never ranked against the new 3D scores, because
-  the two are measured differently. The database upgrade is additive — no history is dropped.
-- **It stays out of the way when you leave.** The 3D view renders only while a run is on screen; the
-  moment you leave or background the app, rendering stops, the motion sensor is released and the run is
-  cancelled. If a device cannot run OpenGL ES 2.0 the arena shows a plain "3D view unavailable"
-  panel instead of crashing.
-
-The Aim Lab is off by default behind a master switch, and turning it off is a real disable, not a
-hidden screen.
-
----
-
-## Version 2.0
-
-Five additions, all of them about reaching a setting without putting the game down.
-
-- **A second shape for the control panel.** It can now split into two plates pinned to opposite
-  screen edges — readouts on one, controls on the other, the game still visible between them, full
-  screen height — instead of one plate below the button. Centred stays the default, because a panel
-  you have already learned should not rearrange itself on an update. A **Layout** tile inside the
-  panel switches between the two on one tap, so trying the other shape costs nothing and neither
-  does going back.
-- **Refresh rate from the panel.** Every rate this display reports, as chips under the tile grid,
-  plus the way back off a pinned one. The tile lights only from a change GameCore made and
-  confirmed: the platform is entitled to drop a pinned panel to 60 Hz on a static screen, so a low
-  reading is not evidence the pin failed and a high one is not evidence it holds. A rate that was
-  written but could not be read back says so rather than claiming it took.
-- **Crosshair quick-select.** Hold the crosshair tile for the active crosshair's design and colour
-  without opening a screen. It offers the built-in colours plus the ones you already mixed
-  somewhere with more room — no HSV square, because that is a two-handed control and this window is
-  open over a game.
-- **An eleventh crosshair design, and more colours.** A box: a square outline, for framing a target
-  rather than marking a point.
-- **CPU core affinity presets, marked experimental.** A per-profile choice of which cores a game's
-  main process may run on — performance cores only, or all cores minus one efficiency core. The
-  app says what this is worth in the same words every time: it may reduce stutter by controlling
-  which cores the game runs on, it does **not** make the device faster, and depending on the game
-  it can do more harm than good. Needs Shizuku. The mask the process was found on is recorded
-  before anything changes and written back when the game exits.
-
----
-
-## Version 1.3
-
-Three additions, and four reported bugs fixed.
-
-- **Game storage.** A screen that measures what every game is holding in cache, and clears one
-  game's shared-storage cache on a tap. It reads the size, deletes, waits, reads again, and reports
-  **the difference between the two readings** rather than an exit code — so a clear that freed
-  nothing says nothing was freed, instead of claiming a number it did not measure. It never touches
-  a save, a login or a downloaded asset. [Details](#game-storage).
-- **What the connection did.** Every session now carries a latency log: probes that completed,
-  probes that did not, the worst reply, jitter, the longest run of failures, and one of five
-  verdicts with the figures behind it in a sentence. No packet-loss percentage anywhere, because a
-  refused TCP handshake is not a dropped packet. [Details](#sessions).
-- **A card you can share.** A finished session renders to a 1080×1260 image and goes to your own
-  share sheet. A reading this device could not take is a dash on that card and never a zero, an
-  interrupted recording says its length is a lower bound, and the sample count travels with the
-  averages. Drawn on the device; nothing is uploaded. [Details](#sessions).
-
-The bugs, all four found in use rather than in a test: a crosshair that drew the dot preset whatever
-you picked — and the HUD, which had the identical bug, because a layout you arranged is not "any
-layout"; a profile edited after leaving a game that did nothing until GameCore was restarted; the
-resolution card stuck on "loading" after quitting a game; and a Do Not Disturb popup that put DND
-back on after you had turned it off by hand. The last one is now impossible by construction:
-GameCore restores a device setting only when it made the write and nothing outside GameCore has
-changed it since.
-
----
-
-## Colour correction
-
-A display colour screen, with the same values reachable from inside a game.
-
-- **Eleven values.** Red, green and blue gain; gamma as one slider or three; saturation,
-  contrast, hue rotation and a brightness offset. Every slider shows its number, and tapping
-  the number opens a keypad for an exact entry — held to the field's own range, so a hue turns
-  ±180° while a gain stops at ±100%, and an out-of-range entry is refused rather than quietly
-  clamped to something you did not type.
-- **Presets you own.** Seven ship — Vibrant, Warm, Cool, Night, Protanopia, Deuteranopia,
-  Tritanopia — and they are ordinary saved rows, not a fixed menu: open one, move a slider,
-  save it under a new name, rename it, delete it. There is no cap on how many you keep.
-- **Per game.** A profile can carry a colour preset. It is applied when the game comes to the
-  front and put back when it leaves, from the reading taken before the change — the same
-  restore rule every other profile field follows.
-- **In the overlay panel.** Saturation, contrast and hue sit directly under the existing volume
-  and brightness sliders, a Colour tile joins the action grid, and a long press on it drops your
-  saved presets in as chips. Everything applies as the slider moves, with no confirm step.
-- **In the session report.** Which preset, and which values, were active while the session ran.
-
-And the reason the feature is built the way it is: **Android exposes no per-channel colour
-matrix to an app.** `ColorDisplayManager`'s matrix and `SurfaceControl.setDisplayColorTransform`
-are hidden platform API that neither `WRITE_SECURE_SETTINGS` nor a shell running as uid 2000 can
-reach. So GameCore projects what you asked for onto the sinks that do exist on the device it is
-running on — night-display warmth, the display colour mode, the daltonizer,
-reduce-bright-colours, colour inversion — and the screen lists every write it would make, names
-each value this device has no sink for, and says why. A gamma slider that moved and quietly did
-nothing would have been easier to build, and would have been exactly the lie this project exists
-to avoid.
-
-Colour correction needs `WRITE_SECURE_SETTINGS`, which Android never grants an app on its own —
-Shizuku or a wireless-ADB pairing is the only way to hold it. Without it the screen says so and
-points at the setup, rather than presenting sliders that write nothing.
-
----
-
-## What makes it different
-
-Most "game booster" apps are theatre. They show a RAM figure, animate a progress bar, kill
-some processes Android immediately restarts, and report success. GameCore does have a
-switch that closes background apps when a game starts — off by default, per game, and it
-tells you what it measured afterwards rather than what it hoped for, including when the
-measurement failed or came out negative. The difference is not the capability. It is that
-the number is a reading and not a flourish. Its central type is
-
-```kotlin
-sealed interface Observed<out T> {
-    data class Value<T>(val value: T, val source: DataSource, val precision: Precision)
-    data class Restricted(val reason: RestrictionReason, val unlockedBy: AccessLevel?, ...)
-    data class Failed(val detail: String, val cause: String?)
-}
+<p align="center">
+  <img src="docs/assets/readme-hero.png" alt="GameCore — every number is a reading" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk"><img alt="Download the signed GameCore APK" src="https://img.shields.io/badge/Download-Signed%20APK-7C5CFF?style=for-the-badge&logo=android&logoColor=white"></a>
+  <img alt="Android 8.0 or newer" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white">
+  <img alt="Kotlin 2.0" src="https://img.shields.io/badge/Kotlin-2.0-7F52FF?style=flat-square&logo=kotlin&logoColor=white">
+  <img alt="Jetpack Compose and Material 3" src="https://img.shields.io/badge/Compose-Material%203-4285F4?style=flat-square">
+  <img alt="MIT license" src="https://img.shields.io/badge/License-MIT-FF8FB1?style=flat-square">
+  <img alt="No root required" src="https://img.shields.io/badge/No%20root-required-2EA043?style=flat-square">
+  <img alt="No telemetry" src="https://img.shields.io/badge/No%20telemetry-offline-FF8FB1?style=flat-square">
+</p>
+
+<p align="center">
+  <sub><strong>No root</strong> · <strong>No account</strong> · <strong>No backend</strong> · <strong>No analytics</strong> · <strong>Sideload only</strong></sub>
+</p>
+
+<p align="center">
+  <a href="#at-a-glance">At a glance</a> ·
+  <a href="#screens">Screens</a> ·
+  <a href="#why-gamecore">Why GameCore</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#whats-new-in-350">Latest release</a> ·
+  <a href="#plugins-are-data-not-code">Plugins</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#security">Security</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#release-history">History</a>
+</p>
+
+> [!IMPORTANT]
+> **The rule:** if GameCore cannot measure it, it says so. A missing reading is shown as *unavailable*, with the reason — never as a zero, an estimate, or a green checkmark.
+
+## At a glance
+
+| | |
+| :--- | :--- |
+| **Platform** | Android 8.0+ (API 26) · `arm64-v8a` / `armeabi-v7a` |
+| **Built with** | Kotlin 2.0.21 · Jetpack Compose · Material 3 · Hilt · Room + SQLCipher |
+| **Codebase** | 731 Kotlin source files · roughly 184,000 lines (app + plugin SDK) |
+| **Tests** | 3,181 JVM tests · 271 test classes · no emulator required |
+| **Plugins** | 21 official `.gcplugin` packages · 13 bundled in the app |
+| **Network** | One optional, payload-free TCP latency probe · no backend |
+| **License** | MIT |
+
+## Screens
+
+<p align="center"><sub>Live readings, per-game profiles, HUD layouts and theme controls — drawn from what the device actually reports.</sub></p>
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="screenshots/Screenshot_20260904-030020_GameCore.png" width="100%" alt="GameCore Home screen with CPU, RAM, battery, temperature, refresh rate, display and storage readings">
+      <br><sub><strong>Home</strong> — live device readings and setup status</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="screenshots/Screenshot_20260904-030025_GameCore.png" width="100%" alt="GameCore Games screen with automatic profile detection">
+      <br><sub><strong>Games</strong> — per-game profiles that apply and unwind</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="screenshots/Screenshot_20260904-030033_GameCore.png" width="100%" alt="GameCore HUD screen with overlay and layout controls">
+      <br><sub><strong>HUD</strong> — overlay modules and layouts you place yourself</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="screenshots/Screenshot_20260904-030042_GameCore.png" width="100%" alt="GameCore Settings screen with theme, accent, overlay and monitoring controls">
+      <br><sub><strong>Settings</strong> — theme, accent, overlays and monitoring</sub>
+    </td>
+  </tr>
+</table>
+
+## Why GameCore
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>📊 Readings, not theatre</h3>
+      <p>Most “game boosters” show a number and hope. GameCore’s central type is <code>Observed&lt;T&gt;</code>: a value names its source and precision, or an absence names its reason. There is no default, no fallback constant and no estimate dressed up as a measurement.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>↩️ Profiles that undo</h3>
+      <p>Every profile field is nullable. <code>null</code> means <em>leave it alone</em>. GameCore records the reading before it changes anything, then puts exactly that back when the game exits — not a default it assumed.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🔌 Plugins are data</h3>
+      <p>A <code>.gcplugin</code> is a package of JSON the host interprets. No scripts, no WebView, no native libraries, no network. A plugin can ask for a theme, a readout or a setting; it cannot run code inside GameCore.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🔒 Offline by default</h3>
+      <p>No account, no backend, no analytics, no crash reporting. The only outbound connection is an optional, payload-free TCP latency probe you can switch off.</p>
+    </td>
+  </tr>
+</table>
+
+## Install
+
+<p>GameCore is a signed sideloaded APK. There is no Play Store listing and no account to create.</p>
+
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>1 · Download</h3>
+      <p>Get the signed APK from the <a href="https://github.com/Dreamucxe/GameCore/releases/latest">latest release</a>.</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>2 · Open it</h3>
+      <p>Allow installs from your file manager when Android asks, then tap the APK. Android 8.0 or newer.</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>3 · Optional access</h3>
+      <p>Shizuku, usage access and overlay access are optional. Each feature says what it needs before it asks.</p>
+    </td>
+  </tr>
+</table>
+
+From a computer with adb:
+
+```bash
+adb install -r GameCore.apk
 ```
 
-A reading is either a value that names where it came from and how exact it is, or an
-absence that names its reason. There is no default, no fallback constant and no estimate
-dressed up as a measurement. The consequence is visible in the app: some cards say
-*"Not available on this device"* or *"Requires Shizuku"* instead of showing a number. That
-is the feature, not a gap.
+> [!NOTE]
+> Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
 
-### Things this app deliberately does not do
+## What's new in 3.5.0
 
-No root. No code injection, no reading or writing another
-process's memory, no anti-cheat interference. No fabricated statistics. No claiming a
-system call worked when it did not. No background service that closes apps on a timer, and
-nothing closed without a profile asking for it — never your launcher, your keyboard, the
-game itself, anything holding a foreground service, or anything on your never-close list.
-No thermal limit override. No modification of protected system files. No "clean everything"
-button — the storage screen deletes one named directory belonging to one game you tapped,
-and never a save, a login or a downloaded asset. No packet-loss percentage, because a
-refused TCP handshake is not a dropped packet. And nothing you record is uploaded: the
-shareable session card is drawn on the device and handed to your own share sheet.
+<p><strong>This release is about the two things a hard session leaves behind:</strong> a display you cannot read, and a stutter you cannot explain. Both now have an answer that says how sure it is.</p>
 
-The one thing that does write a game's own files is the config editor, and it stays inside that
-game's shared `Android/data/<package>/files` directory — the config file you opened and edited,
-its original backed up before the first change, each write shown to you line by line and committed
-whole or not at all. Never its code, never a save in the private storage a shell running as `shell`
-could not reach anyway, never a path that a `..` could climb out of, and never without Shizuku and
-a one-time notice you accept.
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🖥️ Display changes ask first</h3>
+      <p>Every display-size change shows a fifteen-second countdown with <strong>Keep</strong> and <strong>Revert</strong>. Silence, or a process that dies before the answer, puts the previous size back. A size left unconfirmed across a restart is recovered at launch, and a notification explains what happened — the undo never depends on reaching the screen that set it.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🧭 Recovery console</h3>
+      <p>A display-recovery screen in Settings restores the panel’s own size, shows whether the elevated shell is reachable, and says plainly when nothing was recorded to put back. It is also where the launch notification leads.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>📈 Frame-time attribution</h3>
+      <p>Session reports name what was happening around each spike — thermal throttling, a capped refresh rate, battery saver, device load, high temperature, a profile that did not fully apply — and call a spike nothing explains <em>unexplained</em> instead of picking a cause.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🧾 Session timeline and receipt</h3>
+      <p>Every session keeps a timeline of profile applies, thermal and refresh changes, power-saver transitions, network spikes and frame-time spikes. The whole report can be rendered as a PNG receipt and shared through the same file provider as the session card.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>📦 New-device migration</h3>
+      <p>Backups carry an optional device snapshot, and a restore preview names the refresh rates, display sizes and Android version differences that may not mean the same thing on this device. Files written before this release still restore and read as unknown origin; the device section is optional and additive.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🔋 Energy budget per game</h3>
+      <p>The profile editor estimates a game’s battery cost from its finished sessions: the median percent per hour, how many sessions that rests on, and the playtime left at the current level when the device is not charging. When there is not enough measured history, it says how many more sessions it needs rather than inventing a figure.</p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <h3>🌐 Network versus device attribution</h3>
+      <p>Session reports compare frame-time spikes against two measured lanes — TCP handshakes to the router and to a known host beyond it — and answer <em>beyond this device</em>, <em>device to router</em>, <em>network but not localised</em>, or <em>not supported by the network record</em>. No game server is contacted or claimed; the probe is labelled as a handshake, not a ping, everywhere it appears.</p>
+    </td>
+  </tr>
+</table>
 
-The full set of shell commands the app can construct lives in one file
-(`core/shizuku/ShellCommand.kt`) and a unit test enumerates every one of them and asserts
-that `cmd`, `su`, `setprop`, `force-stop`, `pm clear`, `pm trim-caches`, `install` and
-friends are unreachable at any privilege level. Most of what that file can build reads or
-writes something about *this device* — a settings key, the display size, GameCore's own
-permissions. A few reach further, and each is bounded to a form the test pins literally so
-that a second use cannot be added without it failing: `am kill --user current <package>`
-closes one game's background processes; `rm -rf /storage/emulated/<user>/Android/data/<package>/cache`
-clears one game's shared cache; `taskset -ap <mask> <pid>` pins one game's process to a set of
-cores; `input tap` and `input swipe` send one synthetic tap or press-and-hold to a per-game
-screen point the user placed, for the volume-button trigger — no text, no key event, and no other
-`input` subcommand is expressible; the charge-bypass toggle writes a single digit to one validated
-`/sys/class/power_supply/<supply>/<node>` — the one command in the app that runs `sh -c`, and it
-passes the value (`0` or `1`) and the path as positional arguments (`$1`, `$2`) rather than splicing
-either into the script text, after a `test -w` probe and a `cat` read of that same node; the GPU HUD
-reads one validated GPU-load node under `/sys` with `cat`; and the config editor's `ls`, `stat`,
-`cp`, `mv` and `rm -f` read and rewrite files inside one game's own `Android/data/<package>/files` —
-never its `cache`, never its `obb`, never the private storage a `shell`-uid process cannot reach, and
-never through a path a `..` could climb out of. Every argument that originates outside the app's own
-code is validated against a form before a command exists; every command but that one charge write
-reaches `exec` as an argument vector; and that write runs a fixed script whose only inputs are its
-two positional arguments, so there is nowhere a glob is expanded or a word is split.
+## Plugins are data, not code
+
+<p align="center"><strong>21 official packages today · 13 bundled · one <code>.gcplugin</code> each</strong></p>
+
+<p>A plugin is a <code>.gcplugin</code> zip archive of JSON and image assets that GameCore reads. It can restyle the app, add a readout or expose a setting; it never runs inside GameCore and never gets a shell. The plugin directory can grow without widening what any one install can do.</p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>✅ A plugin can</h3>
+      <ul>
+        <li>Supply colours, corner rounding, type and a glass or glitch effect.</li>
+        <li>Add a bounded module over a game, or a screen built from host components.</li>
+        <li>Offer its own switches, choices and numbers, stored by GameCore.</li>
+        <li>Read only the data you grant it, one permission at a time.</li>
+      </ul>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🚫 A plugin cannot</h3>
+      <ul>
+        <li>Run scripts, load a WebView, ship native code or open a socket.</li>
+        <li>Draw arbitrary pixels, touch another app, the shell or a protected setting.</li>
+        <li>Grant itself anything: a new plugin arrives switched off with nothing granted.</li>
+        <li>Style the Plugins screen you use to turn it off.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
+| Themes & interface packs | Tools & readouts |
+| :--- | :--- |
+| Liquid Glass · True Glitch · Nebula · Nothing OS · Personal OS · Anime · Cyberpunk · Comic · Cybercity · Cybercore · Cybersigilism · Chromecore · Retro Futurism · Robot Core · RedMagic | Advisor · Automation History · Benchmark Suite · Dashboard Composer · Graphics Tuning · Sensitivity Lab |
+
+The full set lives in [`dist/`](dist/). Bundled copies are in [`app/src/main/assets/plugins/`](app/src/main/assets/plugins/). Start with the [format](docs/PLUGIN_FORMAT.md), the [SDK](docs/PLUGIN_SDK.md), and the [threat model](docs/PLUGIN_THREAT_MODEL.md).
 
 ---
 
 ## Features
+
+### Feature map
+
+| Area | What it covers |
+| :--- | :--- |
+| **Overlay** | Floating button, quick sheet, full control panel, dock, stats pill, crosshair, HUD builder |
+| **Profiles** | Per-game refresh rate, brightness, display size, orientation, volume, DND, overlays, HUD, colour and session tracking |
+| **Monitoring** | Per-core CPU, memory, battery, thermal, GPU, display, touch sampling, network and storage |
+| **Sessions** | Encrypted history, graphs, timeline, frame-time attribution, network verdicts, shareable cards and receipts |
+| **Aim Lab** | First-person 3D arena, seven training modes, weapon editor, records and exports |
+| **Plugins** | Data-only themes, widgets, screens, settings and overlay modules |
+
+The rest of this section is the long version: every overlay, profile field, reading and session rule, with the edge cases named rather than hidden.
 
 ### Appearance
 
@@ -813,17 +394,133 @@ and shows *"Not available on this device"* when it does not — rather than esti
 
 ---
 
+## What makes it different
+
+### The non-negotiables
+
+| ✅ GameCore does | 🚫 GameCore refuses |
+| :--- | :--- |
+| Measure before it changes, then restore the reading it found. | Fabricate a reading, use a fallback constant, or dress an estimate as a measurement. |
+| Say “Unavailable”, “Requires Shizuku” or “Not supported by this device” with the reason. | Claim a system call worked because the setter did not throw. |
+| Close only what a profile asked for, with a never-close list. | Root, inject code, read another process’s memory or interfere with anti-cheat. |
+| Delete one game’s shared-storage cache after measuring it. | Run “clean everything”, `pm clear`, or touch a save, login or downloaded asset. |
+| Draw share cards and receipts on the device. | Upload sessions, analytics or crash reports. |
+| Make one optional, payload-free TCP handshake. | Invent a packet-loss percentage or contact a game server. |
+
+Most "game booster" apps are theatre. They show a RAM figure, animate a progress bar, kill
+some processes Android immediately restarts, and report success. GameCore does have a
+switch that closes background apps when a game starts — off by default, per game, and it
+tells you what it measured afterwards rather than what it hoped for, including when the
+measurement failed or came out negative. The difference is not the capability. It is that
+the number is a reading and not a flourish. Its central type is
+
+```kotlin
+sealed interface Observed<out T> {
+    data class Value<T>(val value: T, val source: DataSource, val precision: Precision)
+    data class Restricted(val reason: RestrictionReason, val unlockedBy: AccessLevel?, ...)
+    data class Failed(val detail: String, val cause: String?)
+}
+```
+
+A reading is either a value that names where it came from and how exact it is, or an
+absence that names its reason. There is no default, no fallback constant and no estimate
+dressed up as a measurement. The consequence is visible in the app: some cards say
+*"Not available on this device"* or *"Requires Shizuku"* instead of showing a number. That
+is the feature, not a gap.
+
+### Things this app deliberately does not do
+
+- **No root, no injection.** No reading or writing another process's memory, and no anti-cheat
+  interference.
+- **No fabricated statistics.** No claiming a system call worked when it did not.
+- **No timer that closes apps.** Nothing is closed without a profile asking for it — never your
+  launcher, your keyboard, the game itself, anything holding a foreground service, or anything on
+  your never-close list.
+- **No thermal limit override, and no protected system files.**
+- **No “clean everything”.** The storage screen deletes one named directory belonging to one game
+  you tapped, and never a save, a login or a downloaded asset.
+- **No packet-loss percentage.** A refused TCP handshake is not a dropped packet.
+- **Nothing you record is uploaded.** The shareable session card is drawn on the device and handed
+  to your own share sheet.
+
+The one thing that does write a game's own files is the config editor, and it stays inside that
+game's shared `Android/data/<package>/files` directory — the config file you opened and edited,
+its original backed up before the first change, each write shown to you line by line and committed
+whole or not at all. Never its code, never a save in the private storage a shell running as `shell`
+could not reach anyway, never a path that a `..` could climb out of, and never without Shizuku and
+a one-time notice you accept.
+
+The full set of shell commands the app can construct lives in one file
+(`core/shizuku/ShellCommand.kt`) and a unit test enumerates every one of them and asserts
+that `cmd`, `su`, `setprop`, `force-stop`, `pm clear`, `pm trim-caches`, `install` and
+friends are unreachable at any privilege level. Most of what that file can build reads or
+writes something about *this device* — a settings key, the display size, GameCore's own
+permissions. A few reach further, and each is bounded to a form the test pins literally so
+that a second use cannot be added without it failing: `am kill --user current <package>`
+closes one game's background processes; `rm -rf /storage/emulated/<user>/Android/data/<package>/cache`
+clears one game's shared cache; `taskset -ap <mask> <pid>` pins one game's process to a set of
+cores; `input tap` and `input swipe` send one synthetic tap or press-and-hold to a per-game
+screen point the user placed, for the volume-button trigger — no text, no key event, and no other
+`input` subcommand is expressible; the charge-bypass toggle writes a single digit to one validated
+`/sys/class/power_supply/<supply>/<node>` — the one command in the app that runs `sh -c`, and it
+passes the value (`0` or `1`) and the path as positional arguments (`$1`, `$2`) rather than splicing
+either into the script text, after a `test -w` probe and a `cat` read of that same node; the GPU HUD
+reads one validated GPU-load node under `/sys` with `cat`; and the config editor's `ls`, `stat`,
+`cp`, `mv` and `rm -f` read and rewrite files inside one game's own `Android/data/<package>/files` —
+never its `cache`, never its `obb`, never the private storage a `shell`-uid process cannot reach, and
+never through a path a `..` could climb out of. Every argument that originates outside the app's own
+code is validated against a form before a command exists; every command but that one charge write
+reaches `exec` as an argument vector; and that write runs a fixed script whose only inputs are its
+two positional arguments, so there is nowhere a glob is expanded or a word is split.
+
+---
+
+## Colour correction
+
+A display colour screen, with the same values reachable from inside a game.
+
+- **Eleven values.** Red, green and blue gain; gamma as one slider or three; saturation,
+  contrast, hue rotation and a brightness offset. Every slider shows its number, and tapping
+  the number opens a keypad for an exact entry — held to the field's own range, so a hue turns
+  ±180° while a gain stops at ±100%, and an out-of-range entry is refused rather than quietly
+  clamped to something you did not type.
+- **Presets you own.** Seven ship — Vibrant, Warm, Cool, Night, Protanopia, Deuteranopia,
+  Tritanopia — and they are ordinary saved rows, not a fixed menu: open one, move a slider,
+  save it under a new name, rename it, delete it. There is no cap on how many you keep.
+- **Per game.** A profile can carry a colour preset. It is applied when the game comes to the
+  front and put back when it leaves, from the reading taken before the change — the same
+  restore rule every other profile field follows.
+- **In the overlay panel.** Saturation, contrast and hue sit directly under the existing volume
+  and brightness sliders, a Colour tile joins the action grid, and a long press on it drops your
+  saved presets in as chips. Everything applies as the slider moves, with no confirm step.
+- **In the session report.** Which preset, and which values, were active while the session ran.
+
+And the reason the feature is built the way it is: **Android exposes no per-channel colour
+matrix to an app.** `ColorDisplayManager`'s matrix and `SurfaceControl.setDisplayColorTransform`
+are hidden platform API that neither `WRITE_SECURE_SETTINGS` nor a shell running as uid 2000 can
+reach. So GameCore projects what you asked for onto the sinks that do exist on the device it is
+running on — night-display warmth, the display colour mode, the daltonizer,
+reduce-bright-colours, colour inversion — and the screen lists every write it would make, names
+each value this device has no sink for, and says why. A gamma slider that moved and quietly did
+nothing would have been easier to build, and would have been exactly the lie this project exists
+to avoid.
+
+Colour correction needs `WRITE_SECURE_SETTINGS`, which Android never grants an app on its own —
+Shizuku or a wireless-ADB pairing is the only way to hold it. Without it the screen says so and
+points at the setup, rather than presenting sliders that write nothing.
+
+---
+
 ## Shizuku is optional
 
-The app is fully usable without it. Shizuku (or a wireless-ADB pairing) raises the app to
-ADB-level authority, which is what most devices require for a *device-wide* refresh-rate
-change, for animation scales, for the display's colour keys, for reading and reshaping the
-display's own size, for deleting a game's shared-storage cache, for reading and editing a game's
-own configuration files, and for a handful of `dumpsys` reads Android does not expose to ordinary
-apps.
+> [!NOTE]
+> **Shizuku is optional.** It unlocks the device-wide capabilities listed below. Without it, GameCore says which ones are unavailable and points at setup instead of faking a result.
 
-When it is absent, capabilities that need it say so and point at the setup screen. Nothing
-silently degrades into a fake result.
+Shizuku (or a wireless-ADB pairing) raises the app to ADB-level authority, which is what most
+devices require for a *device-wide* refresh-rate change, for animation scales, for the display's
+colour keys, for reading and reshaping the display's own size, for deleting a game's
+shared-storage cache, for reading and editing a game's own configuration files, and for a handful
+of `dumpsys` reads Android does not expose to ordinary apps.
 
 What the app can run with that authority is a closed, enumerated set:
 
@@ -861,9 +558,8 @@ another app.
 
 ## Permissions, and why each one is there
 
-Every entry below is explained in the app's own Permissions screen too, with a button to the
-exact settings page that grants it. Nothing is requested until the feature that needs it is
-switched on.
+> [!TIP]
+> Nothing is requested until the feature that needs it is switched on. Every permission below is also explained in the app’s own Permissions screen, with a button to the exact system page that grants it.
 
 | Permission | What stops working without it |
 | --- | --- |
@@ -890,6 +586,18 @@ closest the platform offers. Nothing runs when it is not needed — each service
 ---
 
 ## Security
+
+### Security at a glance
+
+| Layer | Guarantee |
+| :--- | :--- |
+| **APK** | Release builds go through R8 with obfuscation and resource shrinking. |
+| **Database** | Room is encrypted with SQLCipher; the key lives in the Android Keystore. |
+| **Preferences** | `EncryptedSharedPreferences`; `android:allowBackup="false"`. |
+| **Intents** | Only the launcher activity is reachable by another ordinary app; no exported receivers, no deep links. |
+| **Files** | A non-exported `FileProvider` grants one URI at a time; no storage permission. |
+| **Network** | Cleartext is blocked; the only outbound connection is the optional latency probe. |
+| **Root** | Detected, never required and never exploited. |
 
 - **Release builds go through R8** with obfuscation and resource shrinking, so a decompiled
   APK does not hand over the optimization engine's internals or the shell command structure.
@@ -934,9 +642,23 @@ closest the platform offers. Nothing runs when it is not needed — each service
 
 ## Architecture
 
+```mermaid
+flowchart LR
+  UI["Compose UI<br/>Screens · State · ViewModel"] --> Domain["Domain<br/>profiles · sessions · display"]
+  Domain --> Repo["Repositories"]
+  Repo --> DB[("Encrypted Room<br/>SQLCipher")]
+  Domain --> Platform["Android APIs<br/>readers · controllers"]
+  Domain --> Shell["Shizuku shell<br/>optional · enumerated"]
+  Plugin[".gcplugin<br/>data only"] --> Host["Plugin host"]
+  Host --> UI
+```
+
 Kotlin only, Jetpack Compose with Material 3, MVVM, Hilt, Coroutines and `StateFlow`. No
-Java, no XML layouts — the only XML is Android resources and the manifest. 625 source files,
-about 158,000 lines.
+Java, no XML layouts — the only XML is Android resources and the manifest. 701 Kotlin source
+files in the app and 30 in the plugin SDK, about 184,000 lines together.
+
+<details>
+<summary>Package tree</summary>
 
 ```
 app/
@@ -964,6 +686,8 @@ app/
 └── ui/               one package per screen, each a Screen + State + ViewModel
 ```
 
+</details>
+
 The UI never executes a shell command or touches a system API directly; it reads state and
 calls into the domain layer. `OptimizationManager` chooses between `StandardAndroidOptimizer`
 and `ShizukuOptimizer` based on what `DeviceCapabilityChecker` found, and every operation
@@ -973,6 +697,13 @@ comes back as one of *available*, *requires Shizuku*, *requires a permission*,
 ---
 
 ## Building
+
+| Task | Command |
+| :--- | :--- |
+| Debug APK | `./gradlew :app:assembleDebug` |
+| JVM unit tests | `./gradlew :app:testDebugUnitTest` |
+| Signed release | `./gradlew :app:assembleRelease` |
+| Lint | `./gradlew :app:lintDebug` |
 
 ```bash
 git clone https://github.com/Dreamucxe/GameCore.git
@@ -1001,10 +732,18 @@ signing key is not blocked — but an unsigned APK will not install on a device.
 
 The unit tests are deliberately written against the pure, Android-free seams: the geometry,
 the formatters, the sanitizer, the command builder, the aggregators, the state reducers, the
-per-session latency fold, and every word the shareable card is allowed to print. 211 suites,
-2,563 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
+per-session latency fold, and every word the shareable card is allowed to print. 271 test
+classes, 3,181 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
+
+---
 
 ## Your data, and the network
+
+| Data | Where it lives | Leaves the device? |
+| :--- | :--- | :--- |
+| Profiles, HUD layouts, sessions, samples | Encrypted Room database on the device | No |
+| Screenshots, recordings, exports, session cards | App-private storage | Only when you hand one to your own share sheet |
+| Latency probe | One TCP handshake to a host you choose | Only that handshake; no payload |
 
 There is no backend, no account system, no cloud sync, no analytics, no crash reporting and no
 advertising SDK. Everything GameCore records — profiles, HUD layouts, sessions, samples — lives in
@@ -1021,6 +760,526 @@ One thing touches the network, and it is honest about it on the screen it belong
   The 3.5 network check reuses this same probe rather than adding one of its own; everything else
   it reports — the transport, the Wi-Fi band, the link speed — it reads from Android on the device.
 
+---
+
+## Release history
+
+Older releases, preserved. Expand any version for the full notes.
+
+<details>
+<summary><strong>3.17.0 — Tilt training for phones without a gyroscope</strong></summary>
+
+The gyro challenge no longer needs a gyroscope. A phone without one can run it as **Tilt
+training** — a real measurement, read from the accelerometer and labelled as tilt.
+
+- **Bank to steer, tip to aim.** Tilt training reads the phone's lean against gravity: bank the
+  phone left or right in the plane of the screen to steer, and tip the top edge away from you to
+  aim up. A phone with a gyroscope is unchanged — the gyroscope is still the input.
+- **Its records stay apart from the gyro's.** An accelerometer cannot sense turning on the spot —
+  gravity does not change when the phone rotates about itself — so a tilt run is stored under its
+  own mode and is never ranked against a gyro record.
+- **No sensor, no pretend run.** A device with neither a gyroscope nor an accelerometer gets a
+  plain explanation in place of a Start button, rather than a run that could not move.
+
+</details>
+
+<details>
+<summary><strong>3.16.0 — Themes can be made of glass</strong></summary>
+
+A theme can ask for glass now. A plugin stays data — it never touches the canvas — but it can now
+ask the host for a material, and the host draws every frame of it.
+
+- **Themes can be made of glass.** The theme schema is now 4, and a `glass` block asks for a
+  material rather than a flat colour: a translucent surface, a specular rim along the top edge, a
+  highlight that drifts slowly down the face, and an iOS-style spring that settles a panel when the
+  material changes. A theme that declares schema 3 and carries the block is refused, not
+  downgraded — a glass theme whose transparency silently became a flat fill is not the design its
+  author wrote.
+- **The blur belongs to Android 12.** From API 31 the backdrop behind a panel is blurred as well.
+  Below that the host still draws the translucency, the rim and the gloss against a sharp
+  backdrop, and the Control Center says so — "Sharp — this Android version cannot blur one" —
+  rather than calling it frosted.
+- **One slider.** Settings → Glass Control Center holds a single control: how much of the material
+  the app is wearing, scaling the transparency, the gloss and the blur radius together. The
+  preview above it is drawn from the exact material the slider points at, through the app's own
+  renderer, so you can judge it before you let go. The row appears only while a theme with a
+  material is in force.
+- **Animation settings still win.** Settings → Animations → Off, or the system's
+  remove-animations switch, and the material is drawn at rest — the translucency, the rim and the
+  gloss stay, the highlight stops and the panels stop settling. A plugin asks for motion; it can
+  never take it.
+
+Ships with **Liquid Glass GameCore** (`dist/liquidglass/liquidglass.gcplugin`) — rewritten to ask
+for the material it is named after, version 1.2.0, and it needs GameCore 3.16 or newer. It is a
+downloadable package rather than a bundled theme: drop the `.gcplugin` file into GameCore's
+plugin installer. All twenty official plugin packages ship with the release that way, and nine
+of them are also bundled in the app.
+
+</details>
+
+<details>
+<summary><strong>3.15.0 — Five launcher icons, and a plugin can choose one</strong></summary>
+
+GameCore has five launcher icons, and a plugin can choose one of them.
+
+- **The picker.** Settings → App icon shows the set: **Core**, **Mono**, **Glitch**, **Neon** and
+  **Redline**. Tapping one changes the icon your launcher shows — a real switch, not a shortcut to
+  the app, because each icon is its own launcher component and exactly one is enabled at a time.
+- **Plugins can ask.** A plugin with the `change_icon` permission ships an `icon.json` naming a
+  slot; Settings shows which plugin is setting the icon and offers a one-tap Undo back to your own
+  choice. A plugin that is disabled, uninstalled or suspended loses the icon on the next launch.
+- **Plugin artwork, honestly.** Android has no API that lets an app install a bitmap as its launcher
+  icon, so a plugin's own image cannot become the icon — and this release does not pretend it can.
+  Artwork is offered as a **pinned home-screen shortcut** instead: you confirm it in the launcher,
+  and GameCore's own icon is left alone. The picker says so in as many words.
+
+</details>
+
+<details>
+<summary><strong>3.14.0 — Themes can move</strong></summary>
+
+Theme plugins can move now. A plugin stays data — it never gets to touch the canvas — but it can
+now *ask* the host to distort what it draws, and the host owns every frame of that.
+
+- **Themes can move.** A schema-3 theme may carry a `glitch` block. The app's content is recorded
+  into a layer and re-drawn as displaced horizontal bands: the frame tears, text and panels
+  together, with one-pixel fracture lines, ghost copies at the band edges and translucent block
+  noise. It is a live re-draw, not a colour filter, and it applies to the whole app.
+- **It reads the phone.** With `hardwareReactive` on, a device above 85% CPU tears about twice as
+  often, and one the platform reports as thermally throttled adds a vertical frame-drop on the
+  first frame of a burst. Off, the effect keeps a fixed rhythm and reads no sensors at all.
+- **Animation settings still win.** Settings → Animations → Off, or the system's remove-animations
+  switch, suppresses every theme effect. A plugin asks for motion; it can never take it.
+- **Off by default.** Nothing changes unless you install and select a theme that asks for it.
+  Every existing theme renders exactly as it did.
+
+Ships with **True Glitch** (`dist/trueglitch/trueglitch.gcplugin`) — cyan and red on near-black,
+monospaced, torn.
+
+</details>
+
+<details>
+<summary><strong>3.13.0 — One tap, the full panel</strong></summary>
+
+The floating button stops making you tap twice.
+
+- **One tap, the full panel.** Tapping the game button opens the control panel straight away — every
+  tab, every control — instead of the small quick sheet. The sheet has not gone anywhere: a double
+  tap on the button opens it, with the same toggles, sliders and session clock.
+- **Or keep the sheet first.** Settings → Overlay → Quick sheet has a switch. Off, a tap opens the
+  sheet first and the panel stays behind its "More" button, exactly as it used to behave.
+
+</details>
+
+<details>
+<summary><strong>3.12.0 — The Theme Engine reaches every screen</strong></summary>
+
+The Theme Engine stops being something you visit and becomes the colour the app wears.
+
+- **App-wide colour.** A switch on the calibration screen hands the app's accent to the engine.
+  On, every screen is tinted by what the device is doing right now — the same ice-blue, violet and
+  molten crimson you see on the canvas — and a theme plugin keeps everything else it does but
+  stops choosing the palette. Off, a plugin's colours win exactly as they always have, which is
+  the default.
+- **The engine runs the whole time.** It starts with the app rather than with its settings screen,
+  so its colour is live everywhere and the first recolour is a transition instead of a jump.
+  Calibrating still drives it live; leaving the screen no longer stops it.
+- **Say who chooses.** The same card prints the accent in force and whether it came from your
+  settings, the engine, or nothing at all yet — no guessing which layer won.
+
+</details>
+
+<details>
+<summary><strong>3.11.0 — A live backdrop from what the device is doing</strong></summary>
+
+A live backdrop painted from what your device is actually doing — and a calibration screen where
+every figure it uses is on the table.
+
+- **Theme Engine.** A canvas in Settings → Theme Engine draws a soft ice-blue drifting at half
+  speed when the device is cool and quiet, turns Aurora Violet once CPU, memory or temperature
+  cross their thresholds, and goes molten crimson at speed when it is hot or saturated. The colour
+  and the speed both follow the readings as they change.
+- **See the vector.** The calibration screen prints the mode in force, its exact
+  `rgb(r, g, b)` value and its fluid velocity beside the three readings it was drawn from — CPU,
+  memory allocation and core temperature, each labelled with what it is.
+- **Calibrate against your own thresholds.** Flat sliders stand in for each reading so you can
+  watch the backdrop answer without loading the device, and the thresholds that decide each mode
+  are adjustable.
+- **Save points.** Keep a calibration you like under a name and recall it later. Save points are
+  stored on the device and survive a restart.
+
+The engine is built into GameCore, in its own package rather than in the screens that use it. It
+is not a `.gcplugin`: those are data GameCore reads, and this one draws, so it ships with the app.
+
+</details>
+
+<details>
+<summary><strong>3.8.1 — Eight official plugins and the plugin host</strong></summary>
+
+Eight plugins GameCore built itself — and the host features that let them do real work, all
+still under the rule that a plugin is data GameCore reads, never code it runs.
+
+- **Eight official plugins.** A first set you can install from a file: a Nothing-OS-style theme,
+  an anime-inspired pack, a sensitivity workspace, an automation-history view, a personal
+  dashboard, a local advisor, a benchmark readout and a dashboard composer. Each ships bundled and
+  can also be sideloaded as a `.gcplugin` file.
+- **Plugin settings you can change.** A plugin can offer its own options — switches, choices and
+  numbers — and GameCore stores and applies them for you. The controls live in GameCore; the
+  plugin still runs nothing.
+- **Your automation history, shown by a plugin.** A plugin you allow can display the record of
+  automations GameCore has already run for you. It reads that history only to show it — it is
+  handed none of your other data and runs no code of its own.
+- **Live readouts on plugin screens.** Plugin screens and dashboard widgets can show figures
+  GameCore already measures — frame rate, temperature and the like — each drawn by GameCore from
+  data you have allowed.
+
+</details>
+
+<details>
+<summary><strong>3.8 — Data-only plugins arrive</strong></summary>
+
+Plugins arrive — and arrive as data, not code. A plugin is a file GameCore reads to restyle
+itself and add small readouts; it never runs inside GameCore and never gets a shell, so the
+directory can grow without widening what any one install can do.
+
+- **Install a plugin from a file.** Add a plugin from a `.gcplugin` package, see exactly what it
+  asks for before anything is on, and turn it on yourself. A plugin is data GameCore interprets
+  with code it already ships — it carries no scripts, no WebView and no native libraries.
+- **Permission by permission.** Every plugin lists exactly what it wants and you grant each item
+  separately; a new plugin arrives switched off with nothing granted, and anything that touches a
+  device setting needs a second opt-in.
+- **Plugin themes.** A plugin can supply colours, corner rounding and UI scale. Unreadable colour
+  pairs are replaced automatically, and the Plugins screen always draws in GameCore's own theme —
+  so the way back is never styled by the plugin you are turning off.
+- **On-screen plugin modules.** A plugin can add a small readout that sits over your game beside
+  the Game Pill — frame rate, temperature and the like. It cannot cover the screen, cannot take
+  touches from the game, and appears only once you grant that plugin the overlay permission; up to
+  three at a time.
+- **One switch to stop them all.** A single toggle on the Plugins screen stops every plugin at
+  once, whatever each plugin's own switch says.
+- **Order the list your way.** Sort installed plugins by name, by date installed, or by version
+  number — highest first, with `1.10` correctly above `1.9`. The order only changes how the list
+  is drawn; it changes nothing about which plugins run.
+
+</details>
+
+<details>
+<summary><strong>3.7.2 — Dock customisation and mid-session revert</strong></summary>
+
+The floating dock's buttons become yours to arrange, the active profile can be put back one
+field at a time without ending play, and an in-game trigger can be placed by touch — plus the fix
+for a release-blocking bug where the trigger-placement overlay swallowed every touch except the
+game's own pill.
+
+- **Dock customisation.** Rearrange the floating dock's buttons and choose which of them appear,
+  saved per game — so the dock a game raises holds exactly the controls that game needs.
+- **Quick actions on the dock.** Put shortcuts to GameCore's existing controls onto the dock for
+  one-tap access without opening the full panel; a quick action runs through the same handler the
+  panel's own tile does and invents no new capability.
+- **Revert settings mid-session.** A card on Home lists exactly what the active profile changed on
+  your device and puts any of it back without ending play — the same reading-paired restore a
+  profile does on exit, offered one field at a time while the game runs.
+- **In-game point-trigger placement.** Place a volume-key tap target by touching the spot on
+  screen, from inside the game and without opening the app. It is saved per game, and the tap it
+  later fires is the one synthetic input the app can send (see below), gated on Shizuku.
+
+</details>
+
+<details>
+<summary><strong>3.7.0 — Floating dock, screen extraction and touch tools</strong></summary>
+
+A second overlay surface and four stand-alone tools, each holding the app's one rule: what it
+cannot measure or do, it says plainly rather than faking.
+
+- **Floating Dock.** A small draggable dock over your game with its own quick control panel; it
+  snaps to the screen edge, is turned on from Settings, and sits alongside the existing floating
+  button rather than replacing it.
+- **Screen Extraction.** Capture the current screen, crop a region, then save or share the
+  result — drawn and cropped on the device and handed out through the same one-shot share grant
+  every other artefact uses.
+- **Touch Sampling Monitor.** A live read of the device's real touch input rate. Where the
+  hardware will not report it, it reads **Unavailable** rather than a plausible number — the rule
+  every reading in the app follows.
+- **Volume Button Point Trigger.** Map a volume key to tap a saved screen point for a game —
+  single, double or hold. It needs the optional accessibility service, so the key reaches GameCore
+  from inside another app, and Shizuku, so the tap can be injected; without either, the control
+  says so rather than pretending to work.
+- **What's New.** Shows the features a release introduced the first time you open the app after
+  updating, and lets you browse every past update any time from Settings.
+
+</details>
+
+<details>
+<summary><strong>3.6.1 — Network stability, performance HUD and custom overlays</strong></summary>
+
+Three leaf screens, each turned on or off from Settings, and each holding the app's one rule: a
+figure it cannot measure is shown as "Unavailable", with the reason, never as a zero.
+
+- **Network Stability Mode.** A live read of the connection you play on — transport, signal,
+  estimated link speed, device-wide download and upload, and whether the system calls it metered —
+  with a stability window built from TCP-handshake bursts. It reports ping (median handshake time)
+  and jitter (the variation between consecutive probes, the honest stand-in for the packet-loss
+  figure it will not fake), and how many probes in the window completed. Where Android allows it, it
+  also keeps the device from switching networks mid-game.
+- **Advanced Performance HUD.** A customisable heads-up display over FPS, CPU, GPU where the device
+  exposes a load node, RAM, temperature, battery, ping and session time, as a compact line or an
+  expanded card. Any stat the device will not report reads "Unavailable" rather than a made-up value.
+- **Custom Overlay Modules.** Turn individual overlay modules on and off, drag them to position,
+  resize the ones that support it, and choose exactly which information each shows — saved as an
+  overlay layout per game that a profile can raise by name.
+
+</details>
+
+<details>
+<summary><strong>3.6 — Instant Replay</strong></summary>
+
+The feature people ask for by name — keep the last few seconds of play, and decide to save them
+after they have already happened.
+
+- **Instant Replay.** A rolling video buffer that always holds the most recent stretch of the
+  game — 15, 30, 60 or 120 seconds, 30 by default — so a moment you did not know you would want is
+  already recorded by the time you reach for it. When you save, the buffered window is written out
+  as a single clip and nothing outside it is; the buffer itself lives in the app's own private cache
+  and is trimmed back to the length you chose as it rolls, so it never grows without bound. It is
+  **off until you turn it on**, set per game like every other profile field, and the first time you
+  enable it a one-time notice states the three things worth knowing first: the buffer records the
+  whole time the game is open, everything stays on this device, and **this version is video only** —
+  it holds no microphone permission and captures no audio, on purpose, because a "record audio"
+  switch that produced a silent track on half the games it was used with is exactly the kind of
+  control this app refuses to ship. It reuses the same screen-capture consent the recorder already
+  asks for, so it adds **no new permission**. An in-game chip shows when it is armed, and a save
+  control sits in the overlay while the game runs.
+
+</details>
+
+<details>
+<summary><strong>3.5.4 — Config editor and per-game resolution override</strong></summary>
+
+Two features about reaching past the settings a game exposes — to the files behind them, and to
+the resolution it renders at.
+
+- **A config editor.** Browse a game's own configuration files and edit one in place, with the
+  whole change shown as a line-by-line diff before a single byte is written — nothing is saved
+  until you confirm exactly what changed. The write is whole-file and atomic, so a config is never
+  left half-applied. The first time you edit a game's config its original is backed up
+  automatically; you can keep named checkpoints and restore any of them later, and if the game has
+  been updated since that backup the editor says so, because an edit made against a config the
+  update already replaced is an edit against a stale file. It reaches those files through the same
+  elevated shell the rest of the app uses, so it needs Shizuku — without it the screen says so and
+  points at the setup — and a path outside the selected game's own config is refused rather than
+  opened. A one-time notice explains the feature before the first edit, and can be shown again.
+- **Resolution override.** A per-game render resolution, set as a scale of the display's native
+  size and applied through `wm size` when the game comes to the front — then cleared and the
+  display put back exactly as it was when the game leaves, the same restore rule every other
+  profile field follows. Lowering it can lift frame rate on a GPU-bound game at the cost of
+  sharpness; it is per game, off unless you set it, and it asks once for confirmation the first
+  time because it reshapes the whole display while the game runs. An in-game status chip shows when
+  an override is active, so a changed resolution is never a mystery. Needs Shizuku, like every
+  display-size write.
+
+Also since 3.5, and until now in no release:
+
+- **A pinned magnifier.** A loupe overlay that shows the centre of the screen enlarged — a
+  crop-and-scale of a single capture frame, parked in a corner with its geometry chosen so it can
+  never fall over the region it magnifies and mirror itself. There is no detection, no tracking and
+  no aim logic: it enlarges pixels and nothing else. It uses the same screen-capture permission the
+  other overlays do.
+- **Panel macros.** A named, ordered set of overlay actions you already have, fired in sequence by
+  one tap. A macro invents no new capability — every step runs through the same handler the panel's
+  own tiles use — so all it adds is the order and the count. They live as an editable, reorderable
+  config list, not a database table.
+- **Config backup and restore.** Export every configuration store — profiles, presets, overlay
+  layouts, macros — to one file you can keep or move to another install, and restore it later. It
+  touches configuration only: your recorded sessions and Aim Lab runs are never written into the
+  file and a restore can never overwrite them, and everything a restored file carries is validated
+  before it reaches a store.
+- **Profile transfer.** Share one or more game profiles as a single file, presets and all, and
+  import them elsewhere — recreating what is missing and matching-then-remapping what already
+  exists, so an import never silently duplicates a preset or clobbers one you had.
+- **Profile suggestions.** A starting profile derived only from what a game was actually measured
+  doing, with a plain sentence behind every field it fills. A dimension the sessions did not measure
+  enough to speak to is left alone; a game with thin or contradictory history gets no suggestion at
+  all rather than a guess dressed as advice. It only drafts — nothing is saved or applied until you
+  open it in the editor.
+- **Per-sample export.** Alongside the one-row-per-session export, write one row per *sample* — the
+  raw time series a graph is drawn from — as CSV or JSON. It keeps the same honesty rule the
+  aggregate export follows: blank, never zero, for a reading a sample never took.
+
+</details>
+
+<details>
+<summary><strong>3.5 — Setup wizard, thermal auto-downshift and network check</strong></summary>
+
+Four features about the app setting itself up, and then looking after the session on its own.
+
+- **A first-run setup wizard, and a Setup health screen.** A new install now walks through what
+  GameCore needs — which features you want, and only the permissions those features actually use —
+  instead of leaving you on an empty Home screen to work it out by trial. Nothing is granted on your
+  behalf and no step is required: skip all of it and the app still runs, minus whatever you skipped.
+  Afterwards, **Settings › Setup health** lists every item with its real state — Ready, Not set up,
+  or Unavailable with the reason Android gave — a Fix button that opens the exact system page, and a
+  re-check when you come back from it. Upgrading never re-runs the wizard over your existing
+  profiles; it offers a dismissible Home card instead, and only when something genuinely needs
+  attention.
+- **Thermal auto-downshift.** Off by default, per profile. When the device holds a temperature you
+  choose, or the thermal status Android reports crosses the floor you set, the refresh rate steps
+  down — and steps back up once it has stayed cool long enough. The hysteresis, the sustain window
+  in each direction and the minimum time between changes are all yours to set, so it cannot sit
+  there oscillating. The session records how many times it stepped down and the lowest rate it
+  reached.
+- **Network check.** Off by default, per profile. Before a launch it can warn you about the
+  connection you are about to play on; during a session it can alert you when the connection turns
+  poor — high latency, jitter, or probes that stop coming back at all. It still refuses to call any
+  of that packet loss, because a TCP handshake that times out is not a dropped packet. It reads the
+  transport, the Wi-Fi band and the link speed — **never the network name, never the BSSID, and it
+  asks for no location permission**, which is what Android would demand before handing those over.
+  Anything Android will not report shows as Unavailable with the reason.
+- **Keep full performance under battery saver.** Off by default, per profile. Battery saver caps
+  the refresh rate and the governor on most builds; with this on, a profile holds full performance
+  for that game anyway, puts the saver's own behaviour back when the game exits, and notices — and
+  records — when the system switched the saver back on behind it. No new access of any kind: it
+  goes through the same elevated shell the refresh-rate setting already uses.
+
+Also since 3.2, and until now in no release:
+
+- **A redesigned in-game overlay.** The floating button has real states — dimmed when idle, an
+  orange or red dot when the shared thermal classifier says hot or critical — three sizes and four
+  corner snaps, and it keeps its place per orientation. Tapping it opens a **quick sheet**: a narrow
+  panel on the screen edge nearest the button, holding up to six toggles you pin yourself, the
+  brightness and volume sliders and the session clock, so the things you reach for mid-game no
+  longer need the full panel and most of the game stays visible. The full panel is still there,
+  behind **More** or an optional double tap, now divided into Display, Overlays, Capture and Session
+  tabs with a hold-to-confirm End session (the older split-across-both-edges layout keeps its
+  previous design). The stats pill comes as a compact single line or a detailed card, and it stops
+  sampling the moment nothing is looking at it — including when the screen goes off, where it used
+  to keep ticking.
+- **Themes.** Follow system, Dark, Light or **AMOLED black** — a true `#000000` background that
+  switches OLED pixels off rather than dimming them — with eight accent colours or one you pick
+  yourself, applied across the app and the overlay windows alike.
+
+</details>
+
+<details>
+<summary><strong>3.2 — Aim Lab fire modes and on-screen controls</strong></summary>
+
+Two additions to the Aim Lab, both about the weapon and the way you hold the phone.
+
+- **Fire modes.** A weapon now discharges in one of three ways — **single**, a fixed **burst**, or
+  full **auto** — and the training loop honours it: a burst walks up the recoil pattern at the real
+  fire-rate cadence rather than landing all at once, and the magazine and reload gate every mode the
+  same. The weapon editor picks the mode and, for burst, the round count; a built-in Burst Carbine
+  ships so the mode is there to try without building one. Older saved weapons read back as auto —
+  exactly what they already did — so nothing changes under you.
+- **On-screen controls on every mode.** The saved control layouts (HUDs) you build in the editor can
+  now be drawn over the arena during a run from any mode's setup screen, not just some — pick one, or
+  leave it on "None" for a clean view. The choice is per run and never forced.
+
+Also from 3.1: the Aim Lab runs in **landscape** with a real horizontal field-of-view setting, the
+gyro axes remap correctly per screen rotation, and control layouts are stored per orientation.
+
+</details>
+
+<details>
+<summary><strong>3.0 — The offline 3D Aim Lab</strong></summary>
+
+An offline **Aim Lab** — a first-person 3D training arena, built inside GameCore and held to the
+same rule as everything else: nothing it reports is invented.
+
+- **A real first-person 3D room, not a flat target board.** You stand inside an enclosed arena —
+  checkered floor, grey walls and ceiling, light depth fog — with a low-poly weapon held at the
+  bottom-right and glossy spheres floating at varied distances and angles. The crosshair is fixed
+  dead centre; you look by dragging, and a shot is the ray straight out of the crosshair, hit-tested
+  against the spheres in 3D. Rendered with OpenGL ES 2.0 and nothing else: no game engine, no
+  third-party 3D library, no model or texture files — the room, the spheres and every weapon are
+  built procedurally in code, and the shaders are plain source strings.
+- **Seven modes, all in the 3D view.** Flick, Tracking, Reaction, Gyro, Recoil, Movement and a Free
+  Practice sandbox. Aim error is measured in **degrees**, not pixels, so a result means the same on
+  any screen. Recoil kicks the camera along the weapon's pattern and scores how well you pull it
+  back; Movement walks you through the room and scatters shots taken on the move; Gyro turns the
+  view from the real gyroscope. A phone with no gyroscope but an accelerometer runs the gyro
+  challenge as **Tilt training** — bank the phone left or right in the plane of the screen to steer
+  and tip the top edge away from you to aim up — read from the accelerometer, and filed under its
+  own mode so a tilt run is never ranked against a gyro record.
+- **Your gear drives it.** The weapon editor, sensitivity lab, control/HUD editor, statistics,
+  personal records, session history and JSON/CSV export/import all carry over — and a weapon's fire
+  rate, magazine, reload, spread and movement penalty are now actually felt in a run.
+- **Old training data is kept, and kept separate.** Sessions recorded by the previous flat trainer
+  stay in your history, labelled as legacy, and are never ranked against the new 3D scores, because
+  the two are measured differently. The database upgrade is additive — no history is dropped.
+- **It stays out of the way when you leave.** The 3D view renders only while a run is on screen; the
+  moment you leave or background the app, rendering stops, the motion sensor is released and the run is
+  cancelled. If a device cannot run OpenGL ES 2.0 the arena shows a plain "3D view unavailable"
+  panel instead of crashing.
+
+The Aim Lab is off by default behind a master switch, and turning it off is a real disable, not a
+hidden screen.
+
+</details>
+
+<details>
+<summary><strong>2.0 — A second panel shape and in-game controls</strong></summary>
+
+Five additions, all of them about reaching a setting without putting the game down.
+
+- **A second shape for the control panel.** It can now split into two plates pinned to opposite
+  screen edges — readouts on one, controls on the other, the game still visible between them, full
+  screen height — instead of one plate below the button. Centred stays the default, because a panel
+  you have already learned should not rearrange itself on an update. A **Layout** tile inside the
+  panel switches between the two on one tap, so trying the other shape costs nothing and neither
+  does going back.
+- **Refresh rate from the panel.** Every rate this display reports, as chips under the tile grid,
+  plus the way back off a pinned one. The tile lights only from a change GameCore made and
+  confirmed: the platform is entitled to drop a pinned panel to 60 Hz on a static screen, so a low
+  reading is not evidence the pin failed and a high one is not evidence it holds. A rate that was
+  written but could not be read back says so rather than claiming it took.
+- **Crosshair quick-select.** Hold the crosshair tile for the active crosshair's design and colour
+  without opening a screen. It offers the built-in colours plus the ones you already mixed
+  somewhere with more room — no HSV square, because that is a two-handed control and this window is
+  open over a game.
+- **An eleventh crosshair design, and more colours.** A box: a square outline, for framing a target
+  rather than marking a point.
+- **CPU core affinity presets, marked experimental.** A per-profile choice of which cores a game's
+  main process may run on — performance cores only, or all cores minus one efficiency core. The
+  app says what this is worth in the same words every time: it may reduce stutter by controlling
+  which cores the game runs on, it does **not** make the device faster, and depending on the game
+  it can do more harm than good. Needs Shizuku. The mask the process was found on is recorded
+  before anything changes and written back when the game exits.
+
+</details>
+
+<details>
+<summary><strong>1.3 — Game storage, connection history and a shareable card</strong></summary>
+
+Three additions, and four reported bugs fixed.
+
+- **Game storage.** A screen that measures what every game is holding in cache, and clears one
+  game's shared-storage cache on a tap. It reads the size, deletes, waits, reads again, and reports
+  **the difference between the two readings** rather than an exit code — so a clear that freed
+  nothing says nothing was freed, instead of claiming a number it did not measure. It never touches
+  a save, a login or a downloaded asset. [Details](#game-storage).
+- **What the connection did.** Every session now carries a latency log: probes that completed,
+  probes that did not, the worst reply, jitter, the longest run of failures, and one of five
+  verdicts with the figures behind it in a sentence. No packet-loss percentage anywhere, because a
+  refused TCP handshake is not a dropped packet. [Details](#sessions).
+- **A card you can share.** A finished session renders to a 1080×1260 image and goes to your own
+  share sheet. A reading this device could not take is a dash on that card and never a zero, an
+  interrupted recording says its length is a lower bound, and the sample count travels with the
+  averages. Drawn on the device; nothing is uploaded. [Details](#sessions).
+
+The bugs, all four found in use rather than in a test: a crosshair that drew the dot preset whatever
+you picked — and the HUD, which had the identical bug, because a layout you arranged is not "any
+layout"; a profile edited after leaving a game that did nothing until GameCore was restarted; the
+resolution card stuck on "loading" after quitting a game; and a Do Not Disturb popup that put DND
+back on after you had turned it off by hand. The last one is now impossible by construction:
+GameCore restores a device setting only when it made the write and nothing outside GameCore has
+changed it since.
+
+</details>
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+<p align="center"><sub>Built with Kotlin and Jetpack Compose. No trackers. No telemetry. Just readings.</sub></p>
