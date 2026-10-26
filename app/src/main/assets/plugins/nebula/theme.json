@@ -1,0 +1,36 @@
+{
+  "onPrimary": "#1A1033",
+  "schema": 4,
+  "onSurface": "#F7F3FF",
+  "typography": {"weight": "medium"},
+  "surface": "#111118",
+  "roles": {
+    "secondary": "#8B7CFF",
+    "outline": "#3B3548",
+    "onError": "#2A0710",
+    "onSurfaceVariant": "#BDB6CF",
+    "tertiary": "#7DD3FC",
+    "error": "#FF6B8A",
+    "surfaceVariant": "#1C1B24"
+  },
+  "accent": "#FF9DCE",
+  "uiScale": 1,
+  "amoled": true,
+  "effects": {"glass": {
+    "intensity": 1,
+    "spring": "gentle",
+    "blurRadiusDp": 18,
+    "gloss": 0.6,
+    "transparency": 0.58,
+    "intensitySetting": "glass_intensity",
+    "sheenPeriodMs": 7200,
+    "sheen": true,
+    "hardwareReactive": false
+  }},
+  "background": "#000000",
+  "name": "Nebula Interface Suite",
+  "dark": true,
+  "cornerRadiusDp": 28,
+  "primary": "#C9B8FF",
+  "font": "rounded"
+}

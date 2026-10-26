@@ -1,0 +1,32 @@
+{
+  "minHostVersion": 38,
+  "declares": [
+    "theme",
+    "settings",
+    "screens",
+    "widgets",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "add_dashboard_widgets"},
+    {"id": "store_data"},
+    {
+      "id": "read_approved_data",
+      "scopes": [
+        "device_stats",
+        "thermals"
+      ]
+    },
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Nebula Interface Suite",
+  "description": "A true-black lavender-and-pink interface suite: glass theme, live control centre, design screens, five dashboard widgets and one real glass-intensity control.",
+  "changelog": "1.0.0 \u2014 first release: schema-4 glass theme, live control centre, look-and-feel, motion, dock, type, performance and design-notes screens, plus five dashboard widgets.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.nebula",
+  "api": 4,
+  "versionName": "1.0.0",
+  "version": 1
+}

@@ -35,6 +35,33 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 43,
+            versionName = "3.5.0",
+            date = "2026-10-25",
+            features = listOf(
+                FeatureNote(
+                    "Emulators, marked experimental",
+                    "GameCore can recognise a set of emulators already installed on the device by " +
+                        "package name, open one, and try to hand it a ROM. It does not include, " +
+                        "download or install an emulator, and opening an emulator is not counted as " +
+                        "a game launch.",
+                ),
+                FeatureNote(
+                    "A ROM library that leaves the file in place",
+                    "Pick a disc image or ROM with Android's document picker and confirm which " +
+                        "system it belongs to. GameCore keeps a persisted document link and the " +
+                        "metadata the provider exposes; it does not copy the file, and forgetting a " +
+                        "row does not delete anything.",
+                ),
+                FeatureNote(
+                    "Windows programs are open-only",
+                    "A .exe can be filed in the library, but Winlator runs Windows programs inside " +
+                        "its own container and exposes no supported way to receive a specific file. " +
+                        "GameCore opens the container and says so instead of claiming the program ran.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 41,
             versionName = "3.19.0",
             date = "2026-10-24",

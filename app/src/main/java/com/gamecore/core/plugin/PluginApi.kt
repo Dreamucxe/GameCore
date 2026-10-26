@@ -62,7 +62,7 @@ object PluginApi {
      * bumps one and forgets the other fails the gate rather than shipping a host that
      * lies to every plugin about which build it is.
      */
-    const val HOST_VERSION_CODE = 41
+    const val HOST_VERSION_CODE = 43
 
     /**
      * The verdict for a plugin that declares API [pluginApi] and a minimum host
