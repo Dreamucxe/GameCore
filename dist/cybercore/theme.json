@@ -1,0 +1,27 @@
+{
+  "onPrimary": "#001018",
+  "schema": 2,
+  "onSurface": "#BFE4FF",
+  "typography": {
+    "scale": 0.96,
+    "weight": "normal"
+  },
+  "surface": "#06142B",
+  "roles": {
+    "secondary": "#4FC3F7",
+    "outline": "#1E3A5F",
+    "onError": "#1A0000",
+    "onSurfaceVariant": "#7FA6C9",
+    "tertiary": "#E0F7FF",
+    "error": "#FF5252",
+    "surfaceVariant": "#0A1F3D"
+  },
+  "accent": "#8BD4FF",
+  "uiScale": 0.95,
+  "background": "#000A1A",
+  "name": "Cybercore GameCore",
+  "dark": true,
+  "cornerRadiusDp": 0,
+  "primary": "#00A8FF",
+  "font": "mono"
+}

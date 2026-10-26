@@ -1,0 +1,27 @@
+{
+  "onPrimary": "#FFFFFF",
+  "schema": 2,
+  "onSurface": "#10233A",
+  "typography": {
+    "scale": 1.03,
+    "weight": "light"
+  },
+  "surface": "#FFFFFF",
+  "roles": {
+    "secondary": "#2B6CB0",
+    "outline": "#C2CFE0",
+    "onError": "#FFFFFF",
+    "onSurfaceVariant": "#48586E",
+    "tertiary": "#7FA8D9",
+    "error": "#B3261E",
+    "surfaceVariant": "#E4ECF7"
+  },
+  "accent": "#E85D9E",
+  "uiScale": 1,
+  "background": "#F2F6FC",
+  "name": "Cybercity GameCore",
+  "dark": false,
+  "cornerRadiusDp": 20,
+  "primary": "#1D5FD1",
+  "font": "rounded"
+}

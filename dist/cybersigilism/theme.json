@@ -1,0 +1,25 @@
+{
+  "onPrimary": "#000000",
+  "schema": 2,
+  "onSurface": "#F2F2F4",
+  "typography": {"weight": "medium"},
+  "surface": "#101013",
+  "roles": {
+    "secondary": "#A8ADB5",
+    "outline": "#3C3F45",
+    "onError": "#0A0000",
+    "onSurfaceVariant": "#9BA0A8",
+    "tertiary": "#6E737B",
+    "error": "#E0453A",
+    "surfaceVariant": "#18181C"
+  },
+  "accent": "#8A8F98",
+  "uiScale": 1,
+  "amoled": true,
+  "background": "#050506",
+  "name": "Cybersigilism GameCore",
+  "dark": true,
+  "cornerRadiusDp": 0,
+  "primary": "#E8E8EC",
+  "font": "serif"
+}

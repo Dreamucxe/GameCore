@@ -1,0 +1,13 @@
+{
+  "onPrimary": "#FFFFFF",
+  "uiScale": 1,
+  "onSurface": "#111111",
+  "surface": "#FFFFFF",
+  "background": "#FFF8E7",
+  "name": "Comic GameCore",
+  "dark": false,
+  "cornerRadiusDp": 8,
+  "accent": "#1D4ED8",
+  "primary": "#D00000",
+  "font": "rounded"
+}

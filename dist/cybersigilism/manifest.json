@@ -1,0 +1,20 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "theme",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Cybersigilism GameCore",
+  "description": "Monochrome chrome-on-void theme \u2014 silver, steel, true black, sharp edges, serif type.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.cybersigilism",
+  "api": 2,
+  "versionName": "1.1.0",
+  "version": 2
+}
