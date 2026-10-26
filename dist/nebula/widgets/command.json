@@ -1,0 +1,307 @@
+{
+  "size": "full",
+  "format": "gamecore.plugin.widget",
+  "id": "command",
+  "title": "Nebula Command",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "children": [
+          {
+            "type": "image",
+            "props": {
+              "size": 18,
+              "icon": "insights"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#C9B8FF",
+              "size": 15,
+              "text": "Nebula Command"
+            }
+          }
+        ],
+        "type": "row",
+        "props": {
+          "gap": 8,
+          "align": "center"
+        }
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "speed"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "FPS"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "stat",
+                "props": {
+                  "stat": "fps",
+                  "size": 18,
+                  "color": "#F7F3FF"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 10,
+              "color": "#1C1B24"
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "bolt"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "CPU"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "stat",
+                "props": {
+                  "stat": "cpu",
+                  "size": 18,
+                  "color": "#F7F3FF"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 10,
+              "color": "#1C1B24"
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "insights"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "GPU"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "stat",
+                "props": {
+                  "stat": "gpu",
+                  "size": 18,
+                  "color": "#F7F3FF"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 10,
+              "color": "#1C1B24"
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "memory"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "RAM"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "stat",
+                "props": {
+                  "stat": "ram",
+                  "size": 18,
+                  "color": "#F7F3FF"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 10,
+              "color": "#1C1B24"
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "battery"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "Battery"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "stat",
+                "props": {
+                  "stat": "battery",
+                  "size": 18,
+                  "color": "#F7F3FF"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 10,
+              "color": "#1C1B24"
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "thermostat"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "Temp"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "stat",
+                "props": {
+                  "stat": "temp",
+                  "size": 18,
+                  "color": "#F7F3FF"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 10,
+              "color": "#1C1B24"
+            }
+          }
+        ],
+        "type": "grid",
+        "props": {
+          "columns": 2,
+          "gap": 8
+        }
+      },
+      {
+        "type": "chart",
+        "props": {
+          "note": "sample shape · live figures above",
+          "min": 0,
+          "color": "#C9B8FF",
+          "max": 90,
+          "kind": "line",
+          "values": "58,61,59,64,62,66,63,65",
+          "label": "Frame rate shape"
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 10
+    }
+  }
+}

@@ -1,0 +1,168 @@
+{
+  "size": "full",
+  "format": "gamecore.plugin.widget",
+  "id": "dock",
+  "title": "Nebula Dock",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "color": "#C9B8FF",
+          "size": 14,
+          "text": "Glass dock"
+        }
+      },
+      {
+        "children": [{
+          "children": [
+            {
+              "children": [
+                {
+                  "type": "image",
+                  "props": {
+                    "size": 20,
+                    "icon": "game"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "color": "#BDB6CF",
+                    "size": 10,
+                    "text": "Play"
+                  }
+                }
+              ],
+              "type": "column",
+              "props": {
+                "gap": 4,
+                "align": "center"
+              }
+            },
+            {
+              "children": [
+                {
+                  "type": "image",
+                  "props": {
+                    "size": 20,
+                    "icon": "speed"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "color": "#BDB6CF",
+                    "size": 10,
+                    "text": "Boost"
+                  }
+                }
+              ],
+              "type": "column",
+              "props": {
+                "gap": 4,
+                "align": "center"
+              }
+            },
+            {
+              "children": [
+                {
+                  "type": "image",
+                  "props": {
+                    "size": 20,
+                    "icon": "insights"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "color": "#BDB6CF",
+                    "size": 10,
+                    "text": "Stats"
+                  }
+                }
+              ],
+              "type": "column",
+              "props": {
+                "gap": 4,
+                "align": "center"
+              }
+            },
+            {
+              "children": [
+                {
+                  "type": "image",
+                  "props": {
+                    "size": 20,
+                    "icon": "settings"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "color": "#BDB6CF",
+                    "size": 10,
+                    "text": "Tune"
+                  }
+                }
+              ],
+              "type": "column",
+              "props": {
+                "gap": 4,
+                "align": "center"
+              }
+            },
+            {
+              "children": [
+                {
+                  "type": "image",
+                  "props": {
+                    "size": 20,
+                    "icon": "shield"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "color": "#BDB6CF",
+                    "size": 10,
+                    "text": "Safe"
+                  }
+                }
+              ],
+              "type": "column",
+              "props": {
+                "gap": 4,
+                "align": "center"
+              }
+            }
+          ],
+          "type": "row",
+          "props": {
+            "gap": 12,
+            "align": "center"
+          }
+        }],
+        "type": "card",
+        "props": {
+          "padding": 10,
+          "color": "#CC17151F"
+        }
+      },
+      {
+        "type": "text",
+        "props": {
+          "color": "#BDB6CF",
+          "size": 11,
+          "text": "A read-only study of the suite's dock language."
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 8
+    }
+  }
+}

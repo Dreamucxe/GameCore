@@ -1,0 +1,98 @@
+{
+  "size": "small",
+  "format": "gamecore.plugin.widget",
+  "id": "palette",
+  "title": "Nebula Palette",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "color": "#C9B8FF",
+          "size": 14,
+          "text": "Nebula"
+        }
+      },
+      {
+        "children": [
+          {
+            "children": [{
+              "type": "text",
+              "props": {
+                "color": "#1A1033",
+                "size": 12,
+                "text": "Aa"
+              }
+            }],
+            "type": "card",
+            "props": {
+              "padding": 8,
+              "color": "#C9B8FF"
+            }
+          },
+          {
+            "children": [{
+              "type": "text",
+              "props": {
+                "color": "#0B0716",
+                "size": 12,
+                "text": "Aa"
+              }
+            }],
+            "type": "card",
+            "props": {
+              "padding": 8,
+              "color": "#8B7CFF"
+            }
+          },
+          {
+            "children": [{
+              "type": "text",
+              "props": {
+                "color": "#2A0710",
+                "size": 12,
+                "text": "Aa"
+              }
+            }],
+            "type": "card",
+            "props": {
+              "padding": 8,
+              "color": "#FF9DCE"
+            }
+          },
+          {
+            "children": [{
+              "type": "text",
+              "props": {
+                "color": "#06202B",
+                "size": 12,
+                "text": "Aa"
+              }
+            }],
+            "type": "card",
+            "props": {
+              "padding": 8,
+              "color": "#7DD3FC"
+            }
+          }
+        ],
+        "type": "row",
+        "props": {"gap": 4}
+      },
+      {
+        "type": "text",
+        "props": {
+          "color": "#BDB6CF",
+          "size": 11,
+          "text": "orchid · iris · rose · sky"
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 8
+    }
+  }
+}

@@ -1,0 +1,3728 @@
+{
+  "screens": [
+    {
+      "icon": "insights",
+      "id": "control",
+      "title": "Control Center",
+      "content": {
+        "children": [
+          {
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "size": 28,
+                  "icon": "insights"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 24,
+                      "text": "Nebula Control Center",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 13,
+                      "text": "Live readings, material status and the honest limits."
+                    }
+                  }
+                ],
+                "type": "column",
+                "props": {"gap": 2}
+              }
+            ],
+            "type": "row",
+            "props": {
+              "gap": 12,
+              "align": "center"
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "sensors"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#C9B8FF",
+                      "size": 16,
+                      "text": "Live vitals",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "scope-gated"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "type": "image",
+                            "props": {
+                              "size": 18,
+                              "icon": "speed"
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "props": {
+                              "color": "#BDB6CF",
+                              "size": 12,
+                              "text": "Frame rate"
+                            }
+                          }
+                        ],
+                        "type": "row",
+                        "props": {
+                          "gap": 8,
+                          "align": "center"
+                        }
+                      },
+                      {
+                        "type": "stat",
+                        "props": {
+                          "stat": "fps",
+                          "size": 22,
+                          "color": "#F7F3FF"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 12,
+                      "color": "#1C1B24",
+                      "gap": 6
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "type": "image",
+                            "props": {
+                              "size": 18,
+                              "icon": "bolt"
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "props": {
+                              "color": "#BDB6CF",
+                              "size": 12,
+                              "text": "CPU load"
+                            }
+                          }
+                        ],
+                        "type": "row",
+                        "props": {
+                          "gap": 8,
+                          "align": "center"
+                        }
+                      },
+                      {
+                        "type": "stat",
+                        "props": {
+                          "stat": "cpu",
+                          "size": 22,
+                          "color": "#F7F3FF"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 12,
+                      "color": "#1C1B24",
+                      "gap": 6
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "type": "image",
+                            "props": {
+                              "size": 18,
+                              "icon": "insights"
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "props": {
+                              "color": "#BDB6CF",
+                              "size": 12,
+                              "text": "GPU load"
+                            }
+                          }
+                        ],
+                        "type": "row",
+                        "props": {
+                          "gap": 8,
+                          "align": "center"
+                        }
+                      },
+                      {
+                        "type": "stat",
+                        "props": {
+                          "stat": "gpu",
+                          "size": 22,
+                          "color": "#F7F3FF"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 12,
+                      "color": "#1C1B24",
+                      "gap": 6
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "type": "image",
+                            "props": {
+                              "size": 18,
+                              "icon": "memory"
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "props": {
+                              "color": "#BDB6CF",
+                              "size": 12,
+                              "text": "Memory"
+                            }
+                          }
+                        ],
+                        "type": "row",
+                        "props": {
+                          "gap": 8,
+                          "align": "center"
+                        }
+                      },
+                      {
+                        "type": "stat",
+                        "props": {
+                          "stat": "ram",
+                          "size": 22,
+                          "color": "#F7F3FF"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 12,
+                      "color": "#1C1B24",
+                      "gap": 6
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "type": "image",
+                            "props": {
+                              "size": 18,
+                              "icon": "battery"
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "props": {
+                              "color": "#BDB6CF",
+                              "size": 12,
+                              "text": "Battery"
+                            }
+                          }
+                        ],
+                        "type": "row",
+                        "props": {
+                          "gap": 8,
+                          "align": "center"
+                        }
+                      },
+                      {
+                        "type": "stat",
+                        "props": {
+                          "stat": "battery",
+                          "size": 22,
+                          "color": "#F7F3FF"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 12,
+                      "color": "#1C1B24",
+                      "gap": 6
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "type": "image",
+                            "props": {
+                              "size": 18,
+                              "icon": "thermostat"
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "props": {
+                              "color": "#BDB6CF",
+                              "size": 12,
+                              "text": "Battery temp"
+                            }
+                          }
+                        ],
+                        "type": "row",
+                        "props": {
+                          "gap": 8,
+                          "align": "center"
+                        }
+                      },
+                      {
+                        "type": "stat",
+                        "props": {
+                          "stat": "temp",
+                          "size": 22,
+                          "color": "#F7F3FF"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 12,
+                      "color": "#1C1B24",
+                      "gap": 6
+                    }
+                  }
+                ],
+                "type": "grid",
+                "props": {
+                  "columns": 2,
+                  "gap": 10
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "A figure appears only when the matching scope is granted and the device can read it; otherwise GameCore draws an em dash."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 12
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 20,
+                      "icon": "extension"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#FF9DCE",
+                      "size": 16,
+                      "text": "Glass material",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "schema 4"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#F7F3FF",
+                  "size": 14,
+                  "text": "72% user intensity · up to 18dp blur · 7.2s sheen · gentle settle"
+                }
+              },
+              {
+                "type": "slider",
+                "props": {
+                  "min": 0,
+                  "color": "#C9B8FF",
+                  "max": 1,
+                  "label": "Glass intensity (theme preview)",
+                  "value": 0.72
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "The live control is the host's Glass Control Center, backed by the plugin setting glass_intensity. This bar is a static readout."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "Android 12 and newer can blur the backdrop. Below Android 12 the same translucency, gloss and rim render against a sharp backdrop."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 10
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#8FF0C4",
+                      "size": 16,
+                      "text": "What is real",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#F7F3FF",
+                  "size": 13,
+                  "text": "Theme repaint, semantic roles and typography."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#F7F3FF",
+                  "size": 13,
+                  "text": "Live vitals on this screen and on the dashboard widgets."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#F7F3FF",
+                  "size": 13,
+                  "text": "The Glass Control Center slider for glass_intensity."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "Everything else in this suite is a read-only design reference. No screen node dispatches an action, and no plugin code runs."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 10
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#C9B8FF",
+                  "size": 16,
+                  "text": "Quick profiles",
+                  "bold": true
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "game"
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#F7F3FF",
+                          "size": 14,
+                          "text": "Balanced",
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#BDB6CF",
+                          "size": 12,
+                          "text": "Everyday look, all five widgets visible"
+                        }
+                      }
+                    ],
+                    "type": "column",
+                    "props": {"gap": 2}
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 10,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "speed"
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#F7F3FF",
+                          "size": 14,
+                          "text": "Focus",
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#BDB6CF",
+                          "size": 12,
+                          "text": "Command card and live vitals in reach"
+                        }
+                      }
+                    ],
+                    "type": "column",
+                    "props": {"gap": 2}
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 10,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "battery"
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#F7F3FF",
+                          "size": 14,
+                          "text": "Battery saver",
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#BDB6CF",
+                          "size": 12,
+                          "text": "Fewer cards, calmer motion"
+                        }
+                      }
+                    ],
+                    "type": "column",
+                    "props": {"gap": 2}
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 10,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "Profile names are a design study, not switches. GameCore's own profiles are the only ones this plugin can change, and it does not change them."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          }
+        ],
+        "type": "scroll",
+        "props": {
+          "padding": 16,
+          "gap": 16
+        }
+      }
+    },
+    {
+      "icon": "extension",
+      "id": "look",
+      "title": "Look & Feel",
+      "content": {
+        "children": [
+          {
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "size": 28,
+                  "icon": "extension"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 24,
+                      "text": "Look & Feel",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 13,
+                      "text": "Theme language, palette and shape \u2014 previewed, not switched."
+                    }
+                  }
+                ],
+                "type": "column",
+                "props": {"gap": 2}
+              }
+            ],
+            "type": "row",
+            "props": {
+              "gap": 12,
+              "align": "center"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#C9B8FF",
+              "size": 18,
+              "text": "Theme previews",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "children": [{
+                      "type": "text",
+                      "props": {
+                        "color": "#E9DEFF",
+                        "size": 16,
+                        "text": "Dusk",
+                        "bold": true
+                      }
+                    }],
+                    "type": "row",
+                    "props": {
+                      "gap": 8,
+                      "align": "center"
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [{
+                          "type": "text",
+                          "props": {
+                            "color": "#1A1033",
+                            "size": 14,
+                            "text": "Aa",
+                            "bold": true
+                          }
+                        }],
+                        "type": "card",
+                        "props": {
+                          "padding": 8,
+                          "color": "#C9B8FF"
+                        }
+                      },
+                      {
+                        "children": [{
+                          "type": "text",
+                          "props": {
+                            "color": "#1A1430",
+                            "size": 14,
+                            "text": "Aa",
+                            "bold": true
+                          }
+                        }],
+                        "type": "card",
+                        "props": {
+                          "padding": 8,
+                          "color": "#E9DEFF"
+                        }
+                      }
+                    ],
+                    "type": "row",
+                    "props": {"gap": 6}
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#E9DEFF",
+                      "size": 11,
+                      "text": "Preview only"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#1A1430",
+                  "gap": 8
+                }
+              },
+              {
+                "children": [
+                  {
+                    "children": [{
+                      "type": "text",
+                      "props": {
+                        "color": "#F7F3FF",
+                        "size": 16,
+                        "text": "Dark",
+                        "bold": true
+                      }
+                    }],
+                    "type": "row",
+                    "props": {
+                      "gap": 8,
+                      "align": "center"
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [{
+                          "type": "text",
+                          "props": {
+                            "color": "#1A1033",
+                            "size": 14,
+                            "text": "Aa",
+                            "bold": true
+                          }
+                        }],
+                        "type": "card",
+                        "props": {
+                          "padding": 8,
+                          "color": "#FF9DCE"
+                        }
+                      },
+                      {
+                        "children": [{
+                          "type": "text",
+                          "props": {
+                            "color": "#0B0B10",
+                            "size": 14,
+                            "text": "Aa",
+                            "bold": true
+                          }
+                        }],
+                        "type": "card",
+                        "props": {
+                          "padding": 8,
+                          "color": "#F7F3FF"
+                        }
+                      }
+                    ],
+                    "type": "row",
+                    "props": {"gap": 6}
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 11,
+                      "text": "Preview only"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#0B0B10",
+                  "gap": 8
+                }
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#F7F3FF",
+                          "size": 16,
+                          "text": "OLED",
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#C9B8FF",
+                          "size": 10,
+                          "text": "ACTIVE",
+                          "bold": true
+                        }
+                      }
+                    ],
+                    "type": "row",
+                    "props": {
+                      "gap": 8,
+                      "align": "center"
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [{
+                          "type": "text",
+                          "props": {
+                            "color": "#1A1033",
+                            "size": 14,
+                            "text": "Aa",
+                            "bold": true
+                          }
+                        }],
+                        "type": "card",
+                        "props": {
+                          "padding": 8,
+                          "color": "#C9B8FF"
+                        }
+                      },
+                      {
+                        "children": [{
+                          "type": "text",
+                          "props": {
+                            "color": "#000000",
+                            "size": 14,
+                            "text": "Aa",
+                            "bold": true
+                          }
+                        }],
+                        "type": "card",
+                        "props": {
+                          "padding": 8,
+                          "color": "#F7F3FF"
+                        }
+                      }
+                    ],
+                    "type": "row",
+                    "props": {"gap": 6}
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 11,
+                      "text": "Applied now"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#000000",
+                  "gap": 8
+                }
+              },
+              {
+                "children": [
+                  {
+                    "children": [{
+                      "type": "text",
+                      "props": {
+                        "color": "#1A1033",
+                        "size": 16,
+                        "text": "Light",
+                        "bold": true
+                      }
+                    }],
+                    "type": "row",
+                    "props": {
+                      "gap": 8,
+                      "align": "center"
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [{
+                          "type": "text",
+                          "props": {
+                            "color": "#1A1033",
+                            "size": 14,
+                            "text": "Aa",
+                            "bold": true
+                          }
+                        }],
+                        "type": "card",
+                        "props": {
+                          "padding": 8,
+                          "color": "#8B7CFF"
+                        }
+                      },
+                      {
+                        "children": [{
+                          "type": "text",
+                          "props": {
+                            "color": "#F7F3FF",
+                            "size": 14,
+                            "text": "Aa",
+                            "bold": true
+                          }
+                        }],
+                        "type": "card",
+                        "props": {
+                          "padding": 8,
+                          "color": "#1A1033"
+                        }
+                      }
+                    ],
+                    "type": "row",
+                    "props": {"gap": 6}
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#1A1033",
+                      "size": 11,
+                      "text": "Preview only"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#F7F3FF",
+                  "gap": 8
+                }
+              }
+            ],
+            "type": "grid",
+            "props": {
+              "columns": 2,
+              "gap": 12
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#BDB6CF",
+              "size": 12,
+              "text": "The active package carries one theme: OLED Nebula. The other cards show where a sibling theme package could take the same layout language."
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#C9B8FF",
+              "size": 18,
+              "text": "Palette",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#1A1033",
+                      "size": 13,
+                      "text": "Orchid",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#1A1033",
+                      "size": 10,
+                      "text": "#C9B8FF"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#C9B8FF",
+                  "gap": 4
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#0B0716",
+                      "size": 13,
+                      "text": "Iris",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#0B0716",
+                      "size": 10,
+                      "text": "#8B7CFF"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#8B7CFF",
+                  "gap": 4
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#06202B",
+                      "size": 13,
+                      "text": "Sky",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#06202B",
+                      "size": 10,
+                      "text": "#7DD3FC"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#7DD3FC",
+                  "gap": 4
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#2A0710",
+                      "size": 13,
+                      "text": "Rose",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#2A0710",
+                      "size": 10,
+                      "text": "#FF9DCE"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#FF9DCE",
+                  "gap": 4
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#062018",
+                      "size": 13,
+                      "text": "Mint",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#062018",
+                      "size": 10,
+                      "text": "#8FF0C4"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#8FF0C4",
+                  "gap": 4
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#2A1A05",
+                      "size": 13,
+                      "text": "Sand",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#2A1A05",
+                      "size": 10,
+                      "text": "#F5D9A8"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#F5D9A8",
+                  "gap": 4
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#111118",
+                      "size": 13,
+                      "text": "Mono",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#111118",
+                      "size": 10,
+                      "text": "#F7F3FF"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#F7F3FF",
+                  "gap": 4
+                }
+              }
+            ],
+            "type": "grid",
+            "props": {
+              "columns": 3,
+              "gap": 10
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#FF9DCE",
+                  "size": 18,
+                  "text": "Shape & type",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#F7F3FF",
+                  "size": 40,
+                  "text": "Aa",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#F7F3FF",
+                  "size": 14,
+                  "text": "Rounded family · medium weight · 28dp corners"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "The format carries one global radius and one bundled font family. A theme can lean those; it cannot ship a font file or set a per-card radius."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "info"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#C9B8FF",
+                      "size": 16,
+                      "text": "Read-only by design",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "These cards are comparisons, not controls. GameCore's plugin screens attach no gesture, so a tap changes nothing here."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          }
+        ],
+        "type": "scroll",
+        "props": {
+          "padding": 16,
+          "gap": 16
+        }
+      }
+    },
+    {
+      "icon": "timer",
+      "id": "motion",
+      "title": "Motion Lab",
+      "content": {
+        "children": [
+          {
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "size": 28,
+                  "icon": "timer"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 24,
+                      "text": "Motion Lab",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 13,
+                      "text": "One slow sheen, one soft landing, no fake toggles."
+                    }
+                  }
+                ],
+                "type": "column",
+                "props": {"gap": 2}
+              }
+            ],
+            "type": "row",
+            "props": {
+              "gap": 12,
+              "align": "center"
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#C9B8FF",
+                  "size": 18,
+                  "text": "The motion contract",
+                  "bold": true
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 20,
+                      "icon": "timeline"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 13,
+                      "text": "Sheen period"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 16,
+                      "text": "7.2 s",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 10,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 20,
+                      "icon": "bolt"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 13,
+                      "text": "Spring"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 16,
+                      "text": "Gentle",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 10,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 20,
+                      "icon": "sensors"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 13,
+                      "text": "Hardware reactive"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 16,
+                      "text": "Off",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 10,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "The host reads these values and decides what the device can render. A user who turns animations off gets no sheen and no settle."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 12
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#FF9DCE",
+              "size": 18,
+              "text": "Principles",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "type": "image",
+                        "props": {
+                          "size": 18,
+                          "icon": "timeline"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#F7F3FF",
+                          "size": 15,
+                          "text": "Settle, don't bounce",
+                          "bold": true
+                        }
+                      }
+                    ],
+                    "type": "row",
+                    "props": {
+                      "gap": 8,
+                      "align": "center"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 12,
+                      "text": "A panel should arrive and stop. The gentle spring is a landing, not a performance."
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#1C1B24",
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "type": "image",
+                        "props": {
+                          "size": 18,
+                          "icon": "insights"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#F7F3FF",
+                          "size": 15,
+                          "text": "One highlight, slowly",
+                          "bold": true
+                        }
+                      }
+                    ],
+                    "type": "row",
+                    "props": {
+                      "gap": 8,
+                      "align": "center"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 12,
+                      "text": "A single sheen drift makes the surface read as material; faster reads as a broken gradient."
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#1C1B24",
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "type": "image",
+                        "props": {
+                          "size": 18,
+                          "icon": "shield"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#F7F3FF",
+                          "size": 15,
+                          "text": "Respect the user",
+                          "bold": true
+                        }
+                      }
+                    ],
+                    "type": "row",
+                    "props": {
+                      "gap": 8,
+                      "align": "center"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 12,
+                      "text": "System animation settings win over the theme. Motion is never a prerequisite for reading the screen."
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#1C1B24",
+                  "gap": 6
+                }
+              }
+            ],
+            "type": "grid",
+            "props": {
+              "columns": 1,
+              "gap": 10
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "info"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#C9B8FF",
+                      "size": 16,
+                      "text": "No motion switches here",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "The plugin format exposes no animation toggle to a theme. The sheen and spring above are the authored contract; the host owns the frames and the accessibility override."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          }
+        ],
+        "type": "scroll",
+        "props": {
+          "padding": 16,
+          "gap": 16
+        }
+      }
+    },
+    {
+      "icon": "game",
+      "id": "dock",
+      "title": "Dock & Density",
+      "content": {
+        "children": [
+          {
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "size": 28,
+                  "icon": "game"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 24,
+                      "text": "Dock & Density",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 13,
+                      "text": "Three dock studies and the tokens the host really applies."
+                    }
+                  }
+                ],
+                "type": "column",
+                "props": {"gap": 2}
+              }
+            ],
+            "type": "row",
+            "props": {
+              "gap": 12,
+              "align": "center"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#C9B8FF",
+              "size": 18,
+              "text": "Dock size study",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#C9B8FF",
+                      "size": 15,
+                      "text": "Compact",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "Tighter icons for a smaller footprint"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [{
+                  "children": [
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 14,
+                        "icon": "game"
+                      }
+                    },
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 14,
+                        "icon": "speed"
+                      }
+                    },
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 14,
+                        "icon": "insights"
+                      }
+                    },
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 14,
+                        "icon": "settings"
+                      }
+                    },
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 14,
+                        "icon": "shield"
+                      }
+                    }
+                  ],
+                  "type": "row",
+                  "props": {
+                    "gap": 14,
+                    "align": "center"
+                  }
+                }],
+                "type": "card",
+                "props": {
+                  "padding": 10,
+                  "color": "#CC17151F"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#C9B8FF",
+                      "size": 15,
+                      "text": "Standard",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "The suite's reference balance"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [{
+                  "children": [
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 18,
+                        "icon": "game"
+                      }
+                    },
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 18,
+                        "icon": "speed"
+                      }
+                    },
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 18,
+                        "icon": "insights"
+                      }
+                    },
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 18,
+                        "icon": "settings"
+                      }
+                    },
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 18,
+                        "icon": "shield"
+                      }
+                    }
+                  ],
+                  "type": "row",
+                  "props": {
+                    "gap": 14,
+                    "align": "center"
+                  }
+                }],
+                "type": "card",
+                "props": {
+                  "padding": 10,
+                  "color": "#CC17151F"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#C9B8FF",
+                      "size": 15,
+                      "text": "Expanded",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "More presence, same glass material"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [{
+                  "children": [
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 24,
+                        "icon": "game"
+                      }
+                    },
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 24,
+                        "icon": "speed"
+                      }
+                    },
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 24,
+                        "icon": "insights"
+                      }
+                    },
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 24,
+                        "icon": "settings"
+                      }
+                    },
+                    {
+                      "type": "image",
+                      "props": {
+                        "size": 24,
+                        "icon": "shield"
+                      }
+                    }
+                  ],
+                  "type": "row",
+                  "props": {
+                    "gap": 14,
+                    "align": "center"
+                  }
+                }],
+                "type": "card",
+                "props": {
+                  "padding": 10,
+                  "color": "#CC17151F"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "extension"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#FF9DCE",
+                      "size": 16,
+                      "text": "Glass dock",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "The dock inherits the same translucent, rimmed material as every panel. There is no separate dock-glass toggle in this package."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#C9B8FF",
+                  "size": 18,
+                  "text": "What the host applies",
+                  "bold": true
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 13,
+                      "text": "28dp global corner radius"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 13,
+                      "text": "1.0× UI scale; your density setting is untouched"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 13,
+                      "text": "Rounded bundled face, medium weight"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "The dock cards are layout studies, not dock controls. A data-only plugin cannot resize the host dock or move its icons."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          }
+        ],
+        "type": "scroll",
+        "props": {
+          "padding": 16,
+          "gap": 16
+        }
+      }
+    },
+    {
+      "icon": "data",
+      "id": "type",
+      "title": "Type & Palette",
+      "content": {
+        "children": [
+          {
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "size": 28,
+                  "icon": "data"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 24,
+                      "text": "Type & Palette",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 13,
+                      "text": "A ramp, a swatch book and the pairs that carry the look."
+                    }
+                  }
+                ],
+                "type": "column",
+                "props": {"gap": 2}
+              }
+            ],
+            "type": "row",
+            "props": {
+              "gap": 12,
+              "align": "center"
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#C9B8FF",
+                  "size": 18,
+                  "text": "Ramp",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#F7F3FF",
+                  "size": 32,
+                  "text": "Display",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#F7F3FF",
+                  "size": 24,
+                  "text": "Title",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#F7F3FF",
+                  "size": 15,
+                  "text": "Body text \u2014 rounded, medium, comfortably spaced."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "CAPTION · 12 SP · MUTED"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 10
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#FF9DCE",
+              "size": 18,
+              "text": "Swatch book",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#1A1033",
+                      "size": 14,
+                      "text": "Orchid",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#1A1033",
+                      "size": 11,
+                      "text": "primary"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#1A1033",
+                      "size": 10,
+                      "text": "#C9B8FF"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#C9B8FF",
+                  "gap": 4
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#0B0716",
+                      "size": 14,
+                      "text": "Iris",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#0B0716",
+                      "size": 11,
+                      "text": "secondary"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#0B0716",
+                      "size": 10,
+                      "text": "#8B7CFF"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#8B7CFF",
+                  "gap": 4
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#06202B",
+                      "size": 14,
+                      "text": "Sky",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#06202B",
+                      "size": 11,
+                      "text": "tertiary"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#06202B",
+                      "size": 10,
+                      "text": "#7DD3FC"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#7DD3FC",
+                  "gap": 4
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#2A0710",
+                      "size": 14,
+                      "text": "Rose",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#2A0710",
+                      "size": 11,
+                      "text": "accent"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#2A0710",
+                      "size": 10,
+                      "text": "#FF9DCE"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#FF9DCE",
+                  "gap": 4
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#062018",
+                      "size": 14,
+                      "text": "Mint",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#062018",
+                      "size": 11,
+                      "text": "support"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#062018",
+                      "size": 10,
+                      "text": "#8FF0C4"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#8FF0C4",
+                  "gap": 4
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#111118",
+                      "size": 14,
+                      "text": "Mono",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#111118",
+                      "size": 11,
+                      "text": "ink"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#111118",
+                      "size": 10,
+                      "text": "#F7F3FF"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#F7F3FF",
+                  "gap": 4
+                }
+              }
+            ],
+            "type": "grid",
+            "props": {
+              "columns": 2,
+              "gap": 10
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#C9B8FF",
+                  "size": 18,
+                  "text": "Pairs that matter",
+                  "bold": true
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 13,
+                      "text": "Ink on page",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "Aa \u2014 legible pair"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 10,
+                  "color": "#000000",
+                  "gap": 4
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 13,
+                      "text": "Ink on card",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "Aa \u2014 legible pair"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 10,
+                  "color": "#1C1B24",
+                  "gap": 4
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#1A1033",
+                      "size": 13,
+                      "text": "Deep ink on orchid",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#1A1033",
+                      "size": 12,
+                      "text": "Aa \u2014 legible pair"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 10,
+                  "color": "#C9B8FF",
+                  "gap": 4
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#2A0710",
+                      "size": 13,
+                      "text": "Rose ink on pink",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#2A0710",
+                      "size": 12,
+                      "text": "Aa \u2014 legible pair"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 10,
+                  "color": "#FF9DCE",
+                  "gap": 4
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "Every enforced text/fill pair in the theme clears WCAG AA; the two body pairs clear AAA. The host computes the final Material roles."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#FF9DCE",
+                  "size": 16,
+                  "text": "One family, no file",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "The format lets a theme name a bundled face, not ship one. This package names the rounded family and leaves the device's accessibility scale alone."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          }
+        ],
+        "type": "scroll",
+        "props": {
+          "padding": 16,
+          "gap": 16
+        }
+      }
+    },
+    {
+      "icon": "speed",
+      "id": "performance",
+      "title": "Performance Modes",
+      "content": {
+        "children": [
+          {
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "size": 28,
+                  "icon": "speed"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 24,
+                      "text": "Performance Modes",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 13,
+                      "text": "A design language for tuning \u2014 not a tuning control."
+                    }
+                  }
+                ],
+                "type": "column",
+                "props": {"gap": 2}
+              }
+            ],
+            "type": "row",
+            "props": {
+              "gap": 12,
+              "align": "center"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#C9B8FF",
+              "size": 18,
+              "text": "Mode cards",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#C9B8FF",
+                      "size": 16,
+                      "text": "Auto",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 12,
+                      "text": "Balances the host's own profile with the current game."
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 10,
+                      "text": "design reference"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#1C1B24",
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#7DD3FC",
+                      "size": 16,
+                      "text": "Lite",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 12,
+                      "text": "A calmer surface for long sessions and warm devices."
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 10,
+                      "text": "design reference"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#1C1B24",
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#8FF0C4",
+                      "size": 16,
+                      "text": "Balanced",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 12,
+                      "text": "The suite's reference: full glass, live vitals, no drama."
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 10,
+                      "text": "design reference"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#1C1B24",
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#FF9DCE",
+                      "size": 16,
+                      "text": "Boost",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 12,
+                      "text": "The most vivid look, for short sessions on cool hardware."
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 10,
+                      "text": "design reference"
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#1C1B24",
+                  "gap": 6
+                }
+              }
+            ],
+            "type": "grid",
+            "props": {
+              "columns": 2,
+              "gap": 10
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "shield"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#FF9DCE",
+                      "size": 16,
+                      "text": "Host-owned",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "These cards are a visual study. GameCore's performance engine, your profiles and the device's thermal state decide what actually runs."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#C9B8FF",
+                  "size": 18,
+                  "text": "What this plugin does not do",
+                  "bold": true
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "block"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 12,
+                      "text": "It does not change refresh rate or resolution."
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "block"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 12,
+                      "text": "It does not alter CPU, GPU or thermal policy."
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "block"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 12,
+                      "text": "It does not run automations or execute code."
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "block"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 12,
+                      "text": "It does not hide the host's own performance controls."
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          }
+        ],
+        "type": "scroll",
+        "props": {
+          "padding": 16,
+          "gap": 16
+        }
+      }
+    },
+    {
+      "icon": "info",
+      "id": "notes",
+      "title": "Design Notes",
+      "content": {
+        "children": [
+          {
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "size": 28,
+                  "icon": "info"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 24,
+                      "text": "Design Notes",
+                      "bold": true
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 13,
+                      "text": "What is live, what is a preview, and what the format cannot do."
+                    }
+                  }
+                ],
+                "type": "column",
+                "props": {"gap": 2}
+              }
+            ],
+            "type": "row",
+            "props": {
+              "gap": 12,
+              "align": "center"
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#C9B8FF",
+                  "size": 18,
+                  "text": "A data-only suite",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#F7F3FF",
+                  "size": 13,
+                  "text": "This package carries JSON and a launcher-icon request. It has no classes, scripts, network calls, WebView or arbitrary host behaviour."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "GameCore interprets the theme, screens, settings and widgets with its own native renderer. A malformed package can fail to load; it cannot run."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#8FF0C4",
+                  "size": 18,
+                  "text": "What is live",
+                  "bold": true
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "Theme colours, AMOLED base, semantic roles, typography"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "Glass material and the glass_intensity Control Center slider"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "Live vitals on screens and dashboard widgets"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "Five read-only dashboard cards"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#FF9DCE",
+                  "size": 18,
+                  "text": "What is a preview",
+                  "bold": true
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "Theme cards and palette swatches"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "Dock-size studies"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "Performance-mode cards"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "The static glass bar on the Control Center screen"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#C9B8FF",
+                  "size": 18,
+                  "text": "Format notes",
+                  "bold": true
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "One theme per package; sibling themes would be separate packages"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "One global corner radius and UI scale"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "No shipped font, artwork or icon bitmap"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "Screens and widgets dispatch no actions"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#F7F3FF",
+                      "size": 12,
+                      "text": "The host's animation and density settings always win"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 8,
+                  "align": "center"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#C9B8FF",
+                  "size": 18,
+                  "text": "Permissions",
+                  "bold": true
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "extension"
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#F7F3FF",
+                          "size": 13,
+                          "text": "Change UI",
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#BDB6CF",
+                          "size": 11,
+                          "text": "Repaint the app and draw the screens."
+                        }
+                      }
+                    ],
+                    "type": "column",
+                    "props": {"gap": 2}
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 10,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "game"
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#F7F3FF",
+                          "size": 13,
+                          "text": "Dashboard widgets",
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#BDB6CF",
+                          "size": 11,
+                          "text": "Place the five read-only cards."
+                        }
+                      }
+                    ],
+                    "type": "column",
+                    "props": {"gap": 2}
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 10,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "storage"
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#F7F3FF",
+                          "size": 13,
+                          "text": "Store data",
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#BDB6CF",
+                          "size": 11,
+                          "text": "Keep glass_intensity in the plugin's own store."
+                        }
+                      }
+                    ],
+                    "type": "column",
+                    "props": {"gap": 2}
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 10,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "sensors"
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#F7F3FF",
+                          "size": 13,
+                          "text": "Approved readings",
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#BDB6CF",
+                          "size": 11,
+                          "text": "device_stats and thermals for live figures."
+                        }
+                      }
+                    ],
+                    "type": "column",
+                    "props": {"gap": 2}
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 10,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 18,
+                      "icon": "info"
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#F7F3FF",
+                          "size": 13,
+                          "text": "Launcher icon",
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#BDB6CF",
+                          "size": 11,
+                          "text": "Ask for a bundled GameCore icon slot."
+                        }
+                      }
+                    ],
+                    "type": "column",
+                    "props": {"gap": 2}
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 10,
+                  "align": "center"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "color": "#FF9DCE",
+                  "size": 18,
+                  "text": "Credit & scope",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "color": "#BDB6CF",
+                  "size": 12,
+                  "text": "The design language is inspired by modern storefront interface patterns: true-black surfaces, large rounded cards, lavender/pink accents, glass materials and calm motion. No third-party artwork, screenshots, names or trademarks are included, and this package is not affiliated with any storefront app."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#1C1B24",
+              "gap": 8
+            }
+          }
+        ],
+        "type": "scroll",
+        "props": {
+          "padding": 16,
+          "gap": 16
+        }
+      }
+    }
+  ],
+  "format": "gamecore.plugin.screens",
+  "version": 1
+}

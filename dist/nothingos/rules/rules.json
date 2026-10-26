@@ -1,0 +1,22 @@
+{"rules": [
+  {
+    "id": "game_launch_boost",
+    "trigger": "GAME_LAUNCHED",
+    "actions": [
+      "set_peak_refresh_rate",
+      "set_window_animation_scale",
+      "set_transition_animation_scale",
+      "set_animator_duration_scale"
+    ]
+  },
+  {
+    "id": "battery_saver",
+    "trigger": "BATTERY_LOW",
+    "conditions": [{
+      "op": "LTE",
+      "variable": "battery",
+      "value": 15
+    }],
+    "actions": ["set_low_power"]
+  }
+]}

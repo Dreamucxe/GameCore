@@ -1,0 +1,104 @@
+{
+  "size": "medium",
+  "format": "gamecore.plugin.widget",
+  "id": "motion",
+  "title": "Nebula Motion",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "color": "#FF9DCE",
+          "size": 14,
+          "text": "Motion contract"
+        }
+      },
+      {
+        "children": [
+          {
+            "type": "image",
+            "props": {
+              "size": 16,
+              "icon": "timeline"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#F7F3FF",
+              "size": 12,
+              "text": "Sheen 7.2s"
+            }
+          }
+        ],
+        "type": "row",
+        "props": {
+          "gap": 6,
+          "align": "center"
+        }
+      },
+      {
+        "children": [
+          {
+            "type": "image",
+            "props": {
+              "size": 16,
+              "icon": "bolt"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#F7F3FF",
+              "size": 12,
+              "text": "Gentle settle"
+            }
+          }
+        ],
+        "type": "row",
+        "props": {
+          "gap": 6,
+          "align": "center"
+        }
+      },
+      {
+        "children": [
+          {
+            "type": "image",
+            "props": {
+              "size": 16,
+              "icon": "extension"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#F7F3FF",
+              "size": 12,
+              "text": "Glass 72%"
+            }
+          }
+        ],
+        "type": "row",
+        "props": {
+          "gap": 6,
+          "align": "center"
+        }
+      },
+      {
+        "type": "text",
+        "props": {
+          "color": "#BDB6CF",
+          "size": 11,
+          "text": "system motion wins"
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 8
+    }
+  }
+}

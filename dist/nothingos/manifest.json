@@ -1,0 +1,23 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "theme",
+    "rules",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "run_automations"},
+    {"id": "system_actions"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Nothing OS Gaming",
+  "description": "Monochrome true-black theme with a reserved Nothing-style red accent, plus in-game performance and battery-saver automations. No Glyph, Ndot font or Nothing hardware.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.nothingos",
+  "api": 2,
+  "versionName": "1.1.0",
+  "version": 2
+}

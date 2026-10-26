@@ -1,0 +1,197 @@
+{
+  "size": "medium",
+  "format": "gamecore.plugin.widget",
+  "id": "vitals",
+  "title": "Nebula Vitals",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "color": "#FF9DCE",
+          "size": 14,
+          "text": "Nebula Vitals"
+        }
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "speed"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "FPS"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "stat",
+                "props": {
+                  "stat": "fps",
+                  "size": 18,
+                  "color": "#F7F3FF"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 10,
+              "color": "#1C1B24"
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "bolt"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "CPU"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "stat",
+                "props": {
+                  "stat": "cpu",
+                  "size": 18,
+                  "color": "#F7F3FF"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 10,
+              "color": "#1C1B24"
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "thermostat"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "Temp"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "stat",
+                "props": {
+                  "stat": "temp",
+                  "size": 18,
+                  "color": "#F7F3FF"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 10,
+              "color": "#1C1B24"
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 16,
+                      "icon": "battery"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#BDB6CF",
+                      "size": 11,
+                      "text": "Battery"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "stat",
+                "props": {
+                  "stat": "battery",
+                  "size": 18,
+                  "color": "#F7F3FF"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 10,
+              "color": "#1C1B24"
+            }
+          }
+        ],
+        "type": "grid",
+        "props": {
+          "columns": 2,
+          "gap": 8
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 8
+    }
+  }
+}

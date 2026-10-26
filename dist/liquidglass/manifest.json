@@ -1,0 +1,22 @@
+{
+  "minHostVersion": 38,
+  "declares": [
+    "theme",
+    "settings",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "change_icon"},
+    {"id": "store_data"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Liquid Glass GameCore",
+  "description": "iOS-inspired dark glass theme: a translucent glossy material, iOS spring motion and a Control Center slider for how much of it the app wears.",
+  "changelog": "1.2.0 \u2014 the theme now asks for the material it is named after: a translucent, glossed surface with a drifting highlight that settles on an iOS-style spring, plus an Intensity control in the Glass Control Center. Needs GameCore 3.16 or newer; on Android 11 and below the panels are translucent, rimmed and glossed against a sharp backdrop, because backdrop blur is an Android 12 feature.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.liquidglass",
+  "api": 4,
+  "versionName": "1.2.0",
+  "version": 3
+}
