@@ -1,0 +1,13 @@
+{
+  "onPrimary": "#0B1324",
+  "uiScale": 1,
+  "onSurface": "#E8ECF2",
+  "surface": "#171B22",
+  "background": "#0E1116",
+  "name": "GameCore Personal OS",
+  "dark": true,
+  "cornerRadiusDp": 20,
+  "accent": "#8B7CFF",
+  "primary": "#6AA6FF",
+  "font": "rounded"
+}

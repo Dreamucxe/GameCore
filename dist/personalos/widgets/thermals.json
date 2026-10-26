@@ -1,0 +1,51 @@
+{
+  "size": "medium",
+  "format": "gamecore.plugin.widget",
+  "id": "thermals",
+  "title": "Thermals",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "size": 14,
+          "text": "Thermals"
+        }
+      },
+      {
+        "children": [
+          {
+            "type": "text",
+            "props": {"text": "Battery"}
+          },
+          {
+            "type": "stat",
+            "props": {"stat": "battery"}
+          }
+        ],
+        "type": "row",
+        "props": {"gap": 8}
+      },
+      {
+        "children": [
+          {
+            "type": "text",
+            "props": {"text": "Temp"}
+          },
+          {
+            "type": "stat",
+            "props": {"stat": "temp"}
+          }
+        ],
+        "type": "row",
+        "props": {"gap": 8}
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 8
+    }
+  }
+}

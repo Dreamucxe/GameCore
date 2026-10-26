@@ -1,0 +1,39 @@
+{
+  "size": "medium",
+  "format": "gamecore.plugin.widget",
+  "id": "welcome",
+  "title": "Welcome",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "image",
+        "props": {
+          "size": 28,
+          "icon": "insights"
+        }
+      },
+      {
+        "type": "text",
+        "props": {
+          "color": "#A9B2C0",
+          "size": 12,
+          "text": "Welcome to"
+        }
+      },
+      {
+        "type": "text",
+        "props": {
+          "size": 16,
+          "text": "GameCore Personal OS"
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 8,
+      "align": "center"
+    }
+  }
+}

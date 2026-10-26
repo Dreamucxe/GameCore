@@ -1,0 +1,13 @@
+{
+  "onPrimary": "#FFFFFF",
+  "uiScale": 1,
+  "onSurface": "#ECEDF2",
+  "surface": "#161620",
+  "background": "#08070A",
+  "name": "RedMagic GameCore",
+  "dark": true,
+  "cornerRadiusDp": 3,
+  "accent": "#E8142D",
+  "primary": "#E8142D",
+  "font": "mono"
+}

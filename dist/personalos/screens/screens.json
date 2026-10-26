@@ -1,0 +1,219 @@
+{
+  "screens": [
+    {
+      "icon": "insights",
+      "id": "home",
+      "title": "Home",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 22,
+              "text": "Your Personal OS",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "color": "#A9B2C0",
+              "size": 14,
+              "text": "A calm home for your games, vitals and layout."
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 20,
+                      "icon": "speed"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {"text": "Frame rate"}
+                  },
+                  {
+                    "type": "stat",
+                    "props": {
+                      "stat": "fps",
+                      "label": "now"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 12,
+                  "align": "center"
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 20,
+                      "icon": "battery"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {"text": "Battery"}
+                  },
+                  {
+                    "type": "stat",
+                    "props": {
+                      "stat": "battery",
+                      "label": "now"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 12,
+                  "align": "center"
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 16,
+              "color": "#171B22",
+              "gap": 12
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 16
+        }
+      }
+    },
+    {
+      "icon": "sensors",
+      "id": "system",
+      "title": "System",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "System vitals",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#A9B2C0",
+                      "size": 12,
+                      "text": "CPU"
+                    }
+                  },
+                  {
+                    "type": "stat",
+                    "props": {"stat": "cpu"}
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#171B22",
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#A9B2C0",
+                      "size": 12,
+                      "text": "GPU"
+                    }
+                  },
+                  {
+                    "type": "stat",
+                    "props": {"stat": "gpu"}
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#171B22",
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#A9B2C0",
+                      "size": 12,
+                      "text": "RAM"
+                    }
+                  },
+                  {
+                    "type": "stat",
+                    "props": {"stat": "ram"}
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#171B22",
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "color": "#A9B2C0",
+                      "size": 12,
+                      "text": "Temp"
+                    }
+                  },
+                  {
+                    "type": "stat",
+                    "props": {"stat": "temp"}
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 14,
+                  "color": "#171B22",
+                  "gap": 6
+                }
+              }
+            ],
+            "type": "grid",
+            "props": {
+              "columns": 2,
+              "gap": 12
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 16
+        }
+      }
+    }
+  ],
+  "format": "gamecore.plugin.screens",
+  "version": 1
+}

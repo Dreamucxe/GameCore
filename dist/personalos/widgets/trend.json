@@ -1,0 +1,33 @@
+{
+  "size": "full",
+  "format": "gamecore.plugin.widget",
+  "id": "trend",
+  "title": "Recent frames",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "color": "#A9B2C0",
+          "size": 12,
+          "text": "Recent frames (sample)"
+        }
+      },
+      {
+        "type": "chart",
+        "props": {
+          "min": 0,
+          "max": 90,
+          "kind": "line",
+          "values": "58,60,59,61,60,62,60,61"
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 10
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "theme",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "RedMagic GameCore",
+  "description": "Red-on-black RedMagic theme \u2014 signature red on near-black. The jagged edges and pinwheel logo are part of the built-in Redline skin, not this plugin.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.redmagic",
+  "api": 1,
+  "versionName": "1.1.0",
+  "version": 2
+}
