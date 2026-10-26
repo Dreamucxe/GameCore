@@ -1,0 +1,35 @@
+{
+  "size": "small",
+  "format": "gamecore.plugin.widget",
+  "id": "legend-note",
+  "title": "About",
+  "version": 1,
+  "content": {
+    "children": [{
+      "children": [
+        {
+          "type": "image",
+          "props": {
+            "size": 16,
+            "icon": "info"
+          }
+        },
+        {
+          "type": "text",
+          "props": {
+            "color": "#CCFFFFFF",
+            "size": 11,
+            "text": "Live tiles fill in when you grant data access; charts show sample data."
+          }
+        }
+      ],
+      "type": "row",
+      "props": {
+        "gap": 8,
+        "align": "center"
+      }
+    }],
+    "type": "card",
+    "props": {"padding": 12}
+  }
+}

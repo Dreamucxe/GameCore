@@ -1,0 +1,29 @@
+{"rules": [
+  {
+    "id": "launch_boost",
+    "trigger": "GAME_LAUNCHED",
+    "actions": ["set_peak_refresh_rate"]
+  },
+  {
+    "id": "sustain_fps",
+    "trigger": "THERMAL_HIGH",
+    "conditions": [{
+      "op": "GTE",
+      "variable": "temp",
+      "value": 45
+    }],
+    "actions": [
+      "set_min_refresh_rate",
+      "set_low_power"
+    ]
+  },
+  {
+    "id": "trim_system_animations",
+    "trigger": "SESSION_STARTED",
+    "actions": [
+      "set_window_animation_scale",
+      "set_transition_animation_scale",
+      "set_animator_duration_scale"
+    ]
+  }
+]}

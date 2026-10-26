@@ -1,0 +1,36 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "screens",
+    "pill",
+    "widgets",
+    "settings",
+    "rules",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "create_overlay"},
+    {"id": "add_dashboard_widgets"},
+    {
+      "id": "read_approved_data",
+      "scopes": [
+        "device_stats",
+        "thermals"
+      ]
+    },
+    {"id": "store_data"},
+    {"id": "run_automations"},
+    {"id": "system_actions"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Graphics Tuning",
+  "description": "A guide to the graphics settings that actually move frame rate, with an in-game probe to check whether they did on your device. It explains and measures; it cannot change a game's renderer.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.graphics",
+  "api": 3,
+  "versionName": "1.1.0",
+  "version": 2
+}

@@ -1,0 +1,27 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "widgets",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "add_dashboard_widgets"},
+    {
+      "id": "read_approved_data",
+      "scopes": [
+        "device_stats",
+        "thermals"
+      ]
+    },
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Dashboard Composer",
+  "description": "A deck of read-only cards for GameCore's home dashboard - live performance tiles plus sample charts you pick and arrange yourself.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.dashboardcomposer",
+  "api": 3,
+  "versionName": "1.1.0",
+  "version": 2
+}

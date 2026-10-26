@@ -1,0 +1,32 @@
+{
+  "size": "medium",
+  "format": "gamecore.plugin.widget",
+  "id": "welcome-card",
+  "title": "Welcome",
+  "version": 1,
+  "content": {
+    "children": [{
+      "children": [
+        {
+          "type": "text",
+          "props": {
+            "size": 15,
+            "text": "Dashboard Composer"
+          }
+        },
+        {
+          "type": "text",
+          "props": {
+            "color": "#CCFFFFFF",
+            "size": 12,
+            "text": "A deck of read-only cards for your home dashboard. Pick the ones you want - each is a bounded tile."
+          }
+        }
+      ],
+      "type": "column",
+      "props": {"gap": 6}
+    }],
+    "type": "card",
+    "props": {"padding": 14}
+  }
+}

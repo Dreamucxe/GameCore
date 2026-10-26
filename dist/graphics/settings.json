@@ -1,0 +1,41 @@
+{"settings": [
+  {
+    "default": 60,
+    "min": 30,
+    "max": 240,
+    "id": "target_fps",
+    "type": "int"
+  },
+  {
+    "default": 42,
+    "min": 30,
+    "max": 95,
+    "id": "warn_temp_c",
+    "type": "int"
+  },
+  {
+    "default": "midrange",
+    "options": [
+      "budget",
+      "midrange",
+      "flagship"
+    ],
+    "id": "device_tier",
+    "type": "enum"
+  },
+  {
+    "default": "standard",
+    "options": [
+      "brief",
+      "standard",
+      "verbose"
+    ],
+    "id": "guide_detail",
+    "type": "enum"
+  },
+  {
+    "default": true,
+    "id": "show_trend_widget",
+    "type": "bool"
+  }
+]}

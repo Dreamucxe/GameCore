@@ -1,0 +1,35 @@
+{
+  "size": "large",
+  "format": "gamecore.plugin.widget",
+  "id": "load-bars",
+  "title": "Load split",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "size": 12,
+          "text": "Typical load split"
+        }
+      },
+      {
+        "type": "chart",
+        "props": {
+          "min": 0,
+          "max": 100,
+          "kind": "bar",
+          "values": "45,52,60,55,48",
+          "label": "CPU %",
+          "values2": "70,75,82,78,72",
+          "label2": "GPU %"
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 6
+    }
+  }
+}

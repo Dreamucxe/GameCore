@@ -1,0 +1,92 @@
+{
+  "size": "large",
+  "format": "gamecore.plugin.widget",
+  "id": "perf-row",
+  "title": "Performance",
+  "version": 1,
+  "content": {
+    "children": [{
+      "children": [
+        {
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "color": "#99FFFFFF",
+                "size": 11,
+                "text": "FPS"
+              }
+            },
+            {
+              "type": "stat",
+              "props": {
+                "stat": "fps",
+                "size": 20
+              }
+            }
+          ],
+          "type": "column",
+          "props": {
+            "gap": 2,
+            "align": "center"
+          }
+        },
+        {
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "color": "#99FFFFFF",
+                "size": 11,
+                "text": "CPU"
+              }
+            },
+            {
+              "type": "stat",
+              "props": {
+                "stat": "cpu",
+                "size": 20
+              }
+            }
+          ],
+          "type": "column",
+          "props": {
+            "gap": 2,
+            "align": "center"
+          }
+        },
+        {
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "color": "#99FFFFFF",
+                "size": 11,
+                "text": "RAM"
+              }
+            },
+            {
+              "type": "stat",
+              "props": {
+                "stat": "ram",
+                "size": 20
+              }
+            }
+          ],
+          "type": "column",
+          "props": {
+            "gap": 2,
+            "align": "center"
+          }
+        }
+      ],
+      "type": "row",
+      "props": {
+        "gap": 16,
+        "align": "center"
+      }
+    }],
+    "type": "card",
+    "props": {"padding": 12}
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "size": "small",
+  "format": "gamecore.plugin.widget",
+  "id": "fps-tile",
+  "title": "Frame rate",
+  "version": 1,
+  "content": {
+    "children": [{
+      "children": [
+        {
+          "type": "text",
+          "props": {
+            "color": "#99FFFFFF",
+            "size": 11,
+            "text": "FPS"
+          }
+        },
+        {
+          "type": "stat",
+          "props": {
+            "stat": "fps",
+            "size": 28
+          }
+        }
+      ],
+      "type": "column",
+      "props": {
+        "gap": 2,
+        "align": "center"
+      }
+    }],
+    "type": "card",
+    "props": {"padding": 12}
+  }
+}

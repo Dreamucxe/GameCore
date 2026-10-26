@@ -1,0 +1,34 @@
+{
+  "size": "full",
+  "format": "gamecore.plugin.widget",
+  "id": "fps-history",
+  "title": "Frame rate history",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "size": 12,
+          "text": "Last 20 ticks"
+        }
+      },
+      {
+        "type": "chart",
+        "props": {
+          "note": "Sample data - a widget chart carries the numbers it ships with.",
+          "min": 0,
+          "max": 90,
+          "kind": "line",
+          "values": "58,60,59,61,60,62,60,59,60,61,60,58,57,60,62,61,60,60,59,60",
+          "label": "fps"
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 6
+    }
+  }
+}
