@@ -1,0 +1,251 @@
+{
+  "screens": [
+    {
+      "icon": "check",
+      "id": "overview",
+      "title": "Exit Restore",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 22,
+              "text": "A post-game baseline",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 15,
+              "text": "When a game closes, this plugin asks for a high peak refresh rate and, if the battery is at 30% or below, turns Android's battery saver on."
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 16,
+                  "text": "What it does at exit",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Peak refresh rate: the broker's reviewed high-rate value."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Battery saver: on only when charge is 30% or lower."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 16,
+                  "text": "What it does not do",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "It does not read your previous settings and write them back. The plugin format has no action that carries a prior value."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "settings",
+      "id": "setup",
+      "title": "True Per-Game Restore",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "Use profiles for a real restore",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "GameCore's per-game profiles already capture the settings a game needs and restore them when the session ends. That is the right tool when you want your own values back."
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "Profile fields that restore",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Refresh rate, brightness, display size, orientation and volume."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Overlays, HUD, colour and session tracking."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "Where to find it",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Create a profile for the game, set the values you want, and let GameCore apply and restore it. Exit Restore is the lightweight fallback for sessions you have not profiled."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "shield",
+      "id": "limits",
+      "title": "The Honest Limits",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "Why this is not a snapshot",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "A rule has no value slot",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "A rule names one of GameCore's brokered actions. The host supplies the action's fixed value; a plugin cannot pass an arbitrary number or a captured prior value through it."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "Brightness is the exception",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "The brightness action is auto-reverted by the broker. The refresh and battery-saver actions here are not; they apply the reviewed baseline and stay there until something else changes them."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "If the baseline is not what you want, use a profile or change the setting yourself. This plugin will not pretend it remembered a value it never read."
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    }
+  ],
+  "format": "gamecore.plugin.screens",
+  "version": 1
+}

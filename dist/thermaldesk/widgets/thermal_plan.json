@@ -1,0 +1,51 @@
+{
+  "size": "medium",
+  "format": "gamecore.plugin.widget",
+  "id": "thermal_plan",
+  "title": "Thermal plan",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "size": 13,
+          "text": "A simple ladder"
+        }
+      },
+      {
+        "type": "text",
+        "props": {
+          "size": 12,
+          "text": "42 °C battery \u2014 cut animation load"
+        }
+      },
+      {
+        "type": "text",
+        "props": {
+          "size": 12,
+          "text": "45 °C battery \u2014 battery saver on"
+        }
+      },
+      {
+        "type": "text",
+        "props": {
+          "size": 12,
+          "text": "48 °C battery \u2014 stop and let it cool"
+        }
+      },
+      {
+        "type": "text",
+        "props": {
+          "size": 11,
+          "text": "Battery-sensor figures, not CPU junction. Cooldown Ladder can automate the first two stages."
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 7
+    }
+  }
+}

@@ -81,6 +81,7 @@ import com.gamecore.ui.config.ConfigEditorViewModel
 import com.gamecore.ui.controller.ControllerScreen
 import com.gamecore.ui.crosshair.CrosshairScreen
 import com.gamecore.ui.dashboard.DashboardComposerRoute
+import com.gamecore.ui.schedule.AppearanceScheduleRoute
 import com.gamecore.ui.developer.DeveloperScreen
 import com.gamecore.ui.dock.DockCustomizationScreen
 import com.gamecore.ui.emulators.EmulatorScreen
@@ -727,6 +728,10 @@ private fun GameCoreNav(
 
         composable(Destination.DashboardComposer.route) {
             DashboardComposerRoute(onBack = back)
+        }
+
+        composable(Destination.AppearanceSchedule.route) {
+            AppearanceScheduleRoute(onBack = back)
         }
 
         composable(Destination.NeverClose.route) {

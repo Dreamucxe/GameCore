@@ -40,7 +40,7 @@
 | **Built with** | Kotlin 2.0.21 · Jetpack Compose · Material 3 · Hilt · Room + SQLCipher |
 | **Codebase** | 731 Kotlin source files · roughly 184,000 lines (app + plugin SDK) |
 | **Tests** | 3,181 JVM tests · 271 test classes · no emulator required |
-| **Plugins** | 21 official `.gcplugin` packages · 13 bundled in the app |
+| **Plugins** | 31 official `.gcplugin` packages · 23 bundled in the app |
 | **Network** | One optional, payload-free TCP latency probe · no backend |
 | **License** | MIT |
 
@@ -126,6 +126,29 @@ adb install -r GameCore.apk
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
 
+## What's new in 3.6.0
+
+<p><strong>This release is about the app changing with the day and with the game in front of you</strong> — without taking away the choices you made by hand.</p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🕒 Theme and dashboard schedule</h3>
+      <p>Settings gains daily time windows for the plugin theme and the Home dashboard. A window can cross midnight, and a per-game override wins while that game is tracked. The schedule is an override layer: when no window or game applies, the manual theme and <strong>Show GameCore stats on Home</strong> choice return exactly as they were.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🧩 Active plugins on Home</h3>
+      <p>A compact strip at the top of Home names the plugins that are actually running. It uses the same enabled, suspended, quarantine and compatibility rules as the Plugins screen, stays out of the way when nothing is running, and points at the global switch when that is what stopped everything.</p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <h3>📦 Ten more official packs</h3>
+      <p>Night Shift, Colorblind Safe, Papercut, Minimal Vitals, Thermal Desk, Battery Badge, Cooldown Ladder, Exit Restore, Charger Boost and Stat Dictionary are in <code>dist/</code> and bundled with the app. All ten remain data-only: JSON and image assets read through the same codecs as any sideloaded package, with no scripts, network calls, shell, native code, WebView, arbitrary pixels or custom permissions.</p>
+    </td>
+  </tr>
+</table>
+
 ## What's new in 3.5.0
 
 <p><strong>This release is about the two things a hard session leaves behind:</strong> a display you cannot read, and a stutter you cannot explain. Both now have an answer that says how sure it is.</p>
@@ -177,7 +200,7 @@ adb install -r GameCore.apk
 
 ## Plugins are data, not code
 
-<p align="center"><strong>21 official packages today · 13 bundled · one <code>.gcplugin</code> each</strong></p>
+<p align="center"><strong>31 official packages today · 23 bundled · one <code>.gcplugin</code> each</strong></p>
 
 <p>A plugin is a <code>.gcplugin</code> zip archive of JSON and image assets that GameCore reads. It can restyle the app, add a readout or expose a setting; it never runs inside GameCore and never gets a shell. The plugin directory can grow without widening what any one install can do.</p>
 
@@ -206,7 +229,7 @@ adb install -r GameCore.apk
 
 | Themes & interface packs | Tools & readouts |
 | :--- | :--- |
-| Liquid Glass · True Glitch · Nebula · Nothing OS · Personal OS · Anime · Cyberpunk · Comic · Cybercity · Cybercore · Cybersigilism · Chromecore · Retro Futurism · Robot Core · RedMagic | Advisor · Automation History · Benchmark Suite · Dashboard Composer · Graphics Tuning · Sensitivity Lab |
+| Liquid Glass · True Glitch · Nebula · Nothing OS · Personal OS · Anime · Cyberpunk · Comic · Cybercity · Cybercore · Cybersigilism · Chromecore · Retro Futurism · Robot Core · RedMagic · Night Shift · Colorblind Safe · Papercut | Advisor · Automation History · Benchmark Suite · Dashboard Composer · Graphics Tuning · Sensitivity Lab · Minimal Vitals · Thermal Desk · Battery Badge · Cooldown Ladder · Exit Restore · Charger Boost · Stat Dictionary |
 
 The full set lives in [`dist/`](dist/). Bundled copies are in [`app/src/main/assets/plugins/`](app/src/main/assets/plugins/). Start with the [format](docs/PLUGIN_FORMAT.md), the [SDK](docs/PLUGIN_SDK.md), and the [threat model](docs/PLUGIN_THREAT_MODEL.md).
 

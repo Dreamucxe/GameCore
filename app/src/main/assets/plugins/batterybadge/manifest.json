@@ -1,0 +1,24 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "pill",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "create_overlay"},
+    {
+      "id": "read_approved_data",
+      "scopes": ["thermals"]
+    },
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Battery Badge",
+  "description": "A compact in-game battery and temperature badge. It reads GameCore's approved thermals feed; it cannot read charge current or battery health.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.batterybadge",
+  "api": 1,
+  "versionName": "1.0.0",
+  "version": 1
+}

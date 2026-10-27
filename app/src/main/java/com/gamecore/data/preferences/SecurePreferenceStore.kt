@@ -29,6 +29,8 @@ import com.gamecore.core.model.QuickTriggerSettings
 import com.gamecore.aimlab.engine.TargetPalette
 import com.gamecore.core.model.RecordingQuality
 import com.gamecore.core.model.ThemeChoice
+import com.gamecore.core.schedule.AppearanceSchedule
+import com.gamecore.core.schedule.AppearanceScheduleCodec
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -95,6 +97,9 @@ class SecurePreferenceStore @Inject constructor(
     private val colorState: MutableStateFlow<ColorCorrection> by lazy {
         MutableStateFlow(readColor())
     }
+    private val scheduleState: MutableStateFlow<AppearanceSchedule> by lazy {
+        MutableStateFlow(readAppearanceSchedule())
+    }
 
     val settings: StateFlow<AppSettings> get() = settingsState.asStateFlow()
     val overlay: StateFlow<OverlayConfig> get() = overlayState.asStateFlow()
@@ -114,6 +119,16 @@ class SecurePreferenceStore @Inject constructor(
      */
     val colorCorrection: StateFlow<ColorCorrection> get() = colorState.asStateFlow()
 
+    /**
+     * The theme/dashboard schedule, stored beside the other preferences rather than in [AppSettings].
+     *
+     * It is a small structured document, not a scalar preference, and keeping it out of the settings
+     * data class means the existing settings readers, writers and backup codec do not have to learn a
+     * new nested shape. The schedule is still in the same encrypted file, so it gets the same at-rest
+     * treatment as every other preference.
+     */
+    val appearanceSchedule: StateFlow<AppearanceSchedule> get() = scheduleState.asStateFlow()
+
     /** True when preferences are not persisting, so Settings can say so instead of lying. */
     val isPersisting: Boolean get() = prefs != null
 
@@ -129,6 +144,7 @@ class SecurePreferenceStore @Inject constructor(
         buttonState.value
         dockState.value
         colorState.value
+        scheduleState.value
         Unit
     }
 
@@ -139,6 +155,18 @@ class SecurePreferenceStore @Inject constructor(
         settingsState.value = updated
         writeSettings(updated)
     }
+
+    /** Writes the theme/dashboard schedule through the same encrypted file as the rest of Settings. */
+    fun updateAppearanceSchedule(transform: (AppearanceSchedule) -> AppearanceSchedule) {
+        val updated = transform(scheduleState.value).normalised()
+        scheduleState.value = updated
+        prefs?.edit()
+            ?.putString(KEY_APPEARANCE_SCHEDULE, AppearanceScheduleCodec.encode(updated))
+            ?.apply()
+    }
+
+    private fun readAppearanceSchedule(): AppearanceSchedule =
+        AppearanceScheduleCodec.decode(prefs?.getString(KEY_APPEARANCE_SCHEDULE, null))
 
     // --------------------------------------------------------------- setup wizard (§A)
 
@@ -1094,6 +1122,7 @@ class SecurePreferenceStore @Inject constructor(
         buttonState.value = FloatingButtonConfig()
         dockState.value = DockConfig()
         colorState.value = ColorCorrection.NEUTRAL
+        scheduleState.value = AppearanceSchedule()
     }
 
     // --------------------------------------------------------------------- internals
@@ -1192,6 +1221,7 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_PINNED_PACKAGE = "pinned_package"
         const val KEY_CUSTOM_ASPECT_RATIOS = "custom_aspect_ratios"
         const val KEY_LAST_SEEN_WHATSNEW = "last_seen_whatsnew_version"
+        const val KEY_APPEARANCE_SCHEDULE = "appearance_schedule"
 
         const val KEY_SHOW_PILL = "pill_show"
         const val KEY_PILL_X = "pill_x"

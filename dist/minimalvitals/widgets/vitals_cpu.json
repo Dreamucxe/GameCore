@@ -1,0 +1,30 @@
+{
+  "size": "small",
+  "format": "gamecore.plugin.widget",
+  "id": "vitals_cpu",
+  "title": "CPU",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "size": 11,
+          "text": "CPU"
+        }
+      },
+      {
+        "type": "stat",
+        "props": {
+          "stat": "cpu",
+          "size": 22
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 2
+    }
+  }
+}

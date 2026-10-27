@@ -1,0 +1,17 @@
+{"rules": [
+  {
+    "id": "exit_peak_refresh",
+    "trigger": "GAME_CLOSED",
+    "actions": ["set_peak_refresh_rate"]
+  },
+  {
+    "id": "exit_low_battery_saver",
+    "trigger": "GAME_CLOSED",
+    "conditions": [{
+      "op": "LTE",
+      "variable": "battery",
+      "value": 30
+    }],
+    "actions": ["set_low_power"]
+  }
+]}

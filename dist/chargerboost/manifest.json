@@ -1,0 +1,23 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "rules",
+    "screens",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "run_automations"},
+    {"id": "system_actions"},
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Charger Boost",
+  "description": "A performance profile when a charger connects, not a fast-charge tool. Pins high refresh and cuts animation overhead while charging.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.chargerboost",
+  "api": 3,
+  "versionName": "1.0.0",
+  "version": 1
+}

@@ -1,0 +1,30 @@
+{
+  "size": "small",
+  "format": "gamecore.plugin.widget",
+  "id": "vitals_ram",
+  "title": "Memory",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "size": 11,
+          "text": "Memory"
+        }
+      },
+      {
+        "type": "stat",
+        "props": {
+          "stat": "ram",
+          "size": 22
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 2
+    }
+  }
+}

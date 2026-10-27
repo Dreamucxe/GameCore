@@ -1,0 +1,205 @@
+{
+  "screens": [
+    {
+      "icon": "bolt",
+      "id": "overview",
+      "title": "Charger Boost",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 22,
+              "text": "Charger Boost",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 15,
+              "text": "When a charger connects, GameCore can pin the panel high and cut system animation work for the session. This plugin asks for that profile only when the battery is at 80% or below and the battery sensor is at 44 °C or below."
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 16,
+                  "text": "The conditions",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Battery at 80% or below."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Battery temperature at 44 °C or below."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "A charger-connected event."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 16,
+                  "text": "What it changes",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Peak and minimum refresh rate: the broker's high-rate value."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "The three system animation scales: zero."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "shield",
+      "id": "limits",
+      "title": "Not A Fast Charger",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "What it cannot do",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "It cannot change charging speed",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Charging voltage, current, USB-PD negotiation and battery temperature limits are below the app surface. No GameCore plugin can change them, and this one does not try."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "It cannot bypass heat limits",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "The temperature condition is a guard, not a cooling system. If the device is already warm, the rule stays off."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "It cannot restore the animation scales",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "The refresh and animation actions apply the broker's reviewed values and stay there. Turn the animation scales back on in Android settings or GameCore when you want them."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "If you want the fastest charge your phone supports, use the charger and cable the manufacturer specifies and leave the device cool."
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    }
+  ],
+  "format": "gamecore.plugin.screens",
+  "version": 1
+}

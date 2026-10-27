@@ -1,0 +1,232 @@
+{
+  "screens": [
+    {
+      "icon": "thermostat",
+      "id": "ladder",
+      "title": "Cooldown Ladder",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 22,
+              "text": "Cooldown Ladder",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 15,
+              "text": "A staged response to heat. Each rung uses actions GameCore's broker already owns; the plugin never supplies a command or a value. The temperature is the battery sensor the automation feed publishes, not the CPU die."
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "42 °C battery \u2014 shed animation work",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "The three system animation scales go to zero. This is the smallest intervention and the first one to try."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "45 °C battery \u2014 battery saver on",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Android's own battery saver joins the animation cut. It reduces background work the system would otherwise do."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "48 °C battery \u2014 brightness write",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "The broker sets a reviewed brightness level and restores the prior value when the game exits. It is the only action here with an automatic revert."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "15% battery \u2014 saver backstop",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "The same battery-saver action, triggered by charge rather than heat."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "shield",
+      "id": "limits",
+      "title": "What It Can't Do",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "The honest limits",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "No fan or charging control",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "There is no broker action for fan speed, charging current, CPU frequency or GPU frequency. A plugin cannot reach them."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "No arbitrary values",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "A rule names an action; GameCore supplies the action's fixed value. That is what keeps the broker's surface closed, and it is why the ladder is staged by actions rather than by numbers."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "Not everything restores itself",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Brightness auto-reverts. Battery saver and the animation scales do not; turn them back off in Android settings or GameCore when the session is over."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "A cooler phone is mostly the room, the case, the charger and the workload. These rules reduce system overhead; they are not a cooling system."
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    }
+  ],
+  "format": "gamecore.plugin.screens",
+  "version": 1
+}

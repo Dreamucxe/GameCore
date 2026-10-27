@@ -1,0 +1,21 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "theme",
+    "screens",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Colorblind Safe",
+  "description": "A high-contrast blue-and-amber theme that avoids red-green-only signalling, with read-only screens explaining each colour's job.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.colorblindsafe",
+  "api": 3,
+  "versionName": "1.0.0",
+  "version": 1
+}

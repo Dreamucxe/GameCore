@@ -1,0 +1,708 @@
+{
+  "screens": [
+    {
+      "icon": "data",
+      "id": "overview",
+      "title": "Stat Dictionary",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 22,
+              "text": "Stat Dictionary",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 15,
+              "text": "Every live figure in GameCore is a reading, not a guess. When a device does not expose one, the app draws a dash and keeps the reason; it does not invent a zero."
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 16,
+                  "text": "How to read an entry",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "What it measures."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Where it comes from."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "What it cannot tell you."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 24,
+                      "icon": "speed"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "size": 13,
+                      "text": "Frame rate",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 24,
+                      "icon": "sensors"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "size": 13,
+                      "text": "Load",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 24,
+                      "icon": "battery"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "size": 13,
+                      "text": "Power",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 24,
+                      "icon": "timeline"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "size": 13,
+                      "text": "Display",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "gap": 6
+                }
+              }
+            ],
+            "type": "grid",
+            "props": {
+              "columns": 2,
+              "gap": 8
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "speed",
+      "id": "frames",
+      "title": "Frame Rate",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "Frame rate",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "What it measures",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "The average number of frames drawn per second over GameCore's sample window. It is a real frame source when the device exposes one, not a synthetic benchmark score."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "What it cannot tell you",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "An average hides stutter. A steady 60 and a 60 that drops to 20 every few seconds can share the same average. Use the session graph or frame-time history when the shape matters."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "It also cannot measure a game that hides its frames from the system. In that case the reading is unavailable, not zero."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "sensors",
+      "id": "load",
+      "title": "CPU, GPU & Memory",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "Load and memory",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "CPU",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Overall CPU usage as a percentage of the cores the system reports. It is not a clock speed, a per-core temperature or a measure of how well a game uses the big cores."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "GPU",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "GPU load as a percentage, when the device exposes a readable counter. Many phones do not. It is not GPU frequency, memory bandwidth or a frame-time breakdown."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "Memory",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "System RAM currently in use, as a percentage. It is not one app's private memory and not a leak diagnosis."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "battery",
+      "id": "power",
+      "title": "Battery & Temperature",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "Battery and temperature",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "Battery level",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "The charge percentage Android reports. It is not battery health, charge current, cycle count or a prediction of remaining time."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "Temperature",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "The plugin feed's `temp` figure is the battery sensor in degrees Celsius, not the CPU junction temperature. GameCore's built-in Performance screen may show a CPU sensor; a plugin's `temp` is the battery one."
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "A battery sensor is useful for heat trends and charge safety. It is not a die temperature and it will not tell you when the SoC is throttling."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "timeline",
+      "id": "display",
+      "title": "Refresh Rate",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "Refresh rate",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "What the number is",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "The mode Android reports as active when GameCore reads the display. It is not a physical measurement of the panel with an external instrument, and it is not a promise that every frame is drawn at that rate."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "Why it moves",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "A variable-rate panel can sit at 60 Hz on a still screen and rise to 120 Hz when content moves. A current reading below the peak is not automatically a cap."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "Requested vs reported",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "GameCore's refresh verification compares the rate it requested with the rate Android reports afterwards. That is a real check of the request; it is not a hardware panel measurement."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "extension",
+      "id": "motion",
+      "title": "Motion",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "Rotation rate and movement",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "Rotation rate",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "How fast the device is turning, read from the gyroscope. It is a motion signal, not a game's aim input and not a measure of sensor accuracy."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "Movement",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "A movement reading from the accelerometer. It can tell you the phone moved; it cannot tell you how far, and it is not a step counter."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "Motion is its own data scope. A plugin that does not request it never sees these figures, even if the device has the sensors."
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "block",
+      "id": "not-measured",
+      "title": "What GameCore Doesn't Measure",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "Not in the plugin feed",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "A missing figure is often a platform boundary, not a bug. These are outside the approved plugin feed:"
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "Battery health",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {"text": "Not exposed to the plugin feed."}
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Charge current",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {"text": "Not exposed to the plugin feed."}
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Fan speed",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {"text": "No standard Android sensor."}
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "CPU/GPU frequency",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {"text": "Not in the plugin feed."}
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Per-game FPS",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {"text": "GameCore's feed is system-level."}
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Panel measurement",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {"text": "No external instrument is used."}
+              }
+            ],
+            "type": "grid",
+            "props": {
+              "columns": 2,
+              "gap": 8
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "The rule is simple: if GameCore cannot read it, the app says so. A dash is information, not an empty zero."
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    }
+  ],
+  "format": "gamecore.plugin.screens",
+  "version": 1
+}

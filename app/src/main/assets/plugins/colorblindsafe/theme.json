@@ -1,0 +1,24 @@
+{
+  "onPrimary": "#FFFFFF",
+  "schema": 2,
+  "onSurface": "#F2F7FA",
+  "typography": {"weight": "medium"},
+  "surface": "#101D28",
+  "roles": {
+    "secondary": "#F59E0B",
+    "outline": "#4B6478",
+    "onError": "#FFFFFF",
+    "onSurfaceVariant": "#C7D6E2",
+    "tertiary": "#A78BFA",
+    "error": "#DC2626",
+    "surfaceVariant": "#172A38"
+  },
+  "accent": "#F59E0B",
+  "uiScale": 1,
+  "background": "#071018",
+  "name": "Colorblind Safe",
+  "dark": true,
+  "cornerRadiusDp": 14,
+  "primary": "#2563EB",
+  "font": "system"
+}

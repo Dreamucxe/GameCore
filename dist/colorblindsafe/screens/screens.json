@@ -1,0 +1,368 @@
+{
+  "screens": [
+    {
+      "icon": "shield",
+      "id": "overview",
+      "title": "Colorblind Safe",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 22,
+              "text": "Colorblind Safe",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 15,
+              "text": "A dark theme that uses blue for primary actions and amber for attention, instead of asking red and green to carry the whole message."
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 16,
+                  "text": "The signal colours",
+                  "bold": true
+                }
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#FFFFFF",
+                          "size": 13,
+                          "text": "Blue",
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#FFFFFF",
+                          "size": 11,
+                          "text": "Primary"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 10,
+                      "color": "#2563EB",
+                      "gap": 4
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#1A1000",
+                          "size": 13,
+                          "text": "Amber",
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#1A1000",
+                          "size": 11,
+                          "text": "Attention"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 10,
+                      "color": "#F59E0B",
+                      "gap": 4
+                    }
+                  },
+                  {
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#FFFFFF",
+                          "size": 13,
+                          "text": "Red",
+                          "bold": true
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "color": "#FFFFFF",
+                          "size": 11,
+                          "text": "Destructive"
+                        }
+                      }
+                    ],
+                    "type": "card",
+                    "props": {
+                      "padding": 10,
+                      "color": "#DC2626",
+                      "gap": 4
+                    }
+                  }
+                ],
+                "type": "grid",
+                "props": {
+                  "columns": 3,
+                  "gap": 8
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Each swatch is labelled in words. That is deliberate: a theme cannot guarantee how any one person sees a hue, but it can avoid making colour the only signal."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 10
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 16,
+                  "text": "Why blue and amber",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "The common red-green deficiencies separate blue from yellow more reliably than red from green. Using blue as the primary and amber as the accent keeps the two most important states on different sides of that axis."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "info",
+      "id": "signals",
+      "title": "Signals & Labels",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "Signals and labels",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "Blue = do the main thing",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Primary buttons, selected tabs and active switches. The label still says what the control does."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "Amber = look here",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Warnings, highlights and figures that need attention. Amber is paired with an icon or a word, never used as the only clue."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "Red = destructive, and named",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Delete, remove and irreversible actions. The text says what will happen; the red is reinforcement, not the message."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "If a screen ever relies on colour alone, that is a bug in the screen, not a reason to distrust the palette."
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "shield",
+      "id": "limits",
+      "title": "What A Theme Can't Fix",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "The honest limits",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "It cannot recolour another app",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "GameCore can style its own interface. A game or another app draws its own colours, and no plugin can reach inside it."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "It is not a colour-vision simulator",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "The palette is designed to be robust, not certified for every type or severity of colour vision deficiency. Contrast and labels do most of the work."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 15,
+                  "text": "System colour correction still matters",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Android's accessibility settings can apply a system-wide correction or a grayscale mode. Those are the right tools for other apps; this theme is the right tool for GameCore."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "gap": 8
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    }
+  ],
+  "format": "gamecore.plugin.screens",
+  "version": 1
+}

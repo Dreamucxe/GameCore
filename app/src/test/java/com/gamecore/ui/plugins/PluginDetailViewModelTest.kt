@@ -25,6 +25,7 @@ import com.gamecore.core.plugin.PluginRateLimiter
 import com.gamecore.core.plugin.PluginRegistry
 import com.gamecore.core.plugin.PluginSections
 import com.gamecore.core.plugin.RequestedPermission
+import com.gamecore.core.plugin.ScheduledTheme
 import com.gamecore.core.plugin.settings.PluginSettings
 import com.gamecore.core.plugin.settings.PluginSettingsSchema
 import com.gamecore.core.plugin.settings.SettingDef
@@ -239,6 +240,7 @@ class PluginDetailViewModelTest {
         override suspend fun setEnabled(pluginId: String, enabled: Boolean) {}
         override suspend fun grant(pluginId: String, grant: PluginGrant) {}
         override suspend fun setActiveTheme(pluginId: String?) {}
+        override suspend fun setScheduledTheme(override: ScheduledTheme?) {}
         override suspend fun resetToDefaultTheme() {}
         override suspend fun setActiveIcon(pluginId: String?) {}
         override suspend fun resetToPluginIcon() {}

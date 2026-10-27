@@ -1,0 +1,21 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "theme",
+    "screens",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Papercut",
+  "description": "A warm paper light theme with ink-red and teal, sharp corners and serif type. No textures or images \u2014 the paper is colour and type.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.papercut",
+  "api": 3,
+  "versionName": "1.0.0",
+  "version": 1
+}

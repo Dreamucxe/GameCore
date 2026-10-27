@@ -1,0 +1,21 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "theme",
+    "screens",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Night Shift",
+  "description": "A warm amber-on-black interface with serif type for late sessions. A palette, not a hardware blue-light filter.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.nightshift",
+  "api": 3,
+  "versionName": "1.0.0",
+  "version": 1
+}

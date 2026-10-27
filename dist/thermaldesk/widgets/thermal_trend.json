@@ -1,0 +1,20 @@
+{
+  "size": "full",
+  "format": "gamecore.plugin.widget",
+  "id": "thermal_trend",
+  "title": "Temperature trend",
+  "version": 1,
+  "content": {
+    "type": "chart",
+    "props": {
+      "note": "Live battery temperature when thermals is granted; sample shown otherwise.",
+      "stat": "temp",
+      "min": 20,
+      "color": "#FF7A45",
+      "max": 80,
+      "kind": "line",
+      "values": "38,40,41,43,44,46,45,44,43,42,41,40",
+      "label": "Battery temperature"
+    }
+  }
+}

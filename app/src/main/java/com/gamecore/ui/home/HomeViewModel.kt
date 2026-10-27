@@ -41,6 +41,7 @@ import com.gamecore.domain.network.PreLaunchNetworkCheck
 import com.gamecore.domain.optimization.DeviceCapabilityChecker
 import com.gamecore.domain.optimization.OptimizationManager
 import com.gamecore.domain.overlay.OverlayController
+import com.gamecore.domain.schedule.AppearanceScheduler
 import com.gamecore.ui.components.ABSENT
 import com.gamecore.ui.components.PendingLaunch
 import com.gamecore.ui.components.Readout
@@ -105,6 +106,7 @@ class HomeViewModel @Inject constructor(
     private val detector: GameDetector,
     private val preLaunchCheck: PreLaunchNetworkCheck,
     private val preferences: SecurePreferenceStore,
+    private val appearanceScheduler: AppearanceScheduler,
     startup: StartupCoordinator,
     shizuku: ShizukuManager,
     sessions: SessionRepository,
@@ -263,9 +265,20 @@ class HomeViewModel @Inject constructor(
                         isCompact = settings.compactDensity,
                         autoApply = settings.autoApplyProfiles,
                         redlineSkin = settings.redlineSkin,
-                        showBuiltInHomeStats = settings.showBuiltInHomeStats,
+                        showBuiltInHomeStats = (appearanceScheduler.dashboardOverride.value
+                            ?: settings.showBuiltInHomeStats),
                     )
                 }
+            }
+        }
+        viewModelScope.launch {
+            // A schedule is a layer above the manual Home-stats switch. It is collected separately
+            // from settings because the two sources change independently: the schedule can flip at a
+            // window boundary without a settings write, and the user can change the manual value
+            // without the schedule's answer changing.
+            appearanceScheduler.dashboardOverride.collect { override ->
+                val manual = preferences.settings.value.showBuiltInHomeStats
+                local.update { it.copy(showBuiltInHomeStats = override ?: manual) }
             }
         }
         viewModelScope.launch {

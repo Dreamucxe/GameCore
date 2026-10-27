@@ -1,0 +1,24 @@
+{
+  "onPrimary": "#1A1000",
+  "schema": 2,
+  "onSurface": "#F5E6C8",
+  "typography": {"weight": "normal"},
+  "surface": "#141008",
+  "roles": {
+    "secondary": "#D08A3C",
+    "outline": "#5A4528",
+    "onError": "#1A0B08",
+    "onSurfaceVariant": "#D8C49A",
+    "tertiary": "#9A6A2E",
+    "error": "#E06C5A",
+    "surfaceVariant": "#1E160C"
+  },
+  "accent": "#FF8A00",
+  "uiScale": 1,
+  "background": "#050403",
+  "name": "Night Shift",
+  "dark": true,
+  "cornerRadiusDp": 10,
+  "primary": "#FFB000",
+  "font": "serif"
+}

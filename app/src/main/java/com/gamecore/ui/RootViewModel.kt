@@ -18,6 +18,7 @@ import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.data.repository.SessionRepository
 import com.gamecore.domain.monitoring.PerformanceMonitor
+import com.gamecore.domain.schedule.AppearanceScheduler
 import com.gamecore.domain.setup.SetupSignals
 import com.gamecore.domain.setup.WizardEntry
 import com.gamecore.domain.setup.decideEntry
@@ -62,6 +63,7 @@ class RootViewModel @Inject constructor(
     private val auroraRepository: AuroraThemeRepository,
     private val appIcons: AppIconController,
     private val glassMaterials: GlassMaterialStore,
+    private val appearanceScheduler: AppearanceScheduler,
 ) : ViewModel() {
 
     /**
@@ -147,6 +149,11 @@ class RootViewModel @Inject constructor(
      * recolour a jump instead of a transition.
      */
     init {
+        // The root exists for the whole UI session, so it is the right owner for the scheduler's
+        // lifetime. Starting here rather than in Application keeps the heavy gaming/profile graph
+        // off the process-start path; the first resolution lands before the user can reach a screen
+        // that would disagree with it.
+        appearanceScheduler.start()
         themeEngine.start(
             viewModelScope,
             performance.snapshots.map { readingsOf(it).metrics },

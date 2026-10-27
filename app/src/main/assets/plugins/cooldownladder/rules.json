@@ -1,0 +1,57 @@
+{"rules": [
+  {
+    "id": "warm_42_animations",
+    "trigger": "THERMAL_HIGH",
+    "conditions": [{
+      "op": "GTE",
+      "variable": "temp",
+      "value": 42
+    }],
+    "actions": [
+      "set_window_animation_scale",
+      "set_transition_animation_scale",
+      "set_animator_duration_scale"
+    ]
+  },
+  {
+    "id": "warm_45_saver",
+    "trigger": "THERMAL_HIGH",
+    "conditions": [{
+      "op": "GTE",
+      "variable": "temp",
+      "value": 45
+    }],
+    "actions": [
+      "set_low_power",
+      "set_window_animation_scale",
+      "set_transition_animation_scale",
+      "set_animator_duration_scale"
+    ]
+  },
+  {
+    "id": "warm_48_brightness",
+    "trigger": "THERMAL_HIGH",
+    "conditions": [{
+      "op": "GTE",
+      "variable": "temp",
+      "value": 48
+    }],
+    "actions": [
+      "set_low_power",
+      "set_screen_brightness",
+      "set_window_animation_scale",
+      "set_transition_animation_scale",
+      "set_animator_duration_scale"
+    ]
+  },
+  {
+    "id": "battery_15_saver",
+    "trigger": "BATTERY_LOW",
+    "conditions": [{
+      "op": "LTE",
+      "variable": "battery",
+      "value": 15
+    }],
+    "actions": ["set_low_power"]
+  }
+]}

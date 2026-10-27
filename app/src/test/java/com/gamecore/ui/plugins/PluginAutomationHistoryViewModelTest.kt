@@ -15,6 +15,7 @@ import com.gamecore.core.plugin.PluginGrant
 import com.gamecore.core.plugin.PluginOrigin
 import com.gamecore.core.plugin.PluginRegistry
 import com.gamecore.core.plugin.PluginSections
+import com.gamecore.core.plugin.ScheduledTheme
 import com.gamecore.core.plugin.settings.PluginSettingsSchema
 import com.gamecore.core.plugin.settings.SettingValue
 import com.gamecore.ui.Destination
@@ -185,6 +186,7 @@ class PluginAutomationHistoryViewModelTest {
         override suspend fun setEnabled(pluginId: String, enabled: Boolean) {}
         override suspend fun grant(pluginId: String, grant: PluginGrant) {}
         override suspend fun setActiveTheme(pluginId: String?) {}
+        override suspend fun setScheduledTheme(override: ScheduledTheme?) {}
         override suspend fun resetToDefaultTheme() {}
         override suspend fun setKillSwitch(on: Boolean) {}
         override suspend fun clearSuspension(pluginId: String) {}

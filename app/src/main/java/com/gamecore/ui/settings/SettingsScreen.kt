@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Dock
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FormatSize
@@ -1149,6 +1150,13 @@ private fun AccessCard(
             description = "Compose a dashboard from built-in panels and your plugins' widgets — play " +
                 "time, aim trend, and whatever your plugins provide, arranged how you like.",
             icon = Icons.Filled.Dashboard,
+        )
+        NavRow(
+            title = "Theme & dashboard schedule",
+            onClick = { onNavigate(Destination.AppearanceSchedule) },
+            description = "Switch the plugin theme and Home dashboard on a daily clock, or while a " +
+                "particular game is running. Manual choices return when the schedule does not apply.",
+            icon = Icons.Filled.DateRange,
         )
         NavRow(
             title = "Theme Engine",

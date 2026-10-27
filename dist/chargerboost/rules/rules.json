@@ -1,0 +1,23 @@
+{"rules": [{
+  "id": "charger_boost",
+  "trigger": "CHARGER_CONNECTED",
+  "conditions": [
+    {
+      "op": "LTE",
+      "variable": "battery",
+      "value": 80
+    },
+    {
+      "op": "LTE",
+      "variable": "temp",
+      "value": 44
+    }
+  ],
+  "actions": [
+    "set_peak_refresh_rate",
+    "set_min_refresh_rate",
+    "set_window_animation_scale",
+    "set_transition_animation_scale",
+    "set_animator_duration_scale"
+  ]
+}]}

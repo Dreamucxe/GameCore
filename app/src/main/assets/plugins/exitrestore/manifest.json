@@ -1,0 +1,23 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "rules",
+    "screens",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "run_automations"},
+    {"id": "system_actions"},
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Exit Restore",
+  "description": "A post-game baseline, not a snapshot restore: peak refresh 120 and battery saver when charge is low. Use GameCore profiles for true per-game restore.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.exitrestore",
+  "api": 3,
+  "versionName": "1.0.0",
+  "version": 1
+}

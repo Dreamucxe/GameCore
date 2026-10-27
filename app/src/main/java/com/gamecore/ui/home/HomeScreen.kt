@@ -175,6 +175,12 @@ fun HomeScreen(
     val pluginWidgetsViewModel: PluginWidgetsSectionViewModel = hiltViewModel()
     val pluginWidgets by pluginWidgetsViewModel.widgets.collectAsStateWithLifecycle()
 
+    // The top-of-Home status strip: which plugins the registry currently considers active. Its own
+    // ViewModel because Home's state combine is already at its five-source limit, and because the
+    // strip is a small, hot read of the registry rather than part of the profile/hero derivation.
+    val activePluginsViewModel: ActivePluginsSectionViewModel = hiltViewModel()
+    val activePlugins by activePluginsViewModel.state.collectAsStateWithLifecycle()
+
     val padded = Modifier.padding(horizontal = ScreenPadding)
     // The one gap value the whole app shares, tightened by the same factor when the user has asked for
     // compact density (§3). Home reading a different spacing from Games would be a visible seam.
@@ -220,6 +226,19 @@ fun HomeScreen(
                 compact = state.isCompact,
                 modifier = padded,
             )
+        }
+
+        // The top-of-Home answer to "what is running right now?". Emitted only when the registry has
+        // loaded and there is an active plugin (or the global switch is on), so a plugin-free Home
+        // does not grow an empty card. The strip is host-drawn and its chips only open the manager.
+        if (activePlugins.shouldShow) {
+            item {
+                ActivePluginsSection(
+                    state = activePlugins,
+                    onManage = { onNavigate(Destination.Plugins) },
+                    modifier = padded,
+                )
+            }
         }
 
         state.message?.let { message ->

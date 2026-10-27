@@ -1,0 +1,24 @@
+{
+  "onPrimary": "#FFFFFF",
+  "schema": 2,
+  "onSurface": "#1C1917",
+  "typography": {"weight": "normal"},
+  "surface": "#FFFDF7",
+  "roles": {
+    "secondary": "#2F5D62",
+    "outline": "#8C7B68",
+    "onError": "#FFFFFF",
+    "onSurfaceVariant": "#4A423A",
+    "tertiary": "#C47A2C",
+    "error": "#B42318",
+    "surfaceVariant": "#EAE1D3"
+  },
+  "accent": "#2F5D62",
+  "uiScale": 1,
+  "background": "#F3EDE2",
+  "name": "Papercut",
+  "dark": false,
+  "cornerRadiusDp": 4,
+  "primary": "#A63A2B",
+  "font": "serif"
+}

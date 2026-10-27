@@ -1,0 +1,92 @@
+{
+  "size": "medium",
+  "format": "gamecore.plugin.widget",
+  "id": "thermal_load",
+  "title": "Load and battery heat",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "size": 13,
+          "text": "Load and battery heat"
+        }
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 11,
+                  "text": "CPU"
+                }
+              },
+              {
+                "type": "stat",
+                "props": {
+                  "stat": "cpu",
+                  "size": 19
+                }
+              }
+            ],
+            "type": "column",
+            "props": {"gap": 2}
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 11,
+                  "text": "GPU"
+                }
+              },
+              {
+                "type": "stat",
+                "props": {
+                  "stat": "gpu",
+                  "size": 19
+                }
+              }
+            ],
+            "type": "column",
+            "props": {"gap": 2}
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 11,
+                  "text": "Batt. temp"
+                }
+              },
+              {
+                "type": "stat",
+                "props": {
+                  "stat": "temp",
+                  "size": 19
+                }
+              }
+            ],
+            "type": "column",
+            "props": {"gap": 2}
+          }
+        ],
+        "type": "grid",
+        "props": {
+          "columns": 3,
+          "gap": 8
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 8
+    }
+  }
+}

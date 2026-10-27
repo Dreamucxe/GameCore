@@ -1,0 +1,20 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "screens",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Stat Dictionary",
+  "description": "A plain-language dictionary of the figures GameCore's plugin feed exposes \u2014 what each one measures, what it does not, and why an unavailable reading is a dash.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.statdictionary",
+  "api": 3,
+  "versionName": "1.0.0",
+  "version": 1
+}

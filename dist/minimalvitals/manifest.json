@@ -1,0 +1,27 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "widgets",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "add_dashboard_widgets"},
+    {
+      "id": "read_approved_data",
+      "scopes": [
+        "device_stats",
+        "thermals"
+      ]
+    },
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Minimal Vitals",
+  "description": "Five compact Home cards for the figures that matter: a 2×2 snapshot plus CPU, memory, battery and heat tiles.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.minimalvitals",
+  "api": 3,
+  "versionName": "1.0.0",
+  "version": 1
+}

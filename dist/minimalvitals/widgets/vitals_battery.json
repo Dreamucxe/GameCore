@@ -1,0 +1,30 @@
+{
+  "size": "small",
+  "format": "gamecore.plugin.widget",
+  "id": "vitals_battery",
+  "title": "Battery",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "size": 11,
+          "text": "Battery"
+        }
+      },
+      {
+        "type": "stat",
+        "props": {
+          "stat": "battery",
+          "size": 22
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 2
+    }
+  }
+}

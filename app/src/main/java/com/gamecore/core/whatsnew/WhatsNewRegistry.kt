@@ -35,6 +35,35 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 44,
+            versionName = "3.6.0",
+            date = "2026-10-27",
+            features = listOf(
+                FeatureNote(
+                    "A theme and dashboard schedule",
+                    "Daily time windows can switch the plugin theme and the Home dashboard, and a " +
+                        "per-game override wins while that game is running. A schedule is an override " +
+                        "layer: when no window or game applies, the manual theme and Home-stats " +
+                        "choice return unchanged.",
+                ),
+                FeatureNote(
+                    "Active plugins at the top of Home",
+                    "A compact strip names the plugins that are actually running, using the same " +
+                        "enabled, suspended, quarantine and compatibility rules as the Plugins " +
+                        "screen. It is absent when nothing is running and says so when the global " +
+                        "plugin switch is on.",
+                ),
+                FeatureNote(
+                    "Ten more data-only plugin packs",
+                    "Night Shift, Colorblind Safe, Papercut, Minimal Vitals, Thermal Desk, Battery " +
+                        "Badge, Cooldown Ladder, Exit Restore, Charger Boost and Stat Dictionary join " +
+                        "the official set. They are JSON and image data read through the same codecs " +
+                        "as every other package; none of them adds code, a shell, a network call or a " +
+                        "permission the host does not already gate.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 43,
             versionName = "3.5.0",
             date = "2026-10-25",

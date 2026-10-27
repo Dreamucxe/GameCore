@@ -1,0 +1,418 @@
+{
+  "screens": [
+    {
+      "icon": "insights",
+      "id": "overview",
+      "title": "Papercut",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 22,
+              "text": "Papercut",
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 15,
+              "text": "A light theme that starts from warm paper rather than cool white. Serif type, tight corners and two accent inks carry the look."
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 16,
+                  "text": "The palette",
+                  "bold": true
+                }
+              },
+              {
+                "children": [
+                  {
+                    "children": [{
+                      "type": "text",
+                      "props": {
+                        "color": "#FFFFFF",
+                        "size": 12,
+                        "text": "Ink red",
+                        "bold": true
+                      }
+                    }],
+                    "type": "card",
+                    "props": {
+                      "padding": 10,
+                      "color": "#A63A2B"
+                    }
+                  },
+                  {
+                    "children": [{
+                      "type": "text",
+                      "props": {
+                        "color": "#FFFFFF",
+                        "size": 12,
+                        "text": "Teal",
+                        "bold": true
+                      }
+                    }],
+                    "type": "card",
+                    "props": {
+                      "padding": 10,
+                      "color": "#2F5D62"
+                    }
+                  },
+                  {
+                    "children": [{
+                      "type": "text",
+                      "props": {
+                        "color": "#1C1917",
+                        "size": 12,
+                        "text": "Paper",
+                        "bold": true
+                      }
+                    }],
+                    "type": "card",
+                    "props": {
+                      "padding": 10,
+                      "color": "#F3EDE2"
+                    }
+                  }
+                ],
+                "type": "row",
+                "props": {
+                  "gap": 10,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Red is the primary action; teal is the second voice; the paper ground keeps long text comfortable in daylight."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "color": "#FFFDF7",
+              "gap": 10
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 16,
+                  "text": "Typography",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 26,
+                  "text": "Display",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 18,
+                  "text": "Section heading",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Body copy is set in the same serif face, with a normal weight. The hierarchy comes from size and spacing, not from a second font."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "color": "#FFFDF7",
+              "gap": 8
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "data",
+      "id": "printshop",
+      "title": "Print Shop",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "A small print-shop grammar",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 16,
+                  "text": "One loud voice",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "A screen gets one red action. If everything is ink-red, nothing is."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "color": "#FFFDF7",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 16,
+                  "text": "Paper, not glass",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Surfaces are cream and the corners are tight. There is no translucency and no blur; the theme is meant to feel printed, not layered."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "color": "#EAE1D3",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 24,
+                      "icon": "check"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "size": 13,
+                      "text": "Clear labels",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#FFFDF7",
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 24,
+                      "icon": "timeline"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "size": 13,
+                      "text": "Generous spacing",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#FFFDF7",
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 24,
+                      "icon": "insights"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "size": 13,
+                      "text": "One accent at a time",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#FFFDF7",
+                  "gap": 6
+                }
+              },
+              {
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "size": 24,
+                      "icon": "shield"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "props": {
+                      "size": 13,
+                      "text": "No hidden colour code",
+                      "bold": true
+                    }
+                  }
+                ],
+                "type": "card",
+                "props": {
+                  "padding": 12,
+                  "color": "#FFFDF7",
+                  "gap": 6
+                }
+              }
+            ],
+            "type": "grid",
+            "props": {
+              "columns": 2,
+              "gap": 8
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "icon": "info",
+      "id": "limits",
+      "title": "Paper, Not A Texture",
+      "content": {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "size": 20,
+              "text": "What the paper is",
+              "bold": true
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 16,
+                  "text": "Colour and type",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "The warm ground, cream surfaces, serif face and tight corners are the whole effect. A `.gcplugin` cannot ship a paper texture, a font file or an arbitrary image."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "color": "#FFFDF7",
+              "gap": 8
+            }
+          },
+          {
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "size": 16,
+                  "text": "Why a light theme",
+                  "bold": true
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "size": 14,
+                  "text": "Some rooms and some eyes are better served by a light surface. This theme is not a dimmed dark theme; it is designed from the paper up."
+                }
+              }
+            ],
+            "type": "card",
+            "props": {
+              "padding": 14,
+              "color": "#FFFDF7",
+              "gap": 8
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "size": 14,
+              "text": "If you need a darker interface at night, use Night Shift or a dark theme. Papercut is deliberately a daylight palette."
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    }
+  ],
+  "format": "gamecore.plugin.screens",
+  "version": 1
+}

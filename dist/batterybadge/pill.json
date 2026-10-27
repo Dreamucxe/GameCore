@@ -1,0 +1,76 @@
+{
+  "size": "medium",
+  "anchor": {
+    "x": 0.84,
+    "y": 0.08
+  },
+  "format": "gamecore.plugin.pill",
+  "id": "battery-badge",
+  "title": "Battery badge",
+  "opacity": 82,
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "image",
+        "props": {
+          "size": 20,
+          "icon": "battery"
+        }
+      },
+      {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "color": "#B3FFFFFF",
+              "size": 9,
+              "text": "BATTERY"
+            }
+          },
+          {
+            "type": "stat",
+            "props": {
+              "stat": "battery",
+              "size": 18
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "gap": 1,
+          "align": "center"
+        }
+      },
+      {
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "color": "#B3FFFFFF",
+              "size": 9,
+              "text": "TEMP"
+            }
+          },
+          {
+            "type": "stat",
+            "props": {
+              "stat": "temp",
+              "size": 18
+            }
+          }
+        ],
+        "type": "column",
+        "props": {
+          "gap": 1,
+          "align": "center"
+        }
+      }
+    ],
+    "type": "row",
+    "props": {
+      "gap": 10,
+      "align": "center"
+    }
+  }
+}

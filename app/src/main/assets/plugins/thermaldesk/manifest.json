@@ -1,0 +1,27 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "widgets",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "add_dashboard_widgets"},
+    {
+      "id": "read_approved_data",
+      "scopes": [
+        "device_stats",
+        "thermals"
+      ]
+    },
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Thermal Desk",
+  "description": "A thermal-focused dashboard: battery temperature, load, a temperature trend and a three-stage plan built from GameCore's approved readings.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.thermaldesk",
+  "api": 3,
+  "versionName": "1.0.0",
+  "version": 1
+}

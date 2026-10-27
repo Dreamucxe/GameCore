@@ -1,0 +1,30 @@
+{
+  "size": "small",
+  "format": "gamecore.plugin.widget",
+  "id": "thermal_now",
+  "title": "Battery heat",
+  "version": 1,
+  "content": {
+    "children": [
+      {
+        "type": "text",
+        "props": {
+          "size": 11,
+          "text": "Batt. temp"
+        }
+      },
+      {
+        "type": "stat",
+        "props": {
+          "stat": "temp",
+          "size": 24
+        }
+      }
+    ],
+    "type": "column",
+    "props": {
+      "padding": 12,
+      "gap": 2
+    }
+  }
+}

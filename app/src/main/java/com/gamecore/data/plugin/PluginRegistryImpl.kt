@@ -30,6 +30,7 @@ import com.gamecore.core.plugin.PluginRuntimeState
 import com.gamecore.core.plugin.PluginSection
 import com.gamecore.core.plugin.PluginSections
 import com.gamecore.core.plugin.RollbackOutcome
+import com.gamecore.core.plugin.ScheduledTheme
 import com.gamecore.core.plugin.content.AutomationEngine
 import com.gamecore.core.plugin.content.AutomationRule
 import com.gamecore.core.plugin.content.RulesCodec
@@ -113,6 +114,15 @@ class PluginRegistryImpl @Inject constructor(
 
     private val activeThemeState = MutableStateFlow<ActiveTheme?>(null)
     override val activeTheme: StateFlow<ActiveTheme?> = activeThemeState.asStateFlow()
+
+    /**
+     * The scheduler's layer above the manual theme selection.
+     *
+     * In memory rather than in the grant store: the schedule itself is persisted, and re-resolving
+     * it on the next launch is the correct behaviour. A stale override surviving a crash would be a
+     * theme nobody asked for.
+     */
+    private val scheduledThemeState = MutableStateFlow<ScheduledTheme?>(null)
 
     private val activeIconState = MutableStateFlow<ActiveIcon?>(null)
     override val activeIcon: StateFlow<ActiveIcon?> = activeIconState.asStateFlow()
@@ -250,7 +260,7 @@ class PluginRegistryImpl @Inject constructor(
         val plugins = records.values.map { it.toInstalledPlugin() }.sortedWith(DISPLAY_ORDER)
         killSwitchState.value = killSwitch
         installedState.value = plugins
-        activeThemeState.value = resolveActiveTheme(plugins, killSwitch)
+        activeThemeState.value = resolveActiveTheme(plugins, killSwitch, scheduledThemeState.value)
         val iconOffers = resolveIconOffers(plugins, killSwitch)
         iconOffersState.value = iconOffers
         activeIconState.value = resolveActiveIcon(iconOffers)
@@ -716,10 +726,28 @@ class PluginRegistryImpl @Inject constructor(
                 store.setSelectedThemePluginId(pluginId)
                 publish()
                 // A selection that cannot produce a theme is not kept: it would sit in the file
-                // looking like the user's choice while the app draws its own colours.
-                if (pluginId != null && activeThemeState.value == null) {
+                // looking like the user's choice while the app draws its own colours. Validate the
+                // manual selection itself, not activeThemeState, because a scheduler override may be
+                // the theme currently in force.
+                val plugins = records.values.map { it.toInstalledPlugin() }
+                if (pluginId != null &&
+                    resolveThemeFor(pluginId, plugins, store.isSystemKillSwitchOn()) == null
+                ) {
                     store.setSelectedThemePluginId(null)
                 }
+            }
+        }
+    }
+
+    override suspend fun setScheduledTheme(override: ScheduledTheme?) {
+        withContext(io) {
+            lock.withLock {
+                // The scheduler re-applies its answer on every tick so an explicit reset cannot
+                // leave the schedule switched off until the next window edge. That only stays cheap
+                // if an unchanged answer does not republish every registry flow.
+                if (scheduledThemeState.value == override) return@withLock
+                scheduledThemeState.value = override
+                publish()
             }
         }
     }
@@ -728,6 +756,10 @@ class PluginRegistryImpl @Inject constructor(
         withContext(io) {
             lock.withLock {
                 store.setSelectedThemePluginId(null)
+                // Reset is the escape hatch, so it also clears a scheduler override. Leaving the
+                // scheduler in force would make the button appear to do nothing when the current
+                // window is a plugin theme.
+                scheduledThemeState.value = null
                 // Set directly rather than re-derived through publish(): null needs nothing from the
                 // plugin — not its file, not its parse, not even its presence — which is exactly what
                 // makes this the one theme operation that cannot fail. It still works when the
@@ -865,10 +897,33 @@ class PluginRegistryImpl @Inject constructor(
      * That every one of those degrades to null is what makes "reset to default" unfailing: null is
      * always reachable, needs nothing from the plugin, and is the app's own theme.
      */
-    private fun resolveActiveTheme(plugins: List<InstalledPlugin>, killSwitch: Boolean): ActiveTheme? {
+    private fun resolveActiveTheme(
+        plugins: List<InstalledPlugin>,
+        killSwitch: Boolean,
+        scheduled: ScheduledTheme? = null,
+    ): ActiveTheme? {
+        // The scheduler's default is an explicit "GameCore's own theme", not "no override". A null
+        // scheduled value means the manual selection is in force.
+        if (scheduled == ScheduledTheme.Default) return null
+        val scheduledId = (scheduled as? ScheduledTheme.Plugin)?.pluginId
+        if (scheduledId != null) {
+            val scheduledTheme = resolveThemeFor(scheduledId, plugins, killSwitch)
+            // A scheduled plugin that stopped resolving falls back to the manual selection rather
+            // than leaving the app with no theme; the scheduler will replace the target on its next
+            // resolution, but the user should not see a dead override until then.
+            if (scheduledTheme != null) return scheduledTheme
+        }
         val selectedId = store.selectedThemePluginId() ?: return null
-        val record = records[selectedId] ?: return null
-        val plugin = plugins.firstOrNull { it.id == selectedId } ?: return null
+        return resolveThemeFor(selectedId, plugins, killSwitch)
+    }
+
+    private fun resolveThemeFor(
+        pluginId: String,
+        plugins: List<InstalledPlugin>,
+        killSwitch: Boolean,
+    ): ActiveTheme? {
+        val record = records[pluginId] ?: return null
+        val plugin = plugins.firstOrNull { it.id == pluginId } ?: return null
         if (!plugin.isActive) return null
         if (!gate.isAllowed(plugin.runtimeState(killSwitch), PluginPermission.CHANGE_UI)) return null
         if (PluginSection.THEME !in record.manifest.declares) return null

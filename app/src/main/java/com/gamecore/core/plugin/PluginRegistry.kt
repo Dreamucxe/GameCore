@@ -335,6 +335,15 @@ interface PluginRegistry {
     suspend fun setActiveTheme(pluginId: String?)
 
     /**
+     * Applies a scheduler-owned theme without touching the user's manual selection.
+     *
+     * The manual selection stays in the grant store, so clearing this override puts the app back on
+     * exactly the theme the user chose. [ScheduledTheme.Default] means "GameCore's own theme" and is
+     * distinct from `null`, which means "no override; use the manual selection".
+     */
+    suspend fun setScheduledTheme(override: ScheduledTheme?)
+
+    /**
      * Returns the app to its own theme.
      *
      * Separate from `setActiveTheme(null)` as a named operation because it is the escape hatch the whole
@@ -477,6 +486,18 @@ interface PluginRegistry {
  * is the first thing a user needs when they want it to stop.
  */
 data class ActiveTheme(val pluginId: String, val pluginName: String, val theme: PluginTheme)
+
+/**
+ * A theme chosen by the appearance scheduler rather than by the user.
+ *
+ * It is a separate layer, not a write to the manual selection: the scheduler must be able to end a
+ * window and reveal the theme the user had before it started. The registry resolves this layer
+ * first and falls back to the manual selection when the named plugin can no longer supply a theme.
+ */
+sealed interface ScheduledTheme {
+    data object Default : ScheduledTheme
+    data class Plugin(val pluginId: String) : ScheduledTheme
+}
 
 /**
  * One plugin's launcher-icon request, with the plugin that made it.

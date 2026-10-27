@@ -456,6 +456,15 @@ sealed interface Destination {
     }
 
     /**
+     * The theme/dashboard scheduler: daily time windows and per-game overrides, layered above the
+     * user's manual theme and Home-stats choice. Reached from Settings' Appearance card. Not in
+     * [external]: scheduling is a deliberate configuration action, not a surface another app opens.
+     */
+    data object AppearanceSchedule : Destination {
+        override val route = "appearance-schedule"
+    }
+
+    /**
      * Screen extraction's own screen. In [external] since §3.7.1 for the dock's sake — see [Performance].
      */
     data object ScreenExtraction : Destination {

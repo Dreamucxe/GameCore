@@ -1,0 +1,23 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "rules",
+    "screens",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "run_automations"},
+    {"id": "system_actions"},
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Cooldown Ladder",
+  "description": "Three staged thermal rules that shed system load as the device heats, plus a low-battery backstop. Uses only GameCore's brokered actions.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.cooldownladder",
+  "api": 3,
+  "versionName": "1.0.0",
+  "version": 1
+}
