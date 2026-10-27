@@ -331,6 +331,16 @@ object SearchIndex {
             category = SearchCategory.SETTINGS,
         ))
         add(SearchEntry(
+            title = "Home Stats",
+            description = "Hide GameCore's built-in Home metric tiles when a plugin dashboard already shows them.",
+            keywords = listOf(
+                "home stats", "home dashboard", "dashboard", "duplicate", "duplicates", "plugin",
+                "plugin dashboard", "cpu", "ram", "battery", "temperature", "refresh rate", "statistics",
+            ),
+            route = Destination.Settings.route,
+            category = SearchCategory.SETTINGS,
+        ))
+        add(SearchEntry(
             title = "Display & Text",
             description = "UI scale, text size preset and animation settings.",
             keywords = listOf("display", "text", "scale", "size", "font", "animation", "ui scale"),

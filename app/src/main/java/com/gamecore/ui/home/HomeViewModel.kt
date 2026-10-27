@@ -216,6 +216,7 @@ class HomeViewModel @Inject constructor(
             detectionAvailable = own.detectionAvailable,
             isCompact = own.isCompact,
             redlineSkin = own.redlineSkin,
+            showBuiltInHomeStats = own.showBuiltInHomeStats,
             repairedSessions = own.repairedSessions,
             outstandingRestores = own.outstandingRestores,
             isRestoring = own.isRestoring,
@@ -252,15 +253,17 @@ class HomeViewModel @Inject constructor(
             capabilityChecker.current()
         }
         viewModelScope.launch {
-            // The two stored settings this screen reads: §4.1's pill needs auto-apply, §3's spacing
-            // needs the density choice. Collected into local state rather than added to the combine,
-            // which is already at its five typed sources.
+            // The stored settings this screen reads: §4.1's pill needs auto-apply, §3's spacing needs
+            // the density choice, and the Home-stats switch decides whether §4.3's live tiles are
+            // drawn at all. Collected into local state rather than added to the combine, which is
+            // already at its five typed sources.
             preferences.settings.collect { settings ->
                 local.update {
                     it.copy(
                         isCompact = settings.compactDensity,
                         autoApply = settings.autoApplyProfiles,
                         redlineSkin = settings.redlineSkin,
+                        showBuiltInHomeStats = settings.showBuiltInHomeStats,
                     )
                 }
             }
@@ -805,6 +808,7 @@ private data class LocalState(
     val detectionAvailable: Boolean = false,
     val isCompact: Boolean = false,
     val redlineSkin: Boolean = false,
+    val showBuiltInHomeStats: Boolean = true,
     val selectedPackage: String? = null,
     val busyPackage: String? = null,
     val pendingLaunch: PendingLaunch? = null,

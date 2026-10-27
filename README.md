@@ -167,6 +167,12 @@ adb install -r GameCore.apk
       <p>Session reports compare frame-time spikes against two measured lanes — TCP handshakes to the router and to a known host beyond it — and answer <em>beyond this device</em>, <em>device to router</em>, <em>network but not localised</em>, or <em>not supported by the network record</em>. No game server is contacted or claimed; the probe is labelled as a handshake, not a ping, everywhere it appears.</p>
     </td>
   </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <h3>🧩 Home stats can get out of the way</h3>
+      <p>Appearance gains <strong>Show GameCore stats on Home</strong>. Turning it off removes the built-in CPU, RAM, battery, temperature and refresh-rate tiles, so a plugin dashboard that already shows the same readings is not duplicated. Plugin dashboard widgets stay visible; the Device card, thermal warnings and Home actions remain.</p>
+    </td>
+  </tr>
 </table>
 
 ## Plugins are data, not code

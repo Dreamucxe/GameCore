@@ -69,6 +69,13 @@ data class HomeUiState(
     /** The §3 compact-density choice, so the gaps between cards tighten with the rest of the app. */
     val isCompact: Boolean = false,
     val redlineSkin: Boolean = false,
+    /**
+     * Whether Home draws GameCore's own live metric tiles.
+     *
+     * Off leaves the plugin dashboard widgets untouched, so a plugin can be the only dashboard on
+     * Home. The Device card, the thermal warning and every action on Home stay either way.
+     */
+    val showBuiltInHomeStats: Boolean = true,
     val repairedSessions: Int = 0,
     val outstandingRestores: Int = 0,
     val isRestoring: Boolean = false,

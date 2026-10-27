@@ -73,6 +73,7 @@ class BackupCodecTest {
         val settings = AppSettings(
             theme = ThemeChoice.DARK,
             accent = AccentChoice.VIOLET,
+            showBuiltInHomeStats = false,
             uiScalePercent = 110,
             animations = AnimationsMode.OFF,
             hapticsEnabled = false,
@@ -366,6 +367,9 @@ class BackupCodecTest {
         val decoded = restored(envelope(""","settings":{"app":{"theme":"LIGHT"}}"""))
         assertNotNull(decoded.settings)
         assertEquals(ThemeChoice.LIGHT, decoded.settings!!.theme)
+        // A file from before this option existed restores the default: Home's own tiles stay on, so
+        // the setting is opt-out and an upgrade never silently hides readings.
+        assertTrue(decoded.settings!!.showBuiltInHomeStats)
         assertNull(decoded.overlay)
         assertNull(decoded.button)
         assertNull(decoded.dock)

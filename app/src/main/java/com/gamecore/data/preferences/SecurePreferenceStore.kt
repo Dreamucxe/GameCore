@@ -220,6 +220,10 @@ class SecurePreferenceStore @Inject constructor(
             wallpaperPath = p.getString(KEY_WALLPAPER_PATH, null)?.takeIf { it.isNotBlank() },
             wallpaperScrimPercent = p.getInt(KEY_WALLPAPER_SCRIM, defaults.wallpaperScrimPercent),
             compactDensity = p.getBoolean(KEY_COMPACT_DENSITY, defaults.compactDensity),
+            showBuiltInHomeStats = p.getBoolean(
+                KEY_SHOW_BUILTIN_HOME_STATS,
+                defaults.showBuiltInHomeStats,
+            ),
             animations = enumOrDefault(
                 p.getString(KEY_ANIMATIONS, null),
                 AnimationsMode.entries,
@@ -342,6 +346,7 @@ class SecurePreferenceStore @Inject constructor(
             putString(KEY_WALLPAPER_PATH, value.wallpaperPath ?: "")
             putInt(KEY_WALLPAPER_SCRIM, value.wallpaperScrimPercent)
             putBoolean(KEY_COMPACT_DENSITY, value.compactDensity)
+            putBoolean(KEY_SHOW_BUILTIN_HOME_STATS, value.showBuiltInHomeStats)
             putString(KEY_ANIMATIONS, value.animations.name)
             putBoolean(KEY_HAPTICS, value.hapticsEnabled)
             putBoolean(KEY_ALLOW_ELEVATED, value.allowElevatedReads)
@@ -1129,6 +1134,7 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_WALLPAPER_PATH = "wallpaper_path"
         const val KEY_WALLPAPER_SCRIM = "wallpaper_scrim_percent"
         const val KEY_COMPACT_DENSITY = "compact_density"
+        const val KEY_SHOW_BUILTIN_HOME_STATS = "show_builtin_home_stats"
         const val KEY_ANIMATIONS = "animations_mode"
         const val KEY_HAPTICS = "haptics_enabled"
         const val KEY_ALLOW_ELEVATED = "allow_elevated"

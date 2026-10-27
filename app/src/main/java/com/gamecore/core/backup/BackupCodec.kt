@@ -283,6 +283,7 @@ object BackupCodec {
         put("useCustomAccent", s.useCustomAccent)
         if (s.customAccentArgb != null) put("customAccentArgb", s.customAccentArgb)
         put("compactDensity", s.compactDensity)
+        put("showBuiltInHomeStats", s.showBuiltInHomeStats)
         put("animations", s.animations.name)
         put("hapticsEnabled", s.hapticsEnabled)
         put("allowElevatedReads", s.allowElevatedReads)
@@ -681,6 +682,7 @@ object BackupCodec {
                 d.customAccentArgb
             },
             compactDensity = o.optBoolean("compactDensity", d.compactDensity),
+            showBuiltInHomeStats = o.optBoolean("showBuiltInHomeStats", d.showBuiltInHomeStats),
             animations = enumByName(o.optString("animations"), d.animations),
             hapticsEnabled = o.optBoolean("hapticsEnabled", d.hapticsEnabled),
             allowElevatedReads = o.optBoolean("allowElevatedReads", d.allowElevatedReads),

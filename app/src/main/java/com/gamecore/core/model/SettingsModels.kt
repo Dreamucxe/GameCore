@@ -104,6 +104,16 @@ data class AppSettings(
     val compactDensity: Boolean = false,
 
     /**
+     * Draw GameCore's own five live metric tiles on Home.
+     *
+     * On by default. Off leaves the plugin dashboard widgets in place for a user whose plugin already
+     * shows the same CPU, RAM, battery, temperature and refresh-rate readings and does not want the
+     * host's tiles repeated above them. The Device card and its diagnostics are not live stats and
+     * stay available either way.
+     */
+    val showBuiltInHomeStats: Boolean = true,
+
+    /**
      * Whether the app animates, and whether it defers to the system's animator scale (§2 motion).
      *
      * [AnimationsMode.SYSTEM] (the default) multiplies our 150–250 ms tokens by the device's

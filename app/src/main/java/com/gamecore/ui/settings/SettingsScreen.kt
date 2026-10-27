@@ -383,6 +383,14 @@ private fun AppearanceCard(
             onCheckedChange = { enabled -> onEdit { it.copy(compactDensity = enabled) } },
             description = "Tightens the space between rows. Tap targets keep their full size.",
         )
+        SwitchRow(
+            title = "Show GameCore stats on Home",
+            checked = state.settings.showBuiltInHomeStats,
+            onCheckedChange = { enabled -> onEdit { it.copy(showBuiltInHomeStats = enabled) } },
+            description = "Hides the CPU, RAM, battery, temperature and refresh-rate tiles. Plugin " +
+                "dashboard widgets stay visible, so a plugin that already shows these readings can be " +
+                "the only Home dashboard.",
+        )
         RowDivider()
         SwitchRow(
             title = "Redline skin",

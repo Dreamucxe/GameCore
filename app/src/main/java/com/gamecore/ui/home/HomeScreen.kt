@@ -378,27 +378,31 @@ fun HomeScreen(
             }
         }
 
-        // §4.3. The five live tiles, two to a row, with the odd one keeping its width. RAM and Temperature
-        // carry a sparkline once two real samples exist; the rest show their meter or nothing.
-        readouts.metrics.chunked(TILES_PER_ROW).forEach { row ->
-            item {
-                TileRow(modifier = padded) {
-                    row.forEach { readout ->
-                        MetricTile(
-                            readout = readout,
-                            icon = metricIcon(readout.label),
-                            trend = trendFor(readout.label, readouts),
-                            onClick = { onNavigate(Destination.Performance) },
-                            modifier = Modifier.weight(1f),
-                        )
+        // §4.3. GameCore's own live tiles, omitted only when the user has asked for a plugin dashboard
+        // to carry the same readings. Two to a row, with the odd one keeping its width; RAM and
+        // Temperature carry a sparkline once two real samples exist; the rest show their meter or
+        // nothing. The readouts still flow for the thermal note and the Device card below.
+        if (state.showBuiltInHomeStats) {
+            readouts.metrics.chunked(TILES_PER_ROW).forEach { row ->
+                item {
+                    TileRow(modifier = padded) {
+                        row.forEach { readout ->
+                            MetricTile(
+                                readout = readout,
+                                icon = metricIcon(readout.label),
+                                trend = trendFor(readout.label, readouts),
+                                onClick = { onNavigate(Destination.Performance) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        repeat(TILES_PER_ROW - row.size) { Spacer(modifier = Modifier.weight(1f)) }
                     }
-                    repeat(TILES_PER_ROW - row.size) { Spacer(modifier = Modifier.weight(1f)) }
                 }
             }
         }
 
-        // Plugin dashboard widgets, below the host's own live tiles and above the device card. The
-        // `item` is emitted only when at least one widget is allowed on screen, for the same
+        // Plugin dashboard widgets, below the host's own live tiles when they are shown and above the
+        // device card. The `item` is emitted only when at least one widget is allowed on screen, for the same
         // zero-height-gap reason as the cards above — PluginWidgetsSection returns early on an empty
         // list, but an emitted slot would still take a `spacedBy` gap on both sides.
         if (pluginWidgets.isNotEmpty()) {
