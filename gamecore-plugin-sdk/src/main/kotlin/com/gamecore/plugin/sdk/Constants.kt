@@ -86,7 +86,7 @@ object DataScopes {
 }
 
 /**
- * The fonts a theme may pick. A theme cannot ship a font file — it names one the app bundles.
+ * The fonts a theme may pick. A theme cannot ship a font file — it names a bundled face or a platform family.
  *
  * The host **rejects** an unknown id rather than falling back, so a theme naming a font that
  * is not here is a theme that does not load at all.
@@ -97,7 +97,13 @@ object ThemeFonts {
     const val MONO = "mono"
     const val SERIF = "serif"
 
-    val ALL = setOf(SYSTEM, ROUNDED, MONO, SERIF)
+    /** The platform's cursive family; the exact face varies by device. */
+    const val CURSIVE = "cursive"
+
+    /** A bundled pixel face inspired by Minecraft, not the proprietary Minecraft typeface. */
+    const val MINECRAFT = "minecraft"
+
+    val ALL = setOf(SYSTEM, ROUNDED, MONO, SERIF, CURSIVE, MINECRAFT)
 }
 
 /**

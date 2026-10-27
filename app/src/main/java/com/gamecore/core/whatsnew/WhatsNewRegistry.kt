@@ -61,6 +61,19 @@ object WhatsNewRegistry {
                         "as every other package; none of them adds code, a shell, a network call or a " +
                         "permission the host does not already gate.",
                 ),
+                FeatureNote(
+                    "Plugin search and appearance",
+                    "Search installed plugins by name, id, developer, description or version. The " +
+                        "plugin section also has its own font and text-size controls, including a " +
+                        "bundled Minecraft-inspired pixel face, without changing the rest of the app.",
+                ),
+                FeatureNote(
+                    "The plugin section follows your theme",
+                    "The plugin manager, detail screen and automation history now use the theme the " +
+                        "rest of GameCore is wearing. The safety switch, consent switches and removal " +
+                        "dialog keep GameCore's own colours, so a plugin cannot restyle the controls " +
+                        "that turn it off.",
+                ),
             ),
         ),
         ReleaseNote(

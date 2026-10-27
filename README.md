@@ -147,6 +147,16 @@ adb install -r GameCore.apk
       <p>Night Shift, Colorblind Safe, Papercut, Minimal Vitals, Thermal Desk, Battery Badge, Cooldown Ladder, Exit Restore, Charger Boost and Stat Dictionary are in <code>dist/</code> and bundled with the app. All ten remain data-only: JSON and image assets read through the same codecs as any sideloaded package, with no scripts, network calls, shell, native code, WebView, arbitrary pixels or custom permissions.</p>
     </td>
   </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🔎 Plugin search and appearance</h3>
+      <p>Search installed plugins by name, id, developer, description or version. The plugin section also has its own font and text-size controls, including a bundled Minecraft-inspired pixel face, without changing the rest of the app.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🎨 The plugin section follows your theme</h3>
+      <p>The plugin manager, detail screen and automation history now use the theme the rest of GameCore is wearing. The safety switch, consent switches and removal dialog keep GameCore's own colours, so a plugin cannot restyle the controls that turn it off.</p>
+    </td>
+  </tr>
 </table>
 
 ## What's new in 3.5.0

@@ -18,11 +18,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Warning
@@ -30,6 +33,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,6 +50,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamecore.core.model.AppSettings
+import com.gamecore.core.model.PluginSectionFont
 import com.gamecore.core.plugin.RiskTier
 import com.gamecore.ui.components.ActionRow
 import com.gamecore.ui.components.ChoiceRow
@@ -59,6 +65,7 @@ import com.gamecore.ui.components.ScreenBottomPadding
 import com.gamecore.ui.components.ScreenHeader
 import com.gamecore.ui.components.ScreenPadding
 import com.gamecore.ui.components.SectionCard
+import com.gamecore.ui.components.SliderRow
 import com.gamecore.ui.components.StatusChip
 import com.gamecore.ui.components.SwitchRow
 import com.gamecore.ui.components.Tone
@@ -70,15 +77,18 @@ import com.gamecore.ui.theme.Spacing
  * This screen is the user's only general-purpose control over plugins, which shapes almost every
  * decision in it:
  *
- *  - **It is deliberately a screen a plugin can never restyle.** The safety card is drawn with
- *    GameCore's own [MaterialTheme] and nothing on it is conditioned on a plugin parsing, loading or
- *    behaving. A plugin that supplies a theme can make every other screen hard to read — black on
- *    black, a one-pixel font — and the escape hatch has to stay legible exactly when the rest of the
- *    app does not. That is also why "Use GameCore's own theme" has no `enabled` argument: it is always
- *    tappable, and `resetToDefaultTheme` is defined as clearing a selection rather than writing
- *    anything that could fail.
+ *  - **The list follows the current theme; the safety card does not.** The manager is part of the app
+ *    the user is already looking at, so it wears the same colours, shapes and (unless overridden below)
+ *    typeface. The one exception is [SafetyCard], which is wrapped back into GameCore's own
+ *    [MaterialTheme] by the caller: a plugin that supplies an unreadable theme must not be able to
+ *    hide the switch that stops it. That is also why "Use GameCore's own theme" has no `enabled`
+ *    argument: it is always tappable, and `resetToDefaultTheme` is defined as clearing a selection
+ *    rather than writing anything that could fail.
  *  - **The safety card comes first, above the list.** A user who arrives here because something is
  *    wrong should not have to scroll past the plugins to find the switch that stops them.
+ *  - **Search is a lens, not a stored preference.** The query lives only for this visit, filters
+ *    after the chosen order is applied, and never reaches the registry. A blank query returns the
+ *    whole list; a query that matches nothing is drawn as "no matches" rather than "no plugins".
  *  - **The picked file is capped while it is read, not after.** A content URI can be served by any app
  *    on the device, including one that streams forever. The ViewModel's reader copies in chunks and
  *    abandons the read the instant it passes the loader's byte cap, so a hostile or broken provider
@@ -151,6 +161,21 @@ private const val NO_PLUGINS_MESSAGE =
     "A plugin adds a theme, a Pill module or an automation rule, and only what you grant it. Nothing " +
         "is installed yet, so nothing extra is running."
 
+private const val NO_MATCHES_TITLE = "No plugins match"
+
+private const val NO_MATCHES_MESSAGE =
+    "Nothing installed matches every word in the search. Try a plugin name, its id, the developer, or " +
+        "a word from its description."
+
+private const val APPEARANCE_DESCRIPTION =
+    "These controls change the plugin manager, its consent screen and automation history. Colours and " +
+        "shapes still follow the theme the rest of GameCore is wearing; the safety card keeps " +
+        "GameCore's own colours and type so it stays legible."
+
+private const val APPEARANCE_SIZE_DESCRIPTION =
+    "Scales text in this section only, on top of the font size you chose for GameCore. It does not " +
+        "change the rest of the app."
+
 private const val SUSPENDED_GENERIC =
     "GameCore stopped this plugin during this run after it repeatedly failed. Your settings for it are " +
         "untouched."
@@ -165,9 +190,16 @@ fun PluginsScreen(
     onOpenPlugin: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PluginsViewModel = hiltViewModel(),
+    /**
+     * Re-applies GameCore's own theme to one subtree. The root passes its `houseTheme` wrapper here so
+     * the safety card and confirmation dialogs stay legible even while the manager follows a plugin
+     * theme; a preview or a test can leave the default and get the current theme throughout.
+     */
+    safetyTheme: @Composable (@Composable () -> Unit) -> Unit = { content -> content() },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val padded = Modifier.padding(horizontal = ScreenPadding)
+    val visibleRows = state.filteredRows
     var picked by remember { mutableStateOf<Uri?>(null) }
 
     // The picker callback runs on the main thread, so it only records the URI. A cancelled pick returns
@@ -207,12 +239,25 @@ fun PluginsScreen(
         }
 
         item {
-            SafetyCard(
-                killSwitchOn = state.killSwitchOn,
-                activeThemeName = state.activeThemeName,
-                hasAnyActive = state.hasAnyActive,
-                onSetKillSwitch = viewModel::setKillSwitch,
-                onResetTheme = viewModel::resetToDefaultTheme,
+            safetyTheme {
+                SafetyCard(
+                    killSwitchOn = state.killSwitchOn,
+                    activeThemeName = state.activeThemeName,
+                    hasAnyActive = state.hasAnyActive,
+                    onSetKillSwitch = viewModel::setKillSwitch,
+                    onResetTheme = viewModel::resetToDefaultTheme,
+                    modifier = padded,
+                )
+            }
+        }
+
+        item {
+            PluginAppearanceCard(
+                font = state.pluginSectionFont,
+                fontScalePercent = state.pluginSectionFontScalePercent,
+                onFont = viewModel::setPluginSectionFont,
+                onScaleChange = viewModel::setPluginSectionFontScale,
+                onScaleCommit = viewModel::commitPluginSectionFontScale,
                 modifier = padded,
             )
         }
@@ -241,9 +286,17 @@ fun PluginsScreen(
             )
         }
 
-        // Only once there is something to order. A sort control over an empty list is a control that
-        // cannot do anything, and §32's rule covers a choice offered with no list to apply it to.
+        // Only once there is something to search or order. A control over an empty list is a control
+        // that cannot do anything, and §32's rule covers a choice offered with no list to apply it to.
         if (state.hasPlugins) {
+            item {
+                SearchCard(
+                    query = state.searchQuery,
+                    onQueryChange = viewModel::setSearchQuery,
+                    onClear = viewModel::clearSearch,
+                    modifier = padded,
+                )
+            }
             item {
                 SortCard(
                     sort = state.sort,
@@ -276,7 +329,21 @@ fun PluginsScreen(
                 }
             }
 
-            else -> items(state.rows, key = { it.id }) { row ->
+            // A search with no hits is not an empty install. Saying so, and offering the way back to
+            // the full list, keeps the screen from looking like the plugins disappeared.
+            visibleRows.isEmpty() -> item {
+                PlainCard(modifier = padded) {
+                    EmptyState(
+                        icon = Icons.Filled.Search,
+                        title = NO_MATCHES_TITLE,
+                        message = NO_MATCHES_MESSAGE,
+                        actionLabel = "Clear search",
+                        onAction = viewModel::clearSearch,
+                    )
+                }
+            }
+
+            else -> items(visibleRows, key = { it.id }) { row ->
                 PluginCard(
                     row = row,
                     killSwitchOn = state.killSwitchOn,
@@ -294,57 +361,63 @@ fun PluginsScreen(
 
     val pending = state.pendingRemoval
     if (pending != null) {
-        ConfirmDialog(
-            title = "Remove ${pending.name}?",
-            message = "This deletes the plugin's file from this device along with everything it had " +
-                "stored — its permissions, its settings and any data it kept. None of that can be " +
-                "brought back by installing it again.",
-            confirmLabel = "Remove",
-            onConfirm = viewModel::confirmRemove,
-            onDismiss = viewModel::cancelRemove,
-        )
+        safetyTheme {
+            ConfirmDialog(
+                title = "Remove ${pending.name}?",
+                message = "This deletes the plugin's file from this device along with everything it " +
+                    "had stored — its permissions, its settings and any data it kept. None of that " +
+                    "can be brought back by installing it again.",
+                confirmLabel = "Remove",
+                onConfirm = viewModel::confirmRemove,
+                onDismiss = viewModel::cancelRemove,
+            )
+        }
     }
 
     val pendingRollback = state.pendingRollback
     if (pendingRollback != null) {
-        ConfirmDialog(
-            title = "Restore the previous ${pendingRollback.name}?",
-            message = "The version installed now is overwritten by the copy GameCore kept from the " +
-                "install before it. The restored version arrives switched off with its permissions " +
-                "cleared, exactly as a fresh install would; you will need to grant them again if you " +
-                "turn it on.",
-            confirmLabel = "Restore",
-            onConfirm = viewModel::confirmRollback,
-            onDismiss = viewModel::cancelRollback,
-        )
+        safetyTheme {
+            ConfirmDialog(
+                title = "Restore the previous ${pendingRollback.name}?",
+                message = "The version installed now is overwritten by the copy GameCore kept from " +
+                    "the install before it. The restored version arrives switched off with its " +
+                    "permissions cleared, exactly as a fresh install would; you will need to grant " +
+                    "them again if you turn it on.",
+                confirmLabel = "Restore",
+                onConfirm = viewModel::confirmRollback,
+                onDismiss = viewModel::cancelRollback,
+            )
+        }
     }
 
     val preview = state.preview
     if (preview != null) {
-        if (preview.canInstall) {
-            ConfirmDialog(
-                title = if (preview.replacesExisting) {
-                    "Replace ${preview.name}?"
-                } else {
-                    "Install ${preview.name}?"
-                },
-                message = previewSummary(preview),
-                confirmLabel = if (preview.replacesExisting) "Replace" else "Install",
-                onConfirm = viewModel::confirmInstall,
-                onDismiss = viewModel::cancelPreview,
-                isDestructive = false,
-            )
-        } else {
-            // The preview is still shown, because the reason it cannot be installed is the useful part.
-            // There is deliberately no button that would call install anyway.
-            ConfirmDialog(
-                title = "This package cannot be installed",
-                message = previewSummary(preview),
-                confirmLabel = "Close",
-                onConfirm = viewModel::cancelPreview,
-                onDismiss = viewModel::cancelPreview,
-                isDestructive = false,
-            )
+        safetyTheme {
+            if (preview.canInstall) {
+                ConfirmDialog(
+                    title = if (preview.replacesExisting) {
+                        "Replace ${preview.name}?"
+                    } else {
+                        "Install ${preview.name}?"
+                    },
+                    message = previewSummary(preview),
+                    confirmLabel = if (preview.replacesExisting) "Replace" else "Install",
+                    onConfirm = viewModel::confirmInstall,
+                    onDismiss = viewModel::cancelPreview,
+                    isDestructive = false,
+                )
+            } else {
+                // The preview is still shown, because the reason it cannot be installed is the useful
+                // part. There is deliberately no button that would call install anyway.
+                ConfirmDialog(
+                    title = "This package cannot be installed",
+                    message = previewSummary(preview),
+                    confirmLabel = "Close",
+                    onConfirm = viewModel::cancelPreview,
+                    onDismiss = viewModel::cancelPreview,
+                    isDestructive = false,
+                )
+            }
         }
     }
 }
@@ -418,6 +491,107 @@ private fun SafetyCard(
             // back — and resetting to the built-in theme is a no-op when it is already in force.
             Button(onClick = onResetTheme) { Text("Use GameCore's own theme") }
         }
+    }
+}
+
+/**
+ * The manager's search field.
+ *
+ * Filtering is live: every keystroke narrows [PluginsUiState.filteredRows], and there is no submit
+ * action to miss. The field is deliberately not persisted — see [PluginsUiState.searchQuery] — and
+ * the clear button only exists when there is something to clear, so it is never a dead target.
+ */
+@Composable
+private fun SearchCard(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Search",
+        modifier = modifier,
+        subtitle = "Find an installed plugin",
+        icon = Icons.Filled.Search,
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Search plugins") },
+            placeholder = { Text("Name, id, developer or description") },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = if (query.isNotEmpty()) {
+                {
+                    IconButton(onClick = onClear) {
+                        Icon(Icons.Filled.Clear, contentDescription = "Clear search")
+                    }
+                }
+            } else {
+                null
+            },
+        )
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Text(
+            text = "Every word you type has to match. Search covers names, ids, developers, " +
+                "descriptions and version names.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * The plugin section's own face and text size.
+ *
+ * These are host preferences, not plugin data: they are stored in [AppSettings], normalised on read
+ * and write, and applied by [com.gamecore.ui.theme.PluginSectionTheme] as a nested typography override.
+ * The card is inside the section, so the user can see the chosen face before leaving the screen.
+ */
+@Composable
+private fun PluginAppearanceCard(
+    font: PluginSectionFont,
+    fontScalePercent: Int,
+    onFont: (PluginSectionFont) -> Unit,
+    onScaleChange: (Int) -> Unit,
+    onScaleCommit: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Plugin appearance",
+        modifier = modifier,
+        subtitle = "Font and text size for this section",
+        icon = Icons.Filled.FormatSize,
+    ) {
+        Text(
+            text = APPEARANCE_DESCRIPTION,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Text(
+            text = "FONT",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ChoiceRow(
+            options = PluginSectionFont.entries.toList(),
+            selected = font,
+            onSelect = onFont,
+            label = { it.label },
+            perRow = 3,
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        SliderRow(
+            title = "Font size",
+            value = fontScalePercent,
+            range = AppSettings.MIN_PLUGIN_SECTION_FONT_SCALE..AppSettings.MAX_PLUGIN_SECTION_FONT_SCALE,
+            onValueChange = onScaleChange,
+            valueLabel = "$fontScalePercent%",
+            description = APPEARANCE_SIZE_DESCRIPTION,
+            onValueChangeFinished = onScaleCommit,
+        )
     }
 }
 

@@ -302,6 +302,67 @@ class PluginsStateTest {
         }
     }
 
+    // ---------------------------------------------------------------- search is a lens over the rows
+
+    private fun searchableRows(): List<PluginRow> = rowsOf(
+        installed(
+            manifest(
+                id = "com.example.thermal",
+                name = "Thermal Desk",
+                developer = "Ada",
+                description = "Reads temperatures and fan speeds.",
+            ),
+        ),
+        installed(
+            manifest(
+                id = "com.example.pixel",
+                name = "Pixel Interface",
+                versionName = "2.0",
+                developer = "Bob",
+                description = "A blocky theme with a Minecraft feel.",
+            ),
+        ),
+        installed(
+            manifest(
+                id = "com.example.night",
+                name = "Night Shift",
+                developer = "Ada",
+                description = "Dims the screen after sunset.",
+            ),
+        ),
+    )
+
+    @Test
+    fun `search matches name id developer description and version name`() {
+        val rows = searchableRows()
+        assertEquals(listOf("com.example.thermal"), filterRows(rows, "thermal").map { it.id })
+        assertEquals(listOf("com.example.night"), filterRows(rows, "com.example.night").map { it.id })
+        assertEquals(listOf("com.example.thermal", "com.example.night"), filterRows(rows, "ada").map { it.id })
+        assertEquals(listOf("com.example.pixel"), filterRows(rows, "blocky").map { it.id })
+        assertEquals(listOf("com.example.pixel"), filterRows(rows, "2.0").map { it.id })
+    }
+
+    @Test
+    fun `search is case-insensitive and requires every word`() {
+        val rows = searchableRows()
+        assertEquals(listOf("com.example.pixel"), filterRows(rows, "MINECRAFT").map { it.id })
+        // Both terms are present, but in different fields: the row still matches.
+        assertEquals(listOf("com.example.night"), filterRows(rows, "ada sunset").map { it.id })
+        // One term that no row carries means no match, rather than an OR search returning everything.
+        assertTrue(filterRows(rows, "ada minecraft").isEmpty())
+    }
+
+    @Test
+    fun `a blank search keeps every row and a miss is not an empty install`() {
+        val rows = searchableRows()
+        assertEquals(rows, filterRows(rows, "   "))
+        val noMatch = PluginsUiState(isLoaded = true, rows = rows, searchQuery = "nothing-like-this")
+        assertTrue(noMatch.hasPlugins)
+        assertTrue(noMatch.hasSearchQuery)
+        assertTrue(noMatch.filteredRows.isEmpty())
+        assertEquals(rows, noMatch.copy(searchQuery = "").filteredRows)
+    }
+
     @Test
     fun `a row carries what the sort needs from the manifest and the package`() {
         val row = rowFor(

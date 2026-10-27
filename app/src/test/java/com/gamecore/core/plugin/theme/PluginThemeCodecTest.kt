@@ -71,6 +71,18 @@ class PluginThemeCodecTest {
     }
 
     @Test
+    fun `the added font ids parse as their enum values`() {
+        val cursive = PluginThemeCodec.decode(
+            minimal.replace("\"font\":\"system\"", "\"font\":\"cursive\""),
+        ) as PluginThemeCodec.Result.Parsed
+        val minecraft = PluginThemeCodec.decode(
+            minimal.replace("\"font\":\"system\"", "\"font\":\"minecraft\""),
+        ) as PluginThemeCodec.Result.Parsed
+        assertEquals(PluginTheme.Font.CURSIVE, cursive.theme.font)
+        assertEquals(PluginTheme.Font.MINECRAFT, minecraft.theme.font)
+    }
+
+    @Test
     fun `an unknown font is rejected`() {
         val bad = minimal.replace("\"font\":\"system\"", "\"font\":\"comic-sans-from-url\"")
         val r = PluginThemeCodec.decode(bad) as PluginThemeCodec.Result.Rejected

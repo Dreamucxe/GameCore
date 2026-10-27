@@ -88,6 +88,39 @@ class SettingsLogicTest {
         assertEquals("130%", uiScaleLabel(130))
     }
 
+    // -------------------------------------------------------------------- plugin section typography
+
+    @Test
+    fun `the plugin section defaults to the theme's own face and size`() {
+        val defaults = AppSettings()
+        assertEquals(PluginSectionFont.THEME, defaults.pluginSectionFont)
+        assertEquals(100, defaults.pluginSectionFontScalePercent)
+    }
+
+    @Test
+    fun `the plugin section scale is clamped on read as well as write`() {
+        assertEquals(
+            AppSettings.MIN_PLUGIN_SECTION_FONT_SCALE,
+            AppSettings(pluginSectionFontScalePercent = 1).normalised().pluginSectionFontScalePercent,
+        )
+        assertEquals(
+            AppSettings.MAX_PLUGIN_SECTION_FONT_SCALE,
+            AppSettings(pluginSectionFontScalePercent = 999).normalised().pluginSectionFontScalePercent,
+        )
+        // The chosen face is not a numeric setting; normalising the scale must not reset it.
+        assertEquals(
+            PluginSectionFont.MINECRAFT,
+            AppSettings(pluginSectionFont = PluginSectionFont.MINECRAFT)
+                .normalised()
+                .pluginSectionFont,
+        )
+    }
+
+    @Test
+    fun `every plugin section face has a visible name`() {
+        PluginSectionFont.entries.forEach { assertTrue(it.name, it.label.isNotBlank()) }
+    }
+
     // ------------------------------------------------------------------------------ custom accent
 
     @Test

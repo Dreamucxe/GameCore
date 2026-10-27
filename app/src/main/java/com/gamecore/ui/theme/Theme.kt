@@ -275,3 +275,35 @@ private fun TextStyle.retune(family: FontFamily, scale: Float, weight: FontWeigh
     fontSize = if (fontSize.isSpecified) fontSize * scale else fontSize,
     lineHeight = if (lineHeight.isSpecified) lineHeight * scale else lineHeight,
 )
+
+/**
+ * The same ramp with an optional family override and an additional text-only scale.
+ *
+ * Used by [PluginSectionTheme] rather than by the whole app. Unlike [withTypography] this does not
+ * flatten weights: the plugin section keeps the current theme's hierarchy and only changes the face
+ * and the size. A null [family] keeps each role's existing family, which is how "Theme" means
+ * "leave the current theme's typography alone" rather than "switch to the platform default".
+ */
+internal fun Typography.withPluginSectionType(family: FontFamily?, scale: Float): Typography = Typography(
+    displayLarge = displayLarge.retuneSection(family, scale),
+    displayMedium = displayMedium.retuneSection(family, scale),
+    displaySmall = displaySmall.retuneSection(family, scale),
+    headlineLarge = headlineLarge.retuneSection(family, scale),
+    headlineMedium = headlineMedium.retuneSection(family, scale),
+    headlineSmall = headlineSmall.retuneSection(family, scale),
+    titleLarge = titleLarge.retuneSection(family, scale),
+    titleMedium = titleMedium.retuneSection(family, scale),
+    titleSmall = titleSmall.retuneSection(family, scale),
+    bodyLarge = bodyLarge.retuneSection(family, scale),
+    bodyMedium = bodyMedium.retuneSection(family, scale),
+    bodySmall = bodySmall.retuneSection(family, scale),
+    labelLarge = labelLarge.retuneSection(family, scale),
+    labelMedium = labelMedium.retuneSection(family, scale),
+    labelSmall = labelSmall.retuneSection(family, scale),
+)
+
+private fun TextStyle.retuneSection(family: FontFamily?, scale: Float): TextStyle = copy(
+    fontFamily = family ?: fontFamily,
+    fontSize = if (fontSize.isSpecified) fontSize * scale else fontSize,
+    lineHeight = if (lineHeight.isSpecified) lineHeight * scale else lineHeight,
+)

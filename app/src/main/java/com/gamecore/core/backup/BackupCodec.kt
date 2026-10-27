@@ -279,6 +279,8 @@ object BackupCodec {
         put("theme", s.theme.name)
         put("accent", s.accent.name)
         put("uiScalePercent", s.uiScalePercent)
+        put("pluginSectionFont", s.pluginSectionFont.name)
+        put("pluginSectionFontScalePercent", s.pluginSectionFontScalePercent)
         put("useDynamicColour", s.useDynamicColour)
         put("useCustomAccent", s.useCustomAccent)
         if (s.customAccentArgb != null) put("customAccentArgb", s.customAccentArgb)
@@ -674,6 +676,11 @@ object BackupCodec {
             theme = enumByName(o.optString("theme"), d.theme),
             accent = enumByName(o.optString("accent"), d.accent),
             uiScalePercent = o.optInt("uiScalePercent", d.uiScalePercent),
+            pluginSectionFont = enumByName(o.optString("pluginSectionFont"), d.pluginSectionFont),
+            pluginSectionFontScalePercent = o.optInt(
+                "pluginSectionFontScalePercent",
+                d.pluginSectionFontScalePercent,
+            ),
             useDynamicColour = o.optBoolean("useDynamicColour", d.useDynamicColour),
             useCustomAccent = o.optBoolean("useCustomAccent", d.useCustomAccent),
             customAccentArgb = if (o.has("customAccentArgb") && !o.isNull("customAccentArgb")) {

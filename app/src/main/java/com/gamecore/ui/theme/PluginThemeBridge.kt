@@ -24,7 +24,7 @@ import kotlin.math.roundToInt
  * [com.gamecore.core.plugin.theme.PluginThemeCodec] has already made the values *well-formed* —
  * every colour a valid ARGB int, the radius inside [PluginTheme.MIN_CORNER_DP]..
  * [PluginTheme.MAX_CORNER_DP], the scale inside [PluginTheme.MIN_UI_SCALE]..
- * [PluginTheme.MAX_UI_SCALE], the font one of a bundled four. What a codec cannot judge is
+ * [PluginTheme.MAX_UI_SCALE], the font one of the known set. What a codec cannot judge is
  * whether the *combination* is usable. That is this file's job, and these are the decisions
  * behind it:
  *
@@ -292,13 +292,14 @@ fun PluginTheme.resolvedUiScalePercent(hostScalePercent: Int): Int =
         .coerceIn(MIN_RESOLVED_SCALE_PERCENT, MAX_RESOLVED_SCALE_PERCENT)
 
 /**
- * The plugin's font choice as one of the four system families.
+ * The plugin's font choice as a Compose family.
  *
- * **No font file is loaded, and none can be.** The package format has no font entry type —
+ * **A plugin still cannot ship a font file.** The package format has no font entry type —
  * [com.gamecore.core.plugin.PluginPackageLoader] admits `manifest.json`, the declared section
- * files, `previews/` and `assets/` images, and refuses everything else — so a theme names a
- * family the device already has or nothing at all. That keeps a plugin away from the font
- * resolver entirely, and it keeps this function pure.
+ * files, `previews/` and `assets/` images, and refuses everything else — so a theme names one of
+ * the families GameCore itself bundles or a platform family. [PluginTheme.Font.MINECRAFT] is the
+ * one bundled face, a pixel font inspired by Minecraft; it is not the proprietary Minecraft
+ * typeface and the theme card does not claim otherwise.
  *
  * Two mappings are worth stating. [PluginTheme.Font.SYSTEM] resolves to [FontFamily.Default]
  * rather than [FontFamily.SansSerif]: `Default` is whatever the device's own default face is,
@@ -308,12 +309,7 @@ fun PluginTheme.resolvedUiScalePercent(hostScalePercent: Int): Int =
  * the default on every device while claiming otherwise, which is the overstatement §24 forbids;
  * the plugin screen describes the font by the family it actually gets.
  */
-fun PluginTheme.toFontFamily(): FontFamily = when (font) {
-    PluginTheme.Font.SYSTEM -> FontFamily.Default
-    PluginTheme.Font.ROUNDED -> FontFamily.SansSerif
-    PluginTheme.Font.MONO -> FontFamily.Monospace
-    PluginTheme.Font.SERIF -> FontFamily.Serif
-}
+fun PluginTheme.toFontFamily(): FontFamily = GameCoreFontFamilies.of(font)
 
 /**
  * The ink to draw on [backdrop]: the plugin's [supplied] colour when it is legible there, and a

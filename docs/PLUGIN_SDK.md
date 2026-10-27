@@ -165,7 +165,7 @@ theme {
     onSurface = "#F2E9FF"
     accent = "#00E5FF"
     cornerRadiusDp = 4       // 0..48
-    font = ThemeFonts.MONO   // system | rounded | mono | serif
+    font = ThemeFonts.MONO   // system | rounded | mono | serif | cursive | minecraft
     uiScale = 1.0            // 0.8..1.4
 }
 ```

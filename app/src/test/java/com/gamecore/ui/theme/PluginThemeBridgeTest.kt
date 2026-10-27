@@ -8,6 +8,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gamecore.core.common.ContrastMath
+import com.gamecore.core.model.PluginSectionFont
 import com.gamecore.core.plugin.theme.PluginTheme
 import com.gamecore.core.plugin.theme.PluginThemeRoles
 import com.gamecore.core.plugin.theme.PluginThemeTypography
@@ -352,8 +353,8 @@ class PluginThemeBridgeTest {
     fun `each bundled font maps to a family of its own`() {
         val families = PluginTheme.Font.entries.map { theme(font = it).toFontFamily() }
 
-        // Four entries and four distinct families: a mapping that sent two of them to the same family
-        // would make one of the four selectable and indistinguishable from another.
+        // Every entry and every distinct family: a mapping that sent two of them to the same family
+        // would make one of the choices selectable and indistinguishable from another.
         assertEquals(PluginTheme.Font.entries.size, families.size)
         assertEquals(families.size, families.distinct().size)
     }
@@ -367,6 +368,27 @@ class PluginThemeBridgeTest {
         assertEquals(FontFamily.SansSerif, theme(font = PluginTheme.Font.ROUNDED).toFontFamily())
         assertEquals(FontFamily.Monospace, theme(font = PluginTheme.Font.MONO).toFontFamily())
         assertEquals(FontFamily.Serif, theme(font = PluginTheme.Font.SERIF).toFontFamily())
+        assertEquals(FontFamily.Cursive, theme(font = PluginTheme.Font.CURSIVE).toFontFamily())
+        assertEquals(GameCoreFontFamilies.minecraft, theme(font = PluginTheme.Font.MINECRAFT).toFontFamily())
+    }
+
+    @Test
+    fun `the section's theme choice keeps the current face instead of forcing the platform default`() {
+        assertEquals(null, GameCoreFontFamilies.of(PluginSectionFont.THEME))
+        assertEquals(FontFamily.Default, GameCoreFontFamilies.of(PluginSectionFont.SYSTEM))
+        assertEquals(GameCoreFontFamilies.minecraft, GameCoreFontFamilies.of(PluginSectionFont.MINECRAFT))
+    }
+
+    @Test
+    fun `the section type override changes the face and scales both size and line height`() {
+        val base = androidx.compose.material3.Typography()
+        val scaled = base.withPluginSectionType(FontFamily.Monospace, 1.25f)
+
+        assertEquals(FontFamily.Monospace, scaled.bodyMedium.fontFamily)
+        assertEquals(base.bodyMedium.fontSize * 1.25f, scaled.bodyMedium.fontSize)
+        assertEquals(base.bodyMedium.lineHeight * 1.25f, scaled.bodyMedium.lineHeight)
+        // A null family means "leave the current theme's face alone", not "use the platform default".
+        assertEquals(base.bodyMedium.fontFamily, base.withPluginSectionType(null, 1f).bodyMedium.fontFamily)
     }
 
     // ---------------------------------------------------------------------------- the transition

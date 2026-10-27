@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.core.common.TextSanitizer
+import com.gamecore.core.model.AppSettings
+import com.gamecore.core.model.PluginSectionFont
 import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.InstallOutcome
 import com.gamecore.core.plugin.PluginOrigin
@@ -13,6 +15,7 @@ import com.gamecore.core.plugin.PluginPreviewResult
 import com.gamecore.core.plugin.PluginPreviewState
 import com.gamecore.core.plugin.PluginRegistry
 import com.gamecore.core.plugin.RollbackOutcome
+import com.gamecore.data.preferences.SecurePreferenceStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +71,7 @@ import javax.inject.Inject
 @HiltViewModel
 class PluginsViewModel @Inject constructor(
     private val registry: PluginRegistry,
+    private val preferences: SecurePreferenceStore,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -84,6 +88,14 @@ class PluginsViewModel @Inject constructor(
         val previewError: String? = null,
         val pendingRemoval: PluginRow? = null,
         val pendingRollback: PluginRow? = null,
+        val searchQuery: String = "",
+        /**
+         * The value under the font-size slider while the finger is down.
+         *
+         * Null means the stored setting is authoritative. The store is written once, on
+         * `onValueChangeFinished`, so dragging does not perform an encrypted write per frame.
+         */
+        val pluginFontScaleDraft: Int? = null,
     )
 
     /**
@@ -109,16 +121,25 @@ class PluginsViewModel @Inject constructor(
      */
     private val sort = MutableStateFlow(PluginSort.NAME)
 
-    val state: StateFlow<PluginsUiState> = combine(fromRegistry, transient, sort) { observed, own, order ->
+    val state: StateFlow<PluginsUiState> = combine(
+        fromRegistry,
+        transient,
+        sort,
+        preferences.settings,
+    ) { observed, own, order, settings ->
         observed.copy(
             rows = sortedRows(observed.rows, order),
             sort = order,
+            searchQuery = own.searchQuery,
             message = own.message,
             preview = own.preview,
             isPreviewing = own.previewing,
             previewError = own.previewError,
             pendingRemoval = own.pendingRemoval,
             pendingRollback = own.pendingRollback,
+            pluginSectionFont = settings.pluginSectionFont,
+            pluginSectionFontScalePercent = own.pluginFontScaleDraft
+                ?: settings.pluginSectionFontScalePercent,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, PluginsUiState())
 
@@ -252,6 +273,62 @@ class PluginsViewModel @Inject constructor(
      */
     fun setSort(order: PluginSort) {
         sort.value = order
+    }
+
+    /**
+     * Records the search text.
+     *
+     * Only the length and line breaks are changed here. The field is a filter over strings that have
+     * already been sanitised into [PluginRow]s, not a value that is stored or handed to a plugin, so
+     * trimming it as the user types would delete the space between two words and make a two-term
+     * search impossible to enter. A pasted newline becomes a space for the same reason: the field is
+     * single-line, and a newline in the query would be invisible.
+     */
+    fun setSearchQuery(query: String) {
+        val cleaned = query
+            .replace('\n', ' ')
+            .replace('\r', ' ')
+            .replace('\t', ' ')
+            .take(MAX_SEARCH_QUERY_LENGTH)
+        transient.update { it.copy(searchQuery = cleaned) }
+    }
+
+    fun clearSearch() {
+        transient.update { it.copy(searchQuery = "") }
+    }
+
+    /**
+     * Changes the plugin section's face.
+     *
+     * The store normalises and persists; the new value reaches the screen through
+     * [SecurePreferenceStore.settings], so this method never writes a local copy that could disagree
+     * with what was saved. [PluginSectionFont.THEME] is a real choice, not a reset button, and is
+     * stored like every other one.
+     */
+    fun setPluginSectionFont(font: PluginSectionFont) {
+        preferences.updateSettings { it.copy(pluginSectionFont = font) }
+    }
+
+    /**
+     * Moves the draft under the slider without writing the encrypted store on every frame.
+     *
+     * The draft is part of [Transient] so it survives registry emissions and dialog changes; the
+     * screen reads it from [state] exactly like a stored value, which is what lets the thumb move
+     * smoothly while the file stays untouched until [commitPluginSectionFontScale].
+     */
+    fun setPluginSectionFontScale(percent: Int) {
+        val clamped = percent.coerceIn(
+            AppSettings.MIN_PLUGIN_SECTION_FONT_SCALE,
+            AppSettings.MAX_PLUGIN_SECTION_FONT_SCALE,
+        )
+        transient.update { it.copy(pluginFontScaleDraft = clamped) }
+    }
+
+    /** Writes the value the finger left behind and hands authority back to the store. */
+    fun commitPluginSectionFontScale() {
+        val draft = transient.value.pluginFontScaleDraft ?: return
+        preferences.updateSettings { it.copy(pluginSectionFontScalePercent = draft) }
+        transient.update { it.copy(pluginFontScaleDraft = null) }
     }
 
     // ------------------------------------------------------------------------------- previewing
@@ -457,6 +534,9 @@ class PluginsViewModel @Inject constructor(
     private companion object {
 
         const val READ_CHUNK_BYTES = 8 * 1024
+
+        /** Long enough for a package id or a phrase, short enough that the filter stays cheap. */
+        const val MAX_SEARCH_QUERY_LENGTH = 80
 
         const val TOO_LARGE_NOTE =
             "That file is larger than a plugin package is allowed to be, so GameCore stopped reading " +

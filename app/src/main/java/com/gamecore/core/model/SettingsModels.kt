@@ -22,6 +22,27 @@ data class AppSettings(
     val useDynamicColour: Boolean = false,
 
     /**
+     * The typeface used by the plugin manager, its consent screen and automation history.
+     *
+     * [PluginSectionFont.THEME] is the default and means "leave the current theme's own face alone",
+     * so selecting a plugin theme still changes the plugin section. The other choices are a local
+     * override for the one section a user may need to read while a theme is making the rest of the
+     * app hard to use. It is stored as an enum name, so an older build that has never heard of a
+     * newer choice reads it as [PluginSectionFont.THEME] rather than failing.
+     */
+    val pluginSectionFont: PluginSectionFont = PluginSectionFont.THEME,
+
+    /**
+     * An additional text-only scale for the plugin section, as a percentage.
+     *
+     * Separate from [uiScalePercent] on purpose: the global scale moves the whole interface, while
+     * this one only changes type in the plugin manager. It is applied on top of whatever scale the
+     * current theme and [uiScalePercent] already resolved, so turning it up never cancels the
+     * accessibility setting the user chose for the rest of the app.
+     */
+    val pluginSectionFontScalePercent: Int = 100,
+
+    /**
      * Use [customAccentArgb] instead of one of the eight [AccentChoice] swatches.
      *
      * A flag rather than a magic enum entry: the palette stays a clean, ordered eight, and "custom" is a
@@ -512,6 +533,10 @@ data class AppSettings(
      */
     fun normalised(): AppSettings = copy(
         uiScalePercent = uiScalePercent.coerceIn(MIN_UI_SCALE, MAX_UI_SCALE),
+        pluginSectionFontScalePercent = pluginSectionFontScalePercent.coerceIn(
+            MIN_PLUGIN_SECTION_FONT_SCALE,
+            MAX_PLUGIN_SECTION_FONT_SCALE,
+        ),
         detectionIntervalMillis = detectionIntervalMillis
             .coerceIn(MIN_DETECTION_INTERVAL, MAX_DETECTION_INTERVAL),
         sampleIntervalMillis = sampleIntervalMillis
@@ -555,6 +580,17 @@ data class AppSettings(
     companion object {
         const val MIN_UI_SCALE = 85
         const val MAX_UI_SCALE = 130
+
+        /**
+         * The plugin section's own type-scale bounds.
+         *
+         * Narrower than the global scale at the top and with the same floor at the bottom: this is
+         * a readability aid on top of a theme, not a second whole-interface scale. At 140% a long
+         * plugin description still wraps in the card it was measured for, and at 85% the section
+         * does not become smaller than the user has already proved they can read.
+         */
+        const val MIN_PLUGIN_SECTION_FONT_SCALE = 85
+        const val MAX_PLUGIN_SECTION_FONT_SCALE = 140
 
         /**
          * The wallpaper scrim's bounds, as a percentage of the scheme background laid over the image.
@@ -688,6 +724,24 @@ enum class ThemeChoice(val label: String) {
     DARK("Dark"),
     LIGHT("Light"),
     AMOLED("AMOLED black"),
+}
+
+/**
+ * The typeface choices offered by the plugin section's appearance card.
+ *
+ * [THEME] is not a family of its own: it is the instruction to keep the current theme's typography,
+ * including a plugin theme's face. The rest are explicit overrides, and [MINECRAFT] is the bundled
+ * pixel face rather than a request to load a font from a plugin package. Stored by enum name in
+ * settings; an unknown name reads back as [THEME].
+ */
+enum class PluginSectionFont(val label: String) {
+    THEME("Theme"),
+    SYSTEM("System"),
+    ROUNDED("Rounded"),
+    MONO("Mono"),
+    SERIF("Serif"),
+    CURSIVE("Cursive"),
+    MINECRAFT("Minecraft"),
 }
 
 /**

@@ -36,12 +36,20 @@ data class PluginTheme(
     val glitch: PluginGlitch? = null,
     val glass: PluginGlass? = null,
 ) {
-    /** The fonts GameCore bundles. A theme may pick one; it cannot ship a font file. */
+    /**
+     * The font names a theme may pick. A theme cannot ship a font file of its own.
+     *
+     * [MINECRAFT] is a bundled pixel face inspired by Minecraft, not the proprietary Minecraft
+     * typeface. [CURSIVE] is the platform's own cursive family, which means the exact face varies
+     * by device; the theme card names the choice, not a guarantee of a particular glyph set.
+     */
     enum class Font(val id: String) {
         SYSTEM("system"),
         ROUNDED("rounded"),
         MONO("mono"),
-        SERIF("serif");
+        SERIF("serif"),
+        CURSIVE("cursive"),
+        MINECRAFT("minecraft");
 
         companion object {
             private val byId = entries.associateBy { it.id }

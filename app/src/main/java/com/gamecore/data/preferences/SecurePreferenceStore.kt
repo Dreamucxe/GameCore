@@ -23,6 +23,7 @@ import com.gamecore.core.model.HuntFilter
 import com.gamecore.core.model.OverlayConfig
 import com.gamecore.core.model.PanelLayoutStyle
 import com.gamecore.core.model.PillDisplayMode
+import com.gamecore.core.model.PluginSectionFont
 import com.gamecore.core.model.QuickTriggerAction
 import com.gamecore.core.model.QuickTriggerMethod
 import com.gamecore.core.model.QuickTriggerSettings
@@ -232,6 +233,15 @@ class SecurePreferenceStore @Inject constructor(
             theme = enumOrDefault(p.getString(KEY_THEME, null), ThemeChoice.entries, defaults.theme),
             accent = enumOrDefault(p.getString(KEY_ACCENT, null), AccentChoice.entries, defaults.accent),
             uiScalePercent = p.getInt(KEY_UI_SCALE, defaults.uiScalePercent),
+            pluginSectionFont = enumOrDefault(
+                p.getString(KEY_PLUGIN_SECTION_FONT, null),
+                PluginSectionFont.entries,
+                defaults.pluginSectionFont,
+            ),
+            pluginSectionFontScalePercent = p.getInt(
+                KEY_PLUGIN_SECTION_FONT_SCALE,
+                defaults.pluginSectionFontScalePercent,
+            ),
             useDynamicColour = p.getBoolean(KEY_DYNAMIC_COLOUR, defaults.useDynamicColour),
             useCustomAccent = p.getBoolean(KEY_USE_CUSTOM_ACCENT, defaults.useCustomAccent),
             // 0 is the "no custom colour picked" sentinel: normalised() forces every stored custom accent
@@ -365,6 +375,8 @@ class SecurePreferenceStore @Inject constructor(
             putString(KEY_THEME, value.theme.name)
             putString(KEY_ACCENT, value.accent.name)
             putInt(KEY_UI_SCALE, value.uiScalePercent)
+            putString(KEY_PLUGIN_SECTION_FONT, value.pluginSectionFont.name)
+            putInt(KEY_PLUGIN_SECTION_FONT_SCALE, value.pluginSectionFontScalePercent)
             putBoolean(KEY_DYNAMIC_COLOUR, value.useDynamicColour)
             putBoolean(KEY_USE_CUSTOM_ACCENT, value.useCustomAccent)
             putInt(KEY_CUSTOM_ACCENT, value.customAccentArgb ?: 0)
@@ -1154,6 +1166,8 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_THEME = "theme"
         const val KEY_ACCENT = "accent"
         const val KEY_UI_SCALE = "ui_scale"
+        const val KEY_PLUGIN_SECTION_FONT = "plugin_section_font"
+        const val KEY_PLUGIN_SECTION_FONT_SCALE = "plugin_section_font_scale"
         const val KEY_DYNAMIC_COLOUR = "dynamic_colour"
         const val KEY_USE_CUSTOM_ACCENT = "use_custom_accent"
         const val KEY_CUSTOM_ACCENT = "custom_accent_argb"

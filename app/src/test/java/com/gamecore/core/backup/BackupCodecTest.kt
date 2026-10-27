@@ -27,6 +27,7 @@ import com.gamecore.core.model.HudWidget
 import com.gamecore.core.model.OverlayConfig
 import com.gamecore.core.model.PanelLayoutStyle
 import com.gamecore.core.model.PillDisplayMode
+import com.gamecore.core.model.PluginSectionFont
 import com.gamecore.core.model.ThemeChoice
 import org.json.JSONArray
 import org.json.JSONObject
@@ -75,6 +76,8 @@ class BackupCodecTest {
             accent = AccentChoice.VIOLET,
             showBuiltInHomeStats = false,
             uiScalePercent = 110,
+            pluginSectionFont = PluginSectionFont.MINECRAFT,
+            pluginSectionFontScalePercent = 125,
             animations = AnimationsMode.OFF,
             hapticsEnabled = false,
             latencyHost = "8.8.8.8",
@@ -393,6 +396,20 @@ class BackupCodecTest {
         val decoded = restored(envelope(""","settings":{"app":{"theme":"NEON","accent":"MAGENTA"}}"""))
         assertEquals(ThemeChoice.SYSTEM, decoded.settings!!.theme)
         assertEquals(AccentChoice.CYAN, decoded.settings!!.accent)
+    }
+
+    @Test
+    fun `an unknown plugin section font falls back to the theme and a bad scale is clamped`() {
+        val decoded = restored(
+            envelope(
+                ""","settings":{"app":{"pluginSectionFont":"COMIC_SANS","pluginSectionFontScalePercent":999}}""",
+            ),
+        )
+        assertEquals(PluginSectionFont.THEME, decoded.settings!!.pluginSectionFont)
+        assertEquals(
+            AppSettings.MAX_PLUGIN_SECTION_FONT_SCALE,
+            decoded.settings!!.pluginSectionFontScalePercent,
+        )
     }
 
     @Test

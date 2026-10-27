@@ -79,7 +79,7 @@ import com.gamecore.plugin.sdk.plugin
  * This is a monochrome visual theme plus two host automations, and nothing more. The data-only host
  * has no surface for Nothing's signature hardware, so none of it is driven or implied:
  *  - **No Glyph LEDs.** There is no plugin API that addresses the rear Glyph lights, so they are untouched.
- *  - **No Ndot / dot-matrix font.** A theme names one of GameCore's four bundled faces; it cannot ship a
+ *  - **No Ndot / dot-matrix font.** A theme names one of GameCore's known faces; it cannot ship a
  *    font file, so `mono` is the nearest face, not the real Nothing display type.
  *  - **No Nothing-brand hardware, logo or trademarked marks** are shipped or required — the red is a
  *    plain `#D71921` fill, named here only to describe the palette, and no artwork of any kind is bundled.

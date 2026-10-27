@@ -388,7 +388,7 @@ class ThemeBuilder {
     var accent: String = "#4F8CFF"
     var cornerRadiusDp: Int = 16
 
-    /** One of [ThemeFonts]. A theme names a font the app already bundles; it cannot ship one. */
+    /** One of [ThemeFonts]. A theme names a bundled or platform face; it cannot ship a font file. */
     var font: String = ThemeFonts.SYSTEM
 
     /** A density nudge in [ThemeBounds.MIN_UI_SCALE]..[ThemeBounds.MAX_UI_SCALE]. */

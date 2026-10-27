@@ -1,6 +1,7 @@
 package com.gamecore.ui.plugins
 
 import com.gamecore.core.common.TextSanitizer
+import com.gamecore.core.model.PluginSectionFont
 import com.gamecore.core.plugin.Compatibility
 import com.gamecore.core.plugin.InstallOutcome
 import com.gamecore.core.plugin.InstalledPlugin
@@ -123,6 +124,14 @@ data class PluginsUiState(
     val isLoaded: Boolean = false,
     val rows: List<PluginRow> = emptyList(),
     val sort: PluginSort = PluginSort.NAME,
+    /**
+     * The text in the manager's search field.
+     *
+     * Transient screen state, not a stored preference: a user who searched for "thermal" yesterday
+     * should not open the manager today and find most of their plugins missing. It is held beside
+     * [sort] because it is a lens over the same rows, not a fact about any plugin.
+     */
+    val searchQuery: String = "",
     val killSwitchOn: Boolean = false,
     val activeThemeName: String? = null,
     val message: String? = null,
@@ -135,8 +144,24 @@ data class PluginsUiState(
     val pendingRemoval: PluginRow? = null,
     /** A rollback the user has been asked to confirm. */
     val pendingRollback: PluginRow? = null,
+    /** The plugin section's own typeface, or [PluginSectionFont.THEME]. */
+    val pluginSectionFont: PluginSectionFont = PluginSectionFont.THEME,
+    /** The plugin section's additional text-only scale, as a percentage. */
+    val pluginSectionFontScalePercent: Int = 100,
 ) {
     val hasPlugins: Boolean get() = rows.isNotEmpty()
+
+    /** True when the search field has something that can narrow the list. */
+    val hasSearchQuery: Boolean get() = searchQuery.isNotBlank()
+
+    /**
+     * The rows the screen draws: sorted once by the ViewModel, then narrowed by [searchQuery].
+     *
+     * Filtering happens after sorting so a search result keeps the order the user chose. [hasPlugins]
+     * deliberately stays based on [rows], because "no plugins are installed" and "nothing matches this
+     * search" are different states and the screen must be able to say which one it is showing.
+     */
+    val filteredRows: List<PluginRow> get() = filterRows(rows, searchQuery)
 
     /**
      * Whether any plugin is running *right now*.
@@ -223,6 +248,41 @@ internal fun sortedRows(rows: List<PluginRow>, sort: PluginSort): List<PluginRow
                 .thenComparator { a, b -> compareVersionNames(b.versionName, a.versionName) }
                 .then(byNameThenId),
         )
+    }
+}
+
+/**
+ * Narrows the manager's rows to those matching every word in [query].
+ *
+ * The haystack is the fields a user can actually see or has learned to identify a plugin by: name,
+ * id, developer, summary and version name. Matching is case-insensitive and all terms must match, so
+ * "thermal overlay" finds a plugin whose description contains both words rather than every plugin
+ * containing either one. A blank query returns the list unchanged — an empty search is not a filter
+ * that hides everything, and the screen relies on that to tell "nothing installed" from "no match".
+ *
+ * The version *code* is deliberately not searchable. It is an implementation number, and a search for
+ * "44" should not return half the list because every package happened to share a build number.
+ */
+internal fun filterRows(rows: List<PluginRow>, query: String): List<PluginRow> {
+    val terms = query.trim()
+        .lowercase(Locale.ROOT)
+        .split(' ', '\t', '\n')
+        .filter { it.isNotBlank() }
+    if (terms.isEmpty()) return rows
+
+    return rows.filter { row ->
+        val haystack = buildString {
+            append(row.name)
+            append('\n')
+            append(row.id)
+            append('\n')
+            append(row.developer)
+            append('\n')
+            append(row.summary)
+            append('\n')
+            append(row.versionName)
+        }.lowercase(Locale.ROOT)
+        terms.all { it in haystack }
     }
 }
 

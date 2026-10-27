@@ -72,14 +72,14 @@ import com.gamecore.ui.components.colour
 /**
  * The screen where a user sees exactly what one plugin asks for and grants it item by item.
  *
- * This is a **core safety screen, and a plugin can never restyle it**: the screen where you take a
- * permission away must not be drawn by the thing you are taking it from. Every colour, font and shape
- * below comes from GameCore's own theme even when the plugin on screen is the one currently supplying
- * the app's appearance — because a plugin that could draw this screen could draw a switch that looks
- * off while it is on, grey out its own Remove button, or hide the advanced-access row entirely, and
- * the user would have no way to tell. The one piece of plugin styling here is a *preview* of its
- * theme's colours, rendered as four labelled swatches inside a card, which is a sample rather than a
- * surrender.
+ * This is a **core safety screen**: the screen where you take a permission away must not be drawn by
+ * the thing you are taking it from. The page follows the current theme, but every consent control —
+ * the enable switch, the permission switches, Save/Revoke, the theme reset and Remove — is wrapped
+ * back into GameCore's own theme by `safetyTheme`. A plugin that could draw those controls could draw
+ * a switch that looks off while it is on, grey out its own Remove button, or hide the advanced-access
+ * row entirely, and the user would have no way to tell. The one piece of plugin styling here is a
+ * *preview* of its theme's colours, rendered as four labelled swatches inside a card, which is a
+ * sample rather than a surrender.
  *
  * Everything the plugin says about itself — its name, its developer, its description, its scope names
  * — is **untrusted input rendered as data**. It goes through [TextSanitizer] on the way to the screen
@@ -113,6 +113,13 @@ fun PluginDetailScreen(
     onOpenScreen: (pluginId: String, screenId: String) -> Unit = { _, _ -> },
     onOpenAutomationHistory: (pluginId: String) -> Unit = {},
     viewModel: PluginDetailViewModel = hiltViewModel(),
+    /**
+     * Re-applies GameCore's own theme to the consent controls. The rest of the screen follows the
+     * current theme, but the switches that grant or revoke access, the save/revoke pair, the theme
+     * reset and the removal dialog stay in the house theme so an unreadable or misleading plugin
+     * theme cannot make them hard to operate.
+     */
+    safetyTheme: @Composable (@Composable () -> Unit) -> Unit = { content -> content() },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -197,39 +204,45 @@ fun PluginDetailScreen(
         item { IdentityCard(plugin = plugin, plan = plan, modifier = padded) }
 
         item {
-            RunCard(
-                enabled = state.enabled,
-                canTurnOn = state.canTurnOn,
-                inForce = canEnable(plan, draft, saved),
-                suspended = state.suspended,
-                summary = summary,
-                unsaved = unsaved,
-                onSetEnabled = viewModel::setEnabled,
-                modifier = padded,
-            )
+            safetyTheme {
+                RunCard(
+                    enabled = state.enabled,
+                    canTurnOn = state.canTurnOn,
+                    inForce = canEnable(plan, draft, saved),
+                    suspended = state.suspended,
+                    summary = summary,
+                    unsaved = unsaved,
+                    onSetEnabled = viewModel::setEnabled,
+                    modifier = padded,
+                )
+            }
         }
 
         item {
-            PermissionsCard(
-                manifest = plugin.manifest,
-                plan = plan,
-                advancedAccess = draft.advancedAccess,
-                grantedScopesOf = { permission -> draft.scopes(permission) },
-                isGranted = { permission -> draft.has(permission) },
-                onTogglePermission = viewModel::togglePermission,
-                onToggleScope = viewModel::toggleScope,
-                modifier = padded,
-            )
+            safetyTheme {
+                PermissionsCard(
+                    manifest = plugin.manifest,
+                    plan = plan,
+                    advancedAccess = draft.advancedAccess,
+                    grantedScopesOf = { permission -> draft.scopes(permission) },
+                    isGranted = { permission -> draft.has(permission) },
+                    onTogglePermission = viewModel::togglePermission,
+                    onToggleScope = viewModel::toggleScope,
+                    modifier = padded,
+                )
+            }
         }
 
         if (plan.requestsAdvancedAccess) {
             item {
-                AdvancedAccessCard(
-                    advancedAccess = draft.advancedAccess,
-                    inert = state.requiresAdvancedAccess,
-                    onSetAdvancedAccess = viewModel::setAdvancedAccess,
-                    modifier = padded,
-                )
+                safetyTheme {
+                    AdvancedAccessCard(
+                        advancedAccess = draft.advancedAccess,
+                        inert = state.requiresAdvancedAccess,
+                        onSetAdvancedAccess = viewModel::setAdvancedAccess,
+                        modifier = padded,
+                    )
+                }
             }
         }
 
@@ -238,12 +251,14 @@ fun PluginDetailScreen(
         // believe a tap is needed before their revoke counts.
         if (unsaved) {
             item {
-                UnsavedCard(
-                    summary = summary,
-                    onSave = viewModel::saveGrant,
-                    onRevert = viewModel::revertGrant,
-                    modifier = padded,
-                )
+                safetyTheme {
+                    UnsavedCard(
+                        summary = summary,
+                        onSave = viewModel::saveGrant,
+                        onRevert = viewModel::revertGrant,
+                        modifier = padded,
+                    )
+                }
             }
         }
 
@@ -255,13 +270,15 @@ fun PluginDetailScreen(
         // about carrying a theme is exactly the case where the user most needs that button.
         if (PluginSection.THEME in plan.declaredSections || state.isThemeSource) {
             item {
-                ThemeCard(
-                    theme = state.themePreview,
-                    isThemeSource = state.isThemeSource,
-                    onUseThisTheme = viewModel::useThisTheme,
-                    onUseDefaultTheme = viewModel::useDefaultTheme,
-                    modifier = padded,
-                )
+                safetyTheme {
+                    ThemeCard(
+                        theme = state.themePreview,
+                        isThemeSource = state.isThemeSource,
+                        onUseThisTheme = viewModel::useThisTheme,
+                        onUseDefaultTheme = viewModel::useDefaultTheme,
+                        modifier = padded,
+                    )
+                }
             }
         }
 
@@ -320,12 +337,17 @@ fun PluginDetailScreen(
             }
         }
 
-        item { RemovalCard(plugin = plugin, onAskRemove = viewModel::askRemove, modifier = padded) }
+        item {
+            safetyTheme {
+                RemovalCard(plugin = plugin, onAskRemove = viewModel::askRemove, modifier = padded)
+            }
+        }
 
         item {
             NoteBanner(
-                text = "GameCore draws this screen itself. A plugin cannot change how it looks, which " +
-                    "switch it shows, or what any of them says.",
+                text = "GameCore draws this screen itself. A plugin cannot change what it says or " +
+                    "which switches it shows. The colours follow the theme you selected; the consent " +
+                    "and removal controls keep GameCore's own colours.",
                 tone = Tone.Muted,
                 icon = Icons.Filled.Shield,
                 modifier = padded,
@@ -334,14 +356,16 @@ fun PluginDetailScreen(
     }
 
     if (state.pendingRemoval) {
-        ConfirmDialog(
-            title = "Remove $name?",
-            message = "Its files, the permissions you granted it, anything it stored and its theme " +
-                "selection are all deleted. Sessions and games it only read are untouched.",
-            confirmLabel = "Remove",
-            onConfirm = viewModel::confirmRemove,
-            onDismiss = viewModel::cancelRemove,
-        )
+        safetyTheme {
+            ConfirmDialog(
+                title = "Remove $name?",
+                message = "Its files, the permissions you granted it, anything it stored and its theme " +
+                    "selection are all deleted. Sessions and games it only read are untouched.",
+                confirmLabel = "Remove",
+                onConfirm = viewModel::confirmRemove,
+                onDismiss = viewModel::cancelRemove,
+            )
+        }
     }
 }
 
@@ -843,8 +867,8 @@ private fun ThemeCard(
         }
         Spacer(modifier = Modifier.height(10.dp))
         Text(
-            text = "Safety screens — this one, permissions, and anything that can stop a plugin — keep " +
-                "GameCore's own styling whatever a theme says.",
+            text = "Consent and removal controls — the permission switches, Save/Revoke, theme reset " +
+                "and Remove — keep GameCore's own styling whatever a theme says.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

@@ -121,6 +121,7 @@ import com.gamecore.ui.shizuku.ShizukuScreen
 import com.gamecore.ui.storage.GameStorageScreen
 import com.gamecore.ui.theme.GameCoreTheme
 import com.gamecore.ui.theme.GlassBackdrop
+import com.gamecore.ui.theme.PluginSectionTheme
 import com.gamecore.ui.theme.WallpaperLayer
 import com.gamecore.ui.tools.ToolsScreen
 import com.gamecore.ui.touch.SamplingMonitorScreen
@@ -274,6 +275,17 @@ fun GameCoreRoot(
                     // and can therefore guarantee the house theme is the house theme — the same
                     // `settings`, with the plugin argument simply absent.
                     houseTheme = { content -> GameCoreTheme(settings) { content() } },
+                    // The plugin section follows the theme the rest of the app is wearing, with only
+                    // its own face and text size layered on top. It is a nested typography override,
+                    // not a second GameCoreTheme, so colours, shapes and the plugin theme's density
+                    // are exactly the ones the shell already resolved.
+                    pluginSectionTheme = { content ->
+                        PluginSectionTheme(
+                            font = settings.pluginSectionFont,
+                            fontScalePercent = settings.pluginSectionFontScalePercent,
+                            content = content,
+                        )
+                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .systemBarsPadding()
@@ -406,9 +418,11 @@ private fun FloatingNavBar(
  * [aimLabEnabled] is the one thing here that changes the *shape* of the graph rather than what a route
  * resolves to. See the section at the bottom for why the switch is applied here and nowhere else.
  *
- * [houseTheme] wraps a subtree back into GameCore's own appearance from inside the themed shell. Only
- * the two plugin screens use it, and the reason is at their registration: a plugin must not paint the
- * screens that turn it off.
+ * [houseTheme] wraps a subtree back into GameCore's own appearance from inside the themed shell. The
+ * plugin screens now follow the current theme, so it is used for their safety-critical cards and
+ * dialogs rather than for a whole route: a plugin must not paint the controls that turn it off.
+ * [pluginSectionTheme] layers the section's own face and text size over the current theme without
+ * replacing its colours, shapes or density.
  */
 @Composable
 private fun GameCoreNav(
@@ -417,6 +431,7 @@ private fun GameCoreNav(
     aimLabEnabled: Boolean,
     aimLabOrientation: com.gamecore.core.model.AimLabOrientation,
     houseTheme: @Composable (@Composable () -> Unit) -> Unit,
+    pluginSectionTheme: @Composable (@Composable () -> Unit) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val back: () -> Unit = remember(navController) { { navController.back() } }
@@ -617,20 +632,18 @@ private fun GameCoreNav(
             DeveloperScreen(onBack = back)
         }
 
-        // The two plugin screens are deliberately wrapped back into GameCore's OWN theme, re-applied
-        // inside the themed shell. A plugin must not paint the screens that exist to inspect and stop
-        // it: the kill switch, the enable toggle and the remove button are the user's escape hatch, and
-        // an escape hatch styled by the thing it escapes is not one. The bridge already substitutes
-        // illegible ink, so this is not about unreadable text — it is about a theme that is perfectly
-        // readable and still makes the "off" affordance look inert, or makes a suspended plugin look
-        // healthy. Nesting is cheap and total: `GameCoreTheme` is a pure function of its inputs, so
-        // calling it again with no plugin theme rebuilds the house colours, shapes, type and the user's
-        // own UI scale for this subtree, and restores the status-bar icons to match on the way in.
+        // The plugin manager follows the current theme, because it is part of the app the user is
+        // already looking at. The safety card and confirmation dialogs inside it are wrapped back into
+        // the house theme by `PluginsScreen` itself: a plugin must not paint the controls that turn it
+        // off, and an escape hatch styled by the thing it escapes is not one. The bridge already
+        // substitutes illegible ink, so this is not only about unreadable text — it is about a theme
+        // that is perfectly readable and still makes the "off" affordance look inert.
         composable(Destination.Plugins.route) {
-            houseTheme {
+            pluginSectionTheme {
                 PluginsScreen(
                     onBack = back,
                     onOpenPlugin = { id -> navController.push(Destination.PluginDetail.routeFor(id)) },
+                    safetyTheme = houseTheme,
                 )
             }
         }
@@ -643,7 +656,7 @@ private fun GameCoreNav(
             route = Destination.PluginDetail.route,
             arguments = listOf(navArgument(Destination.ARG_PLUGIN_ID) { type = NavType.StringType }),
         ) {
-            houseTheme {
+            pluginSectionTheme {
                 PluginDetailScreen(
                     onBack = back,
                     onOpenScreen = { pluginId, screenId ->
@@ -652,30 +665,31 @@ private fun GameCoreNav(
                     onOpenAutomationHistory = { pluginId ->
                         navController.push(Destination.PluginAutomationHistory.routeFor(pluginId))
                     },
+                    safetyTheme = houseTheme,
                 )
             }
         }
 
         // The host's own record of automations that have run on the device, reachable from a plugin's
-        // detail screen only while that plugin holds the automation-history read scope. Wrapped in
-        // `houseTheme` for the same reason as the detail screen above: it is GameCore drawing GameCore's
-        // own records, and the plugin — handed none of the entries — must not be able to restyle the
-        // page that tells the user what ran on their device. The id is a validated package grammar that
-        // cannot carry a slash; the route itself handles an id that resolves to nothing after a revoke.
+        // detail screen only while that plugin holds the automation-history read scope. It follows the
+        // current theme like the rest of the plugin section; the entries themselves are GameCore's own
+        // records and no plugin is handed any of them. The id is a validated package grammar that cannot
+        // carry a slash; the route itself handles an id that resolves to nothing after a revoke.
         composable(
             route = Destination.PluginAutomationHistory.route,
             arguments = listOf(navArgument(Destination.ARG_PLUGIN_ID) { type = NavType.StringType }),
         ) {
-            houseTheme {
+            pluginSectionTheme {
                 PluginAutomationHistoryRoute(onBack = back)
             }
         }
 
-        // A plugin's own declarative screen is a full navigation destination, and the one plugin
-        // surface deliberately NOT wrapped in `houseTheme`: it is drawn under GameCore's active theme
-        // so a plugin cannot restyle the chrome the user relies on while standing on its content. Two
-        // StringType args, no encoding — both ids are validated grammars that cannot carry a slash.
-        // The route itself handles an id that resolves to nothing (a stale back stack after a revoke).
+        // A plugin's own declarative screen is a full navigation destination, drawn under GameCore's
+        // active theme so a plugin cannot restyle the chrome the user relies on while standing on its
+        // content. It is also the one plugin route that does not take the section's typography override:
+        // this is the plugin's own screen, so its theme's face wins. Two StringType args, no encoding —
+        // both ids are validated grammars that cannot carry a slash. The route itself handles an id
+        // that resolves to nothing (a stale back stack after a revoke).
         composable(
             route = Destination.PluginScreen.route,
             arguments = listOf(
