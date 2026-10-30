@@ -83,6 +83,41 @@ class PluginThemeCodecTest {
     }
 
     @Test
+    fun `the bundled Liquid Glass font ids parse as their enum values`() {
+        val expected = mapOf(
+            "cinzel" to PluginTheme.Font.CINZEL,
+            "comic-neue" to PluginTheme.Font.COMIC_NEUE,
+            "inter" to PluginTheme.Font.INTER,
+            "jetbrains-mono" to PluginTheme.Font.JETBRAINS_MONO,
+            "orbitron" to PluginTheme.Font.ORBITRON,
+            "press-start-2p" to PluginTheme.Font.PRESS_START_2P,
+            "rubik" to PluginTheme.Font.RUBIK,
+            "vt323" to PluginTheme.Font.VT323,
+        )
+        for ((id, font) in expected) {
+            val r = PluginThemeCodec.decode(
+                minimal.replace("\"font\":\"system\"", "\"font\":\"$id\""),
+            ) as PluginThemeCodec.Result.Parsed
+            assertEquals(id, font, r.theme.font)
+        }
+    }
+
+    @Test
+    fun `the bundled faces print the name a person would use`() {
+        assertEquals("Cinzel", PluginTheme.Font.CINZEL.displayName)
+        assertEquals("Comic Neue", PluginTheme.Font.COMIC_NEUE.displayName)
+        assertEquals("Inter", PluginTheme.Font.INTER.displayName)
+        assertEquals("JetBrains Mono", PluginTheme.Font.JETBRAINS_MONO.displayName)
+        assertEquals("Orbitron", PluginTheme.Font.ORBITRON.displayName)
+        assertEquals("Press Start 2P", PluginTheme.Font.PRESS_START_2P.displayName)
+        assertEquals("Rubik", PluginTheme.Font.RUBIK.displayName)
+        assertEquals("VT323", PluginTheme.Font.VT323.displayName)
+        // The platform families keep the plain names they have always had.
+        assertEquals("System", PluginTheme.Font.SYSTEM.displayName)
+        assertEquals("Minecraft", PluginTheme.Font.MINECRAFT.displayName)
+    }
+
+    @Test
     fun `an unknown font is rejected`() {
         val bad = minimal.replace("\"font\":\"system\"", "\"font\":\"comic-sans-from-url\"")
         val r = PluginThemeCodec.decode(bad) as PluginThemeCodec.Result.Rejected

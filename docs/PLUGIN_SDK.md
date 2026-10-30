@@ -165,7 +165,7 @@ theme {
     onSurface = "#F2E9FF"
     accent = "#00E5FF"
     cornerRadiusDp = 4       // 0..48
-    font = ThemeFonts.MONO   // system | rounded | mono | serif | cursive | minecraft
+    font = ThemeFonts.MONO   // see ThemeFonts.ALL for the full set
     uiScale = 1.0            // 0.8..1.4
 }
 ```
@@ -190,7 +190,9 @@ installs, its switch turns on, and the app looks exactly as it did. Nothing on
 screen distinguishes that from a theme the user never selected.
 
 A theme **cannot ship a font file.** `font` names a face GameCore already
-bundles. Safety surfaces — the permission prompts, the plugin manager, the kill
+bundles: `system`, `rounded`, `mono`, `serif`, `cursive`, `minecraft`, `cinzel`,
+`comic-neue`, `inter`, `jetbrains-mono`, `orbitron`, `press-start-2p`, `rubik`
+and `vt323`. Safety surfaces — the permission prompts, the plugin manager, the kill
 switch — render in GameCore's own theme regardless of what is active; a plugin
 does not get to paint the screen that turns it off.
 

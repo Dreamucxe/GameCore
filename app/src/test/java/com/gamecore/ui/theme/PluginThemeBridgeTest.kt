@@ -373,6 +373,23 @@ class PluginThemeBridgeTest {
     }
 
     @Test
+    fun `the bundled Liquid Glass font themes map to their own bundled faces`() {
+        val expected = mapOf(
+            PluginTheme.Font.CINZEL to GameCoreFontFamilies.cinzel,
+            PluginTheme.Font.COMIC_NEUE to GameCoreFontFamilies.comicNeue,
+            PluginTheme.Font.INTER to GameCoreFontFamilies.inter,
+            PluginTheme.Font.JETBRAINS_MONO to GameCoreFontFamilies.jetbrainsMono,
+            PluginTheme.Font.ORBITRON to GameCoreFontFamilies.orbitron,
+            PluginTheme.Font.PRESS_START_2P to GameCoreFontFamilies.pressStart2P,
+            PluginTheme.Font.RUBIK to GameCoreFontFamilies.rubik,
+            PluginTheme.Font.VT323 to GameCoreFontFamilies.vt323,
+        )
+        for ((font, family) in expected) {
+            assertEquals(font.id, family, theme(font = font).toFontFamily())
+        }
+    }
+
+    @Test
     fun `the section's theme choice keeps the current face instead of forcing the platform default`() {
         assertEquals(null, GameCoreFontFamilies.of(PluginSectionFont.THEME))
         assertEquals(FontFamily.Default, GameCoreFontFamilies.of(PluginSectionFont.SYSTEM))

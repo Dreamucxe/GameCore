@@ -126,6 +126,29 @@ adb install -r GameCore.apk
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
 
+## What's new in 4.0
+
+<p><strong>This release is about the app's typeface becoming part of the theme</strong> — the Liquid Glass packages now change it everywhere — and about installing plugins in batches.</p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🔤 Whole-app font themes</h3>
+      <p>Nine Liquid Glass font packages now change the typeface everywhere, not only inside the plugin section. Each package is a complete theme that keeps the glass material and Control Center slider while applying one bundled face across the app; switching packages switches the whole-app font.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🔡 Eight more bundled faces</h3>
+      <p>Orbitron, Press Start 2P, VT323, Comic Neue, Cinzel, Inter, JetBrains Mono and Rubik join the Minecraft-inspired pixel face. All eight are open-source families bundled with their SIL Open Font License texts, so the font packages stay data-only and ship no font files of their own.</p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <h3>📥 Pick several plugin files at once</h3>
+      <p>The plugin manager's file picker now takes more than one <code>.gcplugin</code> at a time. Every file you pick is read and shown to you first — which ones can be installed, and why the others cannot — and one confirmation installs them all. Installing still grants nothing: every permission starts off, and each one is yours to approve on that plugin's own screen.</p>
+    </td>
+  </tr>
+</table>
+
 ## What's new in 3.6.0
 
 <p><strong>This release is about the app changing with the day and with the game in front of you</strong> — without taking away the choices you made by hand.</p>

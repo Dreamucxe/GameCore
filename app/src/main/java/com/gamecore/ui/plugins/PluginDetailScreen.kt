@@ -853,7 +853,7 @@ private fun ThemeCard(
             KeyValueRow(label = "Mode", value = if (theme.dark) "Dark" else "Light")
             KeyValueRow(
                 label = "Font",
-                value = theme.font.id.replaceFirstChar { it.uppercaseChar() },
+                value = theme.font.displayName,
             )
             KeyValueRow(label = "Corner radius", value = "${theme.cornerRadiusDp}dp")
             KeyValueRow(label = "Text and spacing", value = "${(theme.uiScale * 100).toInt()}%")

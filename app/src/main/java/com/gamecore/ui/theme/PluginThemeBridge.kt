@@ -297,9 +297,10 @@ fun PluginTheme.resolvedUiScalePercent(hostScalePercent: Int): Int =
  * **A plugin still cannot ship a font file.** The package format has no font entry type —
  * [com.gamecore.core.plugin.PluginPackageLoader] admits `manifest.json`, the declared section
  * files, `previews/` and `assets/` images, and refuses everything else — so a theme names one of
- * the families GameCore itself bundles or a platform family. [PluginTheme.Font.MINECRAFT] is the
- * one bundled face, a pixel font inspired by Minecraft; it is not the proprietary Minecraft
- * typeface and the theme card does not claim otherwise.
+ * the families GameCore itself bundles or a platform family. Nine faces are bundled:
+ * [PluginTheme.Font.MINECRAFT] — a pixel font inspired by Minecraft, not the proprietary Minecraft
+ * typeface — and the eight open-source families the Liquid Glass font themes name. The theme card
+ * names the family it actually gets.
  *
  * Two mappings are worth stating. [PluginTheme.Font.SYSTEM] resolves to [FontFamily.Default]
  * rather than [FontFamily.SansSerif]: `Default` is whatever the device's own default face is,

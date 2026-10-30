@@ -2,6 +2,7 @@ package com.gamecore.ui.plugins
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamecore.core.common.TextSanitizer
@@ -84,6 +85,8 @@ class PluginsViewModel @Inject constructor(
     private data class Transient(
         val message: String? = null,
         val preview: PluginPreviewState? = null,
+        /** Several packages previewed together, waiting for one yes. Never set with [preview]. */
+        val batch: PluginBatchPreview? = null,
         val previewing: Boolean = false,
         val previewError: String? = null,
         val pendingRemoval: PluginRow? = null,
@@ -106,6 +109,17 @@ class PluginsViewModel @Inject constructor(
      * and dismissal; it is never held after the operation.
      */
     private var previewBytes: ByteArray? = null
+
+    /**
+     * The bytes behind a batch preview, one slot per picked file.
+     *
+     * A null slot is a file that was refused or could not be read: there are no bytes for it, and
+     * [confirmInstallBatch] skips that slot rather than installing something else in its place. The
+     * list is index-aligned with [PluginBatchPreview.entries] on purpose — a batch of six files with
+     * the third one bad must still install the first two and the last three, and a filtered list
+     * would quietly shift them.
+     */
+    private var batchBytes: List<ByteArray?> = emptyList()
 
     private val fromRegistry = MutableStateFlow(PluginsUiState())
 
@@ -133,6 +147,7 @@ class PluginsViewModel @Inject constructor(
             searchQuery = own.searchQuery,
             message = own.message,
             preview = own.preview,
+            batch = own.batch,
             isPreviewing = own.previewing,
             previewError = own.previewError,
             pendingRemoval = own.pendingRemoval,
@@ -424,6 +439,147 @@ class PluginsViewModel @Inject constructor(
         }
     }
 
+    // ------------------------------------------------------------------------------ batch pick
+
+    /**
+     * Reads several picked documents and previews them all. **Nothing is installed here.**
+     *
+     * The same trust boundary as [previewInstall], applied to each file in turn: the read is capped
+     * while streaming on [Dispatchers.IO], and the bytes go through the registry's own preview
+     * before the user is asked about any of them. A file that cannot be read, or that the loader
+     * refuses, becomes an entry that says why — it is never dropped, because a file the user chose
+     * is a thing they asked about.
+     *
+     * One file at a time, on purpose. Several content providers are other apps, and a provider that
+     * stalls would otherwise hold the whole batch hostage; reading them in order means one slow file
+     * costs that file, not the other five.
+     */
+    fun previewInstallBatch(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            previewBytes = null
+            batchBytes = emptyList()
+            transient.update {
+                it.copy(
+                    preview = null,
+                    batch = null,
+                    previewing = true,
+                    previewError = null,
+                    message = null,
+                )
+            }
+            val entries = mutableListOf<PluginBatchEntry>()
+            val payloads = mutableListOf<ByteArray?>()
+            for (uri in uris) {
+                val fileName = displayName(uri)
+                when (val read = withContext(Dispatchers.IO) { readPicked(uri) }) {
+                    is PickedPackage.Read -> when (val result = registry.previewInstall(read.bytes)) {
+                        is PluginPreviewResult.Ready -> {
+                            val preview = result.preview
+                            val error = when {
+                                preview.replacingBundled -> BUNDLED_ID_NOTE
+                                !preview.plan.compatibility.isRunnable -> preview.plan.compatibility.reason
+                                else -> null
+                            }
+                            entries += PluginBatchEntry(
+                                fileName = fileName,
+                                pluginName = TextSanitizer.sanitizeName(preview.name)
+                                    .ifBlank { preview.id },
+                                versionName = TextSanitizer.sanitizeName(preview.versionName),
+                                error = error,
+                            )
+                            payloads += if (error == null) read.bytes else null
+                        }
+
+                        is PluginPreviewResult.Refused -> {
+                            entries += PluginBatchEntry(fileName = fileName, error = messageFor(result))
+                            payloads += null
+                        }
+
+                        is PluginPreviewResult.Unavailable -> {
+                            entries += PluginBatchEntry(fileName = fileName, error = result.message)
+                            payloads += null
+                        }
+                    }
+
+                    PickedPackage.TooLarge -> {
+                        entries += PluginBatchEntry(fileName = fileName, error = TOO_LARGE_NOTE)
+                        payloads += null
+                    }
+
+                    PickedPackage.Unreadable -> {
+                        entries += PluginBatchEntry(fileName = fileName, error = UNREADABLE_NOTE)
+                        payloads += null
+                    }
+                }
+            }
+            batchBytes = payloads
+            transient.update {
+                it.copy(previewing = false, batch = PluginBatchPreview(entries))
+            }
+        }
+    }
+
+    /**
+     * Installs every file in the batch that can be installed, and reports what happened to each.
+     *
+     * The bytes installed are the bytes that were previewed, entry for entry, so the user's yes is to
+     * the packages they were shown. A file that failed to preview has no bytes and is skipped; a file
+     * that previewed but fails to install is reported with the registry's own reason.
+     */
+    fun confirmInstallBatch() {
+        val batch = transient.value.batch ?: return
+        if (!batch.hasInstallable) {
+            cancelBatch()
+            return
+        }
+        val payloads = batchBytes
+        batchBytes = emptyList()
+        transient.update {
+            it.copy(batch = null, previewing = false, previewError = null, message = null)
+        }
+        viewModelScope.launch {
+            val results = batch.entries.mapIndexedNotNull { index, entry ->
+                val bytes = payloads.getOrNull(index) ?: return@mapIndexedNotNull null
+                val outcome = registry.install(bytes, PluginOrigin.SIDELOADED)
+                PluginBatchResult(
+                    fileName = entry.fileName,
+                    pluginName = entry.pluginName ?: entry.fileName,
+                    outcome = outcome,
+                )
+            }
+            transient.update { it.copy(message = batchInstallMessage(results)) }
+        }
+    }
+
+    /** Throws the batch away. The bytes are dropped with it; nothing was written. */
+    fun cancelBatch() {
+        batchBytes = emptyList()
+        transient.update {
+            it.copy(batch = null, previewing = false, previewError = null)
+        }
+    }
+
+    /**
+     * The name the picker gave a file.
+     *
+     * The provider's own display name when it offers one, and the URI's last segment otherwise. It is
+     * a name from outside the app — any file on the device can be picked — so it is sanitised before
+     * it reaches a `Text`, and capped, because a provider is free to call a file whatever it likes.
+     */
+    private fun displayName(uri: Uri): String {
+        val queried = runCatching {
+            context.contentResolver
+                .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { cursor ->
+                    val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+                }
+        }.getOrNull()
+        val raw = queried?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment ?: "the file you picked"
+        return TextSanitizer.sanitizeName(raw, MAX_FILE_NAME_LENGTH)
+    }
+
     // ------------------------------------------------------------------------------- rollback
 
     /** Asks before replacing the installed bytes with the stored previous version. */
@@ -545,6 +701,18 @@ class PluginsViewModel @Inject constructor(
         const val UNREADABLE_NOTE =
             "That file could not be read. The app it came from may have withdrawn access, or the file " +
                 "may have been moved since you picked it. Nothing was installed."
+
+        /**
+         * Why a package whose id belongs to a bundled plugin cannot be installed.
+         *
+         * The same sentence the single-file preview uses, so a batch and a single pick cannot give two
+         * different accounts of the same package.
+         */
+        const val BUNDLED_ID_NOTE =
+            "That id belongs to a plugin bundled inside GameCore, so this package cannot replace it."
+
+        /** A provider's file name is a label, not a sentence: long enough to recognise, short enough to fit. */
+        const val MAX_FILE_NAME_LENGTH = 80
 
         const val NO_PREVIOUS_VERSION =
             "There is no previous version stored for that plugin, so there is nothing to restore."

@@ -1,0 +1,20 @@
+{
+  "minHostVersion": 46,
+  "declares": [
+    "theme",
+    "settings"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "store_data"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Liquid Glass \u2014 JetBrains Mono",
+  "description": "Liquid Glass with the JetBrains Mono typeface applied across the whole app. Includes the Control Center slider for the glass material.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.liquidglass.font.jetbrains_mono",
+  "api": 4,
+  "versionName": "1.0.0",
+  "version": 1
+}

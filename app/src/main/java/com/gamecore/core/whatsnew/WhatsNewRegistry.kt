@@ -35,6 +35,62 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 49,
+            versionName = "4.0",
+            date = "2026-10-30",
+            features = listOf(
+                FeatureNote(
+                    "Whole-app font themes",
+                    "Nine Liquid Glass font packages now change the typeface everywhere, not only " +
+                        "inside the plugin section. Each package is a complete theme that keeps the " +
+                        "glass material and Control Center slider while applying one bundled face " +
+                        "across the app; switching packages switches the whole-app font.",
+                ),
+                FeatureNote(
+                    "Eight more bundled faces",
+                    "Orbitron, Press Start 2P, VT323, Comic Neue, Cinzel, Inter, JetBrains Mono and " +
+                        "Rubik join the Minecraft-inspired pixel face. All eight are open-source " +
+                        "families bundled with their SIL Open Font License texts, so the font " +
+                        "packages stay data-only and ship no font files of their own.",
+                ),
+                FeatureNote(
+                    "Pick several plugin files at once",
+                    "The plugin manager's file picker now takes more than one .gcplugin at a time. " +
+                        "Every file you pick is read and shown to you first — which ones can be " +
+                        "installed, and why the others cannot — and one confirmation installs them " +
+                        "all. Installing still grants nothing: every permission starts off.",
+                ),
+            ),
+        ),
+        ReleaseNote(
+            versionCode = 47,
+            versionName = "3.9.0",
+            date = "2026-10-30",
+            features = listOf(
+                FeatureNote(
+                    "Whole-app font themes",
+                    "Nine Liquid Glass font packages now change the typeface everywhere, not only " +
+                        "inside the plugin section. Each package is a complete theme that keeps the " +
+                        "glass material and Control Center slider while applying one bundled face " +
+                        "across the app; switching packages switches the whole-app font.",
+                ),
+                FeatureNote(
+                    "Eight more bundled faces",
+                    "Orbitron, Press Start 2P, VT323, Comic Neue, Cinzel, Inter, JetBrains Mono and " +
+                        "Rubik join the Minecraft-inspired pixel face. All eight are open-source " +
+                        "families bundled with their SIL Open Font License texts, so the font " +
+                        "packages stay data-only and ship no font files of their own.",
+                ),
+                FeatureNote(
+                    "Pick several plugin files at once",
+                    "The plugin manager's file picker now takes more than one .gcplugin at a time. " +
+                        "Every file you pick is read and shown to you first — which ones can be " +
+                        "installed, and why the others cannot — and one confirmation installs them " +
+                        "all. Installing still grants nothing: every permission starts off.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 44,
             versionName = "3.6.0",
             date = "2026-10-27",

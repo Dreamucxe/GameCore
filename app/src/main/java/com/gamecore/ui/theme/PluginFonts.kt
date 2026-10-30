@@ -15,9 +15,10 @@ import com.gamecore.core.plugin.theme.PluginTheme
  *
  * Kept in one Android-aware file so [PluginThemeBridge] can stay a pure mapping of validated theme
  * values to Compose values, and so the plugin section's own font choice and a plugin's theme font
- * cannot drift apart. The only bundled face is [minecraft]; every other choice is a platform family
- * the device already has, which means an OEM may render it differently and the UI says "System"
- * rather than promising a specific typeface.
+ * cannot drift apart. The bundled faces — [minecraft] plus the eight open-source families added for
+ * the Liquid Glass font themes — render identically on every device; the platform families
+ * ([FontFamily.SansSerif] and friends) may vary by OEM, which is why the UI names the family rather
+ * than promising a specific typeface.
  */
 internal object GameCoreFontFamilies {
 
@@ -29,6 +30,30 @@ internal object GameCoreFontFamilies {
      */
     val minecraft: FontFamily = FontFamily(Font(R.font.monocraft))
 
+    /** Cinzel, a bundled serif face for the Liquid Glass font themes. */
+    val cinzel: FontFamily = FontFamily(Font(R.font.cinzel))
+
+    /** Comic Neue, a bundled rounded hand-lettered face for the Liquid Glass font themes. */
+    val comicNeue: FontFamily = FontFamily(Font(R.font.comic_neue))
+
+    /** Inter, a bundled neutral UI face for the Liquid Glass font themes. */
+    val inter: FontFamily = FontFamily(Font(R.font.inter))
+
+    /** JetBrains Mono, a bundled monospaced face for the Liquid Glass font themes. */
+    val jetbrainsMono: FontFamily = FontFamily(Font(R.font.jetbrains_mono))
+
+    /** Orbitron, a bundled geometric display face for the Liquid Glass font themes. */
+    val orbitron: FontFamily = FontFamily(Font(R.font.orbitron))
+
+    /** Press Start 2P, a bundled arcade pixel face for the Liquid Glass font themes. */
+    val pressStart2P: FontFamily = FontFamily(Font(R.font.press_start_2p))
+
+    /** Rubik Light, a bundled rounded sans face for the Liquid Glass font themes. */
+    val rubik: FontFamily = FontFamily(Font(R.font.rubik))
+
+    /** VT323, a bundled terminal face for the Liquid Glass font themes. */
+    val vt323: FontFamily = FontFamily(Font(R.font.vt323))
+
     /** The family a plugin theme names, or the platform default for "system". */
     fun of(font: PluginTheme.Font): FontFamily = when (font) {
         PluginTheme.Font.SYSTEM -> FontFamily.Default
@@ -37,6 +62,14 @@ internal object GameCoreFontFamilies {
         PluginTheme.Font.SERIF -> FontFamily.Serif
         PluginTheme.Font.CURSIVE -> FontFamily.Cursive
         PluginTheme.Font.MINECRAFT -> minecraft
+        PluginTheme.Font.CINZEL -> cinzel
+        PluginTheme.Font.COMIC_NEUE -> comicNeue
+        PluginTheme.Font.INTER -> inter
+        PluginTheme.Font.JETBRAINS_MONO -> jetbrainsMono
+        PluginTheme.Font.ORBITRON -> orbitron
+        PluginTheme.Font.PRESS_START_2P -> pressStart2P
+        PluginTheme.Font.RUBIK -> rubik
+        PluginTheme.Font.VT323 -> vt323
     }
 
     /**

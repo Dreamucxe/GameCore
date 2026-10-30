@@ -487,4 +487,115 @@ class PluginsStateTest {
         assertTrue(text, text.contains("Nothing was installed"))
         assertTrue(text, text.contains("ENOSPC"))
     }
+
+    // ------------------------------------------------------------------- the batch pick
+
+    @Test
+    fun `a batch preview names every file that was picked`() {
+        val batch = PluginBatchPreview(
+            listOf(
+                PluginBatchEntry(
+                    fileName = "thermaldesk.gcplugin",
+                    pluginName = "Thermal Desk",
+                    versionName = "1.0.0",
+                ),
+                PluginBatchEntry(
+                    fileName = "broken.gcplugin",
+                    error = "That file is not a plugin package.",
+                ),
+            ),
+        )
+        val text = batchPreviewSummary(batch)
+
+        // Every picked file is named: a file the user chose is a thing they asked about, and a summary
+        // that quietly dropped the broken one would be a lie about what was picked.
+        assertTrue(text, text.contains("Thermal Desk"))
+        assertTrue(text, text.contains("1.0.0"))
+        assertTrue(text, text.contains("broken.gcplugin"))
+        assertTrue(text, text.contains("not a plugin package"))
+
+        assertEquals(2, batch.totalCount)
+        assertEquals(1, batch.installableCount)
+        assertEquals(1, batch.failedCount)
+        assertTrue(batch.hasInstallable)
+    }
+
+    @Test
+    fun `a batch of files that cannot be installed says so and offers nothing`() {
+        val batch = PluginBatchPreview(
+            listOf(
+                PluginBatchEntry(
+                    fileName = "old.gcplugin",
+                    error = "This plugin needs a newer version of GameCore.",
+                ),
+            ),
+        )
+        assertFalse(batch.hasInstallable)
+        assertEquals(0, batch.installableCount)
+
+        val text = batchPreviewSummary(batch)
+        assertTrue(text, text.contains("cannot be installed"))
+        assertTrue(text, text.contains("newer version of GameCore"))
+    }
+
+    @Test
+    fun `the batch summary counts the picked files in the singular and the plural`() {
+        val one = batchPreviewSummary(
+            PluginBatchPreview(listOf(PluginBatchEntry("a.gcplugin", "A", "1.0"))),
+        )
+        val two = batchPreviewSummary(
+            PluginBatchPreview(
+                listOf(
+                    PluginBatchEntry("a.gcplugin", "A", "1.0"),
+                    PluginBatchEntry("b.gcplugin", "B", "1.0"),
+                ),
+            ),
+        )
+        assertTrue(one, one.contains("1 file picked."))
+        assertTrue(two, two.contains("2 files picked."))
+    }
+
+    @Test
+    fun `a batch install names what went in and what did not`() {
+        val text = batchInstallMessage(
+            listOf(
+                PluginBatchResult(
+                    fileName = "thermaldesk.gcplugin",
+                    pluginName = "Thermal Desk",
+                    outcome = InstallOutcome.Installed(installed(manifest(name = "Thermal Desk")), null),
+                ),
+                PluginBatchResult(
+                    fileName = "broken.gcplugin",
+                    pluginName = "broken.gcplugin",
+                    outcome = InstallOutcome.Rejected(PluginPackageLoader.Reason.MALFORMED, null),
+                ),
+            ),
+        )
+        assertTrue(text, text.contains("1 plugin is installed"))
+        assertTrue(text, text.contains("Thermal Desk"))
+        assertTrue(text, text.contains("1 file could not be installed"))
+        assertTrue(text, text.contains("broken.gcplugin"))
+        // The refusal carries the loader's own reason, not a generic "some files failed".
+        assertTrue(text, text.contains("not a plugin package"))
+    }
+
+    @Test
+    fun `a batch install says once that installing grants nothing`() {
+        val text = batchInstallMessage(
+            listOf(
+                PluginBatchResult("a.gcplugin", "A", InstallOutcome.Installed(installed(), null)),
+                PluginBatchResult("b.gcplugin", "B", InstallOutcome.Installed(installed(), null)),
+            ),
+        )
+        assertTrue(text, text.contains("2 plugins are installed"))
+        assertTrue(text, text.contains("A"))
+        assertTrue(text, text.contains("B"))
+        assertTrue(text, text.contains("off"))
+        assertTrue(text, text.contains("permission"))
+    }
+
+    @Test
+    fun `an empty batch says nothing was installed`() {
+        assertEquals("Nothing was installed.", batchInstallMessage(emptyList()))
+    }
 }

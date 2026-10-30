@@ -135,7 +135,9 @@ private const val THEME_RESET_DESCRIPTION =
 private const val INSTALL_DESCRIPTION =
     "A plugin is data, not a program: GameCore reads a .gcplugin file and draws what it describes. It " +
         "runs no code of its own, so it cannot reach the internet, start other apps, or see anything " +
-        "you have not granted it. Installing one grants it nothing — it arrives switched off."
+        "you have not granted it. Installing one grants it nothing — it arrives switched off. You can " +
+        "pick one file or several at once; every file you pick is read and shown to you before anything " +
+        "is written."
 
 /**
  * What each order means, including the one fact a user could otherwise get wrong.
@@ -200,20 +202,22 @@ fun PluginsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val padded = Modifier.padding(horizontal = ScreenPadding)
     val visibleRows = state.filteredRows
-    var picked by remember { mutableStateOf<Uri?>(null) }
+    var picked by remember { mutableStateOf<List<Uri>>(emptyList()) }
 
-    // The picker callback runs on the main thread, so it only records the URI. A cancelled pick returns
-    // null and simply does nothing.
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        picked = uri
+    // The picker callback runs on the main thread, so it only records the URIs. A cancelled pick returns
+    // an empty list and simply does nothing.
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        picked = uris
     }
 
-    // The ViewModel reads the file on IO, validates it and holds the resulting preview. No install call
-    // is made until the user confirms the dialog below, and clearing the URI does not cancel that work.
+    // The ViewModel reads the files on IO, validates them and holds the resulting preview. No install call
+    // is made until the user confirms the dialog below, and clearing the URIs does not cancel that work.
+    // One file keeps the single-package preview; several are previewed together and confirmed at once.
     LaunchedEffect(picked) {
-        val uri = picked ?: return@LaunchedEffect
-        viewModel.previewInstall(uri)
-        picked = null
+        val uris = picked
+        if (uris.isEmpty()) return@LaunchedEffect
+        if (uris.size == 1) viewModel.previewInstall(uris.first()) else viewModel.previewInstallBatch(uris)
+        picked = emptyList()
     }
 
     LazyColumn(
@@ -420,6 +424,38 @@ fun PluginsScreen(
             }
         }
     }
+
+    // A pick of several files: one dialog, one yes, and every file that went wrong named in it.
+    val batch = state.batch
+    if (batch != null) {
+        safetyTheme {
+            if (batch.hasInstallable) {
+                ConfirmDialog(
+                    title = if (batch.installableCount == 1) {
+                        "Install 1 plugin?"
+                    } else {
+                        "Install ${batch.installableCount} plugins?"
+                    },
+                    message = batchPreviewSummary(batch),
+                    confirmLabel = "Install ${batch.installableCount}",
+                    onConfirm = viewModel::confirmInstallBatch,
+                    onDismiss = viewModel::cancelBatch,
+                    isDestructive = false,
+                )
+            } else {
+                // Nothing here can be installed, so there is no button that would try. The reasons are
+                // the useful part, exactly as they are for a single package.
+                ConfirmDialog(
+                    title = "None of these files can be installed",
+                    message = batchPreviewSummary(batch),
+                    confirmLabel = "Close",
+                    onConfirm = viewModel::cancelBatch,
+                    onDismiss = viewModel::cancelBatch,
+                    isDestructive = false,
+                )
+            }
+        }
+    }
 }
 
 /**
@@ -612,7 +648,7 @@ private fun InstallCard(
     SectionCard(
         title = "Install a plugin",
         modifier = modifier,
-        subtitle = "From a .gcplugin file on this device",
+        subtitle = "From one or more .gcplugin files on this device",
         icon = Icons.Filled.Download,
     ) {
         Text(
@@ -623,8 +659,8 @@ private fun InstallCard(
         if (isPreviewing) {
             Spacer(modifier = Modifier.height(Spacing.sm))
             NoteBanner(
-                text = "Reading the package. Nothing has been installed — you will see what it asks " +
-                    "for before anything is written.",
+                text = "Reading the package. Nothing has been installed — you will see what each one " +
+                    "asks for before anything is written.",
                 tone = Tone.Muted,
                 icon = Icons.Filled.Info,
             )
@@ -635,7 +671,7 @@ private fun InstallCard(
         }
         Spacer(modifier = Modifier.height(Spacing.sm))
         ActionRow {
-            Button(onClick = onPick, enabled = !isPreviewing) { Text("Choose a file") }
+            Button(onClick = onPick, enabled = !isPreviewing) { Text("Choose files") }
         }
     }
 }

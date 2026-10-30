@@ -95,6 +95,40 @@ data class PluginRow(
 )
 
 /**
+ * One file in a pick of several.
+ *
+ * [fileName] is what the picker called it — a name from the content provider, so it is attacker-
+ * controlled in the sense that any file on the device can be picked — and is sanitised before it is
+ * shown. [pluginName] and [versionName] are what the package turned out to be, and are null when the
+ * file never became one. [error] is why it cannot be installed: the loader's own reason, or the
+ * host's compatibility verdict. A null [error] with a null [pluginName] is not a state the model
+ * allows — [canInstall] is false for it either way.
+ */
+data class PluginBatchEntry(
+    val fileName: String,
+    val pluginName: String? = null,
+    val versionName: String? = null,
+    val error: String? = null,
+) {
+    /** True when this file is a package the host can install. */
+    val canInstall: Boolean get() = error == null && pluginName != null
+}
+
+/**
+ * A pick of several plugin files, read and previewed but **not** installed.
+ *
+ * Every picked file has an entry, including the ones that failed: a file the user chose is a thing
+ * they asked about, and a summary that silently drops it is the §24 lie. [installableCount] is what
+ * the confirm button counts, and [failedCount] is what the dialog says went wrong.
+ */
+data class PluginBatchPreview(val entries: List<PluginBatchEntry>) {
+    val totalCount: Int get() = entries.size
+    val installableCount: Int get() = entries.count { it.canInstall }
+    val failedCount: Int get() = totalCount - installableCount
+    val hasInstallable: Boolean get() = installableCount > 0
+}
+
+/**
  * How the manager orders its list.
  *
  * The choice is presentational only: the registry's own [com.gamecore.core.plugin.PluginRegistry.installed]
@@ -137,6 +171,14 @@ data class PluginsUiState(
     val message: String? = null,
     /** A validated package waiting for the user's yes. Null means nothing is pending. */
     val preview: PluginPreviewState? = null,
+    /**
+     * Several picked packages, previewed together and waiting for one yes.
+     *
+     * Null when nothing is pending. It is never set at the same time as [preview]: a pick of one file
+     * is previewed the old way, and a pick of several is previewed as a batch, so the screen has one
+     * pending decision at a time.
+     */
+    val batch: PluginBatchPreview? = null,
     /** True while the picked file is being read and parsed. The preview appears only when it ends. */
     val isPreviewing: Boolean = false,
     /** A read or parse failure for the picked file, shown beside the install button. */
@@ -471,6 +513,83 @@ internal fun messageFor(result: PluginPreviewResult): String = when (result) {
         messageFor(InstallOutcome.Rejected(result.reason, result.detail))
 
     is PluginPreviewResult.Unavailable -> result.message
+}
+
+/**
+ * What the batch dialog says before anything is installed.
+ *
+ * One line per picked file, in the order the picker returned them, because a user who chose six files
+ * wants to see which six. A file that can be installed is named by what it is — the plugin's own name
+ * and version — so a mis-named file is obvious before the install rather than after it. A file that
+ * cannot be installed says why, in the loader's or the host's own words.
+ *
+ * The closing sentence is the same one the single-file preview ends on: installing a plugin grants it
+ * nothing, and a batch is not a way to grant a lot of things at once.
+ */
+internal fun batchPreviewSummary(batch: PluginBatchPreview): String = buildString {
+    val picked = if (batch.totalCount == 1) "1 file picked." else "${batch.totalCount} files picked."
+    append(picked)
+    append('\n')
+    batch.entries.forEach { entry ->
+        if (entry.canInstall) {
+            append('\n').append("• ").append(entry.pluginName)
+            entry.versionName?.takeIf { it.isNotBlank() }?.let { append(" (").append(it).append(')') }
+            append(" — ready to install")
+        } else {
+            append('\n').append("• ").append(entry.fileName).append(" — cannot be installed")
+            entry.error?.takeIf { it.isNotBlank() }?.let { append("\n  ").append(it) }
+        }
+    }
+    if (batch.installableCount > 0) {
+        append("\n\nInstalling a plugin does not grant it anything. Every permission starts off, and " +
+            "each one is yours to approve on that plugin's own screen.")
+    }
+}
+
+/**
+ * One file's outcome in a batch install.
+ *
+ * [pluginName] is what the package turned out to be, and is the label the summary uses; [fileName] is
+ * what the picker called it, and is the label used when the install itself failed.
+ */
+data class PluginBatchResult(
+    val fileName: String,
+    val pluginName: String,
+    val outcome: InstallOutcome,
+)
+
+/**
+ * What the manager says after a batch install.
+ *
+ * The two halves are separate sentences because they are separate facts: what went in, and what did
+ * not. A file that failed carries the loader's own reason rather than a generic "some files failed",
+ * because the same reason is the only thing that tells the user whether to fetch the file again or to
+ * give up on it.
+ *
+ * The installed half says the same thing the single-file message says — installed, off, and granting
+ * nothing — once, rather than once per plugin.
+ */
+internal fun batchInstallMessage(results: List<PluginBatchResult>): String {
+    if (results.isEmpty()) return "Nothing was installed."
+    val installed = results.filter { it.outcome is InstallOutcome.Installed }
+    val failed = results.filter { it.outcome !is InstallOutcome.Installed }
+    return buildString {
+        if (installed.isNotEmpty()) {
+            append(if (installed.size == 1) "1 plugin is installed" else "${installed.size} plugins are installed")
+            append(": ")
+            append(installed.joinToString(", ") { it.pluginName })
+            append(". Each one is off and stays off until you grant it the permissions it asks for — " +
+                "installing a plugin is not the same as agreeing to what it wants.")
+        }
+        if (failed.isNotEmpty()) {
+            if (installed.isNotEmpty()) append(' ')
+            append(if (failed.size == 1) "1 file could not be installed" else "${failed.size} files could not be installed")
+            append(": ")
+            failed.forEach { result ->
+                append(result.fileName).append(" — ").append(messageFor(result.outcome)).append(' ')
+            }
+        }
+    }.trim()
 }
 
 /**

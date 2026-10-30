@@ -103,7 +103,46 @@ object ThemeFonts {
     /** A bundled pixel face inspired by Minecraft, not the proprietary Minecraft typeface. */
     const val MINECRAFT = "minecraft"
 
-    val ALL = setOf(SYSTEM, ROUNDED, MONO, SERIF, CURSIVE, MINECRAFT)
+    /** Bundled serif face used by the Liquid Glass font themes. */
+    const val CINZEL = "cinzel"
+
+    /** Bundled hand-lettered face used by the Liquid Glass font themes. */
+    const val COMIC_NEUE = "comic-neue"
+
+    /** Bundled neutral UI face used by the Liquid Glass font themes. */
+    const val INTER = "inter"
+
+    /** Bundled monospaced face used by the Liquid Glass font themes. */
+    const val JETBRAINS_MONO = "jetbrains-mono"
+
+    /** Bundled geometric display face used by the Liquid Glass font themes. */
+    const val ORBITRON = "orbitron"
+
+    /** Bundled arcade pixel face used by the Liquid Glass font themes. */
+    const val PRESS_START_2P = "press-start-2p"
+
+    /** Bundled rounded sans face used by the Liquid Glass font themes. */
+    const val RUBIK = "rubik"
+
+    /** Bundled terminal face used by the Liquid Glass font themes. */
+    const val VT323 = "vt323"
+
+    val ALL = setOf(
+        SYSTEM,
+        ROUNDED,
+        MONO,
+        SERIF,
+        CURSIVE,
+        MINECRAFT,
+        CINZEL,
+        COMIC_NEUE,
+        INTER,
+        JETBRAINS_MONO,
+        ORBITRON,
+        PRESS_START_2P,
+        RUBIK,
+        VT323,
+    )
 }
 
 /**
