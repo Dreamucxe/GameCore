@@ -74,19 +74,21 @@ font and licence text is inside the APK.
 
 ## 5. Archive every version to Download
 
-Each version is archived to `/sdcard/Download` together with its source, so a build
-on disk can always be traced back to the tree that produced it:
+Each version is archived to `/sdcard/Download` **in its own folder**, together with
+its source, so a build on disk can always be traced back to the tree that produced
+it and Download's root never fills up with loose files:
 
 ```
-/sdcard/Download/GameCore-<version>.apk
-/sdcard/Download/GameCore-<version>.apk.sha256
-/sdcard/Download/GameCore-<version>-source.zip
-/sdcard/Download/GameCore-<version>-source.zip.sha256
+/sdcard/Download/GameCore-<version>/
+    GameCore-<version>.apk
+    GameCore-<version>.apk.sha256
+    GameCore-<version>-source.zip
+    GameCore-<version>-source.zip.sha256
+    SHA256SUMS.txt
+    fonts/                          (when dist/liquidglass-font-* exist)
+        liquidglass-font-*.gcplugin
+        SHA256SUMS.txt
 ```
-
-The source zip is the project tree **without** build output and **without the signing
-material** — `keystore.properties`, `release.keystore`, `local.properties`, `build/`,
-`.gradle/` and `.kotlin/` are all excluded. The keystore never leaves this machine.
 
 ```bash
 cd /root/GameCore-4.0
@@ -97,9 +99,14 @@ The source zip is the project tree **without** build output and **without the si
 material** — `keystore.properties`, `release.keystore`, `local.properties`, `build/`,
 `.gradle/` and `.kotlin/` are all excluded. The keystore never leaves this machine.
 
-The script does the whole job: it copies the APK, writes the source zip with
-`python3`'s `zipfile` (no `zip` binary needed), and writes a `.sha256` beside each
+The script does the whole job: it creates the version folder, copies the APK,
+writes the source zip with `python3`'s `zipfile` (no `zip` binary needed), copies the
+Liquid Glass packages from `dist/` into `fonts/`, and writes a `.sha256` beside each
 artifact plus a combined `SHA256SUMS.txt`.
+
+Never write a release artifact to Download's root — a version folder keeps every
+file that belongs to it in one place.
+
 
 Any extra data that ships with the release — for example the Liquid Glass font
 packages — goes in its own folder next to the APK, with its own checksum file.

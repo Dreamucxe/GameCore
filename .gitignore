@@ -1,6 +1,7 @@
 # Build output
 /build
 /app/build
+*/build
 .gradle
 .kotlin
 local.properties
