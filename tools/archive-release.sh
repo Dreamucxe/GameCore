@@ -8,9 +8,9 @@
 #
 # Everything for one version lands in one folder — the signed APK, the source
 # tree it was built from, checksums and the plugin packages that shipped with
-# it — so Download never has loose GameCore files at its root:
+# it — inside the project folder, so Download never has loose GameCore files:
 #
-#   /sdcard/Download/GameCore-4.1/
+#   /sdcard/Download/GameCore Project/GameCore-4.1/
 #       GameCore-4.1.apk
 #       GameCore-4.1.apk.sha256
 #       GameCore-4.1-source.zip
@@ -29,7 +29,7 @@ set -euo pipefail
 VERSION="${1:?usage: archive-release.sh <version-label> [apk-path]}"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APK="${2:-$PROJECT_ROOT/app/build/outputs/apk/release/app-release.apk}"
-DOWNLOAD="${GAMECORE_DOWNLOAD_DIR:-/sdcard/Download}"
+DOWNLOAD="${GAMECORE_DOWNLOAD_DIR:-/sdcard/Download/GameCore Project}"
 
 [ -f "$APK" ] || { echo "no such APK: $APK" >&2; exit 1; }
 
