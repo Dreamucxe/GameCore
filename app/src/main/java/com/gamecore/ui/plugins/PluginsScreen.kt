@@ -50,6 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamecore.core.i18n.LocalStrings
 import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.PluginSectionFont
 import com.gamecore.core.plugin.RiskTier
@@ -227,8 +228,8 @@ fun PluginsScreen(
     ) {
         item {
             ScreenHeader(
-                title = "Plugins",
-                subtitle = SCREEN_SUBTITLE,
+                title = LocalStrings.current.pluginsTitle,
+                subtitle = LocalStrings.current.pluginsSubtitle,
                 onBack = onBack,
                 action = {
                     IconButton(onClick = viewModel::refresh) {
@@ -555,8 +556,8 @@ private fun SearchCard(
             onValueChange = onQueryChange,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("Search plugins") },
-            placeholder = { Text("Name, id, developer or description") },
+            label = { Text(LocalStrings.current.pluginsSearch) },
+            placeholder = { Text(LocalStrings.current.pluginsSearchHint) },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             trailingIcon = if (query.isNotEmpty()) {
                 {
@@ -671,7 +672,9 @@ private fun InstallCard(
         }
         Spacer(modifier = Modifier.height(Spacing.sm))
         ActionRow {
-            Button(onClick = onPick, enabled = !isPreviewing) { Text("Choose files") }
+            Button(onClick = onPick, enabled = !isPreviewing) {
+                Text(LocalStrings.current.pluginsChooseFiles)
+            }
         }
     }
 }
@@ -816,7 +819,9 @@ private fun PluginCard(
             // Disabled rather than absent for a bundled plugin, with its origin badge directly above
             // saying why: the rows stay the same shape down the list, and a disabled button is not a
             // tap that did nothing.
-            TextButton(onClick = onAskRemove, enabled = row.canBeRemoved) { Text("Remove") }
+            TextButton(onClick = onAskRemove, enabled = row.canBeRemoved) {
+                Text(LocalStrings.current.pluginsRemove)
+            }
         }
     }
 }

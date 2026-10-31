@@ -128,7 +128,13 @@ object StutterAttribution {
                 hasFrameTiming = samples.any { it.frameRate != null },
             )
         }
-        val worst = outliers.drop(outliers.size - MAX_FINDINGS.coerceAtMost(outliers.size))
+        // "Worst" is the largest frame time, not the latest one. The list above is in elapsed order
+        // because that is the order the screen shows and the order causes are matched in, but a
+        // session saved out of order would otherwise drop the spikes that matter and keep the tail.
+        val worst = outliers
+            .sortedByDescending { it.value ?: Double.NEGATIVE_INFINITY }
+            .take(MAX_FINDINGS)
+            .sortedBy { it.elapsedMillis }
         return StutterReport(
             findings = worst.map { outlier ->
                 StutterFinding(

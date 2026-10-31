@@ -21,7 +21,7 @@
   <a href="#screens">Screens</a> ·
   <a href="#why-gamecore">Why GameCore</a> ·
   <a href="#install">Install</a> ·
-  <a href="#whats-new-in-350">Latest release</a> ·
+  <a href="#whats-new-in-41">Latest release</a> ·
   <a href="#plugins-are-data-not-code">Plugins</a> ·
   <a href="#features">Features</a> ·
   <a href="#security">Security</a> ·
@@ -38,8 +38,8 @@
 | :--- | :--- |
 | **Platform** | Android 8.0+ (API 26) · `arm64-v8a` / `armeabi-v7a` |
 | **Built with** | Kotlin 2.0.21 · Jetpack Compose · Material 3 · Hilt · Room + SQLCipher |
-| **Codebase** | 731 Kotlin source files · roughly 184,000 lines (app + plugin SDK) |
-| **Tests** | 3,181 JVM tests · 271 test classes · no emulator required |
+| **Codebase** | 754 Kotlin source files · roughly 189,000 lines (app + plugin SDK) |
+| **Tests** | 3,236 JVM tests · 277 test classes · no emulator required |
 | **Plugins** | 31 official `.gcplugin` packages · 23 bundled in the app |
 | **Network** | One optional, payload-free TCP latency probe · no backend |
 | **License** | MIT |
@@ -125,6 +125,29 @@ adb install -r GameCore.apk
 
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
+
+## What's new in 4.1
+
+<p><strong>This release is about everyone being able to read the app</strong> — fifty-one languages, chosen during setup — and about a first plugin being something you can build in two files.</p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🌍 Fifty-one languages</h3>
+      <p>Every screen, button and setup step can speak one of fifty-one languages, including right-to-left Arabic, Hebrew, Persian and Urdu. The picker is on the first setup step and later in <strong>Settings › Appearance</strong>; until you choose, GameCore follows the device language. A line with no translation yet falls back to English instead of vanishing, and the whole layout flips for a right-to-left language.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🧩 A plugin template that installs</h3>
+      <p><a href="plugin-template/README.md"><code>plugin-template/</code></a> is a complete theme in two JSON files, with no Android build and no Kotlin. <code>tools/build-plugin.py</code> checks the manifest against the same rules the app enforces and writes a deterministic <code>.gcplugin</code> plus its SHA-256. Edit the id, the colours and the name, and you have a package to sideload.</p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <h3>🔧 Correctness fixes</h3>
+      <p>The energy estimate now averages the two middle sessions when a game has an even number of them, so it stops rounding every projection upward. Stutter reports keep the five <em>worst</em> frame times rather than the five latest. A five-pixel display-size reading is no longer reported as a different panel, and a resolution override below the usable size now names the panel it was measured against. The language catalogues have their own integrity test: every language must carry every key, with every positional marker intact.</p>
+    </td>
+  </tr>
+</table>
 
 ## What's new in 4.0
 
@@ -264,7 +287,7 @@ adb install -r GameCore.apk
 | :--- | :--- |
 | Liquid Glass · True Glitch · Nebula · Nothing OS · Personal OS · Anime · Cyberpunk · Comic · Cybercity · Cybercore · Cybersigilism · Chromecore · Retro Futurism · Robot Core · RedMagic · Night Shift · Colorblind Safe · Papercut | Advisor · Automation History · Benchmark Suite · Dashboard Composer · Graphics Tuning · Sensitivity Lab · Minimal Vitals · Thermal Desk · Battery Badge · Cooldown Ladder · Exit Restore · Charger Boost · Stat Dictionary |
 
-The full set lives in [`dist/`](dist/). Bundled copies are in [`app/src/main/assets/plugins/`](app/src/main/assets/plugins/). Start with the [format](docs/PLUGIN_FORMAT.md), the [SDK](docs/PLUGIN_SDK.md), and the [threat model](docs/PLUGIN_THREAT_MODEL.md).
+The full set lives in [`dist/`](dist/). Bundled copies are in [`app/src/main/assets/plugins/`](app/src/main/assets/plugins/). Start with the [format](docs/PLUGIN_FORMAT.md), the [SDK](docs/PLUGIN_SDK.md), the [starter template](plugin-template/README.md) (two JSON files and `tools/build-plugin.py`), and the [threat model](docs/PLUGIN_THREAT_MODEL.md).
 
 ---
 

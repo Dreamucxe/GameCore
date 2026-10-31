@@ -35,6 +35,35 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 50,
+            versionName = "4.1",
+            date = "2026-10-31",
+            features = listOf(
+                FeatureNote(
+                    "Fifty-one languages",
+                    "Every screen, button and setup step can now speak one of fifty-one languages. " +
+                        "Choose one on the first setup step or later in Settings › Appearance; " +
+                        "until you do, GameCore follows the device. Right-to-left languages flip " +
+                        "the layout, and a line that has no translation yet falls back to English " +
+                        "rather than disappearing.",
+                ),
+                FeatureNote(
+                    "Build a plugin without reading our source",
+                    "plugin-template/ is a complete, installable theme in two JSON files, and " +
+                        "tools/build-plugin.py checks it against the same rules GameCore enforces " +
+                        "and writes a reproducible .gcplugin with a SHA-256 beside it. The template " +
+                        "README says which fields are required and what each one changes.",
+                ),
+                FeatureNote(
+                    "Correctness fixes",
+                    "The energy estimate now averages the two middle sessions when a game has an " +
+                        "even number of them, stutter reports choose the five worst frame times " +
+                        "rather than the five latest, and a five-pixel display-size difference is " +
+                        "no longer reported as a different panel.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 49,
             versionName = "4.0",
             date = "2026-10-30",

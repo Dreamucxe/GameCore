@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.gamecore.core.i18n.LocalStrings
 import com.gamecore.core.whatsnew.FeatureNote
 import com.gamecore.core.whatsnew.ReleaseNote
 import com.gamecore.core.whatsnew.WhatsNewRegistry
@@ -49,8 +50,8 @@ fun WhatsNewScreen(
     ) {
         item {
             ScreenHeader(
-                title = "What's New",
-                subtitle = "Every release, and what it added",
+                title = LocalStrings.current.whatsNewTitle,
+                subtitle = LocalStrings.current.whatsNewSubtitle,
                 onBack = onBack,
             )
         }
@@ -65,7 +66,7 @@ fun WhatsNewScreen(
 @Composable
 private fun ReleaseCard(release: ReleaseNote, modifier: Modifier = Modifier) {
     SectionCard(
-        title = "Version ${release.versionName}",
+        title = LocalStrings.current.whatsNewVersion(release.versionName),
         subtitle = release.date.takeIf { it.isNotBlank() },
         modifier = modifier,
     ) {

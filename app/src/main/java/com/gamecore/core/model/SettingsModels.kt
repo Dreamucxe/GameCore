@@ -22,6 +22,17 @@ data class AppSettings(
     val useDynamicColour: Boolean = false,
 
     /**
+     * The BCP-47 tag of the language GameCore's own chrome is drawn in, or empty for "follow the device".
+     *
+     * A string rather than an enum name: catalogues are assets, so a translation can be added without
+     * recompiling, and a tag written by a newer build must survive a downgrade instead of being erased.
+     * An unknown tag simply resolves to English (see `AppLanguage.resolve`), which is also what happens
+     * when the catalogue for a known tag is unreadable. Empty is the default for every existing install,
+     * so upgrading changes no wording until the user chooses a language.
+     */
+    val languageTag: String = "",
+
+    /**
      * The typeface used by the plugin manager, its consent screen and automation history.
      *
      * [PluginSectionFont.THEME] is the default and means "leave the current theme's own face alone",
@@ -533,6 +544,10 @@ data class AppSettings(
      */
     fun normalised(): AppSettings = copy(
         uiScalePercent = uiScalePercent.coerceIn(MIN_UI_SCALE, MAX_UI_SCALE),
+        // A tag, not a sentence: trim it and keep it short, but do not validate it against today's
+        // catalogue. A tag this build has never heard of belongs to a newer build or a backup from one,
+        // and the resolver already knows how to fall back to English without throwing the choice away.
+        languageTag = languageTag.trim().take(MAX_LANGUAGE_TAG_LENGTH),
         pluginSectionFontScalePercent = pluginSectionFontScalePercent.coerceIn(
             MIN_PLUGIN_SECTION_FONT_SCALE,
             MAX_PLUGIN_SECTION_FONT_SCALE,
@@ -580,6 +595,9 @@ data class AppSettings(
     companion object {
         const val MIN_UI_SCALE = 85
         const val MAX_UI_SCALE = 130
+
+        /** Long enough for any real BCP-47 tag, short enough that a hand-edited file cannot bloat the store. */
+        const val MAX_LANGUAGE_TAG_LENGTH = 32
 
         /**
          * The plugin section's own type-scale bounds.

@@ -99,7 +99,14 @@ object EnergyBudget {
         }
 
         val rates = usable.map { it.percentPerHour!! }.sorted()
-        val median = rates[rates.size / 2]
+        // With an even number of sessions there is no single middle value; the median is the mean of
+        // the two middle rates. Taking rates[size / 2] alone picks the upper of the pair, which biases
+        // every projection upward — the exact error the median exists to avoid.
+        val median = if (rates.size % 2 == 1) {
+            rates[rates.size / 2]
+        } else {
+            (rates[rates.size / 2 - 1] + rates[rates.size / 2]) / 2f
+        }
         val projected = currentPercent?.let { remaining ->
             ((remaining.toFloat() / median) * 60f).roundToLong().coerceAtLeast(0L)
         }

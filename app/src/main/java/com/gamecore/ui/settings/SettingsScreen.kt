@@ -65,6 +65,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.aimlab.engine.TargetPalette
 import com.gamecore.core.common.Formatters
+import com.gamecore.core.i18n.AppLanguage
+import com.gamecore.core.i18n.LocalStrings
 import com.gamecore.core.model.AccentChoice
 import com.gamecore.core.model.AnimationsMode
 import com.gamecore.core.model.AppSettings
@@ -83,6 +85,8 @@ import com.gamecore.ui.components.ColourPicker
 import com.gamecore.ui.components.ColourSwatches
 import com.gamecore.ui.components.ConfirmDialog
 import com.gamecore.ui.components.KeyValueRow
+import com.gamecore.ui.components.LanguagePickerDialog
+import com.gamecore.ui.components.LanguageSettingRow
 import com.gamecore.ui.components.NavRow
 import com.gamecore.ui.components.NoteBanner
 import com.gamecore.ui.components.RowDivider
@@ -121,13 +125,14 @@ fun SettingsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val padded = Modifier.padding(horizontal = ScreenPadding)
+    val strings = LocalStrings.current
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 4.dp, bottom = ScreenBottomPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { ScreenHeader(title = "Settings", subtitle = "How GameCore looks, measures and behaves") }
+        item { ScreenHeader(title = strings.settingsTitle, subtitle = strings.settingsSubtitle) }
 
         state.message?.let { message ->
             item {
@@ -292,6 +297,8 @@ private fun AppearanceCard(
     modifier: Modifier = Modifier,
 ) {
     var pickerOpen by remember { mutableStateOf(false) }
+    var languageOpen by remember { mutableStateOf(false) }
+    val strings = LocalStrings.current
     val custom = state.settings.customAccentArgb
 
     // The picker hands back a URI GameCore can read for this call only, which is why the store decodes
@@ -300,7 +307,12 @@ private fun AppearanceCard(
         uri?.let(onImportWallpaper)
     }
 
-    SectionCard(title = "Appearance", icon = Icons.Filled.Tune, modifier = modifier) {
+    SectionCard(title = strings.settingsAppearance, icon = Icons.Filled.Tune, modifier = modifier) {
+        LanguageSettingRow(
+            selectedTag = state.settings.languageTag,
+            onOpen = { languageOpen = true },
+        )
+        RowDivider()
         Text(
             text = "THEME",
             style = MaterialTheme.typography.labelSmall,
@@ -441,6 +453,17 @@ private fun AppearanceCard(
             }
         }
     }
+
+    if (languageOpen) {
+        LanguagePickerDialog(
+            selectedTag = state.settings.languageTag,
+            onSelect = { language ->
+                onEdit { it.copy(languageTag = language.tag) }
+                languageOpen = false
+            },
+            onDismiss = { languageOpen = false },
+        )
+    }
 }
 
 /**
@@ -465,7 +488,7 @@ private fun DisplayTextCard(
 ) {
     val preset = textSizePreset(state.uiScalePercent)
 
-    SectionCard(title = "Display and text", icon = Icons.Filled.FormatSize, modifier = modifier) {
+    SectionCard(title = LocalStrings.current.settingsDisplayText, icon = Icons.Filled.FormatSize, modifier = modifier) {
         SliderRow(
             title = "Font scale",
             value = state.uiScalePercent,
@@ -519,7 +542,7 @@ private fun AccessibilityCard(
     modifier: Modifier = Modifier,
 ) {
     SectionCard(
-        title = "Accessibility",
+        title = LocalStrings.current.settingsAccessibility,
         icon = Icons.Filled.Accessibility,
         subtitle = "Colour, handedness and touch-target size",
         modifier = modifier,
@@ -571,7 +594,7 @@ private fun BehaviorCard(
     onEdit: ((AppSettings) -> AppSettings) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SectionCard(title = "Behavior", icon = Icons.Filled.Animation, modifier = modifier) {
+    SectionCard(title = LocalStrings.current.settingsBehavior, icon = Icons.Filled.Animation, modifier = modifier) {
         Text(
             text = "ANIMATIONS",
             style = MaterialTheme.typography.labelSmall,
@@ -615,7 +638,7 @@ private fun OverlaysCard(
     modifier: Modifier = Modifier,
 ) {
     SectionCard(
-        title = "Overlays",
+        title = LocalStrings.current.settingsOverlays,
         icon = Icons.Filled.Layers,
         subtitle = "Each has its own screen, with a live preview",
         modifier = modifier,
@@ -737,7 +760,7 @@ private fun GamesCard(
     onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SectionCard(title = "Games", icon = Icons.Filled.SportsEsports, modifier = modifier) {
+    SectionCard(title = LocalStrings.current.settingsGames, icon = Icons.Filled.SportsEsports, modifier = modifier) {
         NavRow(
             title = "Game profiles",
             onClick = { onNavigate(Destination.Games) },
@@ -850,7 +873,7 @@ private fun DetectionCard(
 ) {
     val excluded = state.detectionExcludedCount
     SectionCard(
-        title = "Detection",
+        title = LocalStrings.current.settingsDetection,
         icon = Icons.Filled.Visibility,
         subtitle = "Which apps GameCore may treat as a game",
         modifier = modifier,
@@ -898,7 +921,7 @@ private fun MonitoringCard(
     onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SectionCard(title = "Monitoring", icon = Icons.Filled.Insights, modifier = modifier) {
+    SectionCard(title = LocalStrings.current.settingsMonitoring, icon = Icons.Filled.Insights, modifier = modifier) {
         SwitchRow(
             title = "Record sessions",
             checked = state.settings.trackSessions,
@@ -1003,7 +1026,7 @@ private fun NetworkCard(
     onHostReset: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SectionCard(title = "Network", icon = Icons.Filled.Speed, modifier = modifier) {
+    SectionCard(title = LocalStrings.current.settingsNetwork, icon = Icons.Filled.Speed, modifier = modifier) {
         SwitchRow(
             title = "Measure latency",
             checked = state.settings.measureLatency,
@@ -1060,7 +1083,7 @@ private fun RecordingCard(
     onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SectionCard(title = "Screen recording", icon = Icons.Filled.CenterFocusStrong, modifier = modifier) {
+    SectionCard(title = LocalStrings.current.settingsRecording, icon = Icons.Filled.CenterFocusStrong, modifier = modifier) {
         ChoiceRow(
             options = RecordingQuality.entries.toList(),
             selected = state.settings.recordingQuality,
@@ -1098,7 +1121,7 @@ private fun AccessCard(
     onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SectionCard(title = "Access and tools", icon = Icons.Filled.Shield, modifier = modifier) {
+    SectionCard(title = LocalStrings.current.settingsAccess, icon = Icons.Filled.Shield, modifier = modifier) {
         // Only while a theme is actually wearing glass. Placed above Plugins because it is the control for
         // the thing the Plugins row installs — the intensity of the material that theme asked for.
         if (hasGlassTheme) {
@@ -1232,7 +1255,7 @@ private fun DataCard(
 ) {
     val context = LocalContext.current
     SectionCard(
-        title = "Data",
+        title = LocalStrings.current.settingsData,
         icon = Icons.Filled.Storage,
         subtitle = "Recorded here, kept here, sent nowhere",
         modifier = modifier,
@@ -1345,7 +1368,7 @@ private fun AboutCard(
         }
     }
 
-    SectionCard(title = "About", icon = Icons.Filled.PhoneAndroid, modifier = modifier) {
+    SectionCard(title = LocalStrings.current.settingsAbout, icon = Icons.Filled.PhoneAndroid, modifier = modifier) {
         KeyValueRow(
             label = "GameCore",
             value = version,

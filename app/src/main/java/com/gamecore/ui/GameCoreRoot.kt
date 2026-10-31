@@ -62,6 +62,7 @@ import com.gamecore.aimlab.ui.stats.StatisticsScreen
 import com.gamecore.aimlab.ui.tracking.TrackingScreen
 import com.gamecore.aimlab.ui.weapon.WeaponEditorScreen
 import com.gamecore.core.config.LineDiff
+import com.gamecore.core.i18n.ProvideStrings
 import com.gamecore.domain.setup.WizardEntry
 import com.gamecore.themeengine.CalibrationDashboard
 import com.gamecore.ui.backup.BackupRestoreScreen
@@ -246,6 +247,10 @@ fun GameCoreRoot(
     }
 
     GameCoreTheme(settings, pluginTheme, engineTint, glitchConditions, glass?.fraction ?: 1f) {
+        // One provider above every screen and every dialog: the nav labels, the wizard, the settings
+        // chrome and the plugin manager all read the same catalogue, and switching language on the
+        // Settings screen rebuilds this subtree in place rather than waiting for a relaunch.
+        ProvideStrings(settings.languageTag) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(modifier = Modifier.fillMaxSize()) {
                 // The ambient bloom a glass theme's panels are drawn against, or nothing at all. Above
@@ -331,6 +336,7 @@ fun GameCoreRoot(
                 }
             }
         }
+        }
     }
 }
 
@@ -365,6 +371,7 @@ private fun FloatingNavBar(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val strings = com.gamecore.core.i18n.LocalStrings.current
     Surface(
         modifier = modifier
             .padding(horizontal = ScreenPadding, vertical = BarMargin),
@@ -384,7 +391,7 @@ private fun FloatingNavBar(
                     // Null description: the label beside it names the tab, and the item merges the two
                     // into one announcement rather than reading the name twice.
                     icon = { Icon(imageVector = destination.icon, contentDescription = null) },
-                    label = { Text(text = destination.label, maxLines = 1) },
+                    label = { Text(text = destination.localizedLabel(strings), maxLines = 1) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = scheme.primary,
                         selectedTextColor = scheme.primary,

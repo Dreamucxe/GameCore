@@ -1,0 +1,16 @@
+{
+  "format": "gamecore.plugin",
+  "id": "com.example.hello",
+  "name": "Hello GameCore",
+  "version": 1,
+  "versionName": "1.0.0",
+  "api": 4,
+  "minHostVersion": 50,
+  "developer": "Your Name",
+  "description": "A starter theme: a warm dark palette with a teal accent. Copy this folder, change the colours and the id, and you have a plugin.",
+  "permissions": [
+    { "id": "change_ui" }
+  ],
+  "declares": ["theme"],
+  "changelog": "1.0.0 — first release."
+}

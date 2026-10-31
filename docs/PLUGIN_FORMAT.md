@@ -188,7 +188,7 @@ Defined in `PluginApi`:
 
 - `CURRENT = 4` — the API version this build implements.
 - `MINIMUM_SUPPORTED = 1` — the oldest API a plugin may declare and still load.
-- `HOST_VERSION_CODE = 49` — this build's `versionCode` (versionName 4.0).
+- `HOST_VERSION_CODE = 50` — this build's `versionCode` (versionName 4.1).
 
 A plugin declares the single `api` integer it was built against and the lowest
 host `minHostVersion` it supports. `PluginApi.compatibility(api, minHostVersion)`

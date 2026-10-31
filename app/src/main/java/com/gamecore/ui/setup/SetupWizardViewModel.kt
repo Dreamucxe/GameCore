@@ -92,6 +92,7 @@ class SetupWizardViewModel @Inject constructor(
             val saved = preferences.setupStep
             editing.value = editing.value.copy(
                 choices = choices,
+                languageTag = preferences.settings.value.languageTag,
                 step = resumeAt(saved, visibleSteps(choices)),
                 isLoaded = true,
                 isPersisting = preferences.isPersisting,
@@ -155,6 +156,19 @@ class SetupWizardViewModel @Inject constructor(
     }
 
     // -------------------------------------------------------------------------------- the feature picker
+
+    /**
+     * The language chosen on the welcome step.
+     *
+     * Written through the same [AppSettings] the rest of the app reads, so the provider above the wizard
+     * repaints in place: the step the user is standing on changes language in the same frame as the
+     * dialog closes. Nothing about the wizard's own progress is keyed by language, so this cannot lose
+     * the user's position.
+     */
+    fun setLanguage(languageTag: String) {
+        editing.value = editing.value.copy(languageTag = languageTag)
+        preferences.updateSettings { it.copy(languageTag = languageTag) }
+    }
 
     /**
      * Ticks or unticks one feature, and re-derives everything downstream of it.

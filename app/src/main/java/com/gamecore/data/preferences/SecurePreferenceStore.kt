@@ -233,6 +233,7 @@ class SecurePreferenceStore @Inject constructor(
             theme = enumOrDefault(p.getString(KEY_THEME, null), ThemeChoice.entries, defaults.theme),
             accent = enumOrDefault(p.getString(KEY_ACCENT, null), AccentChoice.entries, defaults.accent),
             uiScalePercent = p.getInt(KEY_UI_SCALE, defaults.uiScalePercent),
+            languageTag = p.getString(KEY_LANGUAGE, defaults.languageTag).orEmpty(),
             pluginSectionFont = enumOrDefault(
                 p.getString(KEY_PLUGIN_SECTION_FONT, null),
                 PluginSectionFont.entries,
@@ -375,6 +376,7 @@ class SecurePreferenceStore @Inject constructor(
             putString(KEY_THEME, value.theme.name)
             putString(KEY_ACCENT, value.accent.name)
             putInt(KEY_UI_SCALE, value.uiScalePercent)
+            putString(KEY_LANGUAGE, value.languageTag)
             putString(KEY_PLUGIN_SECTION_FONT, value.pluginSectionFont.name)
             putInt(KEY_PLUGIN_SECTION_FONT_SCALE, value.pluginSectionFontScalePercent)
             putBoolean(KEY_DYNAMIC_COLOUR, value.useDynamicColour)
@@ -1166,6 +1168,7 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_THEME = "theme"
         const val KEY_ACCENT = "accent"
         const val KEY_UI_SCALE = "ui_scale"
+        const val KEY_LANGUAGE = "language_tag"
         const val KEY_PLUGIN_SECTION_FONT = "plugin_section_font"
         const val KEY_PLUGIN_SECTION_FONT_SCALE = "plugin_section_font_scale"
         const val KEY_DYNAMIC_COLOUR = "dynamic_colour"

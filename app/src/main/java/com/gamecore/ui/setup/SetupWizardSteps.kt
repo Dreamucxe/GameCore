@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,6 +43,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gamecore.core.common.Formatters
+import com.gamecore.core.i18n.AppLanguage
+import com.gamecore.core.i18n.Strings
 import com.gamecore.core.model.ShizukuState
 import com.gamecore.domain.setup.PresetLine
 import com.gamecore.domain.setup.SetupPreset
@@ -93,20 +96,25 @@ data class WizardActions(
     val onSmartThermal: (Boolean) -> Unit,
     val onSmartNetwork: (Boolean) -> Unit,
     val onSmartFullPerformance: (Boolean) -> Unit,
+    val onOpenLanguage: () -> Unit,
 )
 
 /** Dispatches to the current step. The order of the `when` is the order of [WizardStep], not of the flow. */
-fun LazyListScope.wizardStepContent(state: SetupWizardUiState, actions: WizardActions) {
+fun LazyListScope.wizardStepContent(
+    state: SetupWizardUiState,
+    actions: WizardActions,
+    strings: Strings,
+) {
     item(key = "lead") {
         Text(
-            text = stepLead(state.step),
+            text = strings.setupLead(wizardKey(state.step)),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = ScreenPadding),
         )
     }
     when (state.step) {
-        WizardStep.WELCOME -> welcomeStep()
+        WizardStep.WELCOME -> welcomeStep(state, actions, strings)
         WizardStep.FEATURES -> featuresStep(state, actions)
         WizardStep.PERMISSIONS -> permissionsStep(state, actions)
         WizardStep.SHIZUKU -> shizukuStep(state, actions)
@@ -127,15 +135,50 @@ fun LazyListScope.wizardStepContent(state: SetupWizardUiState, actions: WizardAc
  * Claiming nothing leaves the device would be simpler and would be false the moment the user turns the
  * network check on, and a privacy note the user can catch out is worse than none.
  */
-private fun LazyListScope.welcomeStep() {
+private fun LazyListScope.welcomeStep(
+    state: SetupWizardUiState,
+    actions: WizardActions,
+    strings: Strings,
+) {
+    item(key = "welcome-language") {
+        val current = AppLanguage.forTag(state.languageTag)
+            ?.takeIf { it.isExplicit }
+            ?.nativeName
+            ?: strings.languageSystem
+        SectionCard(
+            title = strings.setupLanguageTitle,
+            icon = Icons.Filled.Translate,
+            modifier = Modifier.padding(horizontal = ScreenPadding),
+        ) {
+            Text(
+                text = strings.setupLanguageBody,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = current,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = Spacing.sm),
+            )
+            ActionRow {
+                TextButton(
+                    onClick = actions.onOpenLanguage,
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
+                    Text(strings.languageChoose)
+                }
+            }
+        }
+    }
     item(key = "welcome-stays") {
         SectionCard(
-            title = "Everything stays on this device",
+            title = strings.setupStaysTitle,
             icon = Icons.Filled.Lock,
             modifier = Modifier.padding(horizontal = ScreenPadding),
         ) {
             Text(
-                text = PRIVACY_NOTE_STAYS_HERE,
+                text = strings.setupStaysBody,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -143,12 +186,12 @@ private fun LazyListScope.welcomeStep() {
     }
     item(key = "welcome-out") {
         SectionCard(
-            title = "The one thing that connects out",
+            title = strings.setupConnectsTitle,
             icon = Icons.Filled.Shield,
             modifier = Modifier.padding(horizontal = ScreenPadding),
         ) {
             Text(
-                text = PRIVACY_NOTE_CONNECTS_OUT,
+                text = strings.setupConnectsBody,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

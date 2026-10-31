@@ -280,7 +280,10 @@ class StutterAttributionTest {
     @Test
     fun `session with frame timing but no outliers returns empty findings and an honest sentence`() {
         val samples = listOf(sample(50_000L, frameRate = frame()))
-        val events = emptyList<SessionEvent>()
+        // A session that kept a timeline but had no spikes: the event list is not empty, it just
+        // carries nothing that made a frame slow. That is the case the "no spikes" sentence is for;
+        // an empty event list is the older-session case in the next test.
+        val events = listOf(event(SessionEventKind.POWER_SAVER_ON, 10_000L))
 
         val report = StutterAttribution.attribute(samples, events)
 
@@ -309,9 +312,11 @@ class StutterAttributionTest {
         val report = StutterAttribution.attribute(samples, events)
 
         assertEquals(StutterAttribution.MAX_FINDINGS, report.findings.size)
-        // The worst five (last five in elapsed order because they are already sorted by time)
-        assertEquals(70_000L, report.findings[0].elapsedMillis)
-        assertEquals(110_000L, report.findings.last().elapsedMillis)
+        // The five worst frame times are the last five events: the values rise with elapsed time,
+        // so 160 s through 200 s are the spikes worth showing. Findings are returned in elapsed
+        // order even when the selection itself was by severity.
+        assertEquals(160_000L, report.findings[0].elapsedMillis)
+        assertEquals(200_000L, report.findings.last().elapsedMillis)
         // The report still says how many outliers the session had, so a counter somewhere else is
         // not capped by the cap on findings.
         assertEquals(20, report.outlierCount)

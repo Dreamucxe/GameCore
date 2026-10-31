@@ -51,12 +51,14 @@ object DeviceMigration {
      *
      * [profileRefreshHz], [profileResolution] and [profileDisplaySize] are the settings the file's
      * profiles ask for, gathered by the orchestrator because the profile layer owns their shape.
-     * [profileCount] is how many profiles the file carries.
+     * [profileCount] is how many profiles the file carries. Its default is -1, "not reported":
+     * zero is a fact the caller has to state, because "this file has no profiles" is a sentence to
+     * show and "this test did not ask about profiles" is not.
      */
     fun report(
         backup: DeviceSnapshot?,
         current: DeviceSnapshot?,
-        profileCount: Int = 0,
+        profileCount: Int = -1,
         profileRefreshHz: List<Float> = emptyList(),
         profileResolution: List<ResolutionScale> = emptyList(),
         profileDisplaySizes: List<DisplaySize> = emptyList(),
@@ -141,9 +143,9 @@ object DeviceMigration {
                         MigrationCheck(
                             severity = MigrationSeverity.WARNING,
                             title = "Resolution override",
-                            detail = "A profile asks for ${scale.label} of this display, which is " +
-                                "${target.label} on a ${currentPanel.label} panel. That is below the " +
-                                "smallest size GameCore will set, so it may not be honoured.",
+                            detail = "This device's panel is ${currentPanel.label}, and a profile asks " +
+                                "for ${scale.label} of it — ${target.label}. That is below the smallest " +
+                                "size GameCore will set, so it may not be honoured.",
                         ),
                     )
                 }
@@ -191,9 +193,21 @@ object DeviceMigration {
         return DisplaySize(width, height)
     }
 
-    /** Size within a few percent: a rounding difference, not a different panel. */
-    private fun sameShape(a: DisplaySize, b: DisplaySize): Boolean =
-        abs(a.aspect - b.aspect) < ASPECT_TOLERANCE && abs(a.shortSide - b.shortSide) < a.shortSide * 0.05f
+    /**
+     * Size within a few percent: a rounding difference, not a different panel.
+     *
+     * The aspect is compared as a *fraction* of itself, not as an absolute difference. A 5-pixel
+     * reading error on a 1080-wide panel moves the ratio from 2.222 to 2.212 — 0.0102 absolute, but
+     * only 0.46% of the number being compared. A fixed absolute epsilon would call that a different
+     * panel while accepting a much larger error on a squarer one, which is the wrong way round.
+     */
+    private fun sameShape(a: DisplaySize, b: DisplaySize): Boolean {
+        val largerAspect = maxOf(a.aspect, b.aspect)
+        val aspectClose = largerAspect == 0f ||
+            abs(a.aspect - b.aspect) / largerAspect < ASPECT_TOLERANCE
+        val shortSideClose = abs(a.shortSide - b.shortSide) < minOf(a.shortSide, b.shortSide) * 0.05f
+        return aspectClose && shortSideClose
+    }
 
     /** Below this a display is not readable enough for the app to set it. */
     private const val MIN_USABLE_SHORT_SIDE = 480

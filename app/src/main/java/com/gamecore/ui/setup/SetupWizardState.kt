@@ -55,6 +55,8 @@ import com.gamecore.ui.games.AppOption
 data class SetupWizardUiState(
     val step: WizardStep = WizardStep.WELCOME,
     val choices: WizardFeatureChoices = WizardFeatureChoices(),
+    /** The language chosen on the welcome step, or empty while following the device. */
+    val languageTag: String = "",
     /** True until the saved step and choices have been read back, so the screen does not flash step 1. */
     val isLoaded: Boolean = false,
     val isPersisting: Boolean = true,
@@ -170,6 +172,23 @@ fun stepTitle(step: WizardStep): String = when (step) {
     WizardStep.FIRST_GAME -> "Your first game"
     WizardStep.SMART_FEATURES -> "Automatic adjustments"
     WizardStep.DONE -> "You are set up"
+}
+
+/**
+ * The catalogue suffix for a step's title and lead: `setup.title.<key>` and `setup.lead.<key>`.
+ *
+ * Separate from [stepTitle] and [stepLead] so the English functions above stay the stable, testable
+ * definition and the translated screen only has to name the step once. A step added to [WizardStep]
+ * without a catalogue entry still renders its English title through the fallback.
+ */
+fun wizardKey(step: WizardStep): String = when (step) {
+    WizardStep.WELCOME -> "welcome"
+    WizardStep.FEATURES -> "features"
+    WizardStep.PERMISSIONS -> "permissions"
+    WizardStep.SHIZUKU -> "shizuku"
+    WizardStep.FIRST_GAME -> "firstGame"
+    WizardStep.SMART_FEATURES -> "smart"
+    WizardStep.DONE -> "done"
 }
 
 /**

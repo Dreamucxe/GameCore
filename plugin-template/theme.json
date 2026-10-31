@@ -1,0 +1,21 @@
+{
+  "name": "Hello GameCore",
+  "schema": 2,
+  "dark": true,
+  "primary": "#FF8A4C",
+  "onPrimary": "#24130A",
+  "background": "#121014",
+  "surface": "#211D24",
+  "onSurface": "#F6EFE7",
+  "accent": "#2BD4C0",
+  "cornerRadiusDp": 20,
+  "uiScale": 1,
+  "roles": {
+    "secondary": "#FFC46B",
+    "tertiary": "#8FD3FF",
+    "outline": "#4A424F"
+  },
+  "typography": {
+    "weight": "medium"
+  }
+}

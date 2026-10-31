@@ -32,7 +32,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamecore.core.i18n.LocalStrings
+import com.gamecore.domain.setup.WizardStep
 import com.gamecore.ui.components.ConfirmDialog
+import com.gamecore.ui.components.LanguagePickerDialog
 import com.gamecore.ui.components.Meter
 import com.gamecore.ui.components.NoteBanner
 import com.gamecore.ui.components.OnResume
@@ -67,7 +70,9 @@ fun SetupWizardScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val strings = LocalStrings.current
     var confirmExit by remember { mutableStateOf(false) }
+    var languagePickerOpen by remember { mutableStateOf(false) }
 
     // Steps 3 and 4 send the user to a system page, and Android reports nothing when they come back.
     // Re-asking on resume is the only way the wizard can show a grant that happened outside it (§A2).
@@ -108,6 +113,7 @@ fun SetupWizardScreen(
             onSmartThermal = viewModel::setSmartThermal,
             onSmartNetwork = viewModel::setSmartNetwork,
             onSmartFullPerformance = viewModel::setSmartFullPerformance,
+            onOpenLanguage = { languagePickerOpen = true },
         )
     }
 
@@ -127,7 +133,7 @@ fun SetupWizardScreen(
     Column(modifier = modifier.fillMaxSize()) {
         WizardProgressHeader(
             progress = state.progress,
-            title = stepTitle(state.step),
+            title = strings.setupTitle(wizardKey(state.step)),
             onExit = { confirmExit = true },
         )
 
@@ -137,7 +143,7 @@ fun SetupWizardScreen(
                 tone = Tone.Accent,
                 icon = Icons.Filled.Info,
                 modifier = Modifier.padding(horizontal = ScreenPadding, vertical = Spacing.sm),
-                action = { TextButton(onClick = viewModel::dismissMessage) { Text("OK") } },
+                action = { TextButton(onClick = viewModel::dismissMessage) { Text(strings.ok) } },
             )
         }
 
@@ -151,7 +157,7 @@ fun SetupWizardScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            wizardStepContent(state = state, actions = actions)
+            wizardStepContent(state = state, actions = actions, strings = strings)
         }
 
         WizardButtonBar(
@@ -164,9 +170,9 @@ fun SetupWizardScreen(
 
     if (confirmExit) {
         ConfirmDialog(
-            title = "Leave setup?",
-            message = EXIT_MESSAGE,
-            confirmLabel = "Leave",
+            title = strings.setupLeaveTitle,
+            message = strings.setupLeaveMessage,
+            confirmLabel = strings.setupLeaveConfirm,
             onConfirm = {
                 confirmExit = false
                 // Finishing rather than abandoning: the user has answered the question the wizard asks, so
@@ -176,6 +182,17 @@ fun SetupWizardScreen(
             },
             onDismiss = { confirmExit = false },
             isDestructive = false,
+        )
+    }
+
+    if (languagePickerOpen) {
+        LanguagePickerDialog(
+            selectedTag = state.languageTag,
+            onSelect = { language ->
+                viewModel.setLanguage(language.tag)
+                languagePickerOpen = false
+            },
+            onDismiss = { languagePickerOpen = false },
         )
     }
 }
@@ -202,15 +219,17 @@ private fun WizardProgressHeader(
             .fillMaxWidth()
             .padding(start = ScreenPadding, end = Spacing.sm, top = Spacing.md),
     ) {
+        val strings = LocalStrings.current
+        val progressLabel = strings.setupStep(progress.index, progress.total)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = progress.label,
+                text = progressLabel,
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = onExit, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text("Skip setup")
+                Text(strings.setupSkipSetup)
             }
         }
         Meter(
@@ -218,7 +237,7 @@ private fun WizardProgressHeader(
             tone = Tone.Accent,
             modifier = Modifier
                 .padding(end = Spacing.sm, top = Spacing.xs)
-                .clearAndSetSemantics { contentDescription = progress.label },
+                .clearAndSetSemantics { contentDescription = progressLabel },
         )
         Text(
             text = title,
@@ -248,6 +267,7 @@ private fun WizardButtonBar(
     onSkip: () -> Unit,
     onNext: () -> Unit,
 ) {
+    val strings = LocalStrings.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -260,7 +280,7 @@ private fun WizardButtonBar(
                 onClick = onBack,
                 modifier = Modifier.heightIn(min = 48.dp),
             ) {
-                Text("Back")
+                Text(strings.back)
             }
         }
         if (canSkip(state.step)) {
@@ -270,7 +290,7 @@ private fun WizardButtonBar(
                     .weight(1f)
                     .heightIn(min = 48.dp),
             ) {
-                Text("Skip this step")
+                Text(strings.setupSkipStep)
             }
         } else {
             // Keeps Next anchored to the right on the Done step, where there is no Skip to push it there.
@@ -281,7 +301,7 @@ private fun WizardButtonBar(
             enabled = state.canAdvanceNow && !state.isSaving,
             modifier = Modifier.heightIn(min = 48.dp),
         ) {
-            Text(forwardLabel(state.step))
+            Text(if (state.step == WizardStep.DONE) strings.finish else strings.next)
         }
     }
 }
