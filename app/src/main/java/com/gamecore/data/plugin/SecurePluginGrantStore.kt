@@ -274,8 +274,11 @@ class SecurePluginGrantStore @Inject constructor(
 
     /** Removes every value key inside [pluginId]'s namespace, in one edit. */
     override fun clearNamespace(pluginId: String) {
-        val prefix = PREFIX_VALUE + PluginNamespace.of(pluginId)
-        val doomed = allKeys().filter { it.startsWith(prefix) }
+        val prefixes = listOf(
+            PREFIX_VALUE + PluginNamespace.of(pluginId),
+            PREFIX_VALUE + PluginNamespace.legacyOf(pluginId),
+        )
+        val doomed = allKeys().filter { key -> prefixes.any { key.startsWith(it) } }
         if (doomed.isEmpty()) return
         edit { doomed.forEach { remove(it) } }
     }

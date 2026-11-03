@@ -62,9 +62,9 @@ class OverlayActionTest {
      *
      * Both halves are the design. The plate has to carry a state, because the tile is the only place inside
      * the panel that says which shape the panel is in, and a one-shot tile draws no plate. And it opens no
-     * row, unlike the two tiles above: there are exactly two layouts, so chips behind a tap would be two
-     * taps to change one bit — and the cost this tile exists to remove is a trip out of the game into the
-     * settings screen, which two taps in the panel would only partly refund.
+     * row, unlike the two tiles above: the three layouts are a small cycle, so chips behind a tap would add
+     * a second tap to every change — and the cost this tile exists to remove is a trip out of the game into
+     * the settings screen, which two taps in the panel would only partly refund.
      */
     @Test
     fun `the layout tile is a toggle and opens no row`() {

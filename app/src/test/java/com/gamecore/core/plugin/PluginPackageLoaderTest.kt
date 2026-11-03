@@ -56,6 +56,9 @@ class PluginPackageLoaderTest {
 
     private fun bytes(s: String) = s.toByteArray(Charsets.UTF_8)
 
+    private fun validThemeJson(): String =
+        """{"name":"Example","schema":1,"dark":true,"primary":"#6750A4","onPrimary":"#FFFFFF","background":"#121212","surface":"#202024","onSurface":"#FFFFFF","accent":"#03DAC6","cornerRadiusDp":12,"font":"system","uiScale":1.0}"""
+
     private fun loaded(result: PluginPackageLoader.Result): LoadedPlugin {
         assertTrue("expected Loaded but was $result", result is PluginPackageLoader.Result.Loaded)
         return (result as PluginPackageLoader.Result.Loaded).plugin
@@ -90,7 +93,7 @@ class PluginPackageLoaderTest {
     fun `declared section present loads and is readable`() {
         val zip = zipOf(
             PluginPackageLoader.MANIFEST_ENTRY to bytes(validManifestJson(declares = listOf("theme"))),
-            "theme.json" to bytes("""{"any":"thing"}"""),
+            "theme.json" to bytes(validThemeJson()),
         )
         val plugin = loaded(PluginPackageLoader.load(zip))
         assertNotNull(plugin.entry("theme.json"))
@@ -249,6 +252,17 @@ class PluginPackageLoaderTest {
             "random/thing.txt" to bytes("x"),
         )
         assertEquals(PluginPackageLoader.Reason.DISALLOWED_FILE, rejected(PluginPackageLoader.load(zip)).reason)
+    }
+
+    @Test
+    fun `declared section with invalid payload is rejected before install`() {
+        val zip = zipOf(
+            PluginPackageLoader.MANIFEST_ENTRY to bytes(validManifestJson(declares = listOf("theme"))),
+            "theme.json" to bytes("""{"name":"Broken","primary":"not-a-colour"}"""),
+        )
+        val result = rejected(PluginPackageLoader.load(zip))
+        assertEquals(PluginPackageLoader.Reason.INVALID_SECTION, result.reason)
+        assertTrue(result.detail, result.detail.contains("theme.json"))
     }
 
     @Test

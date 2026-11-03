@@ -67,35 +67,34 @@ class OverlayModelsTest {
      * The layout the panel opens in, which is the one field on this config that is a choice rather than a
      * figure — and therefore the one the clamp has nothing to say about.
      *
-     * Asserted anyway, and asserted first, because the default is a promise to existing users: a build that
-     * shipped [PanelLayoutStyle.SPLIT_EDGES] as the default would rearrange the panel of everyone who never
-     * asked for it. The enum's own declaration order carries the same promise, since a settings screen that
-     * lists the styles as declared would otherwise offer the new one first.
+     * Asserted anyway, and asserted first, because the default is a promise: a fresh install gets the
+     * turbo wings, and the two older surfaces stay reachable from the same card. The enum's declaration
+     * order carries the same promise, since the settings screen lists the styles as declared and the
+     * panel's Layout tile cycles them in this order.
      */
     @Test
-    fun `the panel opens centered until the user says otherwise`() {
-        assertEquals(PanelLayoutStyle.CENTERED, FloatingButtonConfig().panelLayout)
-        assertEquals(PanelLayoutStyle.CENTERED, PanelLayoutStyle.entries.first())
+    fun `the panel opens in turbo wings until the user says otherwise`() {
+        assertEquals(PanelLayoutStyle.TURBO_WINGS, FloatingButtonConfig().panelLayout)
+        assertEquals(PanelLayoutStyle.TURBO_WINGS, PanelLayoutStyle.entries.first())
     }
 
     /**
-     * Both directions of the switch, and the width surviving the round trip.
+     * The width surviving a round trip through every layout.
      *
-     * The width is the point. Split edges derives its plates from the screen and ignores the stored figure,
-     * so the temptation is to clear it on the way in — which would mean a user who tried the other layout
-     * and came back found the default width instead of the one they set. `normalised()` runs on every read
-     * from the store and on every slider release, so it is where that loss would happen if it happened.
+     * The width is the point. Split edges and turbo wings derive their plates from the screen and ignore
+     * the stored figure, so the temptation is to clear it on the way in — which would mean a user who
+     * tried another layout and came back found the default width instead of the one they set.
+     * `normalised()` runs on every read from the store and on every slider release, so it is where that
+     * loss would happen if it happened.
      */
     @Test
-    fun `switching layout carries the stored width untouched in both directions`() {
+    fun `switching layout carries the stored width untouched in every direction`() {
         val chosen = FloatingButtonConfig(panelWidthDp = 300)
-        val split = chosen.copy(panelLayout = PanelLayoutStyle.SPLIT_EDGES).normalised()
-        assertEquals(PanelLayoutStyle.SPLIT_EDGES, split.panelLayout)
-        assertEquals(300, split.panelWidthDp)
-
-        val back = split.copy(panelLayout = PanelLayoutStyle.CENTERED).normalised()
-        assertEquals(PanelLayoutStyle.CENTERED, back.panelLayout)
-        assertEquals(300, back.panelWidthDp)
+        for (style in PanelLayoutStyle.entries) {
+            val switched = chosen.copy(panelLayout = style).normalised()
+            assertEquals(style, switched.panelLayout)
+            assertEquals("width lost switching to ${style.name}", 300, switched.panelWidthDp)
+        }
     }
 
     /** Every style is offered with copy to offer it by, since the settings screen renders both fields. */
@@ -110,20 +109,65 @@ class OverlayModelsTest {
     /**
      * The panel's Layout tile, which is a tap rather than a choice and therefore rests on this.
      *
-     * Two properties, and the second is the one that matters. That the switch is an involution — twice is
-     * where you started — is what makes a single tile honest: a player who taps it by accident gets back to
-     * the layout they had with the same tap, and the lit plate they see is the state the next tap undoes.
-     * A cycle over a list would satisfy the first assertion and fail this one the moment a third style
-     * existed, which is why `other()` is written as a `when` that would not compile then.
+     * A cycle over three layouts, so repeated taps visit every one and the fourth returns to where the
+     * user started. A pairwise swap would leave one layout unreachable from the panel entirely; that is
+     * the bug this rules out.
      */
     @Test
-    fun `each layout has the other one behind the panel's tile, and twice is where you started`() {
-        assertEquals(PanelLayoutStyle.SPLIT_EDGES, PanelLayoutStyle.CENTERED.other())
-        assertEquals(PanelLayoutStyle.CENTERED, PanelLayoutStyle.SPLIT_EDGES.other())
+    fun `the layout tile visits every layout once and comes back`() {
+        val seen = mutableListOf(PanelLayoutStyle.TURBO_WINGS)
+        repeat(PanelLayoutStyle.entries.size - 1) { seen += seen.last().next() }
+        assertEquals(PanelLayoutStyle.entries, seen)
+        assertEquals(PanelLayoutStyle.TURBO_WINGS, seen.last().next())
         for (style in PanelLayoutStyle.entries) {
-            assertEquals("${style.name} does not come back", style, style.other().other())
-            assertTrue("${style.name} is its own other", style != style.other())
+            assertTrue("${style.name} is its own next", style != style.next())
         }
+    }
+
+    /** The two gauges ship on the two readings the turbo layout was designed around. */
+    @Test
+    fun `the turbo gauges ship on cpu and gpu`() {
+        val shipped = FloatingButtonConfig()
+        assertEquals(TurboGaugeChoice.CPU, shipped.turboLeftGauge)
+        assertEquals(TurboGaugeChoice.GPU, shipped.turboRightGauge)
+        assertEquals(TurboGaugeChoice.CPU, TurboGaugeChoice.DEFAULT_LEFT)
+        assertEquals(TurboGaugeChoice.GPU, TurboGaugeChoice.DEFAULT_RIGHT)
+    }
+
+    /**
+     * Each gauge choice is a distinct drawing as well as a distinct reading.
+     *
+     * The design label is what the panel shows under the ring and what this test uses as the identity of
+     * the 3D treatment. If two choices ever shared a label, one of them would no longer have its own
+     * design, which is exactly the requirement the four-way selector exists for.
+     */
+    @Test
+    fun `every gauge choice names a real stat and its own 3D design`() {
+        val stats = mutableSetOf<HudStat>()
+        val designs = mutableSetOf<String>()
+        for (choice in TurboGaugeChoice.entries) {
+            assertTrue("${choice.name} has no label", choice.label.isNotBlank())
+            assertTrue("${choice.name} has no design label", choice.designLabel.isNotBlank())
+            assertTrue("${choice.name} repeats a stat", stats.add(choice.stat))
+            assertTrue("${choice.name} repeats a design", designs.add(choice.designLabel))
+        }
+        assertEquals(HudStat.CPU_TEMPERATURE, TurboGaugeChoice.TEMPERATURE.stat)
+    }
+
+    /** The caption under a gauge cycles all four and wraps, so no choice is stranded. */
+    @Test
+    fun `a gauge choice cycles through all four and returns`() {
+        val seen = mutableListOf(TurboGaugeChoice.CPU)
+        repeat(TurboGaugeChoice.entries.size - 1) { seen += seen.last().next() }
+        assertEquals(TurboGaugeChoice.entries, seen)
+        assertEquals(TurboGaugeChoice.CPU, seen.last().next())
+    }
+
+    @Test
+    fun `an unknown or absent saved gauge falls back to cpu`() {
+        assertEquals(TurboGaugeChoice.CPU, TurboGaugeChoice.of(null))
+        assertEquals(TurboGaugeChoice.CPU, TurboGaugeChoice.of("NOPE"))
+        assertEquals(TurboGaugeChoice.RAM, TurboGaugeChoice.of("RAM"))
     }
 
     /**

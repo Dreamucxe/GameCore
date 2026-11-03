@@ -1,5 +1,6 @@
 package com.gamecore.ui.overlay
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -8,11 +9,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,7 +50,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -65,6 +72,7 @@ import com.gamecore.core.model.OverlayConfig
 import com.gamecore.core.model.OverlayWindowState
 import com.gamecore.core.model.PanelLayoutStyle
 import com.gamecore.core.model.PillDisplayMode
+import com.gamecore.core.model.TurboGaugeChoice
 import com.gamecore.core.model.absentStatsNote
 import com.gamecore.core.model.buttonSizeSummary
 import com.gamecore.core.model.isAtDefaultPosition
@@ -85,6 +93,7 @@ import com.gamecore.core.overlay.QuickSheetPinEditor
 import com.gamecore.core.overlay.QuickToggle
 import com.gamecore.core.overlay.actionsPerRow
 import com.gamecore.core.overlay.pinnedCorner
+import com.gamecore.core.overlay.turboWingShape
 import com.gamecore.core.overlay.withCorner
 import com.gamecore.domain.monitoring.StatReading
 import com.gamecore.ui.Destination
@@ -1348,7 +1357,10 @@ private fun PanelCard(
     modifier: Modifier = Modifier,
 ) {
     val button = state.button
-    val split = button.panelLayout == PanelLayoutStyle.SPLIT_EDGES
+    val layout = button.panelLayout
+    val split = layout == PanelLayoutStyle.SPLIT_EDGES
+    val turbo = layout == PanelLayoutStyle.TURBO_WINGS
+    val fullScreen = split || turbo
     val perRow = actionsPerRow(button.panelWidthDp)
     SectionCard(
         title = "Control panel",
@@ -1357,12 +1369,20 @@ private fun PanelCard(
         modifier = modifier,
         action = {
             StatusChip(
-                text = if (split) "Two plates" else "$perRow across",
+                text = when {
+                    turbo -> "3D wings"
+                    split -> "Two plates"
+                    else -> "$perRow across"
+                },
                 tone = Tone.Muted,
             )
         },
     ) {
-        if (split) SplitPanelPreview() else PanelPreview(button = button, perRow = perRow)
+        when (layout) {
+            PanelLayoutStyle.TURBO_WINGS -> TurboPanelPreview(button = button)
+            PanelLayoutStyle.SPLIT_EDGES -> SplitPanelPreview()
+            PanelLayoutStyle.CENTERED -> PanelPreview(button = button, perRow = perRow)
+        }
 
         RowDivider()
         GroupLabel("LAYOUT")
@@ -1372,7 +1392,7 @@ private fun PanelCard(
             selected = button.panelLayout,
             onSelect = { style -> onEdit { it.copy(panelLayout = style) } },
             label = { it.label },
-            perRow = 2,
+            perRow = 3,
         )
         Spacer(modifier = Modifier.height(Spacing.xs))
         Text(
@@ -1380,6 +1400,40 @@ private fun PanelCard(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        if (turbo) {
+            RowDivider()
+            GroupLabel("3D GAUGES")
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Text(
+                text = "Each wing carries one gauge. Pick what it measures — the ring changes with the " +
+                    "choice, not just the number inside it.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            GaugeChoiceRow(
+                title = "Left gauge",
+                selected = button.turboLeftGauge,
+                onSelect = { choice -> onUpdate { it.copy(turboLeftGauge = choice) } },
+            )
+            Spacer(modifier = Modifier.height(Spacing.md))
+            GaugeChoiceRow(
+                title = "Right gauge",
+                selected = button.turboRightGauge,
+                onSelect = { choice -> onUpdate { it.copy(turboRightGauge = choice) } },
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            NoteBanner(
+                text = "CPU draws an amber circuit ring, GPU a cyan faceted ring, RAM a green " +
+                    "memory-stack ring and temperature a heat ring. The figure inside is always the " +
+                    "real reading: a phone that cannot supply one shows n/a with the reason, never a " +
+                    "zero. The caption under each gauge in the panel cycles the same four choices, so " +
+                    "you can change one without leaving the game.",
+                tone = Tone.Muted,
+                icon = Icons.Filled.Info,
+            )
+        }
 
         RowDivider()
         GroupLabel("WIDTH")
@@ -1389,10 +1443,10 @@ private fun PanelCard(
             range = FloatingButtonConfig.PANEL_WIDTH_RANGE,
             onValueChange = { width -> onEdit { it.copy(panelWidthDp = width) } },
             valueLabel = "${button.panelWidthDp} dp",
-            description = if (split) {
-                "Kept for the centered layout. Split edges sizes its own plates against the screen."
-            } else {
-                sliderDescription(
+            description = when {
+                turbo -> "Kept for the centered layout. Turbo wings sizes its own plates against the screen."
+                split -> "Kept for the centered layout. Split edges sizes its own plates against the screen."
+                else -> sliderDescription(
                     "Wider fits more action tiles on a row. Tap the figure to type an exact one.",
                     FloatingButtonConfig.PANEL_WIDTH_RANGE,
                     "dp",
@@ -1400,17 +1454,21 @@ private fun PanelCard(
             },
             onValueChangeFinished = onCommit,
             onValueClick = onEditWidth,
-            enabled = !split,
+            enabled = !fullScreen,
         )
         NoteBanner(
-            text = if (split) {
-                "Split edges is as tall as the screen and as wide as it needs to be on each side, so " +
+            text = when {
+                turbo -> "Turbo wings is as tall as the screen and derives both plate widths from the " +
+                    "screen's width, so neither dimension is a setting. Each plate scrolls on its own, " +
+                    "the game stays visible between them, and tapping the gap closes the panel. There " +
+                    "is no resize grip in this layout — the width above is saved for the centered one " +
+                    "and takes effect when you switch back."
+                split -> "Split edges is as tall as the screen and as wide as it needs to be on each side, so " +
                     "neither dimension is a setting. Each plate takes a share of the screen's width and " +
                     "scrolls on its own; the gap between them is the game, and tapping it closes the " +
                     "panel. There is no resize grip in this layout — the width slider above is saved for " +
                     "the centered one and takes effect when you switch back."
-            } else {
-                "Height is not a setting: the panel is as tall as its contents need, up to the room " +
+                else -> "Height is not a setting: the panel is as tall as its contents need, up to the room " +
                     "between the button and the nearest screen edge, and scrolls inside whatever that " +
                     "leaves. The width is a request too — the panel never opens wider than the screen it " +
                     "opens on, so in portrait it may be drawn narrower than the figure above."
@@ -1421,11 +1479,12 @@ private fun PanelCard(
         Spacer(modifier = Modifier.height(Spacing.sm))
         ActionRow {
             Text(
-                text = if (split) {
-                    "Split edges suits a landscape game held in two hands. In portrait there is less " +
+                text = when {
+                    turbo -> "Turbo wings suits a landscape game held in two hands. In portrait the two " +
+                        "plates take most of the width, so the game between them is a strip."
+                    split -> "Split edges suits a landscape game held in two hands. In portrait there is less " +
                         "width to divide, so the plates are narrower and the game between them is a strip."
-                } else {
-                    "You can also drag the grip in the panel's bottom corner while a game is running."
+                    else -> "You can also drag the grip in the panel's bottom corner while a game is running."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1435,7 +1494,7 @@ private fun PanelCard(
             // a control that does nothing when pressed reads as a fault rather than as "nothing to do".
             TextButton(
                 onClick = onResetWidth,
-                enabled = !split && panelWidthResetNote(button.panelWidthDp) != null,
+                enabled = !fullScreen && panelWidthResetNote(button.panelWidthDp) != null,
             ) {
                 Text("Reset to default size")
             }
@@ -1647,6 +1706,174 @@ private fun SplitPanelPreview() {
     }
 }
 
+/**
+ * The turbo-wings drawing: two bent plates against the edges, a gauge in each, the game between them.
+ *
+ * Drawn with the real [turboWingShape] rather than two rounded rectangles, because the silhouette is the
+ * only thing this layout asks the user to recognise at a glance. The gauge letters are the actual choices
+ * currently stored, so the preview answers "which reading is on which side" as well as "what shape is it".
+ * Like [SplitPanelPreview] it is an arrangement drawing, not a scale one: the real wings are derived from
+ * the screen, and a card-sized reproduction of that arithmetic would be a smudge.
+ */
+@Composable
+private fun TurboPanelPreview(button: FloatingButtonConfig) {
+    val scheme = MaterialTheme.colorScheme
+    val caption = "Two angled plates fold in from the edges, the game stays visible between them. Left: " +
+        "readouts, levels and media, with the ${button.turboLeftGauge.label} gauge. Right: the action " +
+        "grid and quick apps, with the ${button.turboRightGauge.label} gauge. Each plate scrolls on its own."
+    Column {
+        GroupLabel("PREVIEW")
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(TURBO_PREVIEW_HEIGHT_DP.dp)
+                .clip(RoundedCornerShape(Spacing.md))
+                .background(scheme.surfaceVariant)
+                .border(1.dp, scheme.outlineVariant, RoundedCornerShape(Spacing.md))
+                .padding(PREVIEW_GAP_DP.dp)
+                .clearAndSetSemantics { contentDescription = "Turbo wings preview. $caption" },
+            horizontalArrangement = Arrangement.spacedBy(PREVIEW_GAP_DP.dp),
+        ) {
+            TurboPreviewWing(
+                isLeft = true,
+                gauge = button.turboLeftGauge,
+                modifier = Modifier.weight(TURBO_PREVIEW_WING_WEIGHT),
+            )
+            Box(
+                modifier = Modifier
+                    .weight(TURBO_PREVIEW_GAME_WEIGHT)
+                    .fillMaxHeight(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "GAME",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant,
+                )
+            }
+            TurboPreviewWing(
+                isLeft = false,
+                gauge = button.turboRightGauge,
+                modifier = Modifier.weight(TURBO_PREVIEW_WING_WEIGHT),
+            )
+        }
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Text(
+            text = caption,
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** One wing of [TurboPanelPreview]: header, gauge ring and the rows that stand in for its content. */
+@Composable
+private fun TurboPreviewWing(
+    isLeft: Boolean,
+    gauge: TurboGaugeChoice,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(turboWingShape(isLeft = isLeft, narrow = true))
+            .background(OverlayPalette.PanelPlate),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(PREVIEW_PLATE_PAD_DP.dp),
+            verticalArrangement = Arrangement.spacedBy(PREVIEW_GAP_DP.dp),
+        ) {
+            PreviewBar(
+                fraction = PREVIEW_SPLIT_HEADER_FRACTION,
+                colour = OverlayPalette.Muted,
+            )
+            PreviewGauge(gauge = gauge)
+            repeat(2) {
+                PreviewBar(fraction = 1f, colour = OverlayPalette.Plate)
+            }
+            repeat(3) {
+                PreviewBar(fraction = 0.75f, colour = OverlayPalette.Divider)
+            }
+        }
+    }
+}
+
+/** A small gauge ring and its label, the one diagram element that names a setting instead of a shape. */
+@Composable
+private fun PreviewGauge(gauge: TurboGaugeChoice) {
+    val tint = previewGaugeTint(gauge)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(TURBO_PREVIEW_GAUGE_DP.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.size(TURBO_PREVIEW_GAUGE_DP.dp)) {
+            val ring = size.minDimension - 4.dp.toPx()
+            val topLeft = Offset((size.width - ring) / 2f, (size.height - ring) / 2f)
+            val ringSize = Size(ring, ring)
+            drawArc(
+                color = OverlayPalette.Divider,
+                startAngle = 135f,
+                sweepAngle = 270f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = ringSize,
+                style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round),
+            )
+            drawArc(
+                color = tint,
+                startAngle = 135f,
+                sweepAngle = 205f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = ringSize,
+                style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round),
+            )
+        }
+        Text(
+            text = gauge.label,
+            style = MaterialTheme.typography.labelSmall,
+            color = tint,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+    }
+}
+
+/** The one row that chooses what a gauge measures. Four chips, then the chosen ring's own name. */
+@Composable
+private fun GaugeChoiceRow(
+    title: String,
+    selected: TurboGaugeChoice,
+    onSelect: (TurboGaugeChoice) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Text(text = title, style = MaterialTheme.typography.labelLarge)
+        ChoiceRow(
+            options = TurboGaugeChoice.entries,
+            selected = selected,
+            onSelect = onSelect,
+            label = { it.label },
+            perRow = 4,
+        )
+        Text(
+            text = "${selected.designLabel} · ${selected.stat.label}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private fun previewGaugeTint(choice: TurboGaugeChoice): Color = when (choice) {
+    TurboGaugeChoice.CPU -> OverlayPalette.Warning
+    TurboGaugeChoice.GPU -> Color(0xFF57E7FF)
+    TurboGaugeChoice.RAM -> OverlayPalette.Good
+    TurboGaugeChoice.TEMPERATURE -> OverlayPalette.Danger
+}
+
 /** One line of the scale drawing: a header, or the level slider under the grid. */
 @Composable
 private fun PreviewBar(fraction: Float, colour: Color, modifier: Modifier = Modifier) {
@@ -1768,3 +1995,15 @@ private const val SPLIT_PREVIEW_TILES_PER_ROW = 2
 
 /** Stats and levels, stood in for by bars: enough rows to read as a column of readouts. */
 private const val SPLIT_PREVIEW_READOUT_ROWS = 3
+
+/**
+ * The turbo drawing's own proportions.
+ *
+ * The wings are drawn a little wider than their real share of the screen, for the same reason
+ * [SPLIT_PREVIEW_PLATE_WEIGHT] is: the card is narrow, and a true third each would leave nothing to draw a
+ * gauge inside. The height and the gauge are diagram dimensions, not touch targets.
+ */
+private const val TURBO_PREVIEW_HEIGHT_DP = 132
+private const val TURBO_PREVIEW_WING_WEIGHT = 1f
+private const val TURBO_PREVIEW_GAME_WEIGHT = 0.55f
+private const val TURBO_PREVIEW_GAUGE_DP = 34

@@ -109,17 +109,17 @@ class PluginGrantCodecTest {
 
     @Test
     fun `refuses a key outside the plugin's namespace`() {
-        assertFalse(PluginGrantCodec.isAcceptableKey(pluginId, "plugin.com.other.plugin.size"))
+        assertFalse(PluginGrantCodec.isAcceptableKey(pluginId, "plugin.com.other.plugin/size"))
         // Not namespaced at all, and the name of a real GameCore setting.
         assertFalse(PluginGrantCodec.isAcceptableKey(pluginId, "theme"))
         assertFalse(PluginGrantCodec.isAcceptableKey(pluginId, "plugin.size"))
 
-        assertTrue(PluginGrantCodec.isAcceptableKey(pluginId, "plugin.com.example.plugin.size"))
+        assertTrue(PluginGrantCodec.isAcceptableKey(pluginId, "plugin.com.example.plugin/size"))
     }
 
     @Test
     fun `refuses a key the grammar does not admit`() {
-        val namespace = "plugin.$pluginId."
+        val namespace = "plugin.$pluginId/"
 
         assertFalse(PluginGrantCodec.isAcceptableKey(pluginId, namespace + "window size"))
         assertFalse(PluginGrantCodec.isAcceptableKey(pluginId, namespace + "window/size"))
@@ -135,20 +135,20 @@ class PluginGrantCodecTest {
     @Test
     fun `refuses a near miss namespace in both directions`() {
         // The case a prefix check alone gets wrong: plugin `a.bc` and a key inside `a.b`'s namespace.
-        assertFalse(PluginGrantCodec.isAcceptableKey("a.bc", "plugin.a.b.size"))
-        assertFalse(PluginGrantCodec.isAcceptableKey("a.b", "plugin.a.bc.size"))
+        assertFalse(PluginGrantCodec.isAcceptableKey("a.bc", "plugin.a.b/size"))
+        assertFalse(PluginGrantCodec.isAcceptableKey("a.b", "plugin.a.bc/size"))
 
-        assertTrue(PluginGrantCodec.isAcceptableKey("a.b", "plugin.a.b.size"))
-        assertTrue(PluginGrantCodec.isAcceptableKey("a.bc", "plugin.a.bc.size"))
+        assertTrue(PluginGrantCodec.isAcceptableKey("a.b", "plugin.a.b/size"))
+        assertTrue(PluginGrantCodec.isAcceptableKey("a.bc", "plugin.a.bc/size"))
     }
 
     @Test
     fun `groups a qualified key by the plugin it could belong to`() {
         // What the store counts a write against when it is handed a key and no plugin id.
-        assertEquals("plugin.com.example.", PluginGrantCodec.budgetGroupOf("plugin.com.example.plugin.size"))
+        assertEquals("plugin.com.example/", PluginGrantCodec.budgetGroupOf("plugin.com.example/plugin.size"))
         assertEquals(
-            PluginGrantCodec.budgetGroupOf("plugin.com.example.plugin.a"),
-            PluginGrantCodec.budgetGroupOf("plugin.com.example.plugin.b"),
+            PluginGrantCodec.budgetGroupOf("plugin.com.example/plugin.a"),
+            PluginGrantCodec.budgetGroupOf("plugin.com.example/plugin.b"),
         )
 
         // Not a namespaced key: a GameCore setting name, a bare prefix, an id with one segment, and a
@@ -156,7 +156,15 @@ class PluginGrantCodecTest {
         // the write.
         assertNull(PluginGrantCodec.budgetGroupOf("allow_elevated"))
         assertNull(PluginGrantCodec.budgetGroupOf("plugin."))
-        assertNull(PluginGrantCodec.budgetGroupOf("plugin.single.size"))
+        assertNull(PluginGrantCodec.budgetGroupOf("plugin.single/size"))
+        assertNull(PluginGrantCodec.budgetGroupOf("plugin.com.example//size"))
+    }
+
+    @Test
+    fun `a pre-4_3 dotted key still resolves so its value can be migrated`() {
+        // Read-only compatibility: 4.2 wrote plugin.<id>.<key>. A later write replaces it with the
+        // slash form, but an upgrade must not silently reset the stored setting before that write.
+        assertEquals("plugin.com.example.", PluginGrantCodec.budgetGroupOf("plugin.com.example.plugin.size"))
         assertNull(PluginGrantCodec.budgetGroupOf("plugin.com.example..size"))
     }
 

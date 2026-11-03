@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Plugin Maker mark: a paint roller.
+
+  Drawn on the 108dp adaptive-icon canvas. Everything that matters sits inside
+  the central 72dp safe zone (18..90 on both axes), so no launcher's shape —
+  circle, squircle, rounded square — clips the roller.
+
+  Two colours on purpose: the roller in the studio's violet and the grip in
+  its teal, which is the pair the studio's own theme is built from.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- The roller: a rounded bar across the top. -->
+    <path
+        android:fillColor="#7C5CFF"
+        android:pathData="M40,28h28a8,8 0 0 1 8,8v8a8,8 0 0 1 -8,8h-28a8,8 0 0 1 -8,-8v-8a8,8 0 0 1 8,-8z" />
+
+    <!-- The frame: down the left-hand end of the roller. -->
+    <path
+        android:fillColor="#7C5CFF"
+        android:pathData="M36,50h12v16h-12z" />
+
+    <!-- The grip: the handle the roller is held by. -->
+    <path
+        android:fillColor="#2BD4C0"
+        android:pathData="M36,64h28a6,6 0 0 1 6,6a6,6 0 0 1 -6,6h-28z" />
+</vector>

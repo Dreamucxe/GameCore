@@ -30,6 +30,7 @@ import com.gamecore.core.model.QuickTriggerSettings
 import com.gamecore.aimlab.engine.TargetPalette
 import com.gamecore.core.model.RecordingQuality
 import com.gamecore.core.model.ThemeChoice
+import com.gamecore.core.model.TurboGaugeChoice
 import com.gamecore.core.schedule.AppearanceSchedule
 import com.gamecore.core.schedule.AppearanceScheduleCodec
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -658,18 +659,39 @@ class SecurePreferenceStore @Inject constructor(
     }
 
     /**
-     * Switches the panel between its two shapes, from the panel itself.
+     * Switches the panel between its shapes, from the panel itself.
      *
      * Narrow for exactly the reason [updatePanelWidth] is, and the case is the same one: the tile that
      * calls this is inside the open panel, so the button's x and y are whatever the service last dragged
      * them to, and [updateFloatingButton] would write them back from a state it may be a frame behind on.
-     * The stored width is left alone on purpose — the split layout does not use it, and the user gets the
+     * The stored width is left alone on purpose — neither edge layout uses it, and the user gets the
      * panel they had sized when they switch back.
      */
     fun updatePanelLayout(style: PanelLayoutStyle) {
         val updated = buttonState.value.copy(panelLayout = style)
         buttonState.value = updated
         prefs?.edit()?.putString(KEY_BUTTON_PANEL_LAYOUT, style.name)?.apply()
+    }
+
+    /**
+     * Sets what the turbo panel's left 3D gauge measures.
+     *
+     * Narrow for the same reason [updatePanelLayout] is, and with one more caller: the gauge's own caption
+     * in the open panel cycles this value too, while the service may be dragging the button behind it.
+     * A whole-config write from either place would carry a stale x and y back to disk over the position
+     * the finger last left, so only the gauge key is written and only the gauge field is copied.
+     */
+    fun updateTurboLeftGauge(choice: TurboGaugeChoice) {
+        val updated = buttonState.value.copy(turboLeftGauge = choice)
+        buttonState.value = updated
+        prefs?.edit()?.putString(KEY_BUTTON_TURBO_LEFT_GAUGE, choice.name)?.apply()
+    }
+
+    /** The right wing's gauge, with the same narrow write as [updateTurboLeftGauge]. */
+    fun updateTurboRightGauge(choice: TurboGaugeChoice) {
+        val updated = buttonState.value.copy(turboRightGauge = choice)
+        buttonState.value = updated
+        prefs?.edit()?.putString(KEY_BUTTON_TURBO_RIGHT_GAUGE, choice.name)?.apply()
     }
 
     /**
@@ -711,6 +733,16 @@ class SecurePreferenceStore @Inject constructor(
                 p.getString(KEY_BUTTON_PANEL_LAYOUT, null),
                 PanelLayoutStyle.entries,
                 defaults.panelLayout,
+            ),
+            turboLeftGauge = enumOrDefault(
+                p.getString(KEY_BUTTON_TURBO_LEFT_GAUGE, null),
+                TurboGaugeChoice.entries,
+                defaults.turboLeftGauge,
+            ),
+            turboRightGauge = enumOrDefault(
+                p.getString(KEY_BUTTON_TURBO_RIGHT_GAUGE, null),
+                TurboGaugeChoice.entries,
+                defaults.turboRightGauge,
             ),
             showQuickApps = p.getBoolean(KEY_BUTTON_QUICK_APPS_SHOW, defaults.showQuickApps),
             quickAppPackages = readQuickApps(p),
@@ -761,6 +793,8 @@ class SecurePreferenceStore @Inject constructor(
             putBoolean(KEY_BUTTON_DOUBLE_TAP_PANEL, value.doubleTapForPanel)
             putInt(KEY_BUTTON_PANEL_WIDTH, value.panelWidthDp)
             putString(KEY_BUTTON_PANEL_LAYOUT, value.panelLayout.name)
+            putString(KEY_BUTTON_TURBO_LEFT_GAUGE, value.turboLeftGauge.name)
+            putString(KEY_BUTTON_TURBO_RIGHT_GAUGE, value.turboRightGauge.name)
             putBoolean(KEY_BUTTON_QUICK_APPS_SHOW, value.showQuickApps)
             putString(KEY_BUTTON_QUICK_APPS, value.quickAppPackages.joinToString(SEPARATOR))
             putFloatOrRemove(KEY_BUTTON_PORTRAIT_X, value.portraitXFraction)
@@ -1268,6 +1302,8 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_BUTTON_DOUBLE_TAP_PANEL = "button_double_tap_panel"
         const val KEY_BUTTON_PANEL_WIDTH = "button_panel_width"
         const val KEY_BUTTON_PANEL_LAYOUT = "button_panel_layout"
+        const val KEY_BUTTON_TURBO_LEFT_GAUGE = "button_turbo_left_gauge"
+        const val KEY_BUTTON_TURBO_RIGHT_GAUGE = "button_turbo_right_gauge"
         const val KEY_BUTTON_QUICK_APPS_SHOW = "button_quick_apps_show"
         const val KEY_BUTTON_QUICK_APPS = "button_quick_apps"
         const val KEY_BUTTON_PORTRAIT_X = "button_portrait_x_fraction"

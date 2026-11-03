@@ -131,12 +131,26 @@ class PluginPermissionGateTest {
         assertEquals(DenyReason.SCOPE_WITHHELD, (d as PermissionDecision.Deny).reason)
     }
 
+    @Test
+    fun `a stored scope that the manifest never requested stays denied`() {
+        val m = manifest(PluginPermission.READ_APPROVED_DATA to setOf("sessions"))
+        val g = PluginGrant(
+            "com.example.plugin",
+            mapOf(PluginPermission.READ_APPROVED_DATA to setOf("sessions", "thermals")),
+        )
+
+        val decision = gate.check(state(m, g), PluginPermission.READ_APPROVED_DATA, "thermals")
+
+        assertEquals(DenyReason.NOT_REQUESTED, (decision as PermissionDecision.Deny).reason)
+        assertTrue(decision.detail.contains("thermals"))
+    }
+
     // ---------------------------------------------------------------- namespacing
 
     @Test
     fun `namespace qualifies a simple key under the plugin prefix`() {
         val q = PluginNamespace.qualify("com.example.plugin", "theme_mode")
-        assertEquals("plugin.com.example.plugin.theme_mode", q)
+        assertEquals("plugin.com.example.plugin/theme_mode", q)
         assertTrue(PluginNamespace.belongsTo("com.example.plugin", q!!))
     }
 

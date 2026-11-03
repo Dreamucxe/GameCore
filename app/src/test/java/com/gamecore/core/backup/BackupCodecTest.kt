@@ -29,6 +29,7 @@ import com.gamecore.core.model.PanelLayoutStyle
 import com.gamecore.core.model.PillDisplayMode
 import com.gamecore.core.model.PluginSectionFont
 import com.gamecore.core.model.ThemeChoice
+import com.gamecore.core.model.TurboGaugeChoice
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -122,6 +123,8 @@ class BackupCodecTest {
             doubleTapForPanel = true,
             panelWidthDp = 300,
             panelLayout = PanelLayoutStyle.SPLIT_EDGES,
+            turboLeftGauge = TurboGaugeChoice.RAM,
+            turboRightGauge = TurboGaugeChoice.TEMPERATURE,
             showQuickApps = true,
             quickAppPackages = listOf("com.example.app"),
             portraitXFraction = 0.25f,

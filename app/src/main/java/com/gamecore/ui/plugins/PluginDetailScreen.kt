@@ -311,6 +311,7 @@ fun PluginDetailScreen(
         if (state.screens.isNotEmpty() &&
             state.enabled &&
             !state.suspended &&
+            plugin.manifest.requests(PluginPermission.CHANGE_UI) &&
             saved.has(PluginPermission.CHANGE_UI)
         ) {
             item {

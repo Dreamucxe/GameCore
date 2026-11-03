@@ -16,8 +16,8 @@ android {
         applicationId = "com.gamecore"
         minSdk = 26
         targetSdk = 34
-        versionCode = 50
-        versionName = "4.1"
+        versionCode = 53
+        versionName = "4.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Room exports its schema so a future migration can be tested against the
@@ -161,6 +161,11 @@ dependencies {
     // Test classpath only: the Aim Lab config codec parses with org.json, and the
     // version inside android.jar is a stub. See the catalog entry.
     testImplementation(libs.org.json)
+    // The shared plugin editor. GameCore hosts it behind "Create a plugin" in the plugin
+    // manager, and the standalone Plugin Maker app hosts the same screen; writing it once is
+    // what keeps the two entry points from drifting. Test classpath too, so the host can check
+    // that what the studio writes is what the host accepts.
+    implementation(project(":plugin-studio"))
 
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.espresso.core)

@@ -32,10 +32,15 @@ so it only ever goes up.
 
 ### Current baseline
 
-This tree is **GameCore 4.1**, `versionCode` **50**, signed with the real
+This tree is **GameCore 4.4**, `versionCode` **53**, signed with the real
 GameCore certificate. The next release starts here and bumps to `versionCode`
-**51**; nothing is built against the older 3.x line any more. The working copy
+**54**; nothing is built against the older 3.x line any more. The working copy
 lives at `/root/GameCore-4.0`.
+
+The tree also ships **GameCore Plugin Maker 1.1.0**, a separate app
+(`com.gamecore.pluginmaker`, `versionCode` 2) signed with the same certificate.
+It has its own release line and its own archive folder; bumping GameCore does not
+bump the maker unless the maker itself changed.
 
 Every release is archived to `/sdcard/Download` as
 `GameCore-<version>.apk`, `GameCore-<version>-source.zip` and their `.sha256`
@@ -47,8 +52,9 @@ sidecars — see section 5.
 source /root/android-env.sh
 cd /root/GameCore-4.0
 ./gradlew :gamecore-plugin-sdk:test --no-daemon
+./gradlew :plugin-studio:testDebugUnitTest :plugin-maker:testDebugUnitTest --no-daemon
 ./gradlew :app:testDebugUnitTest --no-daemon
-./gradlew :app:assembleRelease --no-daemon
+./gradlew :app:assembleRelease :plugin-maker:assembleRelease --no-daemon
 ```
 
 `keystore.properties` and `release.keystore` sit in the project root and are what
@@ -91,6 +97,12 @@ tree that produced it and Download's root never fills up with loose files:
             SHA256SUMS.txt
     LiquidGlass-GameCore-<version>/  (plugin packages, when built separately)
     LiquidGlass-Fonts/
+    GameCore-PluginMaker-1.1.0/
+        GameCore-PluginMaker-1.1.0.apk
+        GameCore-PluginMaker-1.1.0.apk.sha256
+        GameCore-PluginMaker-1.1.0-source.zip
+        GameCore-PluginMaker-1.1.0-source.zip.sha256
+        SHA256SUMS.txt
     GameCore-<older versions>/
     ...
 ```
@@ -114,3 +126,10 @@ the version folder keeps every file that belongs to a release in one place.
 
 Any extra data that ships with the release — for example the Liquid Glass font
 packages — goes in its own folder next to the APK, with its own checksum file.
+
+The maker archive uses the same script with its own label and APK:
+
+```bash
+tools/archive-release.sh PluginMaker-1.1.0 \
+    plugin-maker/build/outputs/apk/release/plugin-maker-release.apk
+```

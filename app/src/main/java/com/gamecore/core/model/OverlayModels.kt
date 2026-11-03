@@ -132,11 +132,20 @@ enum class PillDisplayMode(val label: String) {
  * either layout is on its own. It also has nothing to restore, so a per-profile version would be a
  * per-profile setting the restore machinery could not see.
  *
- * [CENTERED] is first because it is the default and has to stay the default: it is what every existing
- * install already has, and a redesign that reshapes a panel people have learned is not an improvement
- * they asked for. [SPLIT_EDGES] is offered, not preferred.
+ * [TURBO_WINGS] is first because it is the shipped default of this redesign: two angled plates, a
+ * game-space style action grid, and the configurable 3D gauges. It keeps every control the centered
+ * and split layouts have — aspect ratio, refresh rate, colour, crosshair, levels and media included —
+ * so the redesign changes the shape and the finish, never the feature set. [CENTERED] and
+ * [SPLIT_EDGES] stay available under Layout for anyone who prefers the older surfaces.
  */
 enum class PanelLayoutStyle(val label: String, val description: String) {
+
+    TURBO_WINGS(
+        label = "Turbo wings",
+        description = "Two angled plates fold in from the screen edges, with the game between them. " +
+            "3D gauges, game-space action tiles and every existing control. Full screen, so the " +
+            "width setting does not apply.",
+    ),
 
     CENTERED(
         label = "Centered",
@@ -151,20 +160,66 @@ enum class PanelLayoutStyle(val label: String, val description: String) {
     ;
 
     /**
-     * The other layout, for the panel's own Layout tile.
+     * The next layout, for the panel's own Layout tile.
      *
      * Here rather than in the overlay service because it is a fact about this set and not about a window,
      * and because it is the part of that tile a test can hold: the service's half is a preference write
      * and a window rebuild, neither of which runs on a JVM.
      *
-     * A `when` with no `else`, which is the point of writing it out for two values. A third layout would
-     * fail to compile here, and that is the right place to be stopped — a two-state tap has no meaning
-     * over three layouts, so the tile would have to become a row of chips, and this line is what makes
-     * somebody decide that instead of inheriting a cycle that skips a layout the user cannot reach.
+     * A cycle rather than a pairwise swap, because the set now has three members and a two-state tap
+     * over three layouts would leave one unreachable from the panel. The `when` has no `else`, so a
+     * fourth layout cannot be added without deciding where it sits in the cycle.
      */
-    fun other(): PanelLayoutStyle = when (this) {
+    fun next(): PanelLayoutStyle = when (this) {
+        TURBO_WINGS -> CENTERED
         CENTERED -> SPLIT_EDGES
-        SPLIT_EDGES -> CENTERED
+        SPLIT_EDGES -> TURBO_WINGS
+    }
+}
+
+/**
+ * What a panel 3D gauge can be set to measure.
+ *
+ * One enum rather than a raw [HudStat], because these are the four readings the gauge has a drawn
+ * identity for — and because a saved gauge choice must survive a build that later adds a new stat.
+ * The `designLabel` is the user-facing name of the 3D treatment, shown under the selector so the
+ * choice reads as a look as well as a number.
+ *
+ * [TEMPERATURE] uses [HudStat.CPU_TEMPERATURE]. That reading is genuinely unavailable on devices that
+ * do not expose a CPU thermal zone, and the gauge then draws its empty track with the reason rather
+ * than a made-up figure.
+ */
+enum class TurboGaugeChoice(
+    val stat: HudStat,
+    val label: String,
+    val designLabel: String,
+) {
+    CPU(HudStat.CPU_USAGE, "CPU", "Amber circuit ring"),
+    GPU(HudStat.GPU_USAGE, "GPU", "Cyan facet ring"),
+    RAM(HudStat.RAM_USAGE, "RAM", "Green memory-stack ring"),
+    TEMPERATURE(HudStat.CPU_TEMPERATURE, "Temp", "Heat ring"),
+    ;
+
+    companion object {
+        val DEFAULT_LEFT: TurboGaugeChoice = CPU
+        val DEFAULT_RIGHT: TurboGaugeChoice = GPU
+
+        /** Parse a stored name back to a choice, falling back to [CPU] for an unknown or absent value. */
+        fun of(name: String?): TurboGaugeChoice = entries.firstOrNull { it.name == name } ?: CPU
+    }
+
+    /**
+     * The next choice in declaration order, wrapping after [TEMPERATURE].
+     *
+     * Used by the gauge caption in the panel itself, where one control has to reach all four. A `when`
+     * rather than `entries[(ordinal + 1) % entries.size]` so a fifth choice cannot be added without
+     * deciding where it joins the cycle — the same rule [PanelLayoutStyle.next] follows.
+     */
+    fun next(): TurboGaugeChoice = when (this) {
+        CPU -> GPU
+        GPU -> RAM
+        RAM -> TEMPERATURE
+        TEMPERATURE -> CPU
     }
 }
 
@@ -258,18 +313,29 @@ data class FloatingButtonConfig(
      * Which shape the panel opens in. See [PanelLayoutStyle] for why this is not per-profile.
      *
      * Sits beside [panelWidthDp] because the two are read together and one bounds the other:
-     * [PanelLayoutStyle.SPLIT_EDGES] derives its plate width from the screen, so the stored width is
-     * carried untouched rather than cleared. Switching back to [PanelLayoutStyle.CENTERED] then finds
-     * the width the user set, which is the only behaviour that does not punish trying the other layout.
+     * [PanelLayoutStyle.SPLIT_EDGES] and [PanelLayoutStyle.TURBO_WINGS] derive their plate widths from
+     * the screen, so the stored width is carried untouched rather than cleared. Switching back to
+     * [PanelLayoutStyle.CENTERED] then finds the width the user set, which is the only behaviour that
+     * does not punish trying another layout.
      */
-    val panelLayout: PanelLayoutStyle = PanelLayoutStyle.CENTERED,
+    val panelLayout: PanelLayoutStyle = PanelLayoutStyle.TURBO_WINGS,
+    /**
+     * What the left and right 3D gauges of [PanelLayoutStyle.TURBO_WINGS] measure.
+     *
+     * The gauge is a reading, never a mood: each choice maps to a real [HudStat] and the service samples
+     * that stat for the panel independently of the stats pill's own selection. CPU, GPU, RAM and CPU
+     * temperature each draw a different 3D treatment (amber circuit, cyan facet, green memory stack,
+     * heat ring), so the choice changes the object on screen as well as the number inside it.
+     */
+    val turboLeftGauge: TurboGaugeChoice = TurboGaugeChoice.DEFAULT_LEFT,
+    val turboRightGauge: TurboGaugeChoice = TurboGaugeChoice.DEFAULT_RIGHT,
     /**
      * Whether the panel draws a row of the user's own apps under the action grid.
      *
-     * Off, and independent of [panelLayout] rather than a third value of it. Independent because the
+     * Off, and independent of [panelLayout] rather than another value of it. Independent because the
      * two are answers to different questions — the layout is the panel's *shape*, this is one more
      * thing in it — and a user who prefers the split layout has no reason to give up quick launching
-     * to keep it. [PanelLayoutStyle.other] says why a third shape would be the wrong thing to add.
+     * to keep it. [PanelLayoutStyle.next] is the shape cycle; this stays a separate switch.
      *
      * Off by default because the row costs a strip of the game's screen and names apps GameCore has no
      * business guessing at. With no [quickAppPackages] chosen it draws nothing even when this is on,

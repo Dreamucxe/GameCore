@@ -43,13 +43,13 @@ import kotlin.math.roundToInt
 /**
  * The same control panel as [OverlayControlPanel], split against both screen edges with the game between.
  *
- * The second of the two layouts [com.gamecore.core.model.PanelLayoutStyle] offers, and a separate
+ * The older of the two edge layouts [com.gamecore.core.model.PanelLayoutStyle] offers, and a separate
  * composable rather than a branch inside the first one. They disagree about almost everything structural:
  * the centered panel is one plate of a width the user chose, positioned from the button, closing itself on
  * a touch that lands outside it; this is two plates of a width derived from the screen, ignoring the
  * button's position entirely, in a window that has no outside. What they share is their *content*, and
- * that is shared for real — every piece below is the same `internal` composable the centered panel draws,
- * so an action added to the grid appears in both layouts or neither.
+ * that is shared for real — every piece below is the same `internal` composable the other layouts draw,
+ * so an action added to the grid appears in all three or in none.
  *
  * Three things about this window are worth being plain about, because each of them is a cost:
  *
@@ -68,8 +68,8 @@ import kotlin.math.roundToInt
  * There is no resize grip. The plate width is [splitPlateWidth] of the screen rather than
  * [FloatingButtonConfig.panelWidthDp], so there is nothing here for a grip to set: dragging one would have
  * to either move a boundary the arithmetic recomputes on the next layout, or introduce a second stored
- * width that means nothing in the other layout. The stored width is left untouched and takes effect again
- * when the user switches back, which the settings screen says.
+ * width that means nothing in the centered layout. The stored width is left untouched and takes effect
+ * again when the user switches back, which the settings screen says.
  */
 @Composable
 fun OverlaySplitPanel(
@@ -302,7 +302,7 @@ private fun SplitHeaderRow(
  * Sharing the model's two width bounds rather than inventing new ones, because they are the same facts:
  * the floor is what the grid needs and the ceiling is where a plate stops using the space it is given.
  * What is *not* shared is [FloatingButtonConfig.panelWidthDp] — the user's stored figure belongs to the
- * other layout and is left alone here.
+ * centered layout and is left alone here.
  */
 internal fun splitPlateWidth(screenWidthDp: Int): Int {
     val preferred = (screenWidthDp * SPLIT_PLATE_FRACTION).roundToInt()

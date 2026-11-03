@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug-only strings for the foreground bridge notification. -->
+<resources>
+    <string name="studio_bridge_channel">Studio MCP bridge</string>
+    <string name="studio_bridge_channel_description">Keeps the local debug bridge running while an agent edits the live draft.</string>
+    <string name="studio_bridge_title">Plugin Studio bridge is running</string>
+    <string name="studio_bridge_text">Listening on 127.0.0.1:47653 — tap to open the editor.</string>
+</resources>

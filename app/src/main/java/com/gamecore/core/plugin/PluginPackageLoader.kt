@@ -79,6 +79,8 @@ object PluginPackageLoader {
         UNDECLARED_SECTION,
         MISSING_DECLARED_SECTION,
         DISALLOWED_FILE,
+        /** A declared section file exists but its production codec refuses its content. */
+        INVALID_SECTION,
     }
 
     // -------------------------------------------------------------------------------- decode
@@ -176,6 +178,13 @@ object PluginPackageLoader {
         }
 
         structuralCheck(manifest, entries)?.let { return it }
+
+        PluginSectionValidator.validate(manifest, entries)?.let { invalid ->
+            return Result.Rejected(
+                Reason.INVALID_SECTION,
+                "${invalid.section.id} (${invalid.path}): ${invalid.detail}",
+            )
+        }
 
         return Result.Loaded(
             LoadedPlugin(

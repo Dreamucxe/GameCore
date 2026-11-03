@@ -94,6 +94,42 @@ class PluginSettingsSurfaceTest {
     }
 
     @Test
+    fun `a pre-4_3 dotted value is read once and replaced by the slash namespace`() {
+        val store = FakeGrantStore()
+        val s = PluginSettings(facade(), store)
+        val st = state("com.a")
+        val legacy = PluginNamespace.legacyQualify("com.a", "hint")!!
+        store.values[legacy] = "180"
+
+        assertEquals(SettingValue.IntValue(180), (s.get(st, schema, "hint") as ApiResult.Ok).value)
+
+        s.set(st, schema, "hint", SettingValue.IntValue(200))
+        assertEquals("200", store.values[PluginNamespace.qualify("com.a", "hint")])
+        assertTrue("the 4.2 key must not survive as a stale second source", legacy !in store.values)
+    }
+
+    @Test
+    fun `a prefix-similar plugin cannot read another plugin's value`() {
+        val store = FakeGrantStore()
+        val s = PluginSettings(facade(), store)
+        val owner = state("com.a")
+        val impostor = state("com.a.b")
+        val dotted = PluginSettingsSchema(
+            schema = 1,
+            definitions = listOf(
+                SettingDef.IntDef("b.hint", defaultValue = 120, min = 60, max = 240),
+                SettingDef.IntDef("hint", defaultValue = 120, min = 60, max = 240),
+            ),
+        )
+
+        s.set(owner, dotted, "b.hint", SettingValue.IntValue(222))
+
+        // The old dotted scheme produced the same string for com.a + b.hint and com.a.b + hint;
+        // the slash boundary keeps these two namespaces distinct.
+        assertEquals(SettingValue.IntValue(120), (s.get(impostor, dotted, "hint") as ApiResult.Ok).value)
+    }
+
+    @Test
     fun `an absent key reads back the definition's default`() {
         val s = PluginSettings(facade(), FakeGrantStore())
         assertEquals(SettingValue.BoolValue(true), (s.get(state(), schema, "haptics") as ApiResult.Ok).value)

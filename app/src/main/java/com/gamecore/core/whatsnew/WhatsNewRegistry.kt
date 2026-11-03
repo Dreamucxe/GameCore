@@ -35,6 +35,88 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 53,
+            versionName = "4.4",
+            date = "2026-11-03",
+            features = listOf(
+                FeatureNote(
+                    "Two angled wings, every control",
+                    "The control panel has a third shape: two bent plates fold in from the screen " +
+                        "edges with the game still visible between them. It keeps aspect ratio, " +
+                        "refresh rate, colour, crosshair, levels, media, quick apps and every action " +
+                        "tile. Tapping the gap or the close button leaves, and the Layout tile cycles " +
+                        "Turbo wings, Centered and Split edges in place. Fresh installs start on " +
+                        "Turbo wings; existing layouts remain available.",
+                ),
+                FeatureNote(
+                    "A 3D gauge on each wing",
+                    "Each wing carries a bevelled stat ring. Choose CPU, GPU, RAM or temperature for " +
+                        "the left and right side in Settings › Overlay, or tap the caption under a " +
+                        "gauge to cycle it without leaving the game. Each choice has its own 3D " +
+                        "treatment: amber circuit, cyan facet, green memory stack or heat ring. The " +
+                        "figure is always a real reading; a sensor this device cannot supply shows " +
+                        "n/a with the reason, never a zero.",
+                ),
+            ),
+        ),
+        ReleaseNote(
+            versionCode = 52,
+            versionName = "4.3",
+            date = "2026-11-01",
+            features = listOf(
+                FeatureNote(
+                    "Build more than a theme",
+                    "Plugin Studio and Plugin Maker 1.1 can combine a theme, read-only screens, " +
+                        "a bounded monitoring overlay, typed settings, dashboard widgets and " +
+                        "edge-triggered automation rules in one deterministic package. Required " +
+                        "permission and live-data scope requests are derived from the content; " +
+                        "installing the package still grants none of them.",
+                ),
+                FeatureNote(
+                    "Test rules without touching the device",
+                    "The Test workspace validates every authored section, checks static conflicts, " +
+                        "inspects the exact zip and SHA-256, and evaluates rules against visibly " +
+                        "simulated triggers and readings. Simulation never calls Shizuku or the " +
+                        "production action broker.",
+                ),
+                FeatureNote(
+                    "Import without silent loss",
+                    "Studio can reopen every section it authors. A package carrying profiles, Aim " +
+                        "Lab data, icon or asset files it cannot preserve is refused with the file " +
+                        "name instead of being exported with that data missing.",
+                ),
+            ),
+        ),
+        ReleaseNote(
+            versionCode = 51,
+            versionName = "4.2",
+            date = "2026-11-01",
+            features = listOf(
+                FeatureNote(
+                    "Make a plugin on the phone",
+                    "The new GameCore Plugin Maker is a separate app for designing a theme and " +
+                        "saving it as a .gcplugin. It edits all thirteen colour roles, the bundled " +
+                        "faces, the type ramp, glass and glitch, with a colour wheel, eight " +
+                        "templates, undo, autosaved projects and a device preview. It needs no " +
+                        "computer and writes the same deterministic package as the command-line " +
+                        "tools.",
+                ),
+                FeatureNote(
+                    "Check before you export",
+                    "The studio measures WCAG contrast for every ink and surface pair, warns about " +
+                        "translucent ink and extreme scales, previews colour-vision types, and " +
+                        "shows the package's exact contents and SHA-256 before saving. Import reads " +
+                        "an existing theme and names anything it cannot write back.",
+                ),
+                FeatureNote(
+                    "Create a plugin without leaving GameCore",
+                    "Plugins › Create a plugin opens the same editor inside GameCore. Saving goes " +
+                        "through the system file picker, and the result installs from Plugins › " +
+                        "Choose files like any other package.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 50,
             versionName = "4.1",
             date = "2026-10-31",

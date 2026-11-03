@@ -27,6 +27,7 @@ import com.gamecore.core.model.PillDisplayMode
 import com.gamecore.core.model.QuickTriggerSettings
 import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.StopReason
+import com.gamecore.core.model.TurboGaugeChoice
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -364,6 +365,8 @@ object BackupCodec {
         put("doubleTapForPanel", b.doubleTapForPanel)
         put("panelWidthDp", b.panelWidthDp)
         put("panelLayout", b.panelLayout.name)
+        put("turboLeftGauge", b.turboLeftGauge.name)
+        put("turboRightGauge", b.turboRightGauge.name)
         put("showQuickApps", b.showQuickApps)
         put("quickAppPackages", JSONArray(b.quickAppPackages))
         // Only a placed orientation carries a fraction pair; an absent one stays absent rather than 0,0.
@@ -782,6 +785,8 @@ object BackupCodec {
             doubleTapForPanel = o.optBoolean("doubleTapForPanel", d.doubleTapForPanel),
             panelWidthDp = o.optInt("panelWidthDp", d.panelWidthDp),
             panelLayout = enumByName(o.optString("panelLayout"), d.panelLayout),
+            turboLeftGauge = enumByName(o.optString("turboLeftGauge"), d.turboLeftGauge),
+            turboRightGauge = enumByName(o.optString("turboRightGauge"), d.turboRightGauge),
             showQuickApps = o.optBoolean("showQuickApps", d.showQuickApps),
             quickAppPackages = readStrings(o.optJSONArray("quickAppPackages")),
             portraitXFraction = readFractionOrNull(o, "portraitXFraction"),

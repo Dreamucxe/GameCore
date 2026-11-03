@@ -18,6 +18,11 @@ keystore.properties
 *.iml
 .DS_Store
 
+# Python bytecode from the Studio MCP helper
+__pycache__/
+*.pyc
+.pytest_cache/
+
 # Internal working notes and assets, not part of the published project.
 /HANDOFF.md
 /ads-handoff.md

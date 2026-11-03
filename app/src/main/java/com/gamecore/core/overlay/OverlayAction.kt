@@ -137,19 +137,19 @@ enum class OverlayAction(val label: String) {
     REFRESH_RATE("Refresh"),
 
     /**
-     * The shape of this panel: one plate near the button, or two on the screen's edges with the game
-     * between them. [com.gamecore.core.model.PanelLayoutStyle], reachable from inside the panel.
+     * The shape of this panel: one plate near the button, two rectangles on the screen's edges, or the
+     * angled turbo wings. [com.gamecore.core.model.PanelLayoutStyle], reachable from inside the panel.
      *
      * A toggle rather than a row of chips, unlike the two tiles above, and the difference is the reason
      * this tile exists at all. A shape and a rate are one of several values the *device* reports, so their
-     * control has to be a row; a layout is one of two, and the tile's own plate already says which of them
-     * is on. A chip row behind a tap would be two taps to change one bit — and the point of putting this in
-     * the grid is that changing it currently costs leaving the game, opening GameCore and finding the
-     * setting.
+     * control has to be a row; a layout is a small closed cycle, and the tile already says whether the
+     * panel is off the default centered shape. A chip row behind a tap would add a second tap to every
+     * change — and the point of putting this in the grid is that changing it otherwise costs leaving the
+     * game, opening GameCore and finding the setting.
      *
-     * The plate reads as it does everywhere else in this grid — *this is not what the panel does by
-     * default* — so lit means split. Nothing confirms the tap because the panel rearranges itself under
-     * the finger that made it: the confirmation is the thing the user asked for.
+     * The cycle is [com.gamecore.core.model.PanelLayoutStyle.next], so repeated taps reach all three. The
+     * plate reads as it does everywhere else in this grid — *this is not the centered panel* — so lit means
+     * either edge layout, and the panel rearranges itself under the finger that made the change.
      *
      * The one action here that changes the window it was tapped in. That is handled where every layout
      * change is handled — the stored preference is written, and the service's own observer rebuilds the

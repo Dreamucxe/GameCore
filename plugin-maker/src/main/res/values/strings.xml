@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The strings the Android side needs before Compose exists.
+
+  Everything the user reads inside the app lives in MakerStrings.kt, in one
+  object, so that a later localisation pass has one file to work through
+  rather than a dozen call sites. The one string that has to be a resource is
+  the app label, because the launcher reads it out of the manifest.
+-->
+<resources>
+    <string name="app_name">Plugin Maker</string>
+</resources>

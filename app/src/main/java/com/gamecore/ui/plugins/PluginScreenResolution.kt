@@ -81,7 +81,9 @@ fun resolvePluginScreen(
     }
     if (killSwitchOn) return unavailable(PluginScreenResolution.Reason.KILL_SWITCH)
     if (!plugin.enabled || plugin.suspended) return unavailable(PluginScreenResolution.Reason.DISABLED)
-    if (!plugin.grant.has(PluginPermission.CHANGE_UI)) {
+    if (!plugin.manifest.requests(PluginPermission.CHANGE_UI) ||
+        !plugin.grant.has(PluginPermission.CHANGE_UI)
+    ) {
         return unavailable(PluginScreenResolution.Reason.NOT_GRANTED)
     }
     if (PluginSection.SCREENS !in plugin.manifest.declares) {

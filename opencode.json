@@ -1,0 +1,13 @@
+{
+  "mcp": {
+    "servers": {
+      "gamecore-studio": {
+        "type": "local",
+        "command": [
+          "python3",
+          "/root/GameCore-4.0/tools/gamecore-studio-mcp/server.py"
+        ]
+      }
+    }
+  }
+}

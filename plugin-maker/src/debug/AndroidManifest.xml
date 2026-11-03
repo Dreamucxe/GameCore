@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug only. This manifest merges the Application and foreground service that keep the loopback
+  MCP bridge alive. The release manifest has no `android:name`, no service and no permissions, so
+  the bridge is absent from release builds.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+      The loopback bridge needs a socket, and Android refuses to create one in an app
+      without INTERNET, even when it only listens on 127.0.0.1.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- A foreground service keeps the bridge process alive while the user works in a terminal. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <application android:name=".DebugBridgeApplication">
+        <service
+            android:name=".StudioBridgeService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+    </application>
+</manifest>

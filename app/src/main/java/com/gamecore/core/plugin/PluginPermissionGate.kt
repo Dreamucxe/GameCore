@@ -110,6 +110,12 @@ class PluginPermissionGate {
             return PermissionDecision.Deny(DenyReason.ADVANCED_NOT_ENABLED, permission.id)
         }
         if (scope != null) {
+            if (!state.manifestRequestsScope(permission, scope)) {
+                return PermissionDecision.Deny(
+                    DenyReason.NOT_REQUESTED,
+                    "${permission.id}:${scope.trim().lowercase()}",
+                )
+            }
             if (!state.grant.hasScope(permission, scope)) {
                 return PermissionDecision.Deny(DenyReason.SCOPE_WITHHELD, scope)
             }
@@ -135,8 +141,13 @@ data class PluginRuntimeState(
     val suspended: Boolean,
     val systemKillSwitch: Boolean,
     val suspensionDetail: String? = null,
+    /** The exact scoped apertures the manifest requested, canonicalized by permission. */
+    val requestedScopes: Map<PluginPermission, Set<String>> = emptyMap(),
 ) {
     fun manifestRequests(permission: PluginPermission): Boolean = permission in requestedPermissions
+
+    fun manifestRequestsScope(permission: PluginPermission, scope: String): Boolean =
+        requestedScopes[permission]?.contains(scope.trim().lowercase()) == true
 
     companion object {
         /**
@@ -161,6 +172,9 @@ data class PluginRuntimeState(
             suspended = suspended,
             systemKillSwitch = systemKillSwitch,
             suspensionDetail = suspensionDetail,
+            requestedScopes = manifest.permissions.associate { requested ->
+                requested.permission to requested.scopes.mapTo(linkedSetOf()) { it.trim().lowercase() }
+            },
         )
     }
 }
@@ -178,10 +192,20 @@ data class PluginRuntimeState(
 object PluginNamespace {
 
     const val MAX_KEY_LENGTH = 128
-    private const val PREFIX = "plugin."
+    const val ROOT_PREFIX = "plugin."
+    private const val PREFIX = ROOT_PREFIX
 
-    /** The storage prefix for a plugin's own key space. */
-    fun of(pluginId: String): String = "$PREFIX$pluginId."
+    /**
+     * The storage prefix for a plugin's own key space.
+     *
+     * `/` is not legal in either a package id or a setting id, so it is an unambiguous boundary.
+     * The previous dotted boundary made `com.foo` + `bar.level` collide with `com.foo.bar` +
+     * `level`; the slash is the migration-safe format used for every new write.
+     */
+    fun of(pluginId: String): String = "$PREFIX$pluginId/"
+
+    /** The pre-4.3 dotted namespace, read only long enough to migrate a known setting key. */
+    fun legacyOf(pluginId: String): String = "$PREFIX$pluginId."
 
     /**
      * The fully-qualified storage key for a plugin's [key], or null if the key is unsafe.
@@ -198,9 +222,20 @@ object PluginNamespace {
         return of(pluginId) + key
     }
 
+    /** A legacy qualified key for one already-validated setting id. Never use for a new write. */
+    fun legacyQualify(pluginId: String, key: String?): String? {
+        if (key.isNullOrEmpty() || key.length > MAX_KEY_LENGTH) return null
+        if (!KEY_GRAMMAR.matches(key)) return null
+        if (key.split('.').any { it == "." || it == ".." || it.isEmpty() }) return null
+        return legacyOf(pluginId) + key
+    }
+
     /** Does a fully-qualified key belong to this plugin's namespace? Guards cross-plugin reads. */
     fun belongsTo(pluginId: String, qualifiedKey: String): Boolean =
         qualifiedKey.startsWith(of(pluginId))
+
+    fun belongsToLegacy(pluginId: String, qualifiedKey: String): Boolean =
+        qualifiedKey.startsWith(legacyOf(pluginId))
 
     private val KEY_GRAMMAR = Regex("^[A-Za-z0-9_.\\-]+$")
 }

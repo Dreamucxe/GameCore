@@ -121,11 +121,11 @@ import kotlin.math.roundToInt
  * plate and left the window behind would show a panel clipped by its own window for as long as the drag
  * lasted.
  *
- * This is the centered layout, and one of two. [OverlaySplitPanel] is the other, and it reuses the
- * content composables below rather than reimplementing them — which is why several of them are `internal`
- * and not `private`. What it does not reuse is anything on this function: the plate, the height cap, the
- * grip and the `ACTION_OUTSIDE` handling are all specific to a window that has an outside and a width.
- * [com.gamecore.core.model.PanelLayoutStyle.CENTERED] is the default and stays the default.
+ * This is the centered layout, one of three. [OverlaySplitPanel] and [TurboWingsPanel] are the other two,
+ * and they reuse the content composables below rather than reimplementing them — which is why several of
+ * them are `internal` and not `private`. What they do not reuse is anything on this function: the plate,
+ * the height cap, the grip and the `ACTION_OUTSIDE` handling are all specific to a window that has an
+ * outside and a width. The two edge layouts are full-screen and derive their own widths.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -898,30 +898,41 @@ internal fun PanelHeader(state: OverlayPanelState, accent: Color) {
     }
 }
 
-/** The same readings the pill shows, in a single dense row, so the panel does not need the pill open. */
+/**
+ * The same readings the pill shows, in a dense row — or rows, when the surface is narrow.
+ *
+ * [perRow] exists for the turbo wings, whose left plate can be narrower than five figures with their
+ * gaps. A single Row there would push the last reading past the plate's clipped edge, which looks like
+ * a missing stat rather than a width the layout chose. Chunking keeps every figure the pill selected,
+ * in the same order, at the cost of a second line on portrait screens.
+ */
 @Composable
-internal fun PanelStats(readings: List<StatReading>) {
-    Row(
+internal fun PanelStats(readings: List<StatReading>, perRow: Int = PANEL_STATS) {
+    Column(
         modifier = Modifier
             .background(OverlayPalette.Plate, RoundedCornerShape(10.dp))
             .padding(horizontal = 8.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        readings.take(PANEL_STATS).forEach { reading ->
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                BasicText(
-                    text = reading.display(withUnit = false),
-                    style = TextStyle(
-                        color = if (reading.isAvailable) OverlayPalette.Text else OverlayPalette.Absent,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                    ),
-                )
-                BasicText(
-                    text = reading.stat.shortLabel,
-                    style = TextStyle(color = OverlayPalette.Muted, fontSize = 9.sp),
-                )
+        readings.take(PANEL_STATS).chunked(perRow.coerceAtLeast(1)).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { reading ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        BasicText(
+                            text = reading.display(withUnit = false),
+                            style = TextStyle(
+                                color = if (reading.isAvailable) OverlayPalette.Text else OverlayPalette.Absent,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                            ),
+                        )
+                        BasicText(
+                            text = reading.stat.shortLabel,
+                            style = TextStyle(color = OverlayPalette.Muted, fontSize = 9.sp),
+                        )
+                    }
+                }
             }
         }
     }
@@ -1903,7 +1914,7 @@ private fun ActionButton(
  * Here rather than on the enum so [OverlayAction] stays free of Compose types — the service executes
  * these and has no business importing an `ImageVector`.
  */
-private fun OverlayAction.icon(): ImageVector = when (this) {
+internal fun OverlayAction.icon(): ImageVector = when (this) {
     OverlayAction.PILL -> Icons.Rounded.Speed
     OverlayAction.CROSSHAIR -> Icons.Rounded.GpsFixed
     OverlayAction.HUD -> Icons.Rounded.Dashboard

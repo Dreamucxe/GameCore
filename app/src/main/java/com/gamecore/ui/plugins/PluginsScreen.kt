@@ -33,7 +33,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,6 +50,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.core.i18n.LocalStrings
@@ -70,6 +74,9 @@ import com.gamecore.ui.components.SliderRow
 import com.gamecore.ui.components.StatusChip
 import com.gamecore.ui.components.SwitchRow
 import com.gamecore.ui.components.Tone
+import com.gamecore.studio.model.PluginDraft
+import com.gamecore.studio.ui.PluginStudioScreen
+import com.gamecore.studio.ui.PluginStudioTheme
 import com.gamecore.ui.theme.Spacing
 
 /**
@@ -204,6 +211,8 @@ fun PluginsScreen(
     val padded = Modifier.padding(horizontal = ScreenPadding)
     val visibleRows = state.filteredRows
     var picked by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var creating by remember { mutableStateOf(false) }
+    var studioDraft by remember { mutableStateOf(PluginDraft()) }
 
     // The picker callback runs on the main thread, so it only records the URIs. A cancelled pick returns
     // an empty list and simply does nothing.
@@ -291,6 +300,13 @@ fun PluginsScreen(
             )
         }
 
+        item {
+            CreatePluginCard(
+                onCreate = { creating = true },
+                modifier = padded,
+            )
+        }
+
         // Only once there is something to search or order. A control over an empty list is a control
         // that cannot do anything, and §32's rule covers a choice offered with no list to apply it to.
         if (state.hasPlugins) {
@@ -360,6 +376,34 @@ fun PluginsScreen(
                     onAskRemove = { viewModel.askRemove(row) },
                     modifier = padded,
                 )
+            }
+        }
+    }
+
+    if (creating) {
+        // A full-screen dialog rather than a navigation destination: the studio is one screen with
+        // its own scroll and its own save flow, and keeping it out of the nav graph means the
+        // plugin manager's back behaviour does not change while a draft is open.
+        Dialog(
+            onDismissRequest = { creating = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background,
+            ) {
+                // The studio ships its own colours on purpose: a tool that borrowed the theme being
+                // designed would make the preview disappear into the page as soon as the background
+                // was darker than the editor.
+                PluginStudioTheme {
+                    PluginStudioScreen(
+                        draft = studioDraft,
+                        onDraftChange = { studioDraft = it },
+                        modifier = Modifier.fillMaxSize(),
+                        onSaved = { viewModel.refresh() },
+                        onClose = { creating = false },
+                    )
+                }
             }
         }
     }
@@ -629,6 +673,45 @@ private fun PluginAppearanceCard(
             description = APPEARANCE_SIZE_DESCRIPTION,
             onValueChangeFinished = onScaleCommit,
         )
+    }
+}
+
+/**
+ * The way into the plugin maker without leaving GameCore.
+ *
+ * The standalone Plugin Maker app exists for people who want to design a package on a phone with no
+ * GameCore install at all. This card is the same editor, hosted here, so the common case — I have
+ * GameCore, I want it to look different — does not require a second download.
+ *
+ * Saving still goes through the system file picker, exactly as it does in the standalone app: the
+ * draft never becomes an installed plugin behind the user's back, and the file can be inspected or
+ * shared before it is installed.
+ */
+@Composable
+private fun CreatePluginCard(
+    onCreate: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Create a plugin",
+        modifier = modifier,
+        subtitle = "Build a data-only package here and save it as a .gcplugin",
+        icon = Icons.Filled.Palette,
+    ) {
+        Text(
+            text = "The shared Studio can combine a theme, read-only screens, one bounded overlay, " +
+                "typed settings, dashboard widgets and allowlisted automation rules. It writes " +
+                "validated JSON, never plugin code. Asking for a permission in the package grants " +
+                "nothing: every permission and data scope is approved after install.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        ActionRow {
+            OutlinedButton(onClick = onCreate) {
+                Text("Open Plugin Studio")
+            }
+        }
     }
 }
 

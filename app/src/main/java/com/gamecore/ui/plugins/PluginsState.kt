@@ -455,6 +455,10 @@ private fun rejectionText(reason: PluginPackageLoader.Reason): String = when (re
 
     PluginPackageLoader.Reason.DISALLOWED_FILE ->
         "That package carries a file that belongs to none of the sections a plugin may contain."
+
+    PluginPackageLoader.Reason.INVALID_SECTION ->
+        "A declared section exists, but GameCore's real codec refused its contents. Nothing was " +
+            "installed, so the package cannot appear to work while that capability is silently absent."
 }
 
 /**

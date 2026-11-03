@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "gamecore-studio": {
+      "command": "python3",
+      "args": ["/root/GameCore-4.0/tools/gamecore-studio-mcp/server.py"],
+      "env": {
+        "GAMECORE_STUDIO_URL": "http://127.0.0.1:47653"
+      }
+    }
+  }
+}

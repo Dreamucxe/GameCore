@@ -56,6 +56,7 @@ import com.gamecore.core.model.OverlayRequest
 import com.gamecore.core.model.OverlayStatus
 import com.gamecore.core.model.PanelLayoutStyle
 import com.gamecore.core.model.ThermalClassifier
+import com.gamecore.core.model.TurboGaugeChoice
 import com.gamecore.core.model.VolumeTriggerBinding
 import com.gamecore.core.model.VolumeTriggerButton
 import com.gamecore.core.model.VolumeTriggerConfig
@@ -118,6 +119,7 @@ import com.gamecore.core.overlay.QuickToggleState
 import com.gamecore.core.overlay.ThermalDot
 import com.gamecore.core.overlay.TriggerPointMarker
 import com.gamecore.core.overlay.TriggerPointPlacement
+import com.gamecore.core.overlay.TurboWingsPanel
 import com.gamecore.core.overlay.isGatedByQuickActions
 import com.gamecore.core.overlay.nextDockRate
 import com.gamecore.core.overlay.route
@@ -337,6 +339,16 @@ class GamingOverlayService : GameCoreService() {
     private val liveModules = mutableMapOf<OverlaySlot, ActiveOverlayModule>()
 
     private val pillReadings = MutableStateFlow<List<StatReading>>(emptyList())
+
+    /**
+     * The two 3D gauge readings of the turbo panel, keyed by the user's gauge choice.
+     *
+     * A separate flow rather than extra entries in [pillReadings], because the pill draws whatever that
+     * list holds — adding a gauge's stat there would quietly add a number to the pill the user did not
+     * choose. Sampled from the same snapshot and on the same tick, and kept to the two chosen readings
+     * so a gauge switch costs one stat lookup, not a second monitor.
+     */
+    private val turboReadings = MutableStateFlow<Map<TurboGaugeChoice, StatReading>>(emptyMap())
 
     private val hudReadings = MutableStateFlow<Map<HudStat, StatReading>>(emptyMap())
 
@@ -640,7 +652,7 @@ class GamingOverlayService : GameCoreService() {
      * Which layout the open panel was built with, or null while it is closed.
      *
      * Kept because the layout is a preference and preferences change while the panel is up. It is not
-     * something a running window can be edited into either: the two layouts differ in the window's flags,
+     * something a running window can be edited into either: the layouts differ in the window's flags,
      * its size and how it is positioned, so switching means taking one down and putting the other up —
      * see [syncPanelLayout]. Reading [FloatingButtonConfig.panelLayout] instead would answer "what should
      * be on screen", and the question here is "what *is*".
@@ -799,7 +811,17 @@ class GamingOverlayService : GameCoreService() {
     private fun observe() {
         watchScreenState()
         lifecycleScope.launch { overlays.desired.collect { reconcile() } }
-        lifecycleScope.launch { preferences.floatingButton.collect { reconcile() } }
+        lifecycleScope.launch {
+            preferences.floatingButton.collect {
+                reconcile()
+                // A gauge choice is a request for a different stat, and the panel can change it from
+                // inside the open panel. Waiting for the next sampling tick would draw "n/a" for up to
+                // one update interval on a gauge the user just chose, so re-sample the two keys this
+                // config now names. The values come from the current snapshot; nothing is invented when
+                // there is no snapshot yet.
+                if (panelLayoutShown == PanelLayoutStyle.TURBO_WINGS) sampleTurboReadings()
+            }
+        }
         lifecycleScope.launch { preferences.overlay.collect { reconcile() } }
         // The dock's config — its size, opacity, snapped position — changes from the settings screen while
         // the dock is up, and none of that moves the desired request, so like the button's config it needs
@@ -1095,6 +1117,7 @@ class GamingOverlayService : GameCoreService() {
             .collectLatest { needed ->
                 if (!needed) {
                     pillReadings.value = emptyList()
+                    turboReadings.value = emptyMap()
                     hudReadings.value = emptyMap()
                     buttonThermalDot.value = ThermalDot.NONE
                     return@collectLatest
@@ -1145,6 +1168,11 @@ class GamingOverlayService : GameCoreService() {
             snapshot = snapshot,
             sessionElapsedMillis = elapsed,
         )
+        // The turbo panel's two gauges are sampled separately from the pill's selection: the gauge's
+        // stat is a property of the panel, not of the pill, and a user who never put CPU in the pill
+        // must still get a CPU ring. Keyed by the choice so a selector change is a new key rather than
+        // a re-index, and distinct so choosing the same stat on both sides reads it once.
+        sampleTurboReadings()
         // One sampled map serves both surfaces. The HUD's widgets name the stats the user arranged; the
         // plugin modules name the ones their content displays, and a module asking for a reading the HUD
         // does not show has to get it — otherwise the feature would work only for users who happened to
@@ -1156,6 +1184,24 @@ class GamingOverlayService : GameCoreService() {
         // WARM and an unavailable temperature — only HOT and CRITICAL draw, so the button is silent unless
         // there is something worth glancing at.
         buttonThermalDot.value = snapshot?.let { thermalDot(ThermalClassifier.classify(it).level) } ?: ThermalDot.NONE
+    }
+
+    /**
+     * Re-reads the two gauge stats named by the live button config.
+     *
+     * Shared by the sampling tick and the preference observer, so a gauge changed inside the open panel
+     * is filled from the same rule as one changed in the settings screen — and neither path can draw a
+     * number the reader did not produce. Reading the button flow here rather than taking it as a
+     * parameter is safe: both callers are on the main dispatcher, and the flow's value is the same one
+     * the panel is rendering.
+     */
+    private fun sampleTurboReadings() {
+        val snapshot = monitor.snapshots.value
+        val elapsed = sessionElapsedMillis()
+        val button = preferences.floatingButton.value
+        turboReadings.value = listOf(button.turboLeftGauge, button.turboRightGauge)
+            .distinct()
+            .associateWith { HudStatReader.read(it.stat, snapshot, elapsed) }
     }
 
     private fun sessionElapsedMillis(): Long? {
@@ -2688,9 +2734,16 @@ class GamingOverlayService : GameCoreService() {
         // which is only ever reached through here.
         if (quickSheetOpen.value) closeQuickSheet()
         val config = preferences.floatingButton.value.normalised()
-        if (config.panelLayout == PanelLayoutStyle.SPLIT_EDGES) {
-            openSplitPanel()
-            return
+        when (config.panelLayout) {
+            PanelLayoutStyle.TURBO_WINGS -> {
+                openTurboPanel()
+                return
+            }
+            PanelLayoutStyle.SPLIT_EDGES -> {
+                openSplitPanel()
+                return
+            }
+            PanelLayoutStyle.CENTERED -> Unit
         }
         val manager = windows ?: return
         val widthDp = panelWidthFor(config.panelWidthDp)
@@ -3044,11 +3097,76 @@ class GamingOverlayService : GameCoreService() {
     }
 
     /**
-     * What both layouts do once their window is up: mark it open, forget last time's refusals, start the
+     * Opens the turbo-wings panel: one full-screen window with the two angled plates inside it.
+     *
+     * The window mechanics are [openSplitPanel]'s, and deliberately not repeated here as a variation of
+     * [openPanel]'s: this layout is pinned to both screen edges, so there is no x or y derived from the
+     * button, no height to measure, and no outside-touch dismissal for a `MATCH_PARENT` window to receive.
+     * The centre gap and the ✕ in the left header are the exit, exactly as they are in the split layout.
+     *
+     * The difference is the live configuration. The gauge choices are read from
+     * [com.gamecore.data.preferences.SecurePreferenceStore.floatingButton] while the panel is open because
+     * the gauge caption can change them from inside the panel, and those two fields are the only reason
+     * this composable collects that flow at all. The readings themselves come from [turboReadings], the
+     * separate per-tick map, so choosing a gauge never adds a stat to the user's stats pill.
+     */
+    private fun openTurboPanel() {
+        val manager = windows ?: return
+        val frame = manager.frameFor(0, 0)
+        val screenWidthDp = if (frame.isMeasured) {
+            dp(frame.screenWidth)
+        } else {
+            FloatingButtonConfig.MIN_PANEL_WIDTH_DP * 2
+        }
+        val shown = manager.show(
+            slot = OverlaySlot.PANEL,
+            spec = OverlayWindowSpec(touchable = true, fullScreen = true),
+            host = host,
+        ) {
+            val state by panel.collectAsState()
+            val readings by pillReadings.collectAsState()
+            val gaugeReadings by turboReadings.collectAsState()
+            val playing by nowPlaying.collectAsState()
+            val apps by quickApps.collectAsState()
+            val tint by accent.collectAsState()
+            val button by preferences.floatingButton.collectAsState()
+            TurboWingsPanel(
+                state = state,
+                readings = readings,
+                gaugeReadings = gaugeReadings,
+                leftGauge = button.turboLeftGauge,
+                rightGauge = button.turboRightGauge,
+                nowPlaying = playing,
+                quickApps = apps,
+                accent = tint,
+                screenWidthDp = screenWidthDp,
+                onAction = ::onAction,
+                onLongAction = ::onLongAction,
+                onPreset = ::onPreset,
+                onAspect = ::onAspect,
+                onRate = ::onRate,
+                onCrosshairDesign = ::onCrosshairDesign,
+                onCrosshairColour = ::onCrosshairColour,
+                onDragLevel = ::onDragLevel,
+                onCommitLevel = ::onCommitLevel,
+                onMedia = ::onMedia,
+                onEnableMedia = ::onEnableMedia,
+                onLaunchApp = ::onLaunchApp,
+                onLeftGaugeChange = { preferences.updateTurboLeftGauge(it) },
+                onRightGaugeChange = { preferences.updateTurboRightGauge(it) },
+                onDismiss = ::closePanel,
+            )
+        }
+        if (!shown) return
+        startPanelWatch(PanelLayoutStyle.TURBO_WINGS)
+    }
+
+    /**
+     * What every layout does once its window is up: mark it open, forget last time's refusals, start the
      * tick and start listening for what is playing.
      *
-     * Shared rather than repeated because it is bookkeeping about *a panel being open*, which neither
-     * layout has its own version of — and a copy in each would be one copy to forget to update. [denied]
+     * Shared rather than repeated because it is bookkeeping about *a panel being open*, which no layout
+     * has its own version of — and a copy in each would be one copy to forget to update. [denied]
      * and [deniedLevels] are cleared on open rather than on close so a capability the user has since
      * granted is retried, not remembered as refused.
      *
@@ -3455,14 +3573,14 @@ class GamingOverlayService : GameCoreService() {
      */
     private fun applyPanelWidth(requestedDp: Int) {
         if (resizingPanel) return
-        if (panelLayoutShown == PanelLayoutStyle.SPLIT_EDGES) return
+        if (panelLayoutShown != PanelLayoutStyle.CENTERED) return
         setPanelWidth(requestedDp)
     }
 
     /**
      * Rebuilds the open panel when the user changes which layout it should be in.
      *
-     * A close and a re-open rather than an update, because the two layouts differ in everything
+     * A close and a re-open rather than an update, because the layouts differ in everything
      * [OverlayWindowSpec] carries — flags, size, position, whether outside touches are watched — and
      * [OverlayWindows.resize] moves a window without re-specifying it. Re-opening also re-runs
      * [startPanelWatch], so the tick and the refusal lists belong to the layout on screen.
@@ -3665,7 +3783,7 @@ class GamingOverlayService : GameCoreService() {
         //
         // Never added to [unavailable]: there is no state of the device in which a preference of GameCore's
         // own cannot be written. See [OverlayAction.PANEL_LAYOUT].
-        if (preferences.floatingButton.value.panelLayout == PanelLayoutStyle.SPLIT_EDGES) {
+        if (preferences.floatingButton.value.panelLayout != PanelLayoutStyle.CENTERED) {
             active += OverlayAction.PANEL_LAYOUT
         }
 
@@ -4323,7 +4441,7 @@ class GamingOverlayService : GameCoreService() {
             // `updateFloatingButton`, for the reason that writer gives — the panel is open, so the button's
             // position in this process may be a frame ahead of the stored one.
             OverlayAction.PANEL_LAYOUT ->
-                preferences.updatePanelLayout(preferences.floatingButton.value.panelLayout.other())
+                preferences.updatePanelLayout(preferences.floatingButton.value.panelLayout.next())
             OverlayAction.STOP_SESSION -> {
                 closePanel()
                 // Through the coordinator, which routes it through the detector: that is what suppresses

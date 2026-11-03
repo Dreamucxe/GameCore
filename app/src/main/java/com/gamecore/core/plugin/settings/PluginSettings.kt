@@ -47,7 +47,10 @@ class PluginSettings(
         facade.call(state, OP_READ, PluginPermission.STORE_DATA, scope = null, rateLimit = readLimit, windowMs = windowMs) {
             val def = schema.byId(id) ?: throw IllegalArgumentException("unknown setting \"$id\"")
             val qualified = qualify(state, def)
+            // A 4.2 value used the dotted namespace. Read it once so upgrading does not silently
+            // reset a plugin's configuration; the next set() writes the slash form and drops it.
             val stored = store.readValue(qualified)
+                ?: store.readValue(PluginNamespace.legacyQualify(state.grant.pluginId, def.id) ?: qualified)
             val decoded = stored?.let { def.decode(it) }?.let { def.coerce(it) }
             decoded ?: def.default
         }
@@ -71,6 +74,9 @@ class PluginSettings(
                 ?: throw IllegalStateException("could not encode value for setting \"$id\"")
             val qualified = qualify(state, def)
             store.writeValue(qualified, encoded)
+            // Complete the 4.2-to-4.3 migration: the new key is authoritative and the old dotted
+            // key must not survive as a stale second source after a later name change.
+            PluginNamespace.legacyQualify(state.grant.pluginId, def.id)?.let { store.writeValue(it, null) }
             coerced
         }
 

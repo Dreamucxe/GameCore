@@ -21,7 +21,7 @@
   <a href="#screens">Screens</a> ·
   <a href="#why-gamecore">Why GameCore</a> ·
   <a href="#install">Install</a> ·
-  <a href="#whats-new-in-41">Latest release</a> ·
+  <a href="#whats-new-in-44">Latest release</a> ·
   <a href="#plugins-are-data-not-code">Plugins</a> ·
   <a href="#features">Features</a> ·
   <a href="#security">Security</a> ·
@@ -38,8 +38,8 @@
 | :--- | :--- |
 | **Platform** | Android 8.0+ (API 26) · `arm64-v8a` / `armeabi-v7a` |
 | **Built with** | Kotlin 2.0.21 · Jetpack Compose · Material 3 · Hilt · Room + SQLCipher |
-| **Codebase** | 754 Kotlin source files · roughly 189,000 lines (app + plugin SDK) |
-| **Tests** | 3,236 JVM tests · 277 test classes · no emulator required |
+| **Codebase** | 1,068 Kotlin source files · roughly 253,000 lines (app, SDK, Studio) |
+| **Tests** | 3,100+ JVM tests · 290+ test classes · no emulator required |
 | **Plugins** | 31 official `.gcplugin` packages · 23 bundled in the app |
 | **Network** | One optional, payload-free TCP latency probe · no backend |
 | **License** | MIT |
@@ -125,6 +125,75 @@ adb install -r GameCore.apk
 
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
+
+## What's new in 4.4
+
+<p><strong>The control panel grows wings — and each wing gets a real instrument.</strong> Two angled plates fold in from the screen edges, the game stays visible between them, and every existing control is still there.</p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🪽 Two angled wings</h3>
+      <p>The new <strong>Turbo wings</strong> layout pins a bent plate to each screen edge with the game visible through the middle. Readouts, levels and media live on the left; the game-space action grid and quick apps live on the right. Aspect ratio, refresh rate, colour, crosshair, levels, media and every action tile are unchanged. Tap the centre or the close button to leave, or use the <strong>Layout</strong> tile to cycle Turbo wings, Centered and Split edges without opening Settings.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🎛️ CPU, GPU, RAM or temperature</h3>
+      <p>Each wing carries a bevelled 3D gauge. Pick what it measures in <strong>Settings › Overlay</strong>, or tap the caption under the gauge to cycle it in-game. Every choice draws a different object: an amber circuit ring for CPU, a cyan facet ring for GPU, a green memory-stack ring for RAM and a heat ring for temperature. The figure inside is always a real reading — an unavailable sensor shows <em>n/a</em> and the reason, never a zero.</p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <h3>↩️ The older surfaces stay</h3>
+      <p>Centered and Split edges are still there, and the width you stored for the centered panel is preserved when you switch away and back. Fresh installs open on Turbo wings; an existing install keeps its current layout until you choose another.</p>
+    </td>
+  </tr>
+</table>
+
+## What's new in 4.3
+
+<p><strong>Plugin Studio now builds the data-only capabilities GameCore actually runs</strong> — not decorative controls that vanish after export.</p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🧱 Six runtime-backed sections</h3>
+      <p>The shared Studio and <a href="docs/PLUGIN_MAKER.md">Plugin Maker 1.1.0</a> can combine schema-4 themes, read-only plugin screens, one bounded monitoring overlay, typed persistent settings, dashboard widgets and edge-triggered automations in one deterministic package. The manifest declarations, required permission requests and live-data scopes are derived from the content, and import round-trips the same six sections instead of dropping them.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🧪 Test without touching the device</h3>
+      <p>The Test workspace validates every section, checks static workflow conflicts, inspects the exact zip and SHA-256, reports local Android capabilities, and runs rules against clearly labelled simulated triggers and metrics. Simulation never calls Shizuku, a shell, an intent or the production action broker.</p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <h3>🔒 An explicit capability boundary</h3>
+      <p>Screen and dashboard content stays read-only, overlay modules stay fixed-size and non-touchable, and rules stay inside the host's closed trigger/action vocabulary. Studio does not claim plugin-to-plugin messaging, touchable overlays, arbitrary code, generic setting bindings or release-key signing. The audited contract is documented in <a href="docs/PLUGIN_STUDIO_CAPABILITIES.md">Plugin Studio capabilities</a>.</p>
+    </td>
+  </tr>
+</table>
+
+## What's new in 4.2
+
+<p><strong>This release turns plugin making into a visual studio</strong> — a standalone Plugin Maker app and the same editor inside GameCore, both writing the same deterministic package.</p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🎨 A plugin studio on the phone</h3>
+      <p><a href="docs/PLUGIN_MAKER.md">GameCore Plugin Maker 1.0.0</a> is a separate, sideloadable app for designing a theme without a computer. It has a colour wheel with HEX, RGB and HSL entry, recent colours, favourites and saved palettes; all thirteen theme roles; fourteen bundled faces and a type ramp; schema-4 glass; the schema-3 glitch block; eight starting templates; undo and redo; autosaved projects; and a device simulator for compact, phone, large and tablet widths. Saving goes through the system file picker, so it needs no storage permission.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🧩 Create a plugin inside GameCore</h3>
+      <p><strong>Plugins › Create a plugin</strong> opens the same editor in GameCore 4.2. One shared implementation means the standalone app and the in-app flow cannot drift apart: both write <code>manifest.json</code> and <code>theme.json</code>, both are deterministic byte for byte, and both hand the file to the system picker rather than installing it behind your back. The result installs from <strong>Plugins › Choose files</strong> like any other package.</p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <h3>🔍 Check, import, inspect</h3>
+      <p>The Check tab measures WCAG contrast for every ink/surface pair, warns about translucent ink and extreme scales, scores the theme, and previews protanopia, deuteranopia and tritanopia. Export shows exactly what the zip will contain and its SHA-256 before you save. Import reads an existing theme package and lists every field it cannot write back — and refuses a package with other sections instead of silently dropping them.</p>
+    </td>
+  </tr>
+</table>
 
 ## What's new in 4.1
 
@@ -287,11 +356,15 @@ adb install -r GameCore.apk
 | :--- | :--- |
 | Liquid Glass · True Glitch · Nebula · Nothing OS · Personal OS · Anime · Cyberpunk · Comic · Cybercity · Cybercore · Cybersigilism · Chromecore · Retro Futurism · Robot Core · RedMagic · Night Shift · Colorblind Safe · Papercut | Advisor · Automation History · Benchmark Suite · Dashboard Composer · Graphics Tuning · Sensitivity Lab · Minimal Vitals · Thermal Desk · Battery Badge · Cooldown Ladder · Exit Restore · Charger Boost · Stat Dictionary |
 
-The full set lives in [`dist/`](dist/). Bundled copies are in [`app/src/main/assets/plugins/`](app/src/main/assets/plugins/). Start with the [format](docs/PLUGIN_FORMAT.md), the [SDK](docs/PLUGIN_SDK.md), the [starter template](plugin-template/README.md) (two JSON files and `tools/build-plugin.py`), and the [threat model](docs/PLUGIN_THREAT_MODEL.md).
+The full set lives in [`dist/`](dist/). Bundled copies are in [`app/src/main/assets/plugins/`](app/src/main/assets/plugins/). Start with the [format](docs/PLUGIN_FORMAT.md), the [SDK](docs/PLUGIN_SDK.md), the [starter template](plugin-template/README.md) (two JSON files and `tools/build-plugin.py`), the [Plugin Maker](docs/PLUGIN_MAKER.md) (a standalone Android app that writes a package on the phone), and the [threat model](docs/PLUGIN_THREAT_MODEL.md).
 
 ---
 
 ## Features
+
+For a screen-by-screen walkthrough, setup paths, permission map and troubleshooting guide, read the
+**[GameCore 4.4 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
+separate **[Plugin Studio feature map and tutorial](docs/PLUGIN_STUDIO_FEATURE_GUIDE.md)**.
 
 ### Feature map
 

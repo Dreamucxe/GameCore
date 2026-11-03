@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The colours used before Compose runs, and nowhere else.
+
+  The window background is the studio's own background (#101014), because the
+  studio is dark: a phone in light mode would otherwise flash a white window
+  for the fraction of a second before the first composition lands.
+
+  The launcher background is the plate the paint roller sits on.
+-->
+<resources>
+    <color name="window_background">#FF101014</color>
+    <color name="launcher_background">#FF16121F</color>
+</resources>

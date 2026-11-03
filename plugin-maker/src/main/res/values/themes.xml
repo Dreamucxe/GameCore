@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The maker's platform theme.
+
+  There is no AppCompat or Material Components dependency in this project, so
+  this inherits from the platform's own theme rather than from
+  Theme.MaterialComponents.*. It exists only for the window that opens before
+  Compose paints: no action bar (the studio draws its own chrome), and system
+  bars painted in the window background so the dark UI does not begin with a
+  band of black.
+-->
+<resources>
+    <style name="Theme.PluginMaker" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@color/window_background</item>
+        <item name="android:navigationBarColor">@color/window_background</item>
+        <!-- The studio is dark whatever the system is, so the bar icons are light. -->
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

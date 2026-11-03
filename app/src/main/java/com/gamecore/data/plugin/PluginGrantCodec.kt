@@ -69,13 +69,11 @@ internal object PluginGrantCodec {
     /** A plugin id is a package name, so it always has at least two dot-separated segments. */
     private const val MIN_ID_SEGMENTS = 2
 
-    private const val PROBE_ID = "probe"
-
     /**
      * The shared prefix of every namespaced key (`plugin.`), derived from [PluginNamespace] rather
      * than written out again, so the two cannot drift if the namespace scheme ever changes.
      */
-    private val NAMESPACE_ROOT: String = PluginNamespace.of(PROBE_ID).removeSuffix("$PROBE_ID.")
+    private val NAMESPACE_ROOT: String = PluginNamespace.ROOT_PREFIX
 
     // ------------------------------------------------------------------------------------ grants
 
@@ -158,9 +156,9 @@ internal object PluginGrantCodec {
      * [PluginNamespace.MAX_KEY_LENGTH] for us. Requiring the round-trip to land on the exact same
      * string is what rules out a key that merely starts with the right prefix.
      *
-     * The near miss this is really for: plugin `a.bc` and a key inside `a.b`'s namespace. The trailing
-     * dot [PluginNamespace.of] puts on the prefix is what separates them, and this returns false in
-     * both directions.
+     * The near miss this is really for: plugin `a.bc` and a key inside `a.b`'s namespace. The slash
+     * [PluginNamespace.of] puts between the id and the key is what separates them, and this returns
+     * false in both directions.
      */
     fun isAcceptableKey(pluginId: String, key: String): Boolean {
         if (!PluginNamespace.belongsTo(pluginId, key)) return false
@@ -174,26 +172,31 @@ internal object PluginGrantCodec {
      *
      * [PluginGrantStore][com.gamecore.core.plugin.PluginGrantStore]'s value methods are handed a key
      * that is already qualified and *not* the plugin id, so the store cannot attribute a key to a
-     * plugin by asking. It can still bound it: a plugin id is a package name and therefore has at
-     * least two segments, so the first two segments after the namespace root are contained in every
-     * namespace the key could belong to. Grouping by them is the coarsest rule that can never
-     * under-count one plugin's own keys — and it is no coarser than [PluginNamespace]'s prefix
-     * isolation already is, since a plugin `a.b` and a plugin `a.b.c` share a key space there too.
-     *
-     * The qualify round-trip against that candidate id is also the shape check: it rejects a key that
-     * is not under the root, has an empty or dotted-traversal segment, or carries a character the key
-     * grammar does not admit. For a plugin with a deeper id the length cap then lands on a slightly
-     * longer remainder than its own key — that only tightens the limit, so it is left alone.
+     * plugin by asking. New keys have an unambiguous `plugin.<id>/<key>` shape. The pre-4.3
+     * `plugin.<id>.<key>` shape is still parsed so a value written before this release can be read
+     * and then migrated on its next write; it cannot be produced by [PluginNamespace.qualify] again.
      */
     fun budgetGroupOf(qualifiedKey: String): String? {
         if (!qualifiedKey.startsWith(NAMESPACE_ROOT)) return null
-        val segments = qualifiedKey.removePrefix(NAMESPACE_ROOT).split('.')
+        val rest = qualifiedKey.removePrefix(NAMESPACE_ROOT)
+
+        val slash = rest.indexOf('/')
+        if (slash >= 0) {
+            val candidateId = rest.substring(0, slash)
+            val bare = rest.substring(slash + 1)
+            if (candidateId.length > MAX_PLUGIN_ID_LENGTH) return null
+            if (candidateId.split('.').size < MIN_ID_SEGMENTS) return null
+            if (PluginNamespace.qualify(candidateId, bare) != qualifiedKey) return null
+            return PluginNamespace.of(candidateId)
+        }
+
+        val segments = rest.split('.')
         if (segments.size <= MIN_ID_SEGMENTS) return null
         val candidateId = segments.take(MIN_ID_SEGMENTS).joinToString(".")
         if (candidateId.length > MAX_PLUGIN_ID_LENGTH) return null
         val bare = segments.drop(MIN_ID_SEGMENTS).joinToString(".")
-        if (PluginNamespace.qualify(candidateId, bare) != qualifiedKey) return null
-        return PluginNamespace.of(candidateId)
+        if (PluginNamespace.legacyQualify(candidateId, bare) != qualifiedKey) return null
+        return PluginNamespace.legacyOf(candidateId)
     }
 
     // ------------------------------------------------------------------------------------ values
