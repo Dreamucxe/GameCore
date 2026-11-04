@@ -128,6 +128,19 @@ object Formatters {
     }
 
     /**
+     * The same clock compressed for the CPU tile's per-core die cells.
+     *
+     * Eight cells share one tile, so "1.80 GHz" would spend most of a cell on units every cell repeats.
+     * The compact form keeps the unit's initial and one decimal: "1.8G", "800M". The em dash survives
+     * because a hidden `scaling_cur_freq` is not a 0 MHz clock.
+     */
+    fun frequencyShort(khz: Long): String = when {
+        khz <= 0 -> "—"
+        khz >= 1_000_000 -> String.format(Locale.US, "%.1fG", khz / 1_000_000.0)
+        else -> String.format(Locale.US, "%.0fM", khz / 1000.0)
+    }
+
+    /**
      * Temperature. Held internally in tenths of a degree because that is the unit
      * `BatteryManager` broadcasts, and rounding it to whole degrees at the source
      * would throw away the resolution a thermal graph needs.

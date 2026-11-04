@@ -27,4 +27,16 @@ class HomeMetric3DTest {
     fun `a future metric gets the safe faceted fallback`() {
         assertEquals(HomeMetricShape.UNKNOWN, HomeMetricShape.fromLabel("Future sensor"))
     }
+
+    @Test
+    fun `the die splits into one cell per reported core`() {
+        assertEquals(0 to 0, cpuCoreGrid(0))
+        assertEquals(1 to 1, cpuCoreGrid(1))
+        assertEquals(2 to 1, cpuCoreGrid(2))
+        assertEquals(2 to 2, cpuCoreGrid(4))
+        assertEquals(3 to 2, cpuCoreGrid(6))
+        assertEquals(4 to 2, cpuCoreGrid(8))
+        assertEquals(4 to 3, cpuCoreGrid(12))
+        assertEquals(4 to 4, cpuCoreGrid(16))
+    }
 }

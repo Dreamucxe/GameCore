@@ -8,6 +8,7 @@ import com.gamecore.core.common.SampleRingBuffer
 import com.gamecore.core.common.isAvailable
 import com.gamecore.core.common.isAwaitingSample
 import com.gamecore.core.common.valueOrNull
+import com.gamecore.core.model.CpuReading
 import com.gamecore.core.model.DeviceCapabilities
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.GameSession
@@ -787,6 +788,7 @@ class HomeViewModel @Inject constructor(
             ),
             memoryTrend = memoryTrend.snapshot(),
             temperatureTrend = temperatureTrend.snapshot(),
+            cpuCores = homeCpuCores(cpu),
             // Only the levels at which the platform is actually clamping performance. "Normal" and
             // "Light" are not news, and a banner that is always there is a banner nobody reads.
             thermalNote = thermal?.takeIf { it.warrantsAlert }?.explanation,
@@ -811,6 +813,35 @@ class HomeViewModel @Inject constructor(
 
         const val OVERLAY_PERMISSION_MESSAGE =
             "Drawing over other apps has not been granted yet. The Permissions screen has the switch."
+    }
+}
+
+/**
+ * Turns one CPU observation into the cells the Home package draws.
+ *
+ * The cell count is always [CpuReading.coreCount], because that is the one CPU fact that cannot fail.
+ * Within each cell, utilisation wins over clock position exactly as the history chart does; a hidden
+ * `cpufreq` leaves the speed as the em dash rather than inventing a frequency. A core the kernel has
+ * parked keeps its cell, is marked offline, and carries no load bar.
+ */
+internal fun homeCpuCores(cpu: CpuReading): List<HomeCpuCore> {
+    val frequencies = cpu.frequenciesKHz.valueOrNull.orEmpty().associateBy { it.coreIndex }
+    val percentages = cpu.perCorePercent.valueOrNull
+    return (0 until cpu.coreCount).map { index ->
+        val frequency = frequencies[index]
+        HomeCpuCore(
+            index = index,
+            speed = frequency
+                ?.takeIf { it.isOnline && it.currentKHz > 0 }
+                ?.let { Formatters.frequencyShort(it.currentKHz) }
+                ?: "—",
+            load = percentages
+                ?.getOrNull(index)
+                ?.div(100f)
+                ?.coerceIn(0f, 1f)
+                ?: frequency?.loadFraction,
+            isOnline = frequency?.isOnline ?: true,
+        )
     }
 }
 

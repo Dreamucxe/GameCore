@@ -410,6 +410,7 @@ fun HomeScreen(
                                 readout = readout,
                                 icon = metricIcon(readout.label),
                                 trend = trendFor(readout.label, readouts),
+                                cpuCores = readouts.cpuCores,
                                 use3D = state.show3DHomeStats,
                                 onClick = { onNavigate(Destination.Performance) },
                                 modifier = Modifier.weight(1f),
@@ -799,6 +800,7 @@ private fun MetricTile(
     readout: Readout,
     icon: ImageVector?,
     trend: List<Float>,
+    cpuCores: List<HomeCpuCore>,
     use3D: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -807,6 +809,7 @@ private fun MetricTile(
         HomeMetric3DCard(
             readout = readout,
             trend = trend,
+            cpuCores = cpuCores,
             onClick = onClick,
             modifier = modifier,
         )

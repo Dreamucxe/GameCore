@@ -154,7 +154,7 @@ RAM and temperature include short-lived trends made only from samples collected 
 
 **Settings → Appearance → Show GameCore stats on Home** can hide the five built-in live tiles. Plugin dashboard widgets remain, as do the Device, Status, and action cards.
 
-**Settings → Appearance → 3D Home stat designs** switches those five readings between the original rectangular cards and five distinct host-drawn instruments. The entire tile becomes the object: CPU is a pinned processor package, RAM is a DIMM with contacts, battery is a filled pack with a terminal, temperature is a glass thermometer, and refresh rate is a monitor on its stand. The reading is engraved into the face; it is not a small icon placed inside the old card.
+**Settings → Appearance → 3D Home stat designs** switches those five readings between the original rectangular cards and five distinct host-drawn instruments. The entire tile becomes the object: CPU is a pinned processor package whose die splits into one cell per detected core, each showing that core's current clock; RAM is a grey module with top and bottom pins; battery is a portrait pack with a terminal and lightning mark; temperature is a vertical bulb thermometer with a printed scale; and refresh rate is a monitor on its stand. The reading is engraved into the face; it is not a small icon placed inside the old card. A core whose clock the kernel hides shows a dash in its cell rather than an invented frequency.
 
 ### Device, Status, Overlays, and Tools
 

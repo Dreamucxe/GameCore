@@ -1,22 +1,30 @@
 package com.gamecore.ui.home
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -26,23 +34,27 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.gamecore.ui.components.ABSENT
 import com.gamecore.ui.components.PENDING
 import com.gamecore.ui.components.Readout
 import com.gamecore.ui.components.Sparkline
 import com.gamecore.ui.theme.StatLabelStyle
 import com.gamecore.ui.theme.StatValueStyle
-import kotlin.math.cos
-import kotlin.math.sin
+import kotlin.math.ceil
+import kotlin.math.sqrt
 
 /** The five Home readings. Every entry owns a different full-card silhouette. */
 internal enum class HomeMetricShape {
@@ -69,33 +81,49 @@ internal enum class HomeMetricShape {
  * A Home reading whose *whole tile* is the instrument.
  *
  * There is no standard card beneath this composable and no small logo parked beside the number. The CPU
- * tile is the processor package, Battery is the battery case and terminal, RAM is a DIMM, Temperature is
- * a horizontal glass thermometer, and Refresh is a monitor on its stand. The bounds remain equal so the
- * two-column grid stays stable, but transparent corners expose each object's actual silhouette.
+ * tile is a pinned processor package whose die is split into one cell per core, with that core's current
+ * clock. RAM is the grey module from the reference art, Battery is the portrait pack with its terminal and
+ * bolt, Temperature is a vertical bulb thermometer with a printed scale, and Refresh is a monitor on its
+ * stand. The bounds remain equal so the two-column grid stays stable, but transparent corners expose each
+ * object's actual silhouette.
+ *
+ * @param cpuCores one entry per logical core, in kernel order. Empty until a sample has been read; the
+ *   die then stays blank rather than inventing clocks for cores the device has not reported.
  */
 @Composable
 internal fun HomeMetric3DCard(
     readout: Readout,
     trend: List<Float>,
+    cpuCores: List<HomeCpuCore>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val shape = HomeMetricShape.fromLabel(readout.label)
     val accent = metricAccent(shape)
-    val level = readout.fraction?.coerceIn(0f, 1f) ?: when (shape) {
-        HomeMetricShape.TEMPERATURE -> 0.64f
-        HomeMetricShape.REFRESH -> 0.78f
+    // Artwork may only be filled when there is a reading to fill it with. A missing temperature is an
+    // empty tube, not a thermometer frozen at a plausible-looking middle.
+    val level = readout.fraction?.coerceIn(0f, 1f) ?: when {
+        !readout.isAvailable -> 0f
+        shape == HomeMetricShape.TEMPERATURE -> 0.55f
+        shape == HomeMetricShape.REFRESH -> 0.78f
         else -> 0.52f
     }
     val interaction = remember { MutableInteractionSource() }
     val spoken = buildString {
         append(readout.label).append(", ").append(readout.value)
         readout.detail?.let { append(", ").append(it) }
+        if (shape == HomeMetricShape.CPU && cpuCores.isNotEmpty()) {
+            append(". Core clocks: ")
+            cpuCores.forEachIndexed { index, core ->
+                if (index > 0) append(", ")
+                append("core ").append(core.index).append(' ').append(core.speed)
+            }
+        }
         append(". Open Performance")
     }
     Box(
         modifier = modifier
-            .defaultMinSize(minHeight = METRIC_CARD_HEIGHT.dp)
+            .height(METRIC_CARD_HEIGHT.dp)
             // The object itself supplies press feedback through its bright rim. A rectangular Material
             // ripple would briefly reveal the exact old card this design is replacing.
             .clickable(
@@ -113,41 +141,872 @@ internal fun HomeMetric3DCard(
                 }
             },
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val width = maxWidth
+            val height = maxHeight
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                when (shape) {
+                    HomeMetricShape.CPU -> drawCpuCard(accent, cpuCores)
+                    HomeMetricShape.MEMORY -> drawMemoryCard(accent)
+                    HomeMetricShape.BATTERY -> drawBatteryCard(level)
+                    HomeMetricShape.TEMPERATURE -> drawThermometerCard(level, accent)
+                    HomeMetricShape.REFRESH -> drawRefreshCard(accent)
+                    HomeMetricShape.UNKNOWN -> drawFallbackCard(accent)
+                }
+            }
             when (shape) {
-                HomeMetricShape.CPU -> drawCpuCard(level, accent)
-                HomeMetricShape.MEMORY -> drawMemoryCard(level, accent)
-                HomeMetricShape.BATTERY -> drawBatteryCard(level, accent)
-                HomeMetricShape.TEMPERATURE -> drawThermometerCard(level, accent)
-                HomeMetricShape.REFRESH -> drawRefreshCard(level, accent)
-                HomeMetricShape.UNKNOWN -> drawFallbackCard(accent)
+                HomeMetricShape.CPU -> CpuCopy(readout, cpuCores, width, height)
+                HomeMetricShape.MEMORY -> MemoryCopy(readout, trend, accent, width, height)
+                HomeMetricShape.BATTERY -> BatteryCopy(readout, width, height)
+                HomeMetricShape.TEMPERATURE -> TemperatureCopy(readout, accent, width, height)
+                HomeMetricShape.REFRESH -> RefreshCopy(readout, accent, width, height)
+                HomeMetricShape.UNKNOWN -> FallbackCopy(readout, accent)
             }
         }
-        MetricCopy(
-            shape = shape,
-            readout = readout,
-            trend = trend,
-            accent = accent,
+    }
+}
+
+// ------------------------------------------------------------------------------------------------ CPU
+
+/**
+ * The package die is divided by this rule: four columns for the usual 7–12 core phone, a narrower grid
+ * for four or six, and a square-ish grid beyond that. Returned as (columns, rows).
+ */
+internal fun cpuCoreGrid(coreCount: Int): Pair<Int, Int> {
+    if (coreCount <= 0) return 0 to 0
+    val columns = when {
+        coreCount <= 2 -> coreCount
+        coreCount <= 4 -> 2
+        coreCount <= 6 -> 3
+        coreCount <= 12 -> 4
+        else -> ceil(sqrt(coreCount.toDouble())).toInt()
+    }
+    return columns to (coreCount + columns - 1) / columns
+}
+
+@Composable
+private fun CpuCopy(
+    readout: Readout,
+    cores: List<HomeCpuCore>,
+    width: Dp,
+    height: Dp,
+) {
+    Row(
+        modifier = Modifier
+            .offset(
+                x = width * CPU_BODY_LEFT + width * 0.025f,
+                y = height * 0.155f,
+            )
+            .width(width * (CPU_BODY_RIGHT - CPU_BODY_LEFT) - width * 0.05f)
+            .height(height * 0.185f),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "CPU",
+                style = StatLabelStyle.copy(fontSize = 10.sp, lineHeight = 12.sp, letterSpacing = 1.sp),
+                color = ChipInk,
+                maxLines = 1,
+            )
+            readout.detail?.let { detail ->
+                Text(
+                    text = detail,
+                    style = MaterialCaption,
+                    color = ChipMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Text(
+            text = readout.value,
+            style = StatValueStyle.copy(fontSize = 23.sp, lineHeight = 25.sp),
+            color = if (readout.value == ABSENT || readout.value == PENDING) ChipMuted else ChipInk,
+            maxLines = 1,
+        )
+    }
+    CpuCoreGrid(
+        cores = cores,
+        modifier = Modifier
+            .offset(
+                x = width * CPU_DIE_LEFT,
+                y = height * CPU_DIE_TOP,
+            )
+            .width(width * (CPU_DIE_RIGHT - CPU_DIE_LEFT))
+            .height(height * (CPU_DIE_BOTTOM - CPU_DIE_TOP)),
+    )
+}
+
+@Composable
+private fun CpuCoreGrid(cores: List<HomeCpuCore>, modifier: Modifier) {
+    val (columns, rows) = cpuCoreGrid(cores.size)
+    if (columns == 0 || rows == 0) return
+    Column(modifier = modifier) {
+        repeat(rows) { row ->
+            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                repeat(columns) { column ->
+                    val core = cores.getOrNull(row * columns + column)
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (core != null) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "C${core.index}",
+                                    style = MaterialCaption.copy(fontSize = 6.5.sp, lineHeight = 8.sp),
+                                    color = if (core.isOnline) CoreIndex else CoreOffline,
+                                    maxLines = 1,
+                                )
+                                Text(
+                                    text = core.speed,
+                                    style = TextStyle(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 8.sp,
+                                        lineHeight = 9.sp,
+                                    ),
+                                    color = if (core.isOnline) CoreSpeed else CoreOffline,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A square package with pins and traces on all four sides, like the reference processor art. */
+private fun DrawScope.drawCpuCard(accent: Color, cores: List<HomeCpuCore>) {
+    val w = size.width
+    val h = size.height
+    val left = w * CPU_BODY_LEFT
+    val top = h * CPU_BODY_TOP
+    val right = w * CPU_BODY_RIGHT
+    val bottom = h * CPU_BODY_BOTTOM
+    val bodyW = right - left
+    val bodyH = bottom - top
+    val pinLength = h * 0.038f
+    val pinColour = Color(0xFFB5C0C7)
+    val traceColour = Color(0xFF65727A)
+
+    // Traces and nodes first, so the package face covers their inner ends and they read as legs.
+    repeat(5) { index ->
+        val fraction = (index + 1) / 6f
+        val topX = left + bodyW * fraction
+        val bottomX = left + bodyW * fraction
+        val leftY = top + bodyH * fraction
+        val rightY = top + bodyH * fraction
+        val sway = if (index % 2 == 0) -w * 0.018f else w * 0.018f
+        drawLine(
+            traceColour,
+            Offset(topX, top - pinLength),
+            Offset((topX + sway).coerceIn(w * 0.02f, w * 0.98f), h * 0.018f),
+            1.dp.toPx(),
+            StrokeCap.Round,
+        )
+        drawCircle(pinColour, 1.5.dp.toPx(), Offset((topX + sway).coerceIn(w * 0.02f, w * 0.98f), h * 0.018f))
+        drawLine(
+            traceColour,
+            Offset(bottomX, bottom + pinLength),
+            Offset((bottomX + sway).coerceIn(w * 0.02f, w * 0.98f), h * 0.982f),
+            1.dp.toPx(),
+            StrokeCap.Round,
+        )
+        drawCircle(pinColour, 1.5.dp.toPx(), Offset((bottomX + sway).coerceIn(w * 0.02f, w * 0.98f), h * 0.982f))
+        drawLine(
+            traceColour,
+            Offset(left - pinLength, leftY),
+            Offset(w * 0.018f, (leftY + sway).coerceIn(h * 0.02f, h * 0.98f)),
+            1.dp.toPx(),
+            StrokeCap.Round,
+        )
+        drawCircle(pinColour, 1.5.dp.toPx(), Offset(w * 0.018f, (leftY + sway).coerceIn(h * 0.02f, h * 0.98f)))
+        drawLine(
+            traceColour,
+            Offset(right + pinLength, rightY),
+            Offset(w * 0.982f, (rightY + sway).coerceIn(h * 0.02f, h * 0.98f)),
+            1.dp.toPx(),
+            StrokeCap.Round,
+        )
+        drawCircle(pinColour, 1.5.dp.toPx(), Offset(w * 0.982f, (rightY + sway).coerceIn(h * 0.02f, h * 0.98f)))
+
+        drawLine(pinColour, Offset(topX, top), Offset(topX, top - pinLength), 3.dp.toPx(), StrokeCap.Round)
+        drawLine(pinColour, Offset(bottomX, bottom), Offset(bottomX, bottom + pinLength), 3.dp.toPx(), StrokeCap.Round)
+        drawLine(pinColour, Offset(left, leftY), Offset(left - pinLength, leftY), 3.dp.toPx(), StrokeCap.Round)
+        drawLine(pinColour, Offset(right, rightY), Offset(right + pinLength, rightY), 3.dp.toPx(), StrokeCap.Round)
+    }
+
+    drawRoundRect(
+        brush = Brush.linearGradient(
+            listOf(Color(0xFFF0F5F7), Color(0xFFC3CED4), Color(0xFF818D95)),
+            Offset(left, top),
+            Offset(right, bottom),
+        ),
+        topLeft = Offset(left, top),
+        size = Size(bodyW, bodyH),
+        cornerRadius = CornerRadius(12.dp.toPx()),
+    )
+    drawRoundRect(
+        color = Color(0xFF171D21),
+        topLeft = Offset(left, top),
+        size = Size(bodyW, bodyH),
+        cornerRadius = CornerRadius(12.dp.toPx()),
+        style = Stroke(2.dp.toPx()),
+    )
+    drawRoundRect(
+        color = Color.White.copy(alpha = 0.42f),
+        topLeft = Offset(left + 2.dp.toPx(), top + 2.dp.toPx()),
+        size = Size(bodyW - 4.dp.toPx(), bodyH - 4.dp.toPx()),
+        cornerRadius = CornerRadius(10.dp.toPx()),
+        style = Stroke(1.dp.toPx()),
+    )
+    // The header rule separates the printed CPU figure from the die, like a package lid.
+    drawLine(
+        color = Color(0xFF78848C),
+        start = Offset(left + 3.dp.toPx(), h * 0.365f),
+        end = Offset(right - 3.dp.toPx(), h * 0.365f),
+        strokeWidth = 1.dp.toPx(),
+    )
+
+    val dieLeft = w * CPU_DIE_LEFT
+    val dieTop = h * CPU_DIE_TOP
+    val dieRight = w * CPU_DIE_RIGHT
+    val dieBottom = h * CPU_DIE_BOTTOM
+    val dieW = dieRight - dieLeft
+    val dieH = dieBottom - dieTop
+    drawRoundRect(
+        color = Color(0xFF0E1317),
+        topLeft = Offset(dieLeft, dieTop),
+        size = Size(dieW, dieH),
+        cornerRadius = CornerRadius(5.dp.toPx()),
+    )
+    drawRoundRect(
+        color = accent.copy(alpha = 0.62f),
+        topLeft = Offset(dieLeft, dieTop),
+        size = Size(dieW, dieH),
+        cornerRadius = CornerRadius(5.dp.toPx()),
+        style = Stroke(1.2.dp.toPx()),
+    )
+
+    val (columns, rows) = cpuCoreGrid(cores.size)
+    if (columns == 0 || rows == 0) return
+    val cellW = dieW / columns
+    val cellH = dieH / rows
+    val gap = 1.6.dp.toPx()
+    cores.forEachIndexed { index, core ->
+        val column = index % columns
+        val row = index / columns
+        val cellLeft = dieLeft + cellW * column + gap
+        val cellTop = dieTop + cellH * row + gap
+        val cellInnerW = cellW - gap * 2f
+        val cellInnerH = cellH - gap * 2f
+        drawRoundRect(
+            color = Color(0xFF1B2227),
+            topLeft = Offset(cellLeft, cellTop),
+            size = Size(cellInnerW, cellInnerH),
+            cornerRadius = CornerRadius(2.5.dp.toPx()),
+        )
+        drawRoundRect(
+            color = if (core.isOnline) accent.copy(alpha = 0.34f) else Color(0xFF465159),
+            topLeft = Offset(cellLeft, cellTop),
+            size = Size(cellInnerW, cellInnerH),
+            cornerRadius = CornerRadius(2.5.dp.toPx()),
+            style = Stroke(1.dp.toPx()),
+        )
+        val load = core.load?.takeIf { core.isOnline }?.coerceIn(0f, 1f) ?: return@forEachIndexed
+        val barWidth = (cellInnerW - 3.dp.toPx()) * load
+        if (barWidth > 0f) {
+            drawRoundRect(
+                color = accent.copy(alpha = 0.92f),
+                topLeft = Offset(cellLeft + 1.5.dp.toPx(), cellTop + cellInnerH - 3.dp.toPx()),
+                size = Size(barWidth, 1.8.dp.toPx()),
+                cornerRadius = CornerRadius(1.dp.toPx()),
+            )
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------------------------- RAM
+
+/** The reference RAM module: a grey frame, a dark centre face, and pins above and below. */
+private fun DrawScope.drawMemoryCard(accent: Color) {
+    val w = size.width
+    val h = size.height
+    val left = w * 0.06f
+    val top = h * 0.13f
+    val right = w * 0.94f
+    val bottom = h * 0.87f
+    val bodyW = right - left
+    val bodyH = bottom - top
+    val pinColour = Color(0xFFC7D0D5)
+
+    repeat(10) { index ->
+        val x = left + bodyW * (0.055f + index * 0.098f)
+        drawRoundRect(
+            color = pinColour,
+            topLeft = Offset(x, top - h * 0.068f),
+            size = Size(w * 0.022f, h * 0.068f),
+            cornerRadius = CornerRadius(1.2.dp.toPx()),
+        )
+        drawRoundRect(
+            color = pinColour,
+            topLeft = Offset(x, bottom),
+            size = Size(w * 0.022f, h * 0.068f),
+            cornerRadius = CornerRadius(1.2.dp.toPx()),
+        )
+    }
+
+    drawRoundRect(
+        brush = Brush.linearGradient(
+            listOf(Color(0xFFB6C0C5), Color(0xFF838F96), Color(0xFF606C73)),
+            Offset(left, top),
+            Offset(right, bottom),
+        ),
+        topLeft = Offset(left, top),
+        size = Size(bodyW, bodyH),
+        cornerRadius = CornerRadius(5.dp.toPx()),
+    )
+    drawRoundRect(
+        color = Color(0xFF242B30),
+        topLeft = Offset(left, top),
+        size = Size(bodyW, bodyH),
+        cornerRadius = CornerRadius(5.dp.toPx()),
+        style = Stroke(2.dp.toPx()),
+    )
+    val faceLeft = w * 0.105f
+    val faceTop = h * 0.19f
+    val faceRight = w * 0.895f
+    val faceBottom = h * 0.81f
+    drawRoundRect(
+        color = Color(0xFF1A1F23),
+        topLeft = Offset(faceLeft, faceTop),
+        size = Size(faceRight - faceLeft, faceBottom - faceTop),
+        cornerRadius = CornerRadius(3.dp.toPx()),
+    )
+    drawRoundRect(
+        color = accent.copy(alpha = 0.55f),
+        topLeft = Offset(faceLeft, faceTop),
+        size = Size(faceRight - faceLeft, faceBottom - faceTop),
+        cornerRadius = CornerRadius(3.dp.toPx()),
+        style = Stroke(1.4.dp.toPx()),
+    )
+    // The keying notch on the bottom edge keeps the module recognisable at a glance.
+    val notch = w * 0.045f
+    drawRoundRect(
+        color = Color(0xFF151A1E),
+        topLeft = Offset(w * 0.50f - notch / 2f, bottom - h * 0.018f),
+        size = Size(notch, h * 0.018f),
+        cornerRadius = CornerRadius(1.dp.toPx()),
+    )
+}
+
+@Composable
+private fun MemoryCopy(
+    readout: Readout,
+    trend: List<Float>,
+    accent: Color,
+    width: Dp,
+    height: Dp,
+) {
+    Column(
+        modifier = Modifier
+            .offset(x = width * 0.125f, y = height * 0.205f)
+            .width(width * 0.75f)
+            .height(height * 0.59f)
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = "RAM",
+            style = StatLabelStyle.copy(fontSize = 10.sp, lineHeight = 12.sp, letterSpacing = 1.4.sp),
+            color = Color(0xFFD7E0E4),
+            maxLines = 1,
+        )
+        Text(
+            text = readout.value,
+            style = StatValueStyle.copy(fontSize = 24.sp, lineHeight = 27.sp),
+            color = if (readout.value == ABSENT || readout.value == PENDING) Color(0xFF9AA6AD) else accent,
+            maxLines = 1,
+        )
+        readout.detail?.let { detail ->
+            Text(
+                text = detail,
+                style = MaterialCaption,
+                color = Color(0xFFAAB6BC),
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        when {
+            trend.size >= 2 -> {
+                Spacer(modifier = Modifier.height(4.dp))
+                Sparkline(
+                    values = trend,
+                    colour = accent,
+                    height = 16,
+                    modifier = Modifier.fillMaxWidth(0.72f),
+                )
+            }
+            readout.fraction != null -> {
+                Spacer(modifier = Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.72f)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0xFF333C42)),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(readout.fraction.coerceIn(0f, 1f))
+                            .fillMaxHeight()
+                            .background(accent),
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ------------------------------------------------------------------------------------------- Battery
+
+/** The reference pack: portrait body, top terminal, green charge and a white lightning mark. */
+private fun DrawScope.drawBatteryCard(level: Float) {
+    val w = size.width
+    val h = size.height
+    val left = w * 0.30f
+    val top = h * 0.13f
+    val right = w * 0.70f
+    val bottom = h * 0.90f
+    val bodyW = right - left
+    val bodyH = bottom - top
+
+    drawRoundRect(
+        brush = Brush.verticalGradient(
+            listOf(Color(0xFFE1E7EA), Color(0xFF8E9AA1), Color(0xFF49545B)),
+            h * 0.055f,
+            h * 0.13f,
+        ),
+        topLeft = Offset(w * 0.42f, h * 0.055f),
+        size = Size(w * 0.16f, h * 0.075f),
+        cornerRadius = CornerRadius(3.dp.toPx()),
+    )
+    drawRoundRect(
+        color = Color(0xFF12181C),
+        topLeft = Offset(left, top),
+        size = Size(bodyW, bodyH),
+        cornerRadius = CornerRadius(15.dp.toPx()),
+    )
+    drawRoundRect(
+        color = Color(0xFFB7C1C7),
+        topLeft = Offset(left, top),
+        size = Size(bodyW, bodyH),
+        cornerRadius = CornerRadius(15.dp.toPx()),
+        style = Stroke(3.dp.toPx()),
+    )
+
+    val inset = 5.dp.toPx()
+    val innerLeft = left + inset
+    val innerTop = top + inset
+    val innerW = bodyW - inset * 2f
+    val innerH = bodyH - inset * 2f
+    drawRoundRect(
+        color = Color(0xFF080C0F),
+        topLeft = Offset(innerLeft, innerTop),
+        size = Size(innerW, innerH),
+        cornerRadius = CornerRadius(11.dp.toPx()),
+    )
+    if (level > 0f) {
+        val fillHeight = (innerH * level).coerceAtLeast(3.dp.toPx())
+        drawRoundRect(
+            brush = Brush.verticalGradient(
+                listOf(Color(0xFF4BE37A), Color(0xFF1FAF59), Color(0xFF137F41)),
+                innerTop + innerH - fillHeight,
+                innerTop + innerH,
+            ),
+            topLeft = Offset(innerLeft, innerTop + innerH - fillHeight),
+            size = Size(innerW, fillHeight),
+            cornerRadius = CornerRadius(minOf(11.dp.toPx(), fillHeight / 2f)),
+        )
+    }
+    drawRoundRect(
+        color = Color.White.copy(alpha = 0.72f),
+        topLeft = Offset(innerLeft, innerTop),
+        size = Size(innerW, innerH),
+        cornerRadius = CornerRadius(11.dp.toPx()),
+        style = Stroke(1.4.dp.toPx()),
+    )
+
+    val boltTop = h * 0.505f
+    val boltHeight = h * 0.19f
+    val boltWidth = bodyW * 0.36f
+    val centreX = (left + right) / 2f
+    drawPath(
+        path = Path().apply {
+            moveTo(centreX + boltWidth * 0.10f, boltTop)
+            lineTo(centreX - boltWidth * 0.44f, boltTop + boltHeight * 0.58f)
+            lineTo(centreX - boltWidth * 0.04f, boltTop + boltHeight * 0.58f)
+            lineTo(centreX - boltWidth * 0.22f, boltTop + boltHeight)
+            lineTo(centreX + boltWidth * 0.46f, boltTop + boltHeight * 0.38f)
+            lineTo(centreX + boltWidth * 0.06f, boltTop + boltHeight * 0.38f)
+            close()
+        },
+        color = if (level > 0.37f) Color(0xFF082310) else Color(0xFFF2FBF5),
+    )
+}
+
+@Composable
+private fun BatteryCopy(
+    readout: Readout,
+    width: Dp,
+    height: Dp,
+) {
+    val level = readout.fraction?.coerceIn(0f, 1f) ?: 0f
+    val bodyLeft = width * 0.30f
+    val bodyWidth = width * 0.40f
+    val labelColour = if (level > 0.90f) Color(0xFF06210F) else Color(0xFFDCE9E1)
+    val valueColour = when {
+        !readout.isAvailable -> Color(0xFF8E9AA1)
+        level > 0.70f -> Color(0xFF06210F)
+        else -> Color(0xFFF4FBF7)
+    }
+    val detailColour = if (level > 0.20f) Color(0xFF06210F) else Color(0xFFDCE9E1)
+    Box(modifier = Modifier.fillMaxSize()) {
+        CenteredText(
+            text = "BATTERY",
             modifier = Modifier
-                .fillMaxSize()
-                .padding(metricContentPadding(shape)),
+                .offset(x = bodyLeft, y = height * 0.155f)
+                .width(bodyWidth)
+                .height(height * 0.08f),
+            style = StatLabelStyle.copy(fontSize = 8.sp, lineHeight = 10.sp, letterSpacing = 0.8.sp),
+            color = labelColour,
+        )
+        CenteredText(
+            text = readout.value,
+            modifier = Modifier
+                .offset(x = bodyLeft, y = height * 0.28f)
+                .width(bodyWidth)
+                .height(height * 0.18f),
+            style = StatValueStyle.copy(fontSize = 23.sp, lineHeight = 26.sp),
+            color = valueColour,
+        )
+        readout.detail?.let { detail ->
+            CenteredText(
+                text = detail,
+                modifier = Modifier
+                    .offset(x = bodyLeft, y = height * 0.735f)
+                    .width(bodyWidth)
+                    .height(height * 0.135f),
+                style = MaterialCaption.copy(fontSize = 8.sp, lineHeight = 9.5.sp),
+                color = detailColour,
+                maxLines = 2,
+            )
+        }
+    }
+}
+
+// --------------------------------------------------------------------------------------- Temperature
+
+/** The reference thermometer: cyan glass, red bulb, rising red column and a printed scale. */
+private fun DrawScope.drawThermometerCard(level: Float, accent: Color) {
+    val w = size.width
+    val h = size.height
+    val tubeLeft = w * 0.145f
+    val tubeRight = w * 0.295f
+    val tubeTop = h * 0.075f
+    val tubeBottom = h * 0.735f
+    val tubeW = tubeRight - tubeLeft
+    val tubeH = tubeBottom - tubeTop
+    val bulb = Offset(w * 0.22f, h * 0.805f)
+    val bulbRadius = minOf(w, h) * 0.135f
+    val cyan = Color(0xFF42B4DC)
+    val red = accent
+
+    drawRoundRect(
+        color = cyan,
+        topLeft = Offset(tubeLeft, tubeTop),
+        size = Size(tubeW, tubeH),
+        cornerRadius = CornerRadius(tubeW / 2f),
+    )
+    drawCircle(color = cyan, radius = bulbRadius, center = bulb)
+
+    val glassInset = 4.dp.toPx()
+    val glassLeft = tubeLeft + glassInset
+    val glassTop = tubeTop + glassInset
+    val glassW = tubeW - glassInset * 2f
+    val glassH = tubeH - glassInset * 2f
+    drawRoundRect(
+        color = Color(0xFFF1F7F9),
+        topLeft = Offset(glassLeft, glassTop),
+        size = Size(glassW, glassH),
+        cornerRadius = CornerRadius(glassW / 2f),
+    )
+    drawCircle(color = Color(0xFFF1F7F9), radius = bulbRadius - glassInset, center = bulb)
+    drawCircle(color = red, radius = (bulbRadius - glassInset * 2f).coerceAtLeast(1f), center = bulb)
+
+    // The column starts at the bulb and rises inside the glass. Zero means empty glass, not a cold red
+    // block sitting at the bottom pretending to be a measurement.
+    if (level > 0f) {
+        val columnHeight = glassH * level
+        drawRoundRect(
+            color = red,
+            topLeft = Offset(glassLeft, glassTop + glassH - columnHeight),
+            size = Size(glassW, columnHeight + (bulb.y - (glassTop + glassH))),
+            cornerRadius = CornerRadius(glassW / 2f),
+        )
+        drawRect(
+            color = red,
+            topLeft = Offset(glassLeft, glassTop + glassH - 1.dp.toPx()),
+            size = Size(glassW, (bulb.y - (glassTop + glassH)) + 1.dp.toPx()),
+        )
+    }
+    drawCircle(
+        color = Color.White.copy(alpha = 0.44f),
+        radius = bulbRadius * 0.20f,
+        center = bulb - Offset(bulbRadius * 0.34f, bulbRadius * 0.34f),
+    )
+
+    // Scale ticks on both sides of the tube. They are graduations, not printed temperatures: the exact
+    // critical value depends on which sensor produced the reading, and an invented number would lie.
+    repeat(11) { index ->
+        val y = tubeTop + tubeH * (0.05f + index * 0.09f)
+        val long = index % 5 == 0
+        drawLine(
+            color = cyan.copy(alpha = 0.78f),
+            start = Offset(tubeRight + 2.dp.toPx(), y),
+            end = Offset(tubeRight + (if (long) 9.dp else 5.dp).toPx(), y),
+            strokeWidth = if (long) 1.6.dp.toPx() else 1.dp.toPx(),
+            cap = StrokeCap.Round,
+        )
+        drawLine(
+            color = cyan.copy(alpha = 0.44f),
+            start = Offset(tubeLeft - 2.dp.toPx(), y),
+            end = Offset(tubeLeft - (if (long) 7.dp else 4.dp).toPx(), y),
+            strokeWidth = if (long) 1.3.dp.toPx() else 0.9.dp.toPx(),
+            cap = StrokeCap.Round,
         )
     }
 }
 
-/** Text is engraved into the object face, never placed in a second rectangular panel. */
 @Composable
-private fun MetricCopy(
-    shape: HomeMetricShape,
+private fun TemperatureCopy(
     readout: Readout,
-    trend: List<Float>,
     accent: Color,
-    modifier: Modifier = Modifier,
+    width: Dp,
+    height: Dp,
 ) {
-    val available = readout.value != ABSENT && readout.value != PENDING
     Column(
-        modifier = modifier,
+        modifier = Modifier
+            .offset(x = width * 0.345f, y = height * 0.13f)
+            .width(width * 0.625f)
+            .height(height * 0.75f),
+        horizontalAlignment = Alignment.Start,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = "TEMPERATURE",
+            style = StatLabelStyle.copy(fontSize = 9.sp, lineHeight = 11.sp, letterSpacing = 0.4.sp),
+            color = Color(0xFFC8D3D9),
+            maxLines = 1,
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = readout.value,
+            style = StatValueStyle.copy(fontSize = 24.sp, lineHeight = 27.sp),
+            color = if (readout.value == ABSENT || readout.value == PENDING) Color(0xFF9AA6AD) else accent,
+            maxLines = 1,
+        )
+        readout.detail?.let { detail ->
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = detail,
+                style = MaterialCaption.copy(fontSize = 8.5.sp, lineHeight = 11.sp),
+                color = Color(0xFFB1BDC4),
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+// ------------------------------------------------------------------------------------------ Refresh
+
+/** The refresh-rate tile is a display on a stand: light bezel, deep screen, physical base. */
+private fun DrawScope.drawRefreshCard(accent: Color) {
+    val w = size.width
+    val h = size.height
+    val left = w * 0.075f
+    val top = h * 0.085f
+    val right = w * 0.925f
+    val bottom = h * 0.655f
+    drawRoundRect(
+        brush = Brush.linearGradient(
+            listOf(Color(0xFFE4EAED), Color(0xFF9BA6AD), Color(0xFF59646B)),
+            Offset(left, top),
+            Offset(right, bottom),
+        ),
+        topLeft = Offset(left, top),
+        size = Size(right - left, bottom - top),
+        cornerRadius = CornerRadius(10.dp.toPx()),
+    )
+    drawRoundRect(
+        color = Color(0xFF171D21),
+        topLeft = Offset(left, top),
+        size = Size(right - left, bottom - top),
+        cornerRadius = CornerRadius(10.dp.toPx()),
+        style = Stroke(2.dp.toPx()),
+    )
+    val screenLeft = w * 0.105f
+    val screenTop = h * 0.12f
+    val screenRight = w * 0.895f
+    val screenBottom = h * 0.615f
+    drawRoundRect(
+        brush = Brush.linearGradient(
+            listOf(Color(0xFF173F5C), Color(0xFF101E32), Color(0xFF241A45)),
+            Offset(screenLeft, screenTop),
+            Offset(screenRight, screenBottom),
+        ),
+        topLeft = Offset(screenLeft, screenTop),
+        size = Size(screenRight - screenLeft, screenBottom - screenTop),
+        cornerRadius = CornerRadius(4.dp.toPx()),
+    )
+    drawRoundRect(
+        color = accent.copy(alpha = 0.78f),
+        topLeft = Offset(screenLeft, screenTop),
+        size = Size(screenRight - screenLeft, screenBottom - screenTop),
+        cornerRadius = CornerRadius(4.dp.toPx()),
+        style = Stroke(1.5.dp.toPx()),
+    )
+    // A few scan lines give the panel depth without adding a shadow.
+    repeat(3) { index ->
+        val y = screenTop + (screenBottom - screenTop) * (0.22f + index * 0.26f)
+        drawLine(
+            color = accent.copy(alpha = 0.10f),
+            start = Offset(screenLeft + 4.dp.toPx(), y),
+            end = Offset(screenRight - 4.dp.toPx(), y),
+            strokeWidth = 1.dp.toPx(),
+        )
+    }
+    drawPath(
+        path = Path().apply {
+            moveTo(w * 0.43f, bottom)
+            lineTo(w * 0.57f, bottom)
+            lineTo(w * 0.61f, h * 0.84f)
+            lineTo(w * 0.39f, h * 0.84f)
+            close()
+        },
+        brush = Brush.verticalGradient(
+            listOf(Color(0xFFD4DBDF), Color(0xFF7B868D), Color(0xFF333C42)),
+            bottom,
+            h * 0.84f,
+        ),
+    )
+    drawRoundRect(
+        brush = Brush.verticalGradient(
+            listOf(Color(0xFFB5C0C6), Color(0xFF626D74), Color(0xFF2A3237)),
+            h * 0.84f,
+            h * 0.91f,
+        ),
+        topLeft = Offset(w * 0.30f, h * 0.84f),
+        size = Size(w * 0.40f, h * 0.07f),
+        cornerRadius = CornerRadius(3.dp.toPx()),
+    )
+}
+
+@Composable
+private fun RefreshCopy(
+    readout: Readout,
+    accent: Color,
+    width: Dp,
+    height: Dp,
+) {
+    Column(
+        modifier = Modifier
+            .offset(x = width * 0.115f, y = height * 0.135f)
+            .width(width * 0.77f)
+            .height(height * 0.47f),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = "REFRESH RATE",
+            style = StatLabelStyle.copy(fontSize = 8.5.sp, lineHeight = 10.sp, letterSpacing = 0.5.sp),
+            color = Color(0xFFB7D2E2),
+            maxLines = 1,
+        )
+        Text(
+            text = readout.value,
+            style = StatValueStyle.copy(fontSize = 22.sp, lineHeight = 25.sp),
+            color = if (readout.value == ABSENT || readout.value == PENDING) Color(0xFF9AA6AD) else accent,
+            maxLines = 1,
+        )
+        readout.detail?.let { detail ->
+            Text(
+                text = detail,
+                style = MaterialCaption.copy(fontSize = 8.sp, lineHeight = 10.sp),
+                color = Color(0xFF9DB2C0),
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+// ------------------------------------------------------------------------------------------- common
+
+@Composable
+private fun CenteredText(
+    text: String,
+    modifier: Modifier,
+    style: TextStyle,
+    color: Color,
+    maxLines: Int = 1,
+) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Text(
+            text = text,
+            style = style,
+            color = color,
+            textAlign = TextAlign.Center,
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+private fun DrawScope.drawFallbackCard(accent: Color) {
+    val inset = 9.dp.toPx()
+    drawRoundRect(
+        brush = Brush.linearGradient(
+            listOf(Color(0xFF3B354E), Color(0xFF24202F), Color(0xFF121016)),
+            Offset(inset, inset),
+            Offset(size.width - inset, size.height - inset),
+        ),
+        topLeft = Offset(inset, inset),
+        size = Size(size.width - inset * 2f, size.height - inset * 2f),
+        cornerRadius = CornerRadius(16.dp.toPx()),
+    )
+    drawRoundRect(
+        color = accent.copy(alpha = 0.55f),
+        topLeft = Offset(inset, inset),
+        size = Size(size.width - inset * 2f, size.height - inset * 2f),
+        cornerRadius = CornerRadius(16.dp.toPx()),
+        style = Stroke(1.2.dp.toPx()),
+    )
+}
+
+@Composable
+private fun FallbackCopy(readout: Readout, accent: Color) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
         Text(
             text = readout.label.uppercase(),
@@ -161,21 +1020,15 @@ private fun MetricCopy(
         Text(
             text = readout.value,
             style = StatValueStyle,
-            color = if (available) accent else Color(0xFF9CA7AF),
+            color = if (readout.isAvailable) accent else Color(0xFF9CA7AF),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
         )
-        if (trend.size >= 2 && shape in setOf(HomeMetricShape.MEMORY, HomeMetricShape.TEMPERATURE)) {
-            Spacer(modifier = Modifier.height(5.dp))
-            Sparkline(values = trend, colour = accent, height = 22)
-        } else {
-            Spacer(modifier = Modifier.height(8.dp))
-        }
         readout.detail?.let { detail ->
             Text(
                 text = detail,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialCaption,
                 color = Color(0xFFB4BFC7),
                 textAlign = TextAlign.Center,
                 maxLines = 2,
@@ -183,16 +1036,6 @@ private fun MetricCopy(
             )
         }
     }
-}
-
-/** Space reserved for pins, terminals, bulbs and the monitor stand. */
-private fun metricContentPadding(shape: HomeMetricShape) = when (shape) {
-    HomeMetricShape.CPU -> androidx.compose.foundation.layout.PaddingValues(25.dp, 28.dp, 25.dp, 24.dp)
-    HomeMetricShape.MEMORY -> androidx.compose.foundation.layout.PaddingValues(19.dp, 27.dp, 19.dp, 29.dp)
-    HomeMetricShape.BATTERY -> androidx.compose.foundation.layout.PaddingValues(19.dp, 31.dp, 35.dp, 27.dp)
-    HomeMetricShape.TEMPERATURE -> androidx.compose.foundation.layout.PaddingValues(46.dp, 29.dp, 17.dp, 27.dp)
-    HomeMetricShape.REFRESH -> androidx.compose.foundation.layout.PaddingValues(22.dp, 24.dp, 21.dp, 43.dp)
-    HomeMetricShape.UNKNOWN -> androidx.compose.foundation.layout.PaddingValues(23.dp)
 }
 
 private fun metricAccent(shape: HomeMetricShape): Color = when (shape) {
@@ -204,431 +1047,28 @@ private fun metricAccent(shape: HomeMetricShape): Color = when (shape) {
     HomeMetricShape.UNKNOWN -> Color(0xFF9C83FF)
 }
 
-/** The complete CPU tile is a pinned, extruded package with an etched core grid. */
-private fun DrawScope.drawCpuCard(level: Float, accent: Color) {
-    val w = size.width
-    val h = size.height
-    val left = w * 0.105f
-    val top = h * 0.105f
-    val right = w * 0.865f
-    val bottom = h * 0.855f
-    val body = Size(right - left, bottom - top)
-    val depth = minOf(w, h) * 0.045f
-    val pinColour = Color(0xFF87939C)
+// CPU package fractions, shared by the Canvas and the text overlay so a core's label always sits inside
+// the cell that was drawn for it.
+private const val CPU_BODY_LEFT = 0.08f
+private const val CPU_BODY_RIGHT = 0.92f
+private const val CPU_BODY_TOP = 0.14f
+private const val CPU_BODY_BOTTOM = 0.91f
+private const val CPU_DIE_LEFT = 0.17f
+private const val CPU_DIE_RIGHT = 0.83f
+private const val CPU_DIE_TOP = 0.38f
+private const val CPU_DIE_BOTTOM = 0.86f
 
-    repeat(5) { index ->
-        val y = top + body.height * (index + 1) / 6f
-        val x = left + body.width * (index + 1) / 6f
-        val live = index < (level * 5f).toInt().coerceIn(0, 5)
-        val metal = if (live) accent else pinColour
-        drawLine(metal, Offset(w * 0.025f, y), Offset(left, y), 3.2.dp.toPx(), StrokeCap.Round)
-        drawLine(metal, Offset(right, y), Offset(w * 0.955f, y), 3.2.dp.toPx(), StrokeCap.Round)
-        drawLine(metal, Offset(x, h * 0.025f), Offset(x, top), 3.2.dp.toPx(), StrokeCap.Round)
-        drawLine(metal, Offset(x, bottom), Offset(x, h * 0.965f), 3.2.dp.toPx(), StrokeCap.Round)
-    }
-    drawPath(
-        Path().apply {
-            moveTo(right, top + depth)
-            lineTo(right + depth, top + depth * 1.8f)
-            lineTo(right + depth, bottom - depth * 0.2f)
-            lineTo(right, bottom)
-            close()
-        },
-        Color(0xFF070A0D),
-    )
-    drawPath(
-        Path().apply {
-            moveTo(left + depth, bottom)
-            lineTo(right, bottom)
-            lineTo(right + depth, bottom - depth * 0.2f)
-            lineTo(left + depth * 1.7f, bottom + depth)
-            close()
-        },
-        Color(0xFF11171C),
-    )
-    drawRoundRect(
-        brush = Brush.linearGradient(
-            listOf(Color(0xFF8997A3), Color(0xFF3F4C57), Color(0xFF182129)),
-            Offset(left, top),
-            Offset(right, bottom),
-        ),
-        topLeft = Offset(left, top),
-        size = body,
-        cornerRadius = CornerRadius(13.dp.toPx()),
-    )
-    drawRoundRect(
-        color = accent.copy(alpha = 0.82f),
-        topLeft = Offset(left, top),
-        size = body,
-        cornerRadius = CornerRadius(13.dp.toPx()),
-        style = Stroke(2.2.dp.toPx()),
-    )
-    drawRoundRect(
-        brush = Brush.linearGradient(
-            listOf(Color(0xFF243747), Color(0xFF101921), Color(0xFF261B10)),
-            Offset(left + body.width * 0.08f, top + body.height * 0.08f),
-            Offset(right - body.width * 0.08f, bottom - body.height * 0.08f),
-        ),
-        topLeft = Offset(left + body.width * 0.08f, top + body.height * 0.08f),
-        size = Size(body.width * 0.84f, body.height * 0.84f),
-        cornerRadius = CornerRadius(10.dp.toPx()),
-    )
-    drawRoundRect(
-        color = Color.White.copy(alpha = 0.24f),
-        topLeft = Offset(left + body.width * 0.08f, top + body.height * 0.08f),
-        size = Size(body.width * 0.84f, body.height * 0.84f),
-        cornerRadius = CornerRadius(10.dp.toPx()),
-        style = Stroke(1.dp.toPx()),
-    )
-    // Corner core cells and circuit traces leave the central readout clear.
-    val cell = minOf(w, h) * 0.10f
-    listOf(
-        Offset(left + body.width * 0.13f, top + body.height * 0.12f),
-        Offset(right - body.width * 0.13f - cell, top + body.height * 0.12f),
-        Offset(left + body.width * 0.13f, bottom - body.height * 0.12f - cell),
-        Offset(right - body.width * 0.13f - cell, bottom - body.height * 0.12f - cell),
-    ).forEachIndexed { index, cellTop ->
-        val active = level * 4f > index
-        drawRoundRect(
-            brush = Brush.linearGradient(
-                if (active) listOf(Color(0xFFFFE59A), accent, Color(0xFF8E4D0A))
-                else listOf(Color(0xFF59616A), Color(0xFF181D22)),
-                cellTop,
-                cellTop + Offset(cell, cell),
-            ),
-            topLeft = cellTop,
-            size = Size(cell, cell),
-            cornerRadius = CornerRadius(3.dp.toPx()),
-        )
-        val centre = cellTop + Offset(cell / 2f, cell / 2f)
-        drawLine(accent.copy(alpha = 0.42f), centre, Offset(w / 2f, h / 2f), 1.dp.toPx())
-    }
-}
+private val ChipInk = Color(0xFF12171B)
+private val ChipMuted = Color(0xFF4D5A62)
+private val CoreIndex = Color(0xFF9FB0B8)
+private val CoreSpeed = Color(0xFFF0F5F7)
+private val CoreOffline = Color(0xFF68757D)
 
-/** The complete RAM tile is one DIMM, including PCB, raised chips, contacts and centre notch. */
-private fun DrawScope.drawMemoryCard(level: Float, accent: Color) {
-    val w = size.width
-    val h = size.height
-    val left = w * 0.035f
-    val top = h * 0.13f
-    val boardW = w * 0.89f
-    val boardH = h * 0.72f
-    drawRoundRect(
-        brush = Brush.linearGradient(
-            listOf(Color(0xFF42C98E), Color(0xFF176846), Color(0xFF0A3022)),
-            Offset(left, top),
-            Offset(left + boardW, top + boardH),
-        ),
-        topLeft = Offset(left, top),
-        size = Size(boardW, boardH),
-        cornerRadius = CornerRadius(11.dp.toPx()),
-    )
-    drawRoundRect(
-        accent.copy(alpha = 0.82f),
-        Offset(left, top),
-        Size(boardW, boardH),
-        CornerRadius(11.dp.toPx()),
-        style = Stroke(2.2.dp.toPx()),
-    )
-    val chips = 8
-    val active = (level * chips).toInt().coerceIn(0, chips)
-    repeat(4) { index ->
-        val chipW = boardW * 0.135f
-        val chipH = boardH * 0.18f
-        val x = left + boardW * (0.08f + index * 0.235f)
-        listOf(top + boardH * 0.10f, top + boardH * 0.70f).forEachIndexed { row, y ->
-            val lit = row * 4 + index < active
-            drawRoundRect(
-                brush = Brush.linearGradient(
-                    if (lit) listOf(lerp(accent, Color.White, 0.25f), Color(0xFF128557))
-                    else listOf(Color(0xFF313B38), Color(0xFF090D0C)),
-                    Offset(x, y),
-                    Offset(x + chipW, y + chipH),
-                ),
-                topLeft = Offset(x, y),
-                size = Size(chipW, chipH),
-                cornerRadius = CornerRadius(3.dp.toPx()),
-            )
-        }
-    }
-    // Gold edge contacts and the physical key notch identify this as RAM even without colour.
-    repeat(11) { index ->
-        val gapStart = left + boardW * 0.47f
-        val gapEnd = left + boardW * 0.55f
-        val x = left + boardW * (0.035f + index * 0.086f)
-        if (x !in gapStart..gapEnd) {
-            drawRoundRect(
-                Color(0xFFFFCB62),
-                Offset(x, top + boardH * 0.91f),
-                Size(boardW * 0.045f, boardH * 0.09f),
-                CornerRadius(1.5.dp.toPx()),
-            )
-        }
-    }
-    drawPath(
-        Path().apply {
-            moveTo(left + boardW * 0.47f, top + boardH)
-            lineTo(left + boardW * 0.49f, top + boardH * 0.93f)
-            lineTo(left + boardW * 0.53f, top + boardH * 0.93f)
-            lineTo(left + boardW * 0.55f, top + boardH)
-            close()
-        },
-        Color(0xFF030807),
-    )
-}
-
-/** The complete Battery tile is the pack: shell, terminal, charge fill and level separators. */
-private fun DrawScope.drawBatteryCard(level: Float, accent: Color) {
-    val w = size.width
-    val h = size.height
-    val left = w * 0.035f
-    val top = h * 0.18f
-    val bodyW = w * 0.80f
-    val bodyH = h * 0.64f
-    val terminalW = w * 0.11f
-    val fillColour = when {
-        level <= 0.20f -> Color(0xFFFF5F66)
-        level <= 0.40f -> Color(0xFFFFB64D)
-        else -> accent
-    }
-    drawRoundRect(
-        brush = Brush.linearGradient(
-            listOf(Color(0xFFE1E7EA), Color(0xFF78858F), Color(0xFF29343C)),
-            Offset(left, top),
-            Offset(left, top + bodyH),
-        ),
-        topLeft = Offset(left, top),
-        size = Size(bodyW, bodyH),
-        cornerRadius = CornerRadius(14.dp.toPx()),
-    )
-    drawRoundRect(
-        brush = Brush.linearGradient(
-            listOf(Color(0xFFC1CBD1), Color(0xFF59636A), Color(0xFF171C21)),
-            Offset(left + bodyW, top),
-            Offset(left + bodyW + terminalW, top + bodyH),
-        ),
-        topLeft = Offset(left + bodyW, top + bodyH * 0.31f),
-        size = Size(terminalW, bodyH * 0.38f),
-        cornerRadius = CornerRadius(4.dp.toPx()),
-    )
-    val inset = 8.dp.toPx()
-    val innerW = bodyW - inset * 2f
-    val innerH = bodyH - inset * 2f
-    drawRoundRect(
-        Color(0xFF050809),
-        Offset(left + inset, top + inset),
-        Size(innerW, innerH),
-        CornerRadius(9.dp.toPx()),
-    )
-    if (level > 0f) {
-        val fillW = (innerW * level).coerceAtLeast(5.dp.toPx())
-        drawRoundRect(
-            brush = Brush.verticalGradient(
-                listOf(lerp(fillColour, Color.White, 0.42f), fillColour.copy(alpha = 0.88f), fillColour.copy(alpha = 0.60f)),
-                top + inset,
-                top + bodyH - inset,
-            ),
-            topLeft = Offset(left + inset, top + inset),
-            size = Size(fillW, innerH),
-            cornerRadius = CornerRadius(9.dp.toPx()),
-        )
-    }
-    repeat(3) { index ->
-        val x = left + inset + innerW * (index + 1) / 4f
-        drawLine(Color.White.copy(alpha = 0.14f), Offset(x, top + inset), Offset(x, top + bodyH - inset), 1.dp.toPx())
-    }
-    drawRoundRect(
-        fillColour.copy(alpha = 0.86f),
-        Offset(left, top),
-        Size(bodyW, bodyH),
-        CornerRadius(14.dp.toPx()),
-        style = Stroke(2.2.dp.toPx()),
-    )
-    // Embossed polarity marks make the object recognisable even before the level is read.
-    drawLine(
-        Color.White.copy(alpha = 0.70f),
-        Offset(left + bodyW * 0.10f, top + bodyH * 0.20f),
-        Offset(left + bodyW * 0.10f, top + bodyH * 0.34f),
-        1.7.dp.toPx(),
-        StrokeCap.Round,
-    )
-    drawLine(
-        Color.White.copy(alpha = 0.70f),
-        Offset(left + bodyW * 0.065f, top + bodyH * 0.27f),
-        Offset(left + bodyW * 0.135f, top + bodyH * 0.27f),
-        1.7.dp.toPx(),
-        StrokeCap.Round,
-    )
-    drawLine(
-        Color.White.copy(alpha = 0.70f),
-        Offset(left + bodyW * 0.71f, top + bodyH * 0.27f),
-        Offset(left + bodyW * 0.78f, top + bodyH * 0.27f),
-        1.7.dp.toPx(),
-        StrokeCap.Round,
-    )
-}
-
-/** The complete Temperature tile is a glass-and-metal horizontal thermometer. */
-private fun DrawScope.drawThermometerCard(level: Float, accent: Color) {
-    val w = size.width
-    val h = size.height
-    val barrelLeft = w * 0.13f
-    val barrelTop = h * 0.20f
-    val barrelW = w * 0.80f
-    val barrelH = h * 0.62f
-    val bulb = Offset(w * 0.16f, h * 0.69f)
-    val bulbRadius = minOf(w, h) * 0.14f
-    drawRoundRect(
-        brush = Brush.verticalGradient(
-            listOf(Color(0xFFDCE5E9), Color(0xFF8E9BA4), Color(0xFF46535C), Color(0xFF1B242A)),
-            barrelTop,
-            barrelTop + barrelH,
-        ),
-        topLeft = Offset(barrelLeft, barrelTop),
-        size = Size(barrelW, barrelH),
-        cornerRadius = CornerRadius(barrelH / 2f),
-    )
-    val glassTop = barrelTop + barrelH * 0.64f
-    val glassLeft = bulb.x
-    val glassRight = barrelLeft + barrelW * 0.90f
-    drawRoundRect(
-        Color(0xFF080B0D),
-        Offset(glassLeft, glassTop),
-        Size(glassRight - glassLeft, barrelH * 0.13f),
-        CornerRadius(barrelH * 0.065f),
-    )
-    val mercuryRight = glassLeft + (glassRight - glassLeft) * level.coerceIn(0.04f, 1f)
-    drawRoundRect(
-        brush = Brush.verticalGradient(listOf(Color(0xFFFFC0A1), accent, Color(0xFF8A1720)), glassTop, glassTop + barrelH * 0.13f),
-        topLeft = Offset(glassLeft, glassTop),
-        size = Size((mercuryRight - glassLeft).coerceAtLeast(3.dp.toPx()), barrelH * 0.13f),
-        cornerRadius = CornerRadius(barrelH * 0.065f),
-    )
-    drawCircle(
-        Brush.radialGradient(
-            listOf(Color(0xFFFFD3BD), accent, Color(0xFF72151B)),
-            bulb - Offset(bulbRadius * 0.3f, bulbRadius * 0.3f),
-            bulbRadius * 1.5f,
-        ),
-        bulbRadius,
-        bulb,
-    )
-    drawCircle(Color.White.copy(alpha = 0.28f), bulbRadius, bulb, style = Stroke(1.2.dp.toPx()))
-    drawRoundRect(
-        accent.copy(alpha = 0.72f),
-        Offset(barrelLeft, barrelTop),
-        Size(barrelW, barrelH),
-        CornerRadius(barrelH / 2f),
-        style = Stroke(2.dp.toPx()),
-    )
-    repeat(5) { index ->
-        val x = barrelLeft + barrelW * (0.29f + index * 0.12f)
-        drawLine(
-            Color(0xFFFFB7A0),
-            Offset(x, barrelTop + barrelH * 0.12f),
-            Offset(x, barrelTop + barrelH * (if (index % 2 == 0) 0.23f else 0.19f)),
-            1.3.dp.toPx(),
-            StrokeCap.Round,
-        )
-    }
-}
-
-/** The complete Refresh tile is a perspective display, bezel, sweep and physical stand. */
-private fun DrawScope.drawRefreshCard(level: Float, accent: Color) {
-    val w = size.width
-    val h = size.height
-    val face = Path().apply {
-        moveTo(w * 0.055f, h * 0.07f)
-        lineTo(w * 0.875f, h * 0.035f)
-        lineTo(w * 0.915f, h * 0.695f)
-        lineTo(w * 0.095f, h * 0.74f)
-        close()
-    }
-    drawPath(
-        face,
-        Brush.linearGradient(
-            listOf(Color(0xFFA8B4BD), Color(0xFF4A5660), Color(0xFF151D23)),
-            Offset(w * 0.05f, h * 0.03f),
-            Offset(w * 0.92f, h * 0.75f),
-        ),
-    )
-    val screen = Path().apply {
-        moveTo(w * 0.105f, h * 0.12f)
-        lineTo(w * 0.82f, h * 0.09f)
-        lineTo(w * 0.85f, h * 0.61f)
-        lineTo(w * 0.135f, h * 0.65f)
-        close()
-    }
-    drawPath(
-        screen,
-        Brush.linearGradient(
-            listOf(Color(0xFF15527A), Color(0xFF10283F), Color(0xFF31245F)),
-            Offset(w * 0.11f, h * 0.1f),
-            Offset(w * 0.85f, h * 0.65f),
-        ),
-    )
-    drawPath(screen, accent.copy(alpha = 0.78f), style = Stroke(2.dp.toPx()))
-    drawLine(Color.White.copy(alpha = 0.25f), Offset(w * 0.12f, h * 0.14f), Offset(w * 0.80f, h * 0.11f), 1.2.dp.toPx())
-    val sweepCentre = Offset(w * 0.76f, h * 0.22f)
-    val radius = minOf(w, h) * 0.075f
-    val sweep = 290f * level.coerceIn(0.18f, 1f)
-    drawArc(
-        accent.copy(alpha = 0.72f),
-        startAngle = 135f,
-        sweepAngle = sweep,
-        useCenter = false,
-        topLeft = sweepCentre - Offset(radius, radius),
-        size = Size(radius * 2f, radius * 2f),
-        style = Stroke(2.2.dp.toPx(), cap = StrokeCap.Round),
-    )
-    val angle = Math.toRadians((135f + sweep).toDouble())
-    drawCircle(
-        Color.White,
-        1.8.dp.toPx(),
-        Offset(
-            sweepCentre.x + cos(angle).toFloat() * radius,
-            sweepCentre.y + sin(angle).toFloat() * radius,
-        ),
-    )
-    drawPath(
-        Path().apply {
-            moveTo(w * 0.43f, h * 0.73f)
-            lineTo(w * 0.58f, h * 0.72f)
-            lineTo(w * 0.64f, h * 0.90f)
-            lineTo(w * 0.36f, h * 0.91f)
-            close()
-        },
-        Brush.verticalGradient(listOf(Color(0xFF7B868E), Color(0xFF12171A)), h * 0.71f, h * 0.91f),
-    )
-    drawRoundRect(
-        Brush.verticalGradient(listOf(Color(0xFF707A82), Color(0xFF111518)), h * 0.87f, h * 0.98f),
-        Offset(w * 0.25f, h * 0.89f),
-        Size(w * 0.51f, h * 0.08f),
-        CornerRadius(4.dp.toPx()),
-    )
-}
-
-private fun DrawScope.drawFallbackCard(accent: Color) {
-    val inset = 9.dp.toPx()
-    drawRoundRect(
-        brush = metalBrush(Color(0xFF2A2737), Offset(inset, inset), Offset(size.width - inset, size.height - inset)),
-        topLeft = Offset(inset, inset),
-        size = Size(size.width - inset * 2f, size.height - inset * 2f),
-        cornerRadius = CornerRadius(16.dp.toPx()),
-    )
-    drawRoundRect(
-        accent.copy(alpha = 0.35f),
-        Offset(inset, inset),
-        Size(size.width - inset * 2f, size.height - inset * 2f),
-        CornerRadius(16.dp.toPx()),
-        style = Stroke(1.dp.toPx()),
-    )
-}
-
-private fun metalBrush(base: Color, start: Offset, end: Offset): Brush = Brush.linearGradient(
-    listOf(lerp(base, Color.White, 0.34f), base, lerp(base, Color.Black, 0.55f)),
-    start,
-    end,
+private val MaterialCaption = TextStyle(
+    fontFamily = FontFamily.Default,
+    fontWeight = FontWeight.Normal,
+    fontSize = 8.5.sp,
+    lineHeight = 10.5.sp,
 )
 
-private const val METRIC_CARD_HEIGHT = 164
+private const val METRIC_CARD_HEIGHT = 190

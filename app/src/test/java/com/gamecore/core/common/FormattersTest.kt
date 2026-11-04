@@ -124,6 +124,15 @@ class FormattersTest {
     }
 
     @Test
+    fun `the per-core clock keeps its unit initial and one decimal`() {
+        assertEquals("2.4G", Formatters.frequencyShort(2_400_000))
+        assertEquals("1.8G", Formatters.frequencyShort(1_804_800))
+        assertEquals("800M", Formatters.frequencyShort(800_000))
+        assertEquals("—", Formatters.frequencyShort(0))
+        assertEquals("—", Formatters.frequencyShort(-1))
+    }
+
+    @Test
     fun `temperature keeps the tenth of a degree the platform broadcasts`() {
         assertEquals("38.5°C", Formatters.temperature(385))
         assertEquals("0.0°C", Formatters.temperature(0))
