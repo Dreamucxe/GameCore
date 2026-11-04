@@ -216,12 +216,6 @@ private fun DrawScope.drawCpuCard(level: Float, accent: Color) {
     val depth = minOf(w, h) * 0.045f
     val pinColour = Color(0xFF87939C)
 
-    drawRoundRect(
-        color = Color.Black.copy(alpha = 0.42f),
-        topLeft = Offset(left + depth, top + depth * 1.4f),
-        size = body,
-        cornerRadius = CornerRadius(13.dp.toPx()),
-    )
     repeat(5) { index ->
         val y = top + body.height * (index + 1) / 6f
         val x = left + body.width * (index + 1) / 6f
@@ -253,17 +247,38 @@ private fun DrawScope.drawCpuCard(level: Float, accent: Color) {
         Color(0xFF11171C),
     )
     drawRoundRect(
-        brush = metalBrush(Color(0xFF252E36), Offset(left, top), Offset(right, bottom)),
+        brush = Brush.linearGradient(
+            listOf(Color(0xFF8997A3), Color(0xFF3F4C57), Color(0xFF182129)),
+            Offset(left, top),
+            Offset(right, bottom),
+        ),
         topLeft = Offset(left, top),
         size = body,
         cornerRadius = CornerRadius(13.dp.toPx()),
     )
     drawRoundRect(
-        color = Color.White.copy(alpha = 0.18f),
+        color = accent.copy(alpha = 0.82f),
         topLeft = Offset(left, top),
         size = body,
         cornerRadius = CornerRadius(13.dp.toPx()),
-        style = Stroke(1.2.dp.toPx()),
+        style = Stroke(2.2.dp.toPx()),
+    )
+    drawRoundRect(
+        brush = Brush.linearGradient(
+            listOf(Color(0xFF243747), Color(0xFF101921), Color(0xFF261B10)),
+            Offset(left + body.width * 0.08f, top + body.height * 0.08f),
+            Offset(right - body.width * 0.08f, bottom - body.height * 0.08f),
+        ),
+        topLeft = Offset(left + body.width * 0.08f, top + body.height * 0.08f),
+        size = Size(body.width * 0.84f, body.height * 0.84f),
+        cornerRadius = CornerRadius(10.dp.toPx()),
+    )
+    drawRoundRect(
+        color = Color.White.copy(alpha = 0.24f),
+        topLeft = Offset(left + body.width * 0.08f, top + body.height * 0.08f),
+        size = Size(body.width * 0.84f, body.height * 0.84f),
+        cornerRadius = CornerRadius(10.dp.toPx()),
+        style = Stroke(1.dp.toPx()),
     )
     // Corner core cells and circuit traces leave the central readout clear.
     val cell = minOf(w, h) * 0.10f
@@ -298,16 +313,9 @@ private fun DrawScope.drawMemoryCard(level: Float, accent: Color) {
     val top = h * 0.13f
     val boardW = w * 0.89f
     val boardH = h * 0.72f
-    val depth = h * 0.045f
-    drawRoundRect(
-        Color.Black.copy(alpha = 0.40f),
-        Offset(left + depth, top + depth * 1.5f),
-        Size(boardW, boardH),
-        CornerRadius(11.dp.toPx()),
-    )
     drawRoundRect(
         brush = Brush.linearGradient(
-            listOf(Color(0xFF31745B), Color(0xFF123C2D), Color(0xFF071C15)),
+            listOf(Color(0xFF42C98E), Color(0xFF176846), Color(0xFF0A3022)),
             Offset(left, top),
             Offset(left + boardW, top + boardH),
         ),
@@ -316,11 +324,11 @@ private fun DrawScope.drawMemoryCard(level: Float, accent: Color) {
         cornerRadius = CornerRadius(11.dp.toPx()),
     )
     drawRoundRect(
-        Color.White.copy(alpha = 0.16f),
+        accent.copy(alpha = 0.82f),
         Offset(left, top),
         Size(boardW, boardH),
         CornerRadius(11.dp.toPx()),
-        style = Stroke(1.dp.toPx()),
+        style = Stroke(2.2.dp.toPx()),
     )
     val chips = 8
     val active = (level * chips).toInt().coerceIn(0, chips)
@@ -378,20 +386,17 @@ private fun DrawScope.drawBatteryCard(level: Float, accent: Color) {
     val bodyW = w * 0.80f
     val bodyH = h * 0.64f
     val terminalW = w * 0.11f
-    val depth = h * 0.04f
     val fillColour = when {
         level <= 0.20f -> Color(0xFFFF5F66)
         level <= 0.40f -> Color(0xFFFFB64D)
         else -> accent
     }
     drawRoundRect(
-        Color.Black.copy(alpha = 0.42f),
-        Offset(left + depth, top + depth * 1.6f),
-        Size(bodyW, bodyH),
-        CornerRadius(14.dp.toPx()),
-    )
-    drawRoundRect(
-        brush = metalBrush(Color(0xFF293139), Offset(left, top), Offset(left, top + bodyH)),
+        brush = Brush.linearGradient(
+            listOf(Color(0xFFE1E7EA), Color(0xFF78858F), Color(0xFF29343C)),
+            Offset(left, top),
+            Offset(left, top + bodyH),
+        ),
         topLeft = Offset(left, top),
         size = Size(bodyW, bodyH),
         cornerRadius = CornerRadius(14.dp.toPx()),
@@ -419,7 +424,7 @@ private fun DrawScope.drawBatteryCard(level: Float, accent: Color) {
         val fillW = (innerW * level).coerceAtLeast(5.dp.toPx())
         drawRoundRect(
             brush = Brush.verticalGradient(
-                listOf(lerp(fillColour, Color.White, 0.34f), fillColour.copy(alpha = 0.56f), fillColour.copy(alpha = 0.28f)),
+                listOf(lerp(fillColour, Color.White, 0.42f), fillColour.copy(alpha = 0.88f), fillColour.copy(alpha = 0.60f)),
                 top + inset,
                 top + bodyH - inset,
             ),
@@ -433,11 +438,33 @@ private fun DrawScope.drawBatteryCard(level: Float, accent: Color) {
         drawLine(Color.White.copy(alpha = 0.14f), Offset(x, top + inset), Offset(x, top + bodyH - inset), 1.dp.toPx())
     }
     drawRoundRect(
-        Color.White.copy(alpha = 0.24f),
+        fillColour.copy(alpha = 0.86f),
         Offset(left, top),
         Size(bodyW, bodyH),
         CornerRadius(14.dp.toPx()),
-        style = Stroke(1.2.dp.toPx()),
+        style = Stroke(2.2.dp.toPx()),
+    )
+    // Embossed polarity marks make the object recognisable even before the level is read.
+    drawLine(
+        Color.White.copy(alpha = 0.70f),
+        Offset(left + bodyW * 0.10f, top + bodyH * 0.20f),
+        Offset(left + bodyW * 0.10f, top + bodyH * 0.34f),
+        1.7.dp.toPx(),
+        StrokeCap.Round,
+    )
+    drawLine(
+        Color.White.copy(alpha = 0.70f),
+        Offset(left + bodyW * 0.065f, top + bodyH * 0.27f),
+        Offset(left + bodyW * 0.135f, top + bodyH * 0.27f),
+        1.7.dp.toPx(),
+        StrokeCap.Round,
+    )
+    drawLine(
+        Color.White.copy(alpha = 0.70f),
+        Offset(left + bodyW * 0.71f, top + bodyH * 0.27f),
+        Offset(left + bodyW * 0.78f, top + bodyH * 0.27f),
+        1.7.dp.toPx(),
+        StrokeCap.Round,
     )
 }
 
@@ -451,17 +478,9 @@ private fun DrawScope.drawThermometerCard(level: Float, accent: Color) {
     val barrelH = h * 0.62f
     val bulb = Offset(w * 0.16f, h * 0.69f)
     val bulbRadius = minOf(w, h) * 0.14f
-    val depth = 5.dp.toPx()
-    drawRoundRect(
-        Color.Black.copy(alpha = 0.42f),
-        Offset(barrelLeft + depth, barrelTop + depth),
-        Size(barrelW, barrelH),
-        CornerRadius(barrelH / 2f),
-    )
-    drawCircle(Color.Black.copy(alpha = 0.42f), bulbRadius, bulb + Offset(depth, depth))
     drawRoundRect(
         brush = Brush.verticalGradient(
-            listOf(Color(0xFF74818A), Color(0xFFE1E7E9), Color(0xFF3B464E), Color(0xFF12181C)),
+            listOf(Color(0xFFDCE5E9), Color(0xFF8E9BA4), Color(0xFF46535C), Color(0xFF1B242A)),
             barrelTop,
             barrelTop + barrelH,
         ),
@@ -495,6 +514,13 @@ private fun DrawScope.drawThermometerCard(level: Float, accent: Color) {
         bulb,
     )
     drawCircle(Color.White.copy(alpha = 0.28f), bulbRadius, bulb, style = Stroke(1.2.dp.toPx()))
+    drawRoundRect(
+        accent.copy(alpha = 0.72f),
+        Offset(barrelLeft, barrelTop),
+        Size(barrelW, barrelH),
+        CornerRadius(barrelH / 2f),
+        style = Stroke(2.dp.toPx()),
+    )
     repeat(5) { index ->
         val x = barrelLeft + barrelW * (0.29f + index * 0.12f)
         drawLine(
@@ -511,13 +537,6 @@ private fun DrawScope.drawThermometerCard(level: Float, accent: Color) {
 private fun DrawScope.drawRefreshCard(level: Float, accent: Color) {
     val w = size.width
     val h = size.height
-    val shadow = Path().apply {
-        moveTo(w * 0.10f, h * 0.13f)
-        lineTo(w * 0.92f, h * 0.09f)
-        lineTo(w * 0.96f, h * 0.75f)
-        lineTo(w * 0.14f, h * 0.80f)
-        close()
-    }
     val face = Path().apply {
         moveTo(w * 0.055f, h * 0.07f)
         lineTo(w * 0.875f, h * 0.035f)
@@ -525,11 +544,10 @@ private fun DrawScope.drawRefreshCard(level: Float, accent: Color) {
         lineTo(w * 0.095f, h * 0.74f)
         close()
     }
-    drawPath(shadow, Color.Black.copy(alpha = 0.43f))
     drawPath(
         face,
         Brush.linearGradient(
-            listOf(Color(0xFF69747E), Color(0xFF1C232A), Color(0xFF06090C)),
+            listOf(Color(0xFFA8B4BD), Color(0xFF4A5660), Color(0xFF151D23)),
             Offset(w * 0.05f, h * 0.03f),
             Offset(w * 0.92f, h * 0.75f),
         ),
@@ -544,11 +562,12 @@ private fun DrawScope.drawRefreshCard(level: Float, accent: Color) {
     drawPath(
         screen,
         Brush.linearGradient(
-            listOf(Color(0xFF102C43), Color(0xFF101528), Color(0xFF231A43)),
+            listOf(Color(0xFF15527A), Color(0xFF10283F), Color(0xFF31245F)),
             Offset(w * 0.11f, h * 0.1f),
             Offset(w * 0.85f, h * 0.65f),
         ),
     )
+    drawPath(screen, accent.copy(alpha = 0.78f), style = Stroke(2.dp.toPx()))
     drawLine(Color.White.copy(alpha = 0.25f), Offset(w * 0.12f, h * 0.14f), Offset(w * 0.80f, h * 0.11f), 1.2.dp.toPx())
     val sweepCentre = Offset(w * 0.76f, h * 0.22f)
     val radius = minOf(w, h) * 0.075f
