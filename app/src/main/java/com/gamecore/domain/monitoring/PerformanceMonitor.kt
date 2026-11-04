@@ -4,7 +4,9 @@ import com.gamecore.core.common.ApplicationScope
 import com.gamecore.core.common.DataSource
 import com.gamecore.core.common.Observed
 import com.gamecore.core.common.Precision
+import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.AppSettings
+import com.gamecore.core.model.CpuReading
 import com.gamecore.core.model.FrameRateCapability
 import com.gamecore.core.model.FrameRateSample
 import com.gamecore.core.model.GpuLoadSample
@@ -330,6 +332,7 @@ class PerformanceMonitor @Inject constructor(
     private fun PerformanceSnapshot.toHistoryPoint(): HistoryPoint = HistoryPoint(
         atMillis = capturedAtMillis,
         cpuPercent = (cpu.overallPercent as? Observed.Value)?.value,
+        coreActivityPercent = coreActivityPercent(cpu),
         memoryPercent = memory.usedPercent,
         temperatureDeciCelsius = (primaryTemperatureDeciCelsius as? Observed.Value)?.value,
         frameRate = (frameRate as? Observed.Value)?.value?.averageFps,
@@ -366,4 +369,26 @@ class PerformanceMonitor @Inject constructor(
          */
         const val PROBE_BUFFER = 4
     }
+}
+
+/**
+ * The per-core value a history chart may honestly plot.
+ *
+ * `/proc/stat` utilisation wins when available. On devices that hide it but expose cpufreq, the fallback
+ * is the core's current position between its own minimum and maximum clock. A parked core, unreadable
+ * bounds and a missing core are null gaps—never zero activity. Internal so the precedence and gap rules
+ * can be pinned without constructing the monitor's Android readers.
+ */
+internal fun coreActivityPercent(cpu: CpuReading): List<Float?> {
+    cpu.perCorePercent.valueOrNull?.let { percentages ->
+        return List(cpu.coreCount) { index -> percentages.getOrNull(index)?.coerceIn(0f, 100f) }
+    }
+    val frequencies = cpu.frequenciesKHz.valueOrNull ?: return emptyList()
+    val byIndex = MutableList<Float?>(cpu.coreCount) { null }
+    frequencies.forEach { core ->
+        if (core.coreIndex in byIndex.indices) {
+            byIndex[core.coreIndex] = core.loadFraction?.times(100f)?.coerceIn(0f, 100f)
+        }
+    }
+    return byIndex
 }

@@ -803,59 +803,41 @@ private fun MetricTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val minHeight = if (use3D) 126.dp else 112.dp
-    ClickableCard(modifier = modifier.defaultMinSize(minHeight = minHeight), onClick = onClick) {
-        if (use3D) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = readout.label.uppercase(),
-                        style = StatLabelStyle,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = readout.value,
-                        style = StatValueStyle,
-                        color = readout.tone.colour(),
-                        maxLines = 1,
-                    )
-                }
-                Spacer(modifier = Modifier.width(6.dp))
-                HomeMetric3D(label = readout.label, fraction = readout.fraction)
-            }
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (icon != null) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                }
-                Text(
-                    text = readout.label.uppercase(),
-                    style = StatLabelStyle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+    if (use3D) {
+        HomeMetric3DCard(
+            readout = readout,
+            trend = trend,
+            onClick = onClick,
+            modifier = modifier,
+        )
+        return
+    }
+    ClickableCard(modifier = modifier.defaultMinSize(minHeight = 112.dp), onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp),
                 )
+                Spacer(modifier = Modifier.width(6.dp))
             }
-            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = readout.value,
-                style = StatValueStyle,
-                color = readout.tone.colour(),
+                text = readout.label.uppercase(),
+                style = StatLabelStyle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = readout.value,
+            style = StatValueStyle,
+            color = readout.tone.colour(),
+            maxLines = 1,
+        )
         if (trend.size >= 2) {
             Spacer(modifier = Modifier.height(8.dp))
             Sparkline(values = trend, colour = readout.tone.colour())

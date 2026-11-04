@@ -154,7 +154,7 @@ RAM and temperature include short-lived trends made only from samples collected 
 
 **Settings → Appearance → Show GameCore stats on Home** can hide the five built-in live tiles. Plugin dashboard widgets remain, as do the Device, Status, and action cards.
 
-**Settings → Appearance → 3D Home stat designs** switches those five tiles between the original flat icons and five distinct host-drawn instruments. CPU is a pinned processor die, RAM is a pair of memory modules, battery is a filled battery pack, temperature is a glass thermostat, and refresh rate is a display with a circular sweep. The shape changes with the metric; it is not one badge recoloured five times.
+**Settings → Appearance → 3D Home stat designs** switches those five readings between the original rectangular cards and five distinct host-drawn instruments. The entire tile becomes the object: CPU is a pinned processor package, RAM is a DIMM with contacts, battery is a filled pack with a terminal, temperature is a glass thermometer, and refresh rate is a monitor on its stand. The reading is engraved into the face; it is not a small icon placed inside the old card.
 
 ### Device, Status, Overlays, and Tools
 
@@ -295,7 +295,7 @@ The dock is a second draggable, edge-snapping surface. It has independent size, 
 
 **Settings → Live performance** expands the Home readings into:
 
-- CPU total and per-core readings/frequencies, with a segmented bar graph for every exposed core;
+- CPU total and per-core readings/frequencies, with a rolling, scaled history chart for every exposed core (missing samples remain chart gaps);
 - memory use;
 - battery level, health, temperature, voltage, source, and current where reported;
 - thermal sensors and platform throttling state;

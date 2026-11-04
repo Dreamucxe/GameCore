@@ -146,11 +146,12 @@ data class AppSettings(
     val showBuiltInHomeStats: Boolean = true,
 
     /**
-     * Render the live metric tiles on Home with unique 3D widgets instead of flat icons.
+     * Replace the live metric cards on Home with unique, readable 3D instruments.
      *
      * When on, each tile shows a distinctive 3D shape: a battery for battery level, a processor
      * die for CPU, a thermostat bulb for temperature, memory modules for RAM and a display panel
-     * for refresh rate. On by default; switching it off restores the original flat Material icons.
+     * for refresh rate. The entire tile becomes that object; it is not an icon inside the old card.
+     * On by default; switching it off restores the original rectangular cards and Material icons.
      */
     val show3DHomeStats: Boolean = true,
 

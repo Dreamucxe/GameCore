@@ -113,6 +113,19 @@ data class MetricHistory(
 
     fun frameRateSeries(): List<Float> = points.mapNotNull { it.frameRate }
 
+    /**
+     * One time-aligned 0–100 series per CPU core.
+     *
+     * Unlike the older aggregate helpers, this deliberately keeps nulls. A missing core sample is a gap
+     * at that moment, not permission to squeeze the points together and make two readings look adjacent.
+     * [coreCount] comes from the current CPU snapshot, so a hotplugged or newly visible core receives a
+     * correctly aligned all-null history until it produces its first point.
+     */
+    fun coreActivitySeries(coreCount: Int): List<List<Float?>> =
+        (0 until coreCount.coerceAtLeast(0)).map { coreIndex ->
+            points.map { point -> point.coreActivityPercent.getOrNull(coreIndex) }
+        }
+
     companion object {
         const val CAPACITY = 120
         const val MIN_PLOTTABLE = 3
@@ -130,6 +143,8 @@ data class MetricHistory(
 data class HistoryPoint(
     val atMillis: Long,
     val cpuPercent: Float? = null,
+    /** Per-core utilisation, or normalised clock position when utilisation is hidden. */
+    val coreActivityPercent: List<Float?> = emptyList(),
     val memoryPercent: Float? = null,
     val temperatureDeciCelsius: Int? = null,
     val frameRate: Float? = null,

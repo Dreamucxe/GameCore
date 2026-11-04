@@ -40,7 +40,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -53,6 +57,7 @@ import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.CapabilityStatus
 import com.gamecore.core.model.FrameRateSample
+import com.gamecore.core.model.MetricHistory
 import com.gamecore.core.model.OptimizationAction
 import com.gamecore.core.model.OptimizationResult
 import com.gamecore.core.model.PerformanceMode
@@ -223,6 +228,7 @@ fun PerformanceScreen(
             ProcessorCard(
                 rows = live.cpuRows,
                 cores = live.coreRows,
+                coreSeries = live.coreSeries,
                 modifier = padded,
             )
         }
@@ -338,18 +344,18 @@ private fun RowsCard(
 }
 
 /**
- * Processor facts plus a real bar graph for every CPU core Android exposes.
+ * Processor facts plus a full history chart for every CPU core Android exposes.
  *
- * The old section printed the cores as key/value rows and silently discarded [Readout.fraction], even
- * though the ViewModel had already calculated it. Here that fraction is the plot: frequency-capable
- * devices show where each core sits between its own minimum and maximum clock, while devices that expose
- * utilisation instead plot that percentage. A parked core stays an empty bar and still says "Parked" —
- * no invented zero and no graph pretending the core was sampled.
+ * The old section printed the cores as key/value rows and discarded history. Every monitor sample now
+ * keeps a time-aligned point: frequency-capable devices show where each core sits between its own minimum
+ * and maximum clock, while devices that expose utilisation plot that percentage. A parked core remains a
+ * gap and still says "Parked"—no invented zero and no graph pretending the core was sampled.
  */
 @Composable
 private fun ProcessorCard(
     rows: List<Readout>,
     cores: List<Readout>,
+    coreSeries: List<List<Float?>>,
     modifier: Modifier = Modifier,
 ) {
     if (rows.isEmpty()) return
@@ -364,32 +370,46 @@ private fun ProcessorCard(
                 modifier = Modifier.padding(top = 4.dp),
             )
             Text(
-                text = "Each bar is the current clock position, or utilisation when clock data is hidden.",
+                text = "Each chart keeps this core's sampled history. It plots utilisation when Android " +
+                    "exposes it, or clock position when frequency is the available signal.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
             )
-            cores.forEach { core -> CoreGraphBar(core) }
+            cores.forEachIndexed { index, core ->
+                val coreIndex = core.label.removePrefix("Core ").toIntOrNull() ?: index
+                CoreHistoryChart(
+                    readout = core,
+                    values = coreSeries.getOrElse(coreIndex) { emptyList() },
+                )
+            }
         }
     }
 }
 
-/** One labelled, segmented bar in the per-core graph. */
+/**
+ * One complete per-core history chart: fixed 0–100 scale, time grid, filled plot and visible gaps.
+ *
+ * [values] is aligned to the monitor's rolling window. Nulls stay in their original positions and split
+ * the plot into separate paths, so a parked core or a denied read never becomes a dive to zero and two
+ * readings separated by a gap are never joined as though they were consecutive.
+ */
 @Composable
-private fun CoreGraphBar(readout: Readout) {
+private fun CoreHistoryChart(readout: Readout, values: List<Float?>) {
     val scheme = MaterialTheme.colorScheme
-    val available = readout.fraction != null
-    val fraction = readout.fraction?.coerceIn(0f, 1f) ?: 0f
+    val sampled = values.count { it != null }
+    val plotLabel = if (readout.detail == "Utilisation") "Utilisation history" else "Clock-range history"
     val spoken = buildString {
         append(readout.label)
         append(", ")
         append(readout.value)
         readout.detail?.let { append(", ").append(it) }
+        append(", ").append(sampled).append(" history samples")
     }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 5.dp)
+            .padding(vertical = 9.dp)
             .clearAndSetSemantics { contentDescription = spoken },
     ) {
         Row(
@@ -405,72 +425,168 @@ private fun CoreGraphBar(readout: Readout) {
             Text(
                 text = readout.value,
                 style = MaterialTheme.typography.labelLarge,
-                color = if (available) scheme.primary else scheme.onSurfaceVariant,
+                color = if (readout.fraction != null) scheme.primary else scheme.onSurfaceVariant,
             )
         }
-        Spacer(modifier = Modifier.height(4.dp))
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(16.dp),
-        ) {
-            val shadow = 2.dp.toPx()
-            val barHeight = size.height - shadow
-            val radius = CornerRadius(barHeight / 2f)
-            drawRoundRect(
-                color = Color.Black.copy(alpha = 0.24f),
-                topLeft = Offset(0f, shadow),
-                size = Size(size.width, barHeight),
-                cornerRadius = radius,
-            )
-            drawRoundRect(
-                color = scheme.surfaceVariant,
-                size = Size(size.width, barHeight),
-                cornerRadius = radius,
-            )
-            if (available && fraction > 0f) {
-                val fillWidth = (size.width * fraction).coerceAtLeast(barHeight)
-                drawRoundRect(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            lerp(scheme.primary, Color.White, 0.28f),
-                            scheme.primary,
-                            lerp(scheme.primary, scheme.tertiary, 0.50f),
-                        ),
-                        startX = 0f,
-                        endX = size.width,
-                    ),
-                    size = Size(fillWidth, barHeight),
-                    cornerRadius = radius,
-                )
-                drawLine(
-                    color = Color.White.copy(alpha = 0.30f),
-                    start = Offset(barHeight * 0.35f, barHeight * 0.22f),
-                    end = Offset((fillWidth - barHeight * 0.35f).coerceAtLeast(barHeight * 0.35f), barHeight * 0.22f),
-                    strokeWidth = 1.dp.toPx(),
-                )
+        Text(
+            text = "$plotLabel · $sampled samples",
+            style = MaterialTheme.typography.bodySmall,
+            color = scheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp, bottom = 5.dp),
+        )
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .height(CORE_GRAPH_HEIGHT.dp)
+                    .padding(end = 7.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.End,
+            ) {
+                Text("100", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+                Text("50", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+                Text("0", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
             }
-            // Quarter marks turn this into a readable plot rather than a decorative progress pill.
-            for (index in 1..3) {
-                val x = size.width * index / 4f
-                drawLine(
-                    color = scheme.onSurfaceVariant.copy(alpha = 0.22f),
-                    start = Offset(x, barHeight * 0.22f),
-                    end = Offset(x, barHeight * 0.78f),
-                    strokeWidth = 1.dp.toPx(),
-                )
+            Column(modifier = Modifier.weight(1f)) {
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(CORE_GRAPH_HEIGHT.dp),
+                ) {
+                    drawCoreHistoryGrid(
+                        grid = scheme.outlineVariant,
+                        background = scheme.surfaceVariant.copy(alpha = 0.42f),
+                    )
+                    if (sampled >= MetricHistory.MIN_PLOTTABLE) {
+                        drawCoreHistorySeries(values, scheme.primary, scheme.tertiary)
+                    }
+                }
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "OLDER",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = scheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = "NOW",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = scheme.primary,
+                    )
+                }
             }
+        }
+        if (sampled < MetricHistory.MIN_PLOTTABLE) {
+            Text(
+                text = "Collecting history — ${MetricHistory.MIN_PLOTTABLE - sampled} more " +
+                    if (MetricHistory.MIN_PLOTTABLE - sampled == 1) "sample needed." else "samples needed.",
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
         readout.detail?.let { detail ->
             Text(
                 text = detail,
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp),
+                modifier = Modifier.padding(top = 3.dp),
             )
         }
     }
 }
+
+/** A five-by-four measurement grid with a recessed plot face. */
+private fun DrawScope.drawCoreHistoryGrid(grid: Color, background: Color) {
+    val radius = CornerRadius(8.dp.toPx())
+    drawRoundRect(
+        color = Color.Black.copy(alpha = 0.18f),
+        topLeft = Offset(0f, 2.dp.toPx()),
+        size = Size(size.width, size.height - 2.dp.toPx()),
+        cornerRadius = radius,
+    )
+    drawRoundRect(color = background, size = size, cornerRadius = radius)
+    repeat(5) { index ->
+        val y = size.height * index / 4f
+        drawLine(
+            color = grid.copy(alpha = if (index == 0 || index == 4) 0.70f else 0.42f),
+            start = Offset(0f, y.coerceIn(0.5f, size.height - 0.5f)),
+            end = Offset(size.width, y.coerceIn(0.5f, size.height - 0.5f)),
+            strokeWidth = 1.dp.toPx(),
+        )
+    }
+    repeat(7) { index ->
+        val x = size.width * index / 6f
+        drawLine(
+            color = grid.copy(alpha = 0.30f),
+            start = Offset(x.coerceIn(0.5f, size.width - 0.5f), 0f),
+            end = Offset(x.coerceIn(0.5f, size.width - 0.5f), size.height),
+            strokeWidth = 1.dp.toPx(),
+        )
+    }
+}
+
+/** Draws one area/line segment per uninterrupted run and marks the newest real point. */
+private fun DrawScope.drawCoreHistorySeries(values: List<Float?>, primary: Color, secondary: Color) {
+    if (values.isEmpty()) return
+    val stepX = if (values.size > 1) size.width / (values.size - 1f) else 0f
+    fun point(index: Int, value: Float): Offset = Offset(
+        x = stepX * index,
+        y = size.height * (1f - value.coerceIn(0f, 100f) / 100f),
+    )
+
+    val runs = mutableListOf<List<Pair<Int, Float>>>()
+    var run = mutableListOf<Pair<Int, Float>>()
+    values.forEachIndexed { index, value ->
+        if (value == null) {
+            if (run.isNotEmpty()) runs += run.toList()
+            run = mutableListOf()
+        } else {
+            run += index to value
+        }
+    }
+    if (run.isNotEmpty()) runs += run.toList()
+
+    runs.forEach { segment ->
+        if (segment.size == 1) {
+            val p = point(segment[0].first, segment[0].second)
+            drawCircle(primary, radius = 2.8.dp.toPx(), center = p)
+            return@forEach
+        }
+        val line = Path()
+        segment.forEachIndexed { position, sample ->
+            val p = point(sample.first, sample.second)
+            if (position == 0) line.moveTo(p.x, p.y) else line.lineTo(p.x, p.y)
+        }
+        val first = point(segment.first().first, segment.first().second)
+        val last = point(segment.last().first, segment.last().second)
+        val area = Path().apply {
+            addPath(line)
+            lineTo(last.x, size.height)
+            lineTo(first.x, size.height)
+            close()
+        }
+        drawPath(
+            area,
+            Brush.verticalGradient(
+                listOf(primary.copy(alpha = 0.34f), secondary.copy(alpha = 0.08f), Color.Transparent),
+            ),
+        )
+        drawPath(
+            line,
+            brush = Brush.horizontalGradient(listOf(primary, secondary)),
+            style = Stroke(2.4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
+    }
+
+    values.indexOfLast { it != null }.takeIf { it >= 0 }?.let { index ->
+        val latest = point(index, values[index]!!)
+        drawCircle(primary.copy(alpha = 0.24f), radius = 6.dp.toPx(), center = latest)
+        drawCircle(Color.White, radius = 2.6.dp.toPx(), center = latest)
+        drawCircle(primary, radius = 1.6.dp.toPx(), center = latest)
+    }
+}
+
+private const val CORE_GRAPH_HEIGHT = 104
 
 /**
  * The one card in this app that most often has no number in it, by design.

@@ -130,6 +130,8 @@ data class PerformanceLive(
     val cpuRows: List<Readout> = emptyList(),
     /** One row per core, from whichever per-core source the device exposes. Empty when neither does. */
     val coreRows: List<Readout> = emptyList(),
+    /** Time-aligned per-core history. Null entries are real gaps, not zeroes. */
+    val coreSeries: List<List<Float?>> = emptyList(),
     val batteryRows: List<Readout> = emptyList(),
     val thermalRows: List<Readout> = emptyList(),
     val networkRows: List<Readout> = emptyList(),

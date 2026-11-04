@@ -409,8 +409,8 @@ private fun AppearanceCard(
             checked = state.settings.show3DHomeStats,
             enabled = state.settings.showBuiltInHomeStats,
             onCheckedChange = { enabled -> onEdit { it.copy(show3DHomeStats = enabled) } },
-            description = "Gives CPU, RAM, battery, temperature and refresh rate their own sculpted " +
-                "instrument. Switch this off to restore the original flat icons.",
+            description = "Replaces each whole stat card with its own readable hardware shape. Switch " +
+                "this off to restore the original rectangular cards and flat icons.",
         )
         RowDivider()
         SwitchRow(

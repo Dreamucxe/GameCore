@@ -128,23 +128,23 @@ adb install -r GameCore.apk
 
 ## What's new in 4.6
 
-<p><strong>The Home dashboard gets hardware-shaped instruments, and every CPU core gets a graph.</strong> Each live tile is now visually distinct instead of sharing a small flat glyph, while the original design remains one switch away.</p>
+<p><strong>The Home dashboard becomes hardware, and every CPU core gets a real history chart.</strong> Each live tile is replaced by its own readable 3D object rather than carrying a small logo inside the old rectangle, while the original design remains one switch away.</p>
 
 <table>
   <tr>
     <td width="50%" valign="top">
       <h3>💎 Five unique 3D instruments</h3>
-      <p>CPU is a pinned processor die with a lit core grid, RAM is a pair of raised memory modules, battery is a pack whose case fills with the real level, temperature is a glass thermostat, and refresh rate is a perspective display with a circular sweep. The objects differ by silhouette and structure—not just colour.</p>
+      <p>The <em>whole tile</em> changes shape: CPU is a pinned processor package, RAM is a DIMM with chips and gold contacts, battery is a pack with a terminal and real charge fill, temperature is a glass thermometer, and refresh rate is a perspective monitor on its stand. The reading is engraved into each object's face—there is no standard rectangle underneath.</p>
     </td>
     <td width="50%" valign="top">
       <h3>📊 Per-core graphs</h3>
-      <p><strong>Home › Performance › Processor</strong> now plots a segmented bar for every exposed CPU core. A bar shows the current position between that core's minimum and maximum clock, or utilisation where Android exposes that instead. A parked or unreadable core stays labelled honestly rather than becoming a false zero.</p>
+      <p><strong>Home › Performance › Processor</strong> now keeps and plots a rolling history for every exposed CPU core. Each chart has a fixed 0–100 scale, time grid, shaded plot, sample count and an Older → Now axis. It shows utilisation where Android exposes it, or position between that core's minimum and maximum clock. Parked or unreadable samples become visible gaps, never false zeroes.</p>
     </td>
   </tr>
   <tr>
     <td colspan="2" valign="top">
       <h3>↩️ Keep the original design</h3>
-      <p><strong>Settings › Appearance › 3D Home stat designs</strong> changes only the five built-in Home instruments. Switch it off to restore the original flat icons; readings, trends, taps and plugin dashboard widgets are unchanged.</p>
+      <p><strong>Settings › Appearance › 3D Home stat designs</strong> changes only the five built-in Home instruments. Switch it off to restore the original rectangular cards and flat icons; readings, trends, taps and plugin dashboard widgets are unchanged.</p>
     </td>
   </tr>
 </table>

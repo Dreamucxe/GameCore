@@ -445,6 +445,7 @@ private fun liveOf(
         frameRateSeries = history.frameRateSeries(),
         cpuRows = cpuRowsOf(snapshot),
         coreRows = coreRowsOf(snapshot),
+        coreSeries = history.coreActivitySeries(snapshot.cpu.coreCount),
         batteryRows = batteryRowsOf(battery, trend),
         thermalRows = thermalRowsOf(snapshot, thermal),
         networkRows = networkRowsOf(snapshot),
@@ -515,7 +516,7 @@ private fun cpuRowsOf(snapshot: PerformanceSnapshot): List<Readout> {
 private fun coreRowsOf(snapshot: PerformanceSnapshot): List<Readout> {
     val cpu = snapshot.cpu
     cpu.frequenciesKHz.valueOrNull?.let { cores ->
-        return cores.map { core ->
+        return cores.sortedBy { it.coreIndex }.map { core ->
             readoutOf(
                 label = "Core ${core.coreIndex}",
                 value = if (core.isOnline) Formatters.frequencyKHz(core.currentKHz) else "Parked",

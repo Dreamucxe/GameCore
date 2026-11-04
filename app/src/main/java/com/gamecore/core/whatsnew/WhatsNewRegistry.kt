@@ -41,17 +41,17 @@ object WhatsNewRegistry {
             features = listOf(
                 FeatureNote(
                     "Five readings, five 3D instruments",
-                    "Home now gives CPU a pinned processor die, RAM a pair of memory modules, " +
-                        "battery a filled battery pack, temperature a glass thermostat and refresh " +
-                        "rate a display with a circular sweep. Settings › Appearance has a switch " +
-                        "that restores the original flat icons at any time.",
+                    "Each whole Home tile is now its instrument instead of a logo inside the old " +
+                        "rectangle: CPU is a pinned processor package, RAM a DIMM, battery a filled " +
+                        "pack, temperature a glass thermometer and refresh rate a monitor on its " +
+                        "stand. Settings › Appearance restores the original cards at any time.",
                 ),
                 FeatureNote(
                     "A graph for every CPU core",
-                    "The Performance screen's Processor card replaces the per-core number list with " +
-                        "segmented bars. Each graph shows the core's current clock position, or its " +
-                        "utilisation when Android exposes that instead; parked and unreadable cores " +
-                        "remain explicitly labelled rather than becoming false zeroes.",
+                    "The Performance screen now keeps a rolling history for every CPU core and draws " +
+                        "a scaled, gridded chart from Older to Now. It plots utilisation when exposed " +
+                        "or normalised clock position otherwise; parked and unreadable samples remain " +
+                        "gaps rather than becoming false zeroes.",
                 ),
             ),
         ),
