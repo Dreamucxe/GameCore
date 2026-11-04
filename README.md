@@ -134,7 +134,7 @@ adb install -r GameCore.apk
   <tr>
     <td width="50%" valign="top">
       <h3>💎 Five unique 3D instruments</h3>
-      <p>The <em>whole tile</em> changes shape: CPU is a pinned processor package whose die is split into one cell per core with that core's live clock, RAM is a grey module with top and bottom pins, battery is a portrait pack with a terminal and lightning mark, temperature is a vertical bulb thermometer with a printed scale, and refresh rate is a monitor on its stand. The reading is engraved into each object's face—there is no standard rectangle underneath.</p>
+      <p>The <em>whole tile</em> changes shape: CPU is a pinned processor package whose die is split into one cell per core with that core's live clock, RAM is a pinned module, battery is a portrait pack with a terminal and lightning mark, temperature is a vertical bulb thermometer with a printed scale, and refresh rate is a monitor on its stand. The reading is engraved into each object's face—there is no standard rectangle underneath. Bodies are drawn from the app's own surface, outline and accent roles, so the instruments sit inside the current theme instead of shining like imported artwork.</p>
     </td>
     <td width="50%" valign="top">
       <h3>📊 Per-core graphs</h3>

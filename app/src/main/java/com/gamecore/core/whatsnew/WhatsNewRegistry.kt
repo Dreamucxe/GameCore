@@ -43,10 +43,12 @@ object WhatsNewRegistry {
                     "Five readings, five 3D instruments",
                     "Each whole Home tile is now its instrument instead of a logo inside the old " +
                         "rectangle: CPU is a pinned processor package split into one cell per core " +
-                        "with its live clock, RAM a grey pinned module, battery a portrait pack with " +
+                        "with its live clock, RAM a pinned module, battery a portrait pack with " +
                         "a lightning mark, temperature a vertical bulb thermometer and refresh rate " +
-                        "a monitor on its stand. Settings › Appearance restores the original cards " +
-                        "at any time.",
+                        "a monitor on its stand. Every object is drawn from the active theme's " +
+                        "surfaces, outline and accent, so it blends into the dashboard rather than " +
+                        "sitting on it as brighter artwork. Settings › Appearance restores the " +
+                        "original cards at any time.",
                 ),
                 FeatureNote(
                     "A graph for every CPU core",
