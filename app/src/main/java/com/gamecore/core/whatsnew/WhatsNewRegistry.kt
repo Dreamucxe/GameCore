@@ -35,6 +35,27 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 54,
+            versionName = "4.5",
+            date = "2026-11-04",
+            features = listOf(
+                FeatureNote(
+                    "A fourth panel shape: Turbo deck",
+                    "One tall GAMETURBO plate now pins to the left edge, with the game visible on " +
+                        "the right. Quick capture tiles, the overlay switches, the record button, " +
+                        "the action grid, levels, media and quick apps all live on the plate, which " +
+                        "scrolls on its own. Every existing control and action is still there.",
+                ),
+                FeatureNote(
+                    "Change the layout without leaving the game",
+                    "Long-press the floating button, or tap Layout in the quick sheet, to open the " +
+                        "in-game picker. Four silhouettes show the shapes, the current one is marked, " +
+                        "and choosing one applies immediately. A tap, a drag and a double tap on the " +
+                        "button behave exactly as before.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 53,
             versionName = "4.4",
             date = "2026-11-03",

@@ -24,6 +24,7 @@ compiler writes one class file per test name; under `POSIX` the daemon fails wit
 | --- | --- |
 | `app/build.gradle.kts` | `versionCode` and `versionName` |
 | `app/src/main/java/com/gamecore/core/plugin/PluginApi.kt` | `HOST_VERSION_CODE` must equal the new `versionCode` — `PluginHostVersionTest` fails the build otherwise |
+| `plugin-studio/src/main/kotlin/com/gamecore/studio/model/PluginDraft.kt` | `DEFAULT_MIN_HOST_VERSION` must match too — `PluginStudioPackageTest` fails the build otherwise |
 | `app/src/main/java/com/gamecore/core/whatsnew/WhatsNewRegistry.kt` | one `ReleaseNote`, newest first, describing only what actually shipped |
 | `README.md` | a "What's new in …" section for the same release |
 
@@ -32,9 +33,9 @@ so it only ever goes up.
 
 ### Current baseline
 
-This tree is **GameCore 4.4**, `versionCode` **53**, signed with the real
+This tree is **GameCore 4.5**, `versionCode` **54**, signed with the real
 GameCore certificate. The next release starts here and bumps to `versionCode`
-**54**; nothing is built against the older 3.x line any more. The working copy
+**55**; nothing is built against the older 3.x line any more. The working copy
 lives at `/root/GameCore-4.0`.
 
 The tree also ships **GameCore Plugin Maker 1.1.0**, a separate app

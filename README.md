@@ -126,6 +126,29 @@ adb install -r GameCore.apk
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
 
+## What's new in 4.5
+
+<p><strong>A fourth panel shape, and a way to switch shapes mid-game.</strong> The left edge now has a home for the whole control panel, and the floating button can open a layout picker without leaving the game.</p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🎮 Turbo deck</h3>
+      <p>The <strong>Turbo deck</strong> layout pins one tall <strong>GAMETURBO</strong> plate to the left edge and keeps the game visible on the right. Quick capture tiles, Stats/Crosshair/HUD switches, the record button, the full action grid, levels, media and quick apps all live on the plate. Aspect ratio, refresh rate, colour, crosshair, levels, media and every action are unchanged.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🎛️ Layout picker in-game</h3>
+      <p>Long-press the floating button, or tap <strong>Layout</strong> in the quick sheet, to choose between <strong>Turbo wings</strong>, <strong>Centered</strong>, <strong>Split edges</strong> and <strong>Turbo deck</strong>. The current shape is marked, and the choice is shared with Settings and the panel's own Layout tile. Tap, drag and double-tap on the button are unchanged.</p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <h3>↩️ Every earlier layout stays</h3>
+      <p>The centered panel keeps its stored width, and switching away and back restores it. Fresh installs still open on Turbo wings; an existing install keeps its layout until you choose another.</p>
+    </td>
+  </tr>
+</table>
+
 ## What's new in 4.4
 
 <p><strong>The control panel grows wings — and each wing gets a real instrument.</strong> Two angled plates fold in from the screen edges, the game stays visible between them, and every existing control is still there.</p>
@@ -363,7 +386,7 @@ The full set lives in [`dist/`](dist/). Bundled copies are in [`app/src/main/ass
 ## Features
 
 For a screen-by-screen walkthrough, setup paths, permission map and troubleshooting guide, read the
-**[GameCore 4.4 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
+**[GameCore 4.5 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
 separate **[Plugin Studio feature map and tutorial](docs/PLUGIN_STUDIO_FEATURE_GUIDE.md)**.
 
 ### Feature map
