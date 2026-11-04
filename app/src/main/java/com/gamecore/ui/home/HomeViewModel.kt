@@ -841,6 +841,7 @@ internal fun homeCpuCores(cpu: CpuReading): List<HomeCpuCore> {
                 ?.coerceIn(0f, 1f)
                 ?: frequency?.loadFraction,
             isOnline = frequency?.isOnline ?: true,
+            maxKHz = frequency?.maxKHz ?: 0L,
         )
     }
 }

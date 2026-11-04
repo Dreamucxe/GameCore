@@ -126,6 +126,23 @@ adb install -r GameCore.apk
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
 
+## What's new in 4.7
+
+<p><strong>The 3D CPU tile now reflects the shape of the chip.</strong> Faster cores take up more of the die instead of every core receiving the same stamped square, and the package frame has been trimmed to give the silicon more room.</p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🧩 Core cells sized by their ceiling</h3>
+      <p>Each core's cell is weighted by that core's maximum clock, so a 2.8 GHz prime core is visibly larger than a 1.8 GHz efficiency core. Rows are weighted too: a row of big cores is taller than a row of little ones, while a partial last row stays centred instead of stretching. A core whose ceiling the kernel hides uses the average of the cores that do report one.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🔲 A tighter CPU package</h3>
+      <p>The package outline is slightly smaller and its border is thinner, leaving more breathing room around the die while keeping the pins and traces that identify the object. The theme colours, per-core clocks and load bars are unchanged.</p>
+    </td>
+  </tr>
+</table>
+
 ## What's new in 4.6
 
 <p><strong>The Home dashboard becomes hardware, and every CPU core gets a real history chart.</strong> Each live tile is replaced by its own readable 3D object rather than carrying a small logo inside the old rectangle, while the original design remains one switch away.</p>
@@ -409,7 +426,7 @@ The full set lives in [`dist/`](dist/). Bundled copies are in [`app/src/main/ass
 ## Features
 
 For a screen-by-screen walkthrough, setup paths, permission map and troubleshooting guide, read the
-**[GameCore 4.6 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
+**[GameCore 4.7 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
 separate **[Plugin Studio feature map and tutorial](docs/PLUGIN_STUDIO_FEATURE_GUIDE.md)**.
 
 ### Feature map

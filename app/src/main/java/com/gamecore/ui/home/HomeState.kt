@@ -249,7 +249,8 @@ data class HomeReadouts(
      * One row per logical CPU core, in kernel order, for the CPU tile's split die.
      *
      * Empty before the first sample. A board that hides `cpufreq` still gets a cell per core with an
-     * honest dash for its clock; a parked core keeps its cell but is drawn inactive.
+     * honest dash for its clock and an even share of the die; a parked core keeps its cell but is drawn
+     * inactive.
      */
     val cpuCores: List<HomeCpuCore> = emptyList(),
     /** Set only when the platform is actually throttling. Drawn as a banner, not as a tile. */
@@ -292,13 +293,15 @@ data class HomeReadouts(
  * [speed] is already formatted for the tiny die cell ("2.4G", "800M") or the em dash when the kernel
  * hides `scaling_cur_freq`. [load] is the same 0..1 position the history chart uses: utilisation when
  * `/proc/stat` is readable, otherwise the core's normalised clock. It is null for a parked or unreadable
- * core and draws no load bar rather than a zero-length one that would look idle.
+ * core and draws no load bar rather than a zero-length one that would look idle. [maxKHz] is the core's
+ * scaling ceiling, used to give faster cores a larger cell on the die; zero when the kernel hides it.
  */
 data class HomeCpuCore(
     val index: Int,
     val speed: String,
     val load: Float?,
     val isOnline: Boolean,
+    val maxKHz: Long = 0L,
 )
 
 /** Home's tile labels, in the order §4.3 and §4.4 list them. */

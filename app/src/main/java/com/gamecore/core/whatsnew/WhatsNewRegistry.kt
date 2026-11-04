@@ -35,6 +35,21 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 56,
+            versionName = "4.7",
+            date = "2026-11-04",
+            features = listOf(
+                FeatureNote(
+                    "A CPU die shaped like the chip",
+                    "Cells on the 3D CPU tile are now sized by each core's maximum clock: prime cores " +
+                        "take visibly more of the die than efficiency cores, and a row of faster " +
+                        "cores is taller than a row of slower ones. The package frame is trimmed " +
+                        "slightly to give the die more room. Hidden ceilings fall back to the " +
+                        "average of the cores the kernel does report, never an invented clock.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 55,
             versionName = "4.6",
             date = "2026-11-04",

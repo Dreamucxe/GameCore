@@ -22,9 +22,9 @@ class HomeCpuCoreTest {
                 percentages = Observed.of(listOf(-4f, 37f, 140f), DataSource.PROC_FS),
                 frequencies = Observed.of(
                     listOf(
-                        frequency(0, currentKHz = 2_400_000),
-                        frequency(1, currentKHz = 1_800_000),
-                        frequency(2, currentKHz = 2_841_600),
+                        frequency(0, currentKHz = 2_400_000, maxKHz = 2_800_000),
+                        frequency(1, currentKHz = 1_800_000, maxKHz = 1_800_000),
+                        frequency(2, currentKHz = 2_841_600, maxKHz = 3_200_000),
                     ),
                     DataSource.SYS_FS,
                 ),
@@ -33,6 +33,7 @@ class HomeCpuCoreTest {
 
         assertEquals(listOf("2.4G", "1.8G", "2.8G"), cores.map { it.speed })
         assertEquals(listOf(0f, 0.37f, 1f), cores.map { it.load })
+        assertEquals(listOf(2_800_000L, 1_800_000L, 3_200_000L), cores.map { it.maxKHz })
         assertTrue(cores.all { it.isOnline })
     }
 
@@ -78,11 +79,12 @@ class HomeCpuCoreTest {
         index: Int,
         currentKHz: Long,
         isOnline: Boolean = true,
+        maxKHz: Long = 2_000_000,
     ) = CoreFrequency(
         coreIndex = index,
         currentKHz = currentKHz,
         minKHz = 1_000_000,
-        maxKHz = 2_000_000,
+        maxKHz = maxKHz,
         isOnline = isOnline,
     )
 }

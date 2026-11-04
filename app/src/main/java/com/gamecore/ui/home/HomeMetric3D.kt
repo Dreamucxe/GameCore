@@ -107,11 +107,11 @@ private data class MetricPalette(
  * A Home reading whose *whole tile* is the instrument.
  *
  * There is no standard card beneath this composable and no small logo parked beside the number. The CPU
- * tile is a pinned processor package whose die is split into one cell per core, with that core's current
- * clock. RAM is the pinned module from the reference art, Battery is the portrait pack with its terminal and
- * bolt, Temperature is a vertical bulb thermometer with a printed scale, and Refresh is a monitor on its
- * stand. The bounds remain equal so the two-column grid stays stable, but transparent corners expose each
- * object's actual silhouette.
+ * tile is a pinned processor package whose die is split into one cell per core, sized by that core's
+ * maximum clock and labelled with its current clock. RAM is the pinned module from the reference art,
+ * Battery is the portrait pack with its terminal and bolt, Temperature is a vertical bulb thermometer with
+ * a printed scale, and Refresh is a monitor on its stand. The bounds remain equal so the two-column grid
+ * stays stable, but transparent corners expose each object's actual silhouette.
  *
  * @param cpuCores one entry per logical core, in kernel order. Empty until a sample has been read; the
  *   die then stays blank rather than inventing clocks for cores the device has not reported.
@@ -231,6 +231,61 @@ internal fun cpuCoreGrid(coreCount: Int): Pair<Int, Int> {
     return columns to (coreCount + columns - 1) / columns
 }
 
+/**
+ * One core's rectangle on the die, as fractions of the die's width and height.
+ *
+ * The grid still decides how many cells share a row, but the rows no longer have to be equal: a row of
+ * big cores is taller than a row of little ones, and within a row a faster core is wider. On a full row
+ * the two multiply to an area proportional to [HomeCpuCore.maxKHz], so a 2.8 GHz prime core is visibly
+ * larger than a 1.8 GHz efficiency core instead of every core being the same stamped square. A short
+ * last row keeps full-row cell widths and centres itself rather than stretching into false prominence.
+ * A core whose ceiling the kernel hides falls back to the average of the cores that do report one.
+ */
+internal fun cpuCoreCells(cores: List<HomeCpuCore>): List<CpuCoreCell> {
+    if (cores.isEmpty()) return emptyList()
+    val columns = cpuCoreGrid(cores.size).first
+    if (columns == 0) return emptyList()
+    val known = cores.mapNotNull { core -> core.maxKHz.takeIf { it > 0L }?.toFloat() }
+    val fallback = if (known.isEmpty()) 1f else known.average().toFloat()
+    val weights = cores.map { core -> core.maxKHz.takeIf { it > 0L }?.toFloat() ?: fallback }
+    val total = weights.sum()
+    val rows = (cores.size + columns - 1) / columns
+    val cells = ArrayList<CpuCoreCell>(cores.size)
+    var top = 0f
+    for (row in 0 until rows) {
+        val start = row * columns
+        val end = minOf(start + columns, cores.size)
+        val rowWeight = weights.subList(start, end).sum()
+        val height = rowWeight / total
+        // A partial last row keeps the same cell width as a full row and centres itself, rather than
+        // stretching two cores across the whole die.
+        val occupied = (end - start).toFloat() / columns
+        var left = (1f - occupied) / 2f
+        for (index in start until end) {
+            val width = occupied * weights[index] / rowWeight
+            cells += CpuCoreCell(
+                core = cores[index],
+                left = left,
+                top = top,
+                width = width,
+                height = height,
+            )
+            left += width
+        }
+        top += height
+    }
+    return cells
+}
+
+/** A core cell's place inside the die, in 0..1 fractions so the Canvas and the text agree exactly. */
+internal data class CpuCoreCell(
+    val core: HomeCpuCore,
+    val left: Float,
+    val top: Float,
+    val width: Float,
+    val height: Float,
+)
+
 @Composable
 private fun CpuCopy(
     readout: Readout,
@@ -243,10 +298,10 @@ private fun CpuCopy(
         modifier = Modifier
             .offset(
                 x = width * CPU_BODY_LEFT + width * 0.025f,
-                y = height * 0.155f,
+                y = height * CPU_HEADER_TOP,
             )
             .width(width * (CPU_BODY_RIGHT - CPU_BODY_LEFT) - width * 0.05f)
-            .height(height * 0.185f),
+            .height(height * CPU_HEADER_HEIGHT),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -288,40 +343,47 @@ private fun CpuCopy(
 
 @Composable
 private fun CpuCoreGrid(cores: List<HomeCpuCore>, palette: MetricPalette, modifier: Modifier) {
-    val (columns, rows) = cpuCoreGrid(cores.size)
-    if (columns == 0 || rows == 0) return
-    Column(modifier = modifier) {
-        repeat(rows) { row ->
-            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                repeat(columns) { column ->
-                    val core = cores.getOrNull(row * columns + column)
-                    Box(
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (core != null) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "C${core.index}",
-                                    style = MaterialCaption.copy(fontSize = 6.5.sp, lineHeight = 8.sp),
-                                    color = if (core.isOnline) palette.muted else palette.muted.copy(alpha = 0.55f),
-                                    maxLines = 1,
-                                )
-                                Text(
-                                    text = core.speed,
-                                    style = TextStyle(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 8.sp,
-                                        lineHeight = 9.sp,
-                                    ),
-                                    color = if (core.isOnline) palette.ink else palette.muted.copy(alpha = 0.55f),
-                                    maxLines = 1,
-                                )
-                            }
-                        }
-                    }
-                }
+    val cells = remember(cores) { cpuCoreCells(cores) }
+    if (cells.isEmpty()) return
+    BoxWithConstraints(modifier = modifier) {
+        val dieWidth = maxWidth
+        val dieHeight = maxHeight
+        cells.forEach { cell ->
+            val compact = cell.height < 0.22f || cell.width < 0.24f
+            Column(
+                modifier = Modifier
+                    .offset(x = dieWidth * cell.left, y = dieHeight * cell.top)
+                    .width(dieWidth * cell.width)
+                    .height(dieHeight * cell.height),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = "C${cell.core.index}",
+                    style = MaterialCaption.copy(
+                        fontSize = if (compact) 5.5.sp else 6.5.sp,
+                        lineHeight = if (compact) 7.sp else 8.sp,
+                    ),
+                    color = if (cell.core.isOnline) {
+                        palette.muted
+                    } else {
+                        palette.muted.copy(alpha = 0.55f)
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                )
+                Text(
+                    text = cell.core.speed,
+                    style = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = if (compact) 6.8.sp else 8.sp,
+                        lineHeight = if (compact) 8.sp else 9.sp,
+                    ),
+                    color = if (cell.core.isOnline) palette.ink else palette.muted.copy(alpha = 0.55f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                )
             }
         }
     }
@@ -403,7 +465,7 @@ private fun DrawScope.drawCpuCard(palette: MetricPalette, cores: List<HomeCpuCor
         topLeft = Offset(left, top),
         size = Size(bodyW, bodyH),
         cornerRadius = CornerRadius(16.dp.toPx()),
-        style = Stroke(1.4.dp.toPx()),
+        style = Stroke(1.2.dp.toPx()),
     )
     drawRoundRect(
         color = palette.edge.copy(alpha = 0.28f),
@@ -415,8 +477,8 @@ private fun DrawScope.drawCpuCard(palette: MetricPalette, cores: List<HomeCpuCor
     // The header rule separates the printed CPU figure from the die, like a package lid.
     drawLine(
         color = palette.edge.copy(alpha = 0.65f),
-        start = Offset(left + 3.dp.toPx(), h * 0.365f),
-        end = Offset(right - 3.dp.toPx(), h * 0.365f),
+        start = Offset(left + 3.dp.toPx(), h * CPU_RULE_Y),
+        end = Offset(right - 3.dp.toPx(), h * CPU_RULE_Y),
         strokeWidth = 1.dp.toPx(),
     )
 
@@ -440,32 +502,30 @@ private fun DrawScope.drawCpuCard(palette: MetricPalette, cores: List<HomeCpuCor
         style = Stroke(1.dp.toPx()),
     )
 
-    val (columns, rows) = cpuCoreGrid(cores.size)
-    if (columns == 0 || rows == 0) return
-    val cellW = dieW / columns
-    val cellH = dieH / rows
-    val gap = 1.6.dp.toPx()
-    cores.forEachIndexed { index, core ->
-        val column = index % columns
-        val row = index / columns
-        val cellLeft = dieLeft + cellW * column + gap
-        val cellTop = dieTop + cellH * row + gap
-        val cellInnerW = cellW - gap * 2f
-        val cellInnerH = cellH - gap * 2f
+    val cells = cpuCoreCells(cores)
+    val gap = CPU_CELL_GAP.dp.toPx()
+    cells.forEach { cell ->
+        val core = cell.core
+        val cellLeft = dieLeft + dieW * cell.left + gap
+        val cellTop = dieTop + dieH * cell.top + gap
+        val cellInnerW = dieW * cell.width - gap * 2f
+        val cellInnerH = dieH * cell.height - gap * 2f
+        if (cellInnerW <= 0f || cellInnerH <= 0f) return@forEach
+        val corner = CornerRadius(minOf(3.dp.toPx(), cellInnerW / 4f, cellInnerH / 4f))
         drawRoundRect(
             color = palette.track.copy(alpha = 0.55f),
             topLeft = Offset(cellLeft, cellTop),
             size = Size(cellInnerW, cellInnerH),
-            cornerRadius = CornerRadius(3.dp.toPx()),
+            cornerRadius = corner,
         )
         drawRoundRect(
             color = if (core.isOnline) palette.accent.copy(alpha = 0.22f) else palette.edge.copy(alpha = 0.55f),
             topLeft = Offset(cellLeft, cellTop),
             size = Size(cellInnerW, cellInnerH),
-            cornerRadius = CornerRadius(3.dp.toPx()),
+            cornerRadius = corner,
             style = Stroke(0.9.dp.toPx()),
         )
-        val load = core.load?.takeIf { core.isOnline }?.coerceIn(0f, 1f) ?: return@forEachIndexed
+        val load = core.load?.takeIf { core.isOnline }?.coerceIn(0f, 1f) ?: return@forEach
         val barWidth = (cellInnerW - 3.dp.toPx()) * load
         if (barWidth > 0f) {
             drawRoundRect(
@@ -1111,14 +1171,18 @@ private fun FallbackCopy(readout: Readout, palette: MetricPalette) {
 
 // CPU package fractions, shared by the Canvas and the text overlay so a core's label always sits inside
 // the cell that was drawn for it.
-private const val CPU_BODY_LEFT = 0.08f
-private const val CPU_BODY_RIGHT = 0.92f
-private const val CPU_BODY_TOP = 0.14f
-private const val CPU_BODY_BOTTOM = 0.91f
+private const val CPU_BODY_LEFT = 0.10f
+private const val CPU_BODY_RIGHT = 0.90f
+private const val CPU_BODY_TOP = 0.16f
+private const val CPU_BODY_BOTTOM = 0.895f
+private const val CPU_HEADER_TOP = 0.172f
+private const val CPU_HEADER_HEIGHT = 0.178f
+private const val CPU_RULE_Y = 0.368f
 private const val CPU_DIE_LEFT = 0.17f
 private const val CPU_DIE_RIGHT = 0.83f
 private const val CPU_DIE_TOP = 0.38f
 private const val CPU_DIE_BOTTOM = 0.86f
+private const val CPU_CELL_GAP = 1.6f
 
 private val MaterialCaption = TextStyle(
     fontFamily = FontFamily.Default,
