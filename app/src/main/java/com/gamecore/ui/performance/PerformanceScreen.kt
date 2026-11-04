@@ -1,5 +1,6 @@
 package com.gamecore.ui.performance
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,7 +35,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -210,12 +220,9 @@ fun PerformanceScreen(
         }
 
         item {
-            RowsCard(
-                title = "Processor",
-                icon = Icons.Filled.Memory,
+            ProcessorCard(
                 rows = live.cpuRows,
-                extraRows = live.coreRows,
-                extraTitle = "Per core",
+                cores = live.coreRows,
                 modifier = padded,
             )
         }
@@ -314,8 +321,7 @@ private const val GRAPH_MAX_CELSIUS = 60f
  *
  * Every row arrives already formatted, with its own absence reason where there is no figure, so this
  * composable has no branch in it about whether a reading exists — §24A.2 in the shape it takes in
- * practice. [extraRows] is the per-core subsection, which is the one list whose length depends on the
- * device.
+ * practice.
  */
 @Composable
 private fun RowsCard(
@@ -324,21 +330,144 @@ private fun RowsCard(
     rows: List<Readout>,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
-    extraRows: List<Readout> = emptyList(),
-    extraTitle: String? = null,
 ) {
     if (rows.isEmpty()) return
     SectionCard(title = title, subtitle = subtitle, icon = icon, modifier = modifier) {
         rows.forEach { ReadoutRow(it) }
-        if (extraRows.isNotEmpty() && extraTitle != null) {
+    }
+}
+
+/**
+ * Processor facts plus a real bar graph for every CPU core Android exposes.
+ *
+ * The old section printed the cores as key/value rows and silently discarded [Readout.fraction], even
+ * though the ViewModel had already calculated it. Here that fraction is the plot: frequency-capable
+ * devices show where each core sits between its own minimum and maximum clock, while devices that expose
+ * utilisation instead plot that percentage. A parked core stays an empty bar and still says "Parked" —
+ * no invented zero and no graph pretending the core was sampled.
+ */
+@Composable
+private fun ProcessorCard(
+    rows: List<Readout>,
+    cores: List<Readout>,
+    modifier: Modifier = Modifier,
+) {
+    if (rows.isEmpty()) return
+    SectionCard(title = "Processor", icon = Icons.Filled.Memory, modifier = modifier) {
+        rows.forEach { ReadoutRow(it) }
+        if (cores.isNotEmpty()) {
             RowDivider()
             Text(
-                text = extraTitle,
+                text = "PER-CORE GRAPH",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+                modifier = Modifier.padding(top = 4.dp),
             )
-            extraRows.forEach { ReadoutRow(it) }
+            Text(
+                text = "Each bar is the current clock position, or utilisation when clock data is hidden.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
+            )
+            cores.forEach { core -> CoreGraphBar(core) }
+        }
+    }
+}
+
+/** One labelled, segmented bar in the per-core graph. */
+@Composable
+private fun CoreGraphBar(readout: Readout) {
+    val scheme = MaterialTheme.colorScheme
+    val available = readout.fraction != null
+    val fraction = readout.fraction?.coerceIn(0f, 1f) ?: 0f
+    val spoken = buildString {
+        append(readout.label)
+        append(", ")
+        append(readout.value)
+        readout.detail?.let { append(", ").append(it) }
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp)
+            .clearAndSetSemantics { contentDescription = spoken },
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = readout.label,
+                style = MaterialTheme.typography.labelLarge,
+                color = scheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = readout.value,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (available) scheme.primary else scheme.onSurfaceVariant,
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(16.dp),
+        ) {
+            val shadow = 2.dp.toPx()
+            val barHeight = size.height - shadow
+            val radius = CornerRadius(barHeight / 2f)
+            drawRoundRect(
+                color = Color.Black.copy(alpha = 0.24f),
+                topLeft = Offset(0f, shadow),
+                size = Size(size.width, barHeight),
+                cornerRadius = radius,
+            )
+            drawRoundRect(
+                color = scheme.surfaceVariant,
+                size = Size(size.width, barHeight),
+                cornerRadius = radius,
+            )
+            if (available && fraction > 0f) {
+                val fillWidth = (size.width * fraction).coerceAtLeast(barHeight)
+                drawRoundRect(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            lerp(scheme.primary, Color.White, 0.28f),
+                            scheme.primary,
+                            lerp(scheme.primary, scheme.tertiary, 0.50f),
+                        ),
+                        startX = 0f,
+                        endX = size.width,
+                    ),
+                    size = Size(fillWidth, barHeight),
+                    cornerRadius = radius,
+                )
+                drawLine(
+                    color = Color.White.copy(alpha = 0.30f),
+                    start = Offset(barHeight * 0.35f, barHeight * 0.22f),
+                    end = Offset((fillWidth - barHeight * 0.35f).coerceAtLeast(barHeight * 0.35f), barHeight * 0.22f),
+                    strokeWidth = 1.dp.toPx(),
+                )
+            }
+            // Quarter marks turn this into a readable plot rather than a decorative progress pill.
+            for (index in 1..3) {
+                val x = size.width * index / 4f
+                drawLine(
+                    color = scheme.onSurfaceVariant.copy(alpha = 0.22f),
+                    start = Offset(x, barHeight * 0.22f),
+                    end = Offset(x, barHeight * 0.78f),
+                    strokeWidth = 1.dp.toPx(),
+                )
+            }
+        }
+        readout.detail?.let { detail ->
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
         }
     }
 }

@@ -264,6 +264,7 @@ class SecurePreferenceStore @Inject constructor(
                 KEY_SHOW_BUILTIN_HOME_STATS,
                 defaults.showBuiltInHomeStats,
             ),
+            show3DHomeStats = p.getBoolean(KEY_SHOW_3D_HOME_STATS, defaults.show3DHomeStats),
             animations = enumOrDefault(
                 p.getString(KEY_ANIMATIONS, null),
                 AnimationsMode.entries,
@@ -390,6 +391,7 @@ class SecurePreferenceStore @Inject constructor(
             putInt(KEY_WALLPAPER_SCRIM, value.wallpaperScrimPercent)
             putBoolean(KEY_COMPACT_DENSITY, value.compactDensity)
             putBoolean(KEY_SHOW_BUILTIN_HOME_STATS, value.showBuiltInHomeStats)
+            putBoolean(KEY_SHOW_3D_HOME_STATS, value.show3DHomeStats)
             putString(KEY_ANIMATIONS, value.animations.name)
             putBoolean(KEY_HAPTICS, value.hapticsEnabled)
             putBoolean(KEY_ALLOW_ELEVATED, value.allowElevatedReads)
@@ -1215,6 +1217,7 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_WALLPAPER_SCRIM = "wallpaper_scrim_percent"
         const val KEY_COMPACT_DENSITY = "compact_density"
         const val KEY_SHOW_BUILTIN_HOME_STATS = "show_builtin_home_stats"
+        const val KEY_SHOW_3D_HOME_STATS = "show_3d_home_stats"
         const val KEY_ANIMATIONS = "animations_mode"
         const val KEY_HAPTICS = "haptics_enabled"
         const val KEY_ALLOW_ELEVATED = "allow_elevated"

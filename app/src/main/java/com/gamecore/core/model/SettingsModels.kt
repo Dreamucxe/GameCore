@@ -146,6 +146,15 @@ data class AppSettings(
     val showBuiltInHomeStats: Boolean = true,
 
     /**
+     * Render the live metric tiles on Home with unique 3D widgets instead of flat icons.
+     *
+     * When on, each tile shows a distinctive 3D shape: a battery for battery level, a processor
+     * die for CPU, a thermostat bulb for temperature, memory modules for RAM and a display panel
+     * for refresh rate. On by default; switching it off restores the original flat Material icons.
+     */
+    val show3DHomeStats: Boolean = true,
+
+    /**
      * Whether the app animates, and whether it defers to the system's animator scale (§2 motion).
      *
      * [AnimationsMode.SYSTEM] (the default) multiplies our 150–250 ms tokens by the device's

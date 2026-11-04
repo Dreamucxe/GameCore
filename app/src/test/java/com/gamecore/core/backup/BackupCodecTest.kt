@@ -76,6 +76,7 @@ class BackupCodecTest {
             theme = ThemeChoice.DARK,
             accent = AccentChoice.VIOLET,
             showBuiltInHomeStats = false,
+            show3DHomeStats = false,
             uiScalePercent = 110,
             pluginSectionFont = PluginSectionFont.MINECRAFT,
             pluginSectionFontScalePercent = 125,
@@ -376,6 +377,7 @@ class BackupCodecTest {
         // A file from before this option existed restores the default: Home's own tiles stay on, so
         // the setting is opt-out and an upgrade never silently hides readings.
         assertTrue(decoded.settings!!.showBuiltInHomeStats)
+        assertTrue(decoded.settings!!.show3DHomeStats)
         assertNull(decoded.overlay)
         assertNull(decoded.button)
         assertNull(decoded.dock)
@@ -806,5 +808,4 @@ class BackupCodecTest {
         const val DELTA = 1e-6f
     }
 }
-
 

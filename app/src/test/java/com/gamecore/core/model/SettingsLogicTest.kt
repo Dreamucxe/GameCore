@@ -98,6 +98,11 @@ class SettingsLogicTest {
     }
 
     @Test
+    fun `Home metrics default to the new 3D instruments`() {
+        assertTrue(AppSettings().show3DHomeStats)
+    }
+
+    @Test
     fun `the plugin section scale is clamped on read as well as write`() {
         assertEquals(
             AppSettings.MIN_PLUGIN_SECTION_FONT_SCALE,

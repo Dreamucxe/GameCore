@@ -219,6 +219,7 @@ class HomeViewModel @Inject constructor(
             isCompact = own.isCompact,
             redlineSkin = own.redlineSkin,
             showBuiltInHomeStats = own.showBuiltInHomeStats,
+            show3DHomeStats = own.show3DHomeStats,
             repairedSessions = own.repairedSessions,
             outstandingRestores = own.outstandingRestores,
             isRestoring = own.isRestoring,
@@ -267,6 +268,7 @@ class HomeViewModel @Inject constructor(
                         redlineSkin = settings.redlineSkin,
                         showBuiltInHomeStats = (appearanceScheduler.dashboardOverride.value
                             ?: settings.showBuiltInHomeStats),
+                        show3DHomeStats = settings.show3DHomeStats,
                     )
                 }
             }
@@ -752,6 +754,7 @@ class HomeViewModel @Inject constructor(
                 temperature.readout(
                     label = HomeLabels.TEMPERATURE,
                     tone = temperatureTone(temperature.valueOrNull, thermal, sensor),
+                    fractionOf = { temperatureGaugeFraction(it, sensor) },
                     // §4.3: the classifier's word, plus the platform's own status where the device
                     // reports one. Both are printed even when they differ, and the word beside the
                     // figure is always the classifier's, so it can never contradict the colour.
@@ -822,6 +825,7 @@ private data class LocalState(
     val isCompact: Boolean = false,
     val redlineSkin: Boolean = false,
     val showBuiltInHomeStats: Boolean = true,
+    val show3DHomeStats: Boolean = true,
     val selectedPackage: String? = null,
     val busyPackage: String? = null,
     val pendingLaunch: PendingLaunch? = null,
@@ -862,6 +866,23 @@ private fun cpuReadout(percent: Observed<Float>, coreCount: Int): Readout =
             format = { Formatters.percentValue(it) },
         )
     }
+
+/**
+ * Places the thermometer between a cool 20 °C floor and the selected sensor's critical hint.
+ *
+ * This drives artwork only; the printed temperature and severity remain the authoritative reading.
+ * Battery and SoC sensors deliberately have different ceilings, matching [ThermalClassifier].
+ */
+private fun temperatureGaugeFraction(deciCelsius: Int, sensor: ThermalSensorType): Float {
+    val critical = when (sensor) {
+        ThermalSensorType.CPU -> ThermalClassifier.CPU_CRITICAL_DECI
+        ThermalSensorType.BATTERY -> ThermalClassifier.BATTERY_CRITICAL_DECI
+    }
+    return ((deciCelsius - THERMOMETER_FLOOR_DECI).toFloat() /
+        (critical - THERMOMETER_FLOOR_DECI).toFloat()).coerceIn(0f, 1f)
+}
+
+private const val THERMOMETER_FLOOR_DECI = 200
 
 // The tone and detail rules live in ui/components/Readings.kt, shared with the performance screen and
 // the session report: the same reading has to be the same colour everywhere it appears.

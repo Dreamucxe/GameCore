@@ -1,6 +1,6 @@
-# GameCore 4.5 feature map and user guide
+# GameCore 4.6 feature map and user guide
 
-This is the user-facing map of GameCore 4.5. It explains what each part of the app does, how the parts connect, what access each feature needs, and what GameCore deliberately cannot do.
+This is the user-facing map of GameCore 4.6. It explains what each part of the app does, how the parts connect, what access each feature needs, and what GameCore deliberately cannot do.
 
 > **The rule used throughout the app:** if GameCore cannot measure or confirm something, it says **Unavailable**, **Requires Shizuku**, **Not supported**, or gives the failure reason. It does not replace a missing reading with zero, estimate a value, or call an accepted request a successful change without reading it back.
 
@@ -154,6 +154,8 @@ RAM and temperature include short-lived trends made only from samples collected 
 
 **Settings → Appearance → Show GameCore stats on Home** can hide the five built-in live tiles. Plugin dashboard widgets remain, as do the Device, Status, and action cards.
 
+**Settings → Appearance → 3D Home stat designs** switches those five tiles between the original flat icons and five distinct host-drawn instruments. CPU is a pinned processor die, RAM is a pair of memory modules, battery is a filled battery pack, temperature is a glass thermostat, and refresh rate is a display with a circular sweep. The shape changes with the metric; it is not one badge recoloured five times.
+
 ### Device, Status, Overlays, and Tools
 
 - **Device** opens the codec/GPU scanner, a device fitness check, and sensor calibration.
@@ -293,7 +295,7 @@ The dock is a second draggable, edge-snapping surface. It has independent size, 
 
 **Settings → Live performance** expands the Home readings into:
 
-- CPU total and per-core readings/frequencies;
+- CPU total and per-core readings/frequencies, with a segmented bar graph for every exposed core;
 - memory use;
 - battery level, health, temperature, voltage, source, and current where reported;
 - thermal sensors and platform throttling state;
@@ -412,7 +414,7 @@ They cannot run scripts, native code, a WebView, arbitrary network access, arbit
 
 ### Core appearance
 
-Settings includes language selection, Follow system/Dark/Light/AMOLED themes, eight accents plus a custom color, Android 12+ dynamic color, compact density, built-in Home-stat visibility, Redline skin, a background image and readability scrim, app icon choice, in-app font scale, animation policy, and haptics.
+Settings includes language selection, Follow system/Dark/Light/AMOLED themes, eight accents plus a custom color, Android 12+ dynamic color, compact density, built-in Home-stat visibility, a 3D/original Home-stat design switch, Redline skin, a background image and readability scrim, app icon choice, in-app font scale, animation policy, and haptics.
 
 Accessibility settings include Aim Lab target palettes, a left-handed Aim Lab layout, and larger touch targets. These do not silently change text scale or unrelated spacing.
 

@@ -76,6 +76,8 @@ data class HomeUiState(
      * Home. The Device card, the thermal warning and every action on Home stay either way.
      */
     val showBuiltInHomeStats: Boolean = true,
+    /** True selects the unique 3D metric instruments; false preserves the original flat-icon tiles. */
+    val show3DHomeStats: Boolean = true,
     val repairedSessions: Int = 0,
     val outstandingRestores: Int = 0,
     val isRestoring: Boolean = false,

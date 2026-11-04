@@ -35,6 +35,27 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 55,
+            versionName = "4.6",
+            date = "2026-11-04",
+            features = listOf(
+                FeatureNote(
+                    "Five readings, five 3D instruments",
+                    "Home now gives CPU a pinned processor die, RAM a pair of memory modules, " +
+                        "battery a filled battery pack, temperature a glass thermostat and refresh " +
+                        "rate a display with a circular sweep. Settings › Appearance has a switch " +
+                        "that restores the original flat icons at any time.",
+                ),
+                FeatureNote(
+                    "A graph for every CPU core",
+                    "The Performance screen's Processor card replaces the per-core number list with " +
+                        "segmented bars. Each graph shows the core's current clock position, or its " +
+                        "utilisation when Android exposes that instead; parked and unreadable cores " +
+                        "remain explicitly labelled rather than becoming false zeroes.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 54,
             versionName = "4.5",
             date = "2026-11-04",

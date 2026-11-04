@@ -404,6 +404,14 @@ private fun AppearanceCard(
                 "dashboard widgets stay visible, so a plugin that already shows these readings can be " +
                 "the only Home dashboard.",
         )
+        SwitchRow(
+            title = "3D Home stat designs",
+            checked = state.settings.show3DHomeStats,
+            enabled = state.settings.showBuiltInHomeStats,
+            onCheckedChange = { enabled -> onEdit { it.copy(show3DHomeStats = enabled) } },
+            description = "Gives CPU, RAM, battery, temperature and refresh rate their own sculpted " +
+                "instrument. Switch this off to restore the original flat icons.",
+        )
         RowDivider()
         SwitchRow(
             title = "Redline skin",

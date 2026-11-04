@@ -126,6 +126,29 @@ adb install -r GameCore.apk
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
 
+## What's new in 4.6
+
+<p><strong>The Home dashboard gets hardware-shaped instruments, and every CPU core gets a graph.</strong> Each live tile is now visually distinct instead of sharing a small flat glyph, while the original design remains one switch away.</p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>💎 Five unique 3D instruments</h3>
+      <p>CPU is a pinned processor die with a lit core grid, RAM is a pair of raised memory modules, battery is a pack whose case fills with the real level, temperature is a glass thermostat, and refresh rate is a perspective display with a circular sweep. The objects differ by silhouette and structure—not just colour.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>📊 Per-core graphs</h3>
+      <p><strong>Home › Performance › Processor</strong> now plots a segmented bar for every exposed CPU core. A bar shows the current position between that core's minimum and maximum clock, or utilisation where Android exposes that instead. A parked or unreadable core stays labelled honestly rather than becoming a false zero.</p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <h3>↩️ Keep the original design</h3>
+      <p><strong>Settings › Appearance › 3D Home stat designs</strong> changes only the five built-in Home instruments. Switch it off to restore the original flat icons; readings, trends, taps and plugin dashboard widgets are unchanged.</p>
+    </td>
+  </tr>
+</table>
+
 ## What's new in 4.5
 
 <p><strong>A fourth panel shape, and a way to switch shapes mid-game.</strong> The left edge now has a home for the whole control panel, and the floating button can open a layout picker without leaving the game.</p>
@@ -386,7 +409,7 @@ The full set lives in [`dist/`](dist/). Bundled copies are in [`app/src/main/ass
 ## Features
 
 For a screen-by-screen walkthrough, setup paths, permission map and troubleshooting guide, read the
-**[GameCore 4.5 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
+**[GameCore 4.6 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
 separate **[Plugin Studio feature map and tutorial](docs/PLUGIN_STUDIO_FEATURE_GUIDE.md)**.
 
 ### Feature map
