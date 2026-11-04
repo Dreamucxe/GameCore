@@ -66,6 +66,7 @@ class PluginModuleSlotsTest {
             OverlaySlot.BUTTON,
             OverlaySlot.PANEL,
             OverlaySlot.QUICK_SHEET,
+            OverlaySlot.LAYOUT_PICKER,
             OverlaySlot.PILL,
             OverlaySlot.CROSSHAIR,
             OverlaySlot.HUD,

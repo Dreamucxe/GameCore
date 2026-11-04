@@ -129,14 +129,15 @@ enum class PillDisplayMode(val label: String) {
  * preset — and this is not one of those. It is where the user's hands are. Somebody who reaches for the
  * left and right edges of a landscape phone reaches for them in every game, and a layout that moved
  * when the profile changed would put the controls somewhere their thumbs are not, which is worse than
- * either layout is on its own. It also has nothing to restore, so a per-profile version would be a
+ * any layout is on its own. It also has nothing to restore, so a per-profile version would be a
  * per-profile setting the restore machinery could not see.
  *
  * [TURBO_WINGS] is first because it is the shipped default of this redesign: two angled plates, a
- * game-space style action grid, and the configurable 3D gauges. It keeps every control the centered
- * and split layouts have — aspect ratio, refresh rate, colour, crosshair, levels and media included —
+ * game-space style action grid, and the configurable 3D gauges. It keeps every control the other
+ * layouts have — aspect ratio, refresh rate, colour, crosshair, levels and media included —
  * so the redesign changes the shape and the finish, never the feature set. [CENTERED] and
- * [SPLIT_EDGES] stay available under Layout for anyone who prefers the older surfaces.
+ * [SPLIT_EDGES] stay available under Layout for anyone who prefers the older surfaces, and
+ * [TURBO_DECK] is the left-anchored GAMETURBO surface from the fourth design reference.
  */
 enum class PanelLayoutStyle(val label: String, val description: String) {
 
@@ -157,6 +158,13 @@ enum class PanelLayoutStyle(val label: String, val description: String) {
         description = "Readouts on one screen edge, controls on the other, with the game visible " +
             "between them. Uses the full height of the screen, so the width setting does not apply.",
     ),
+
+    TURBO_DECK(
+        label = "Turbo deck",
+        description = "One tall GAMETURBO plate anchored to the left edge, with the game visible " +
+            "on the right. Boost controls, quick toggles and every action. Uses the full height " +
+            "of the screen, so the width setting does not apply.",
+    ),
     ;
 
     /**
@@ -166,14 +174,15 @@ enum class PanelLayoutStyle(val label: String, val description: String) {
      * and because it is the part of that tile a test can hold: the service's half is a preference write
      * and a window rebuild, neither of which runs on a JVM.
      *
-     * A cycle rather than a pairwise swap, because the set now has three members and a two-state tap
-     * over three layouts would leave one unreachable from the panel. The `when` has no `else`, so a
-     * fourth layout cannot be added without deciding where it sits in the cycle.
+     * A cycle rather than a pairwise swap, because the set now has four members and a two-state tap
+     * over four layouts would leave two unreachable from the panel. The `when` has no `else`, so a
+     * fifth layout cannot be added without deciding where it sits in the cycle.
      */
     fun next(): PanelLayoutStyle = when (this) {
         TURBO_WINGS -> CENTERED
         CENTERED -> SPLIT_EDGES
-        SPLIT_EDGES -> TURBO_WINGS
+        SPLIT_EDGES -> TURBO_DECK
+        TURBO_DECK -> TURBO_WINGS
     }
 }
 

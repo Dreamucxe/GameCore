@@ -68,7 +68,7 @@ class OverlayModelsTest {
      * figure — and therefore the one the clamp has nothing to say about.
      *
      * Asserted anyway, and asserted first, because the default is a promise: a fresh install gets the
-     * turbo wings, and the two older surfaces stay reachable from the same card. The enum's declaration
+     * turbo wings, and the other three surfaces stay reachable from the same card. The enum's declaration
      * order carries the same promise, since the settings screen lists the styles as declared and the
      * panel's Layout tile cycles them in this order.
      */
@@ -109,8 +109,8 @@ class OverlayModelsTest {
     /**
      * The panel's Layout tile, which is a tap rather than a choice and therefore rests on this.
      *
-     * A cycle over three layouts, so repeated taps visit every one and the fourth returns to where the
-     * user started. A pairwise swap would leave one layout unreachable from the panel entirely; that is
+     * A cycle over every layout, so repeated taps visit every one and the next tap returns to where the
+     * user started. A pairwise swap would leave layouts unreachable from the panel entirely; that is
      * the bug this rules out.
      */
     @Test

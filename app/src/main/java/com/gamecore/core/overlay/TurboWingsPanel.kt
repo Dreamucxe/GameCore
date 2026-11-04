@@ -78,13 +78,13 @@ import kotlin.math.sin
  * The turbo-wings panel: two angled plates fold in from the screen's edges, the game stays visible between
  * them, and each plate carries one of the configurable 3D gauges.
  *
- * This is [com.gamecore.core.model.PanelLayoutStyle.TURBO_WINGS], the third shape the panel offers and the
- * one a fresh install now opens. It is a separate composable from [OverlaySplitPanel] because the two
+ * This is [com.gamecore.core.model.PanelLayoutStyle.TURBO_WINGS], the shape a fresh install now opens.
+ * It is a separate composable from [OverlaySplitPanel] because the two
  * disagree about their silhouette and their centre of gravity: the split plates are rectangles attached to
  * the edges, while these are bent blades with the controls arranged around a gauge the way the turbo panels
  * on gaming phones arrange theirs. What they share is the content, and that is shared for real — every
- * control below is the same `internal` composable the other two layouts draw, so an action added to the
- * grid appears in all three or in none.
+ * control below is the same `internal` composable the other layouts draw, so an action added to the
+ * grid appears in every layout or in none.
  *
  * The window is full-screen and touchable, exactly as the split layout's is. The game in the middle is
  * visible but not touch-through: Android gives one rectangular window here, and a game receiving a shot
@@ -138,7 +138,7 @@ fun TurboWingsPanel(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // The keypad's state, held exactly as the other two layouts hold it: a half-typed number is not a
+    // The keypad's state, held exactly as the other layouts hold it: a half-typed number is not a
     // fact about the device and is meant to be forgotten when the panel closes.
     var editing by remember { mutableStateOf<OverlayLevel?>(null) }
     var typed by remember { mutableStateOf("") }

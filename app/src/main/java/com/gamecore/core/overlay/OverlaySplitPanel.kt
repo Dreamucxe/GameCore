@@ -43,13 +43,13 @@ import kotlin.math.roundToInt
 /**
  * The same control panel as [OverlayControlPanel], split against both screen edges with the game between.
  *
- * The older of the two edge layouts [com.gamecore.core.model.PanelLayoutStyle] offers, and a separate
+ * The older of the edge layouts [com.gamecore.core.model.PanelLayoutStyle] offers, and a separate
  * composable rather than a branch inside the first one. They disagree about almost everything structural:
  * the centered panel is one plate of a width the user chose, positioned from the button, closing itself on
  * a touch that lands outside it; this is two plates of a width derived from the screen, ignoring the
  * button's position entirely, in a window that has no outside. What they share is their *content*, and
  * that is shared for real — every piece below is the same `internal` composable the other layouts draw,
- * so an action added to the grid appears in all three or in none.
+ * so an action added to the grid appears in every layout or in none.
  *
  * Three things about this window are worth being plain about, because each of them is a cost:
  *

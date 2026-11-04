@@ -75,6 +75,8 @@ import com.gamecore.core.overlay.HeldRow
 import com.gamecore.core.overlay.HudOverlay
 import com.gamecore.core.overlay.HuntOverlay
 import com.gamecore.core.overlay.InstantReplaySavePill
+import com.gamecore.core.overlay.LayoutPicker
+import com.gamecore.core.overlay.LAYOUT_PICKER_WIDTH_DP
 import com.gamecore.core.overlay.Macro
 import com.gamecore.core.overlay.MacroBehavior
 import com.gamecore.core.overlay.MacroChip
@@ -119,6 +121,7 @@ import com.gamecore.core.overlay.QuickToggleState
 import com.gamecore.core.overlay.ThermalDot
 import com.gamecore.core.overlay.TriggerPointMarker
 import com.gamecore.core.overlay.TriggerPointPlacement
+import com.gamecore.core.overlay.TurboDeckPanel
 import com.gamecore.core.overlay.TurboWingsPanel
 import com.gamecore.core.overlay.isGatedByQuickActions
 import com.gamecore.core.overlay.nextDockRate
@@ -533,6 +536,16 @@ class GamingOverlayService : GameCoreService() {
     private val quickSheetOpen = MutableStateFlow(false)
 
     /**
+     * Whether the in-game layout picker is on screen.
+     *
+     * Its own flag for [quickSheetOpen]'s reason: it is a separate window in a separate slot, and the
+     * picker has no watch — every value it draws comes from the live preference flow collected inside
+     * the window. Kept so the button can read itself as expanded while the picker hangs off it, and so
+     * [closePanel]'s siblings can tear it down without asking the window manager what is up.
+     */
+    private val layoutPickerOpen = MutableStateFlow(false)
+
+    /**
      * The sheet's watch, the sibling of [panelJob].
      *
      * The sheet draws the same [panel] state the full panel does — its toggles, its two sliders and its
@@ -784,6 +797,7 @@ class GamingOverlayService : GameCoreService() {
         // Anchored to the button, which is about to be rescaled to a new position — the same reason the
         // panel closes on a rotation rather than being carried across.
         closeQuickSheet()
+        closeLayoutPicker()
         rescaleWindows()
         reconcile()
     }
@@ -1232,6 +1246,7 @@ class GamingOverlayService : GameCoreService() {
         if (!request.anythingVisible || !manager.canDraw()) {
             closePanel()
             closeQuickSheet()
+            closeLayoutPicker()
             // The placement surface is full screen and takes touches, so it is the one window that must not
             // be allowed to outlive the service even for the instant between hideAll() and stopSelf(). The
             // explicit close also drops its in-progress state, which hideAll() alone would leave behind to be
@@ -1251,6 +1266,8 @@ class GamingOverlayService : GameCoreService() {
             closePanel()
             // The sheet hangs off the button; with the button gone there is nothing for it to anchor to.
             closeQuickSheet()
+            // The picker is anchored to the same button and would be a plate floating with no anchor.
+            closeLayoutPicker()
             manager.hide(OverlaySlot.BUTTON)
         }
         if (request.pill) showPill(pill) else manager.hide(OverlaySlot.PILL)
@@ -1430,6 +1447,7 @@ class GamingOverlayService : GameCoreService() {
             val tint by accent.collectAsState()
             val panelUp by panelOpen.collectAsState()
             val sheetUp by quickSheetOpen.collectAsState()
+            val pickerUp by layoutPickerOpen.collectAsState()
             val dot by buttonThermalDot.collectAsState()
             val normalised = live.normalised()
             FloatingGameButton(
@@ -1441,20 +1459,32 @@ class GamingOverlayService : GameCoreService() {
                 // One tap opens the full panel by default — the surface with every control on it — and the
                 // quick sheet when the user has asked for the narrow one first. Either way the *other*
                 // surface keeps the double tap, so preferring one never strands the other: the two simply
-                // swap places.
-                onTap = if (normalised.tapOpensPanel) ::togglePanel else ::toggleQuickSheet,
+                // swap places. While the layout picker is up, a tap puts it away instead: the picker is
+                // hanging off this button, and opening a second surface underneath it would bury it.
+                onTap = {
+                    when {
+                        pickerUp -> closeLayoutPicker()
+                        normalised.tapOpensPanel -> togglePanel()
+                        else -> toggleQuickSheet()
+                    }
+                },
                 // Wired live from the collected config, so changing either preference takes effect on the
                 // next recomposition without the window being re-added. The panel's own double tap is only
                 // armed when a single tap does not already open it.
                 onDoubleTap = when {
+                    pickerUp -> ::closeLayoutPicker
                     normalised.tapOpensPanel -> ::toggleQuickSheet
                     normalised.doubleTapForPanel -> ::togglePanel
                     else -> null
                 },
-                // Lit while either surface is up — both are "the button is open" as far as the idle fade
-                // and the expanded look are concerned.
-                isExpanded = panelUp || sheetUp,
+                // Lit while any surface of the button's is up — all are "the button is open" as far as
+                // the idle fade and the expanded look are concerned.
+                isExpanded = panelUp || sheetUp || pickerUp,
                 thermalDot = dot,
+                // A held press is the layout picker. It is deliberately not the panel: a tap already
+                // opens that, and a gesture that needs a second of stillness is the right place for a
+                // change the user does not make mid-action very often.
+                onLongPress = ::toggleLayoutPicker,
             )
         }
     }
@@ -1510,6 +1540,7 @@ class GamingOverlayService : GameCoreService() {
         // stale anchor around.
         closePanel()
         closeQuickSheet()
+        closeLayoutPicker()
         val clamped = buttonFrame()?.clamp(x, y) ?: return
         manager.move(OverlaySlot.BUTTON, clamped.x, clamped.y)
     }
@@ -2723,16 +2754,18 @@ class GamingOverlayService : GameCoreService() {
      * x above be exact. [panelWidthFor] is what keeps a figure chosen on a portrait settings screen from
      * opening a panel wider than the landscape game it opens over.
      *
-     * None of the above applies to [PanelLayoutStyle.SPLIT_EDGES], which is why it leaves through
-     * [openSplitPanel] before any of it runs: that layout is not positioned from the button, takes the
-     * whole screen rather than the room beside it, and derives its own width. The branch is here rather
-     * than inside the composable because it is a difference in the *window*, not in what is drawn in it.
+     * None of the above applies to [PanelLayoutStyle.SPLIT_EDGES] or [PanelLayoutStyle.TURBO_DECK],
+     * which is why they leave through [openSplitPanel] and [openTurboDeckPanel] before any of it runs:
+     * those layouts are not positioned from the button, take the whole screen rather than the room beside
+     * it, and derive their own width. The branch is here rather than inside the composable because it is
+     * a difference in the *window*, not in what is drawn in it.
      */
     private fun openPanel() {
         // The panel supersedes the sheet — a double tap, or the sheet's "More", brings the full surface up
-        // and the narrow one has to go, or both would be touchable at once. Covers the split layout too,
-        // which is only ever reached through here.
+        // and the narrow one has to go, or both would be touchable at once. Covers the edge layouts too,
+        // which are only ever reached through here.
         if (quickSheetOpen.value) closeQuickSheet()
+        if (layoutPickerOpen.value) closeLayoutPicker()
         val config = preferences.floatingButton.value.normalised()
         when (config.panelLayout) {
             PanelLayoutStyle.TURBO_WINGS -> {
@@ -2741,6 +2774,10 @@ class GamingOverlayService : GameCoreService() {
             }
             PanelLayoutStyle.SPLIT_EDGES -> {
                 openSplitPanel()
+                return
+            }
+            PanelLayoutStyle.TURBO_DECK -> {
+                openTurboDeckPanel()
                 return
             }
             PanelLayoutStyle.CENTERED -> Unit
@@ -3162,6 +3199,63 @@ class GamingOverlayService : GameCoreService() {
     }
 
     /**
+     * Opens the turbo-deck panel: one full-screen window with the left-anchored GAMETURBO plate inside it.
+     *
+     * The window mechanics are [openSplitPanel]'s, and for the same reasons — the plate is pinned to an
+     * edge, so there is no position derived from the button, no height to measure before drawing and no
+     * outside-touch dismissal for a `MATCH_PARENT` window to receive. The strip of game on the right is
+     * the layout's own exit, alongside the ✕ in its header.
+     *
+     * The difference from the wings is what is *not* collected: this layout has no gauges, so it does not
+     * read [com.gamecore.data.preferences.SecurePreferenceStore.floatingButton] while open. Its width is
+     * derived from the screen inside [TurboDeckPanel] by the same `turboDeckWidth` the geometry test holds,
+     * which keeps the window and the plate from disagreeing about the one measurement that matters.
+     */
+    private fun openTurboDeckPanel() {
+        val manager = windows ?: return
+        val frame = manager.frameFor(0, 0)
+        val screenWidthDp = if (frame.isMeasured) {
+            dp(frame.screenWidth)
+        } else {
+            FloatingButtonConfig.MIN_PANEL_WIDTH_DP * 2
+        }
+        val shown = manager.show(
+            slot = OverlaySlot.PANEL,
+            spec = OverlayWindowSpec(touchable = true, fullScreen = true),
+            host = host,
+        ) {
+            val state by panel.collectAsState()
+            val readings by pillReadings.collectAsState()
+            val playing by nowPlaying.collectAsState()
+            val apps by quickApps.collectAsState()
+            val tint by accent.collectAsState()
+            TurboDeckPanel(
+                state = state,
+                readings = readings,
+                nowPlaying = playing,
+                quickApps = apps,
+                accent = tint,
+                screenWidthDp = screenWidthDp,
+                onAction = ::onAction,
+                onLongAction = ::onLongAction,
+                onPreset = ::onPreset,
+                onAspect = ::onAspect,
+                onRate = ::onRate,
+                onCrosshairDesign = ::onCrosshairDesign,
+                onCrosshairColour = ::onCrosshairColour,
+                onDragLevel = ::onDragLevel,
+                onCommitLevel = ::onCommitLevel,
+                onMedia = ::onMedia,
+                onEnableMedia = ::onEnableMedia,
+                onLaunchApp = ::onLaunchApp,
+                onDismiss = ::closePanel,
+            )
+        }
+        if (!shown) return
+        startPanelWatch(PanelLayoutStyle.TURBO_DECK)
+    }
+
+    /**
      * What every layout does once its window is up: mark it open, forget last time's refusals, start the
      * tick and start listening for what is playing.
      *
@@ -3287,6 +3381,97 @@ class GamingOverlayService : GameCoreService() {
         endProgress.value = 0f
     }
 
+    // ------------------------------------------------------------------------------- layout picker
+
+    private fun toggleLayoutPicker() {
+        if (layoutPickerOpen.value) closeLayoutPicker() else openLayoutPicker()
+    }
+
+    /**
+     * Opens the in-game layout picker against the button, below it when there is room and above it when
+     * there is not.
+     *
+     * The anchoring is [openQuickSheet]'s, with one difference: the picker is centred on the button
+     * rather than hugging the nearest edge, because it is a choice about the button's own surface, not a
+     * strip of controls that belongs to a screen edge. The width is fixed ([LAYOUT_PICKER_WIDTH_DP]) so
+     * the x can be exact before the window is measured, and the height is left to the plate because it
+     * is a short list of four.
+     *
+     * Both other surfaces are closed first. The panel because there would otherwise be two touchable
+     * windows offering different shapes of the same thing, and the sheet because this picker is reached
+     * from the sheet's own Layout button. Changing the preference is all [onSelect] does: the
+     * `floatingButton` collector reconciles, and the next open uses the shape the user just chose.
+     */
+    @OptIn(ExperimentalComposeUiApi::class)
+    private fun openLayoutPicker() {
+        val manager = windows ?: return
+        if (panelOpen.value) closePanel()
+        if (quickSheetOpen.value) closeQuickSheet()
+        val width = px(LAYOUT_PICKER_WIDTH_DP)
+        val margin = px(EDGE_MARGIN_DP)
+        val gap = px(PANEL_GAP_DP)
+        val frame = manager.frameFor(width, 0, margin)
+        val placement = manager.positionOf(OverlaySlot.BUTTON)
+        val button = manager.frameFor(OverlaySlot.BUTTON)
+        val buttonTop = placement?.y ?: 0
+        val buttonHeight = button?.windowHeight ?: 0
+        val buttonCentreX = (placement?.x ?: 0) + (button?.windowWidth ?: 0) / 2
+
+        val roomBelow = frame.screenHeight - (buttonTop + buttonHeight + gap) - margin
+        val roomAbove = buttonTop - gap - margin
+        val below = !frame.isMeasured || roomBelow >= px(PANEL_MIN_ROOM_DP) || roomBelow >= roomAbove
+
+        val shown = manager.show(
+            slot = OverlaySlot.LAYOUT_PICKER,
+            spec = OverlayWindowSpec(
+                x = (buttonCentreX - width / 2).coerceIn(margin, maxOf(margin, frame.maxX)),
+                y = if (below) {
+                    (buttonTop + buttonHeight + gap).coerceAtLeast(margin)
+                } else {
+                    (frame.screenHeight - (buttonTop - gap)).coerceAtLeast(0)
+                },
+                width = width,
+                touchable = true,
+                dismissOnOutsideTouch = true,
+                anchorBottom = !below,
+            ),
+            host = host,
+        ) {
+            val config by preferences.floatingButton.collectAsState()
+            val tint by accent.collectAsState()
+            LayoutPicker(
+                selected = config.normalised().panelLayout,
+                accent = tint,
+                onSelect = { style ->
+                    // The narrow writer, for the reason the panel's Layout tile uses it: the picker is
+                    // open against the same button, so this process may hold a position a frame ahead
+                    // of the stored one, and `updateFloatingButton` would write that position back.
+                    preferences.updatePanelLayout(style)
+                    closeLayoutPicker()
+                },
+                onDismiss = ::closeLayoutPicker,
+                modifier = Modifier.pointerInteropFilter { event ->
+                    // `dismissOnOutsideTouch` sets the flag; this is the handler that acts on the
+                    // ACTION_OUTSIDE it delivers. The same split QuickSheetContent uses, because a
+                    // window flag alone closes nothing.
+                    if (event.actionMasked == MotionEvent.ACTION_OUTSIDE) {
+                        closeLayoutPicker()
+                        true
+                    } else {
+                        false
+                    }
+                },
+            )
+        }
+        if (!shown) return
+        layoutPickerOpen.value = true
+    }
+
+    private fun closeLayoutPicker() {
+        layoutPickerOpen.value = false
+        windows?.hide(OverlaySlot.LAYOUT_PICKER)
+    }
+
     // ------------------------------------------------------------------------------- quick sheet
 
     private fun toggleQuickSheet() {
@@ -3314,6 +3499,7 @@ class GamingOverlayService : GameCoreService() {
     private fun openQuickSheet() {
         val manager = windows ?: return
         if (panelOpen.value) closePanel()
+        if (layoutPickerOpen.value) closeLayoutPicker()
         val width = px(QUICK_SHEET_WIDTH_DP)
         val margin = px(EDGE_MARGIN_DP)
         val gap = px(PANEL_GAP_DP)
@@ -3427,6 +3613,10 @@ class GamingOverlayService : GameCoreService() {
             onClose = ::closeQuickSheet,
             accent = accent,
             side = side,
+            onLayout = {
+                markQuickInteraction()
+                openLayoutPicker()
+            },
             modifier = Modifier.pointerInteropFilter { event ->
                 if (event.actionMasked == MotionEvent.ACTION_OUTSIDE) {
                     closeQuickSheet()
@@ -3565,11 +3755,12 @@ class GamingOverlayService : GameCoreService() {
      * the slider writes, [observe]'s `floatingButton` collector reconciles, and the panel on screen follows
      * the finger on the slider. Ignored while the grip is being dragged — see [resizingPanel].
      *
-     * Also ignored while the split layout is on screen, and that is not the same kind of guard. The grip
-     * case is a race worth waiting out; this one is a width that does not exist. A split panel's window is
-     * `MATCH_PARENT`, so [setPanelWidth] would hand [OverlayWindows.resize] a figure for a dimension the
-     * window does not have — narrowing the whole thing to a third of the screen and leaving the right-hand
-     * plate off the edge of it. The stored width stays stored and applies when the user switches back.
+     * Also ignored while any edge layout is on screen, and that is not the same kind of guard. The grip
+     * case is a race worth waiting out; this one is a width that does not exist. Split edges, turbo wings
+     * and turbo deck all use a `MATCH_PARENT` window, so [setPanelWidth] would hand [OverlayWindows.resize]
+     * a figure for a dimension the window does not have — narrowing the whole thing to a fraction of the
+     * screen and leaving the rest of the layout off the edge of it. The stored width stays stored and
+     * applies when the user switches back.
      */
     private fun applyPanelWidth(requestedDp: Int) {
         if (resizingPanel) return

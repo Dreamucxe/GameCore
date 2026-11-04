@@ -81,7 +81,8 @@ data class MacroChip(
  * It draws, top to bottom, the §4 layout: a header (the game's icon slot, its name, the session clock, and a
  * close X), a 3×2 grid of pinned [QuickToggleState]s (accent-filled with a check when on, outlined when off,
  * always icon-plus-label so state is never colour alone — spec §6), single-track brightness and volume
- * sliders with a percent value, and a More / Close button pair. It uses [OverlayPalette] rather than
+ * sliders with a percent value, and a Layout / More / Close button row (Layout is drawn only when the caller
+ * supplies a picker to open). It uses [OverlayPalette] rather than
  * `MaterialTheme` for the same reason the pill does: this is drawn over a game GameCore has never seen, and
  * light text on its own dark plate is the only thing legible over both a white loading screen and a night
  * map. The user's [accent] is passed in and used only for the "on" fill and the primary button, where it sits
@@ -105,6 +106,8 @@ data class MacroChip(
  * @param side which edge the sheet hugs; aligns the content to match the window gravity the service sets.
  * @param accent the user's accent, used only for the "on" fill and the primary button.
  * @param gameIcon optional slot for the game's real app icon; when null a lettered placeholder chip is drawn.
+ * @param onLayout open the in-game layout picker. Null leaves the button out, so a caller that has no
+ *   picker to show draws exactly the sheet it always did.
  */
 @Composable
 fun QuickSheet(
@@ -122,6 +125,7 @@ fun QuickSheet(
     side: QuickSheetSide = QuickSheetSide.RIGHT,
     accent: Color = OverlayPalette.Good,
     gameIcon: (@Composable () -> Unit)? = null,
+    onLayout: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -177,6 +181,18 @@ fun QuickSheet(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // A visible Layout button rather than a second hidden gesture: the sheet is where a
+            // one-tap user already is, and the picker it opens is the same one a long press on the
+            // button reaches. Three equal buttons stay legible at the sheet's narrowest width.
+            if (onLayout != null) {
+                SheetButton(
+                    label = "Layout",
+                    onClick = onLayout,
+                    filled = false,
+                    accent = accent,
+                    modifier = Modifier.weight(1f),
+                )
+            }
             SheetButton(label = "More", onClick = onMore, filled = false, accent = accent, modifier = Modifier.weight(1f))
             SheetButton(label = "Close", onClick = onClose, filled = true, accent = accent, modifier = Modifier.weight(1f))
         }

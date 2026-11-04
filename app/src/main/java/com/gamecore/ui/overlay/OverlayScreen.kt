@@ -1340,7 +1340,7 @@ private fun QuickSheetCard(
  * Two rows at the bottom are not about the panel's dimensions at all — the quick-launch switch and the
  * two screens the card links to. They are here because this is the card a user opens when they want to
  * change what the panel *is*, and a control panel setting filed anywhere else is a control panel setting
- * nobody finds. The quick-launch switch in particular is deliberately not a third [PanelLayoutStyle]: the
+ * nobody finds. The quick-launch switch in particular is deliberately not a [PanelLayoutStyle]: the
  * row is drawn in whichever shape is selected, so making it a shape would force a choice between two
  * things that were never alternatives.
  */
@@ -1360,7 +1360,8 @@ private fun PanelCard(
     val layout = button.panelLayout
     val split = layout == PanelLayoutStyle.SPLIT_EDGES
     val turbo = layout == PanelLayoutStyle.TURBO_WINGS
-    val fullScreen = split || turbo
+    val deck = layout == PanelLayoutStyle.TURBO_DECK
+    val fullScreen = split || turbo || deck
     val perRow = actionsPerRow(button.panelWidthDp)
     SectionCard(
         title = "Control panel",
@@ -1371,6 +1372,7 @@ private fun PanelCard(
             StatusChip(
                 text = when {
                     turbo -> "3D wings"
+                    deck -> "Left plate"
                     split -> "Two plates"
                     else -> "$perRow across"
                 },
@@ -1380,6 +1382,7 @@ private fun PanelCard(
     ) {
         when (layout) {
             PanelLayoutStyle.TURBO_WINGS -> TurboPanelPreview(button = button)
+            PanelLayoutStyle.TURBO_DECK -> DeckPanelPreview()
             PanelLayoutStyle.SPLIT_EDGES -> SplitPanelPreview()
             PanelLayoutStyle.CENTERED -> PanelPreview(button = button, perRow = perRow)
         }
@@ -1392,7 +1395,9 @@ private fun PanelCard(
             selected = button.panelLayout,
             onSelect = { style -> onEdit { it.copy(panelLayout = style) } },
             label = { it.label },
-            perRow = 3,
+            // Two per row: four labels on one line turn to ellipses on a phone, and a third-row
+            // orphan reads as a missing choice rather than as the fourth layout.
+            perRow = 2,
         )
         Spacer(modifier = Modifier.height(Spacing.xs))
         Text(
@@ -1445,6 +1450,7 @@ private fun PanelCard(
             valueLabel = "${button.panelWidthDp} dp",
             description = when {
                 turbo -> "Kept for the centered layout. Turbo wings sizes its own plates against the screen."
+                deck -> "Kept for the centered layout. Turbo deck sizes its own plate against the screen."
                 split -> "Kept for the centered layout. Split edges sizes its own plates against the screen."
                 else -> sliderDescription(
                     "Wider fits more action tiles on a row. Tap the figure to type an exact one.",
@@ -1463,6 +1469,11 @@ private fun PanelCard(
                     "the game stays visible between them, and tapping the gap closes the panel. There " +
                     "is no resize grip in this layout — the width above is saved for the centered one " +
                     "and takes effect when you switch back."
+                deck -> "Turbo deck is as tall as the screen and derives its plate width from the " +
+                    "screen's width, so neither dimension is a setting. The plate is anchored to the " +
+                    "left edge and scrolls on its own, the game stays visible on the right, and tapping " +
+                    "that strip closes the panel. There is no resize grip in this layout — the width " +
+                    "above is saved for the centered one and takes effect when you switch back."
                 split -> "Split edges is as tall as the screen and as wide as it needs to be on each side, so " +
                     "neither dimension is a setting. Each plate takes a share of the screen's width and " +
                     "scrolls on its own; the gap between them is the game, and tapping it closes the " +
@@ -1482,6 +1493,9 @@ private fun PanelCard(
                 text = when {
                     turbo -> "Turbo wings suits a landscape game held in two hands. In portrait the two " +
                         "plates take most of the width, so the game between them is a strip."
+                    deck -> "Turbo deck suits a portrait game or a landscape one held in one hand: the " +
+                        "plate is a thumb's reach from the left edge and the rest of the screen stays " +
+                        "game. Long-press the floating button to switch layouts without leaving the game."
                     split -> "Split edges suits a landscape game held in two hands. In portrait there is less " +
                         "width to divide, so the plates are narrower and the game between them is a strip."
                     else -> "You can also drag the grip in the panel's bottom corner while a game is running."
@@ -1509,7 +1523,7 @@ private fun PanelCard(
             title = "Show quick-launch apps",
             checked = button.showQuickApps,
             onCheckedChange = { show -> onUpdate { it.copy(showQuickApps = show) } },
-            description = "Adds a row of app icons under the action tiles, in either layout. Off until " +
+            description = "Adds a row of app icons under the action tiles, in any layout. Off until " +
                 "you pick the apps.",
         )
         NavRow(
@@ -1767,6 +1781,116 @@ private fun TurboPanelPreview(button: FloatingButtonConfig) {
     }
 }
 
+/**
+ * The turbo-deck drawing: one tall plate against the left edge, the game on the right.
+ *
+ * Like [TurboPanelPreview] this is an arrangement drawing rather than a scale one — the real plate's
+ * width is derived from the screen — so it shows the proportion and the split inside the plate that the
+ * design is recognised by: a wordmark, a narrow rail of quick tiles, the switch rows beside them, then
+ * the controls that fill the rest of the column. The strip on the right is drawn as the game because
+ * that strip is the reason to choose this layout.
+ */
+@Composable
+private fun DeckPanelPreview() {
+    val scheme = MaterialTheme.colorScheme
+    val caption = "One tall GAMETURBO plate anchored to the left edge, the game visible on the right. " +
+        "Readouts, switches, the action grid, levels and media all live on the plate, which scrolls on " +
+        "its own."
+    Column {
+        GroupLabel("PREVIEW")
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(TURBO_PREVIEW_HEIGHT_DP.dp)
+                .clip(RoundedCornerShape(Spacing.md))
+                .background(scheme.surfaceVariant)
+                .border(1.dp, scheme.outlineVariant, RoundedCornerShape(Spacing.md))
+                .padding(PREVIEW_GAP_DP.dp)
+                .clearAndSetSemantics { contentDescription = "Turbo deck preview. $caption" },
+            horizontalArrangement = Arrangement.spacedBy(PREVIEW_GAP_DP.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(DECK_PREVIEW_PLATE_WEIGHT)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(Spacing.sm))
+                    .background(OverlayPalette.PanelPlate)
+                    .padding(PREVIEW_PLATE_PAD_DP.dp),
+                verticalArrangement = Arrangement.spacedBy(PREVIEW_GAP_DP.dp),
+            ) {
+                // The wordmark, marked in the accent the plate actually uses.
+                PreviewBar(fraction = 0.74f, colour = scheme.primary)
+                // The unequal body: quick tiles on a narrow rail, switches and the primary button beside.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(DECK_PREVIEW_BODY_DP.dp),
+                    horizontalArrangement = Arrangement.spacedBy(PREVIEW_GAP_DP.dp),
+                ) {
+                    Column(
+                        modifier = Modifier.weight(DECK_PREVIEW_RAIL_WEIGHT),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        repeat(2) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(OverlayPalette.Plate),
+                            )
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.weight(DECK_PREVIEW_MAIN_WEIGHT),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        repeat(3) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(OverlayPalette.Divider),
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1.4f)
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(scheme.primary.copy(alpha = 0.55f)),
+                        )
+                    }
+                }
+                repeat(2) {
+                    PreviewBar(fraction = 1f, colour = OverlayPalette.Plate)
+                }
+                PreviewBar(fraction = 0.7f, colour = OverlayPalette.Divider)
+            }
+            Box(
+                modifier = Modifier
+                    .weight(DECK_PREVIEW_GAME_WEIGHT)
+                    .fillMaxHeight(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "GAME",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Text(
+            text = caption,
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant,
+        )
+    }
+}
+
 /** One wing of [TurboPanelPreview]: header, gauge ring and the rows that stand in for its content. */
 @Composable
 private fun TurboPreviewWing(
@@ -2007,3 +2131,15 @@ private const val TURBO_PREVIEW_HEIGHT_DP = 132
 private const val TURBO_PREVIEW_WING_WEIGHT = 1f
 private const val TURBO_PREVIEW_GAME_WEIGHT = 0.55f
 private const val TURBO_PREVIEW_GAUGE_DP = 34
+
+/**
+ * The turbo-deck drawing's own proportions.
+ *
+ * The plate is given less than its real 85% so the strip of game is legible at card size, and the
+ * body is tall enough to show the unequal rail/switch split rather than two uniform columns.
+ */
+private const val DECK_PREVIEW_PLATE_WEIGHT = 2.1f
+private const val DECK_PREVIEW_GAME_WEIGHT = 0.8f
+private const val DECK_PREVIEW_BODY_DP = 62
+private const val DECK_PREVIEW_RAIL_WEIGHT = 0.34f
+private const val DECK_PREVIEW_MAIN_WEIGHT = 0.66f

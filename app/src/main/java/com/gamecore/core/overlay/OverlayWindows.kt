@@ -25,6 +25,14 @@ enum class OverlaySlot {
      */
     QUICK_SHEET,
 
+    /**
+     * The in-game panel-layout chooser: a small plate anchored to the button with the four
+     * [com.gamecore.core.model.PanelLayoutStyle] choices. Takes touches and dismisses on an outside tap,
+     * like the sheet. Its own slot rather than a mode of [QUICK_SHEET] so opening one always tears down
+     * the other through its own [hide], and so a choice made here never races the sheet's auto-close.
+     */
+    LAYOUT_PICKER,
+
     /** The stats pill of §8. Never takes touches. */
     PILL,
 

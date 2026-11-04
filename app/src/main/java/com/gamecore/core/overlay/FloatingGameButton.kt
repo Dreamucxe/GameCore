@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -33,7 +34,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.gamecore.core.model.FloatingButtonConfig
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * The draggable floating button of §7.
@@ -84,10 +87,25 @@ fun FloatingGameButton(
      * full panel. Kept as a callback rather than a boolean so this composable owns no navigation.
      */
     onDoubleTap: (() -> Unit)? = null,
+    /**
+     * Optional long-press (spec §7). Null when the caller offers no held gesture, which keeps an older
+     * call site byte-for-byte the same button. The layout picker uses it: a press held past the platform's
+     * own long-press timeout opens the chooser without stealing the single tap, the double tap or the
+     * drag — those are all decided on the finger lifting, and a long press has already answered first.
+     */
+    onLongPress: (() -> Unit)? = null,
 ) {
     val haptics = LocalHapticFeedback.current
     val slopPx = LocalViewConfiguration.current.touchSlop
+    val longPressMillis = LocalViewConfiguration.current.longPressTimeoutMillis
+    val scope = rememberCoroutineScope()
     var gesture by remember { mutableStateOf(DragGesture.IDLE) }
+
+    // The pending long-press and whether it has already fired for this touch. The job is cancelled on
+    // every move past the slop and on the finger lifting, so a drag never opens the picker halfway
+    // through; the flag stops the same touch from opening it again as a tap on the way up.
+    var longPressJob by remember { mutableStateOf<Job?>(null) }
+    var longPressFired by remember { mutableStateOf(false) }
 
     // Bumped by every touch. `LaunchedEffect` keyed on it restarts the idle countdown, which is both
     // simpler and more correct than cancelling a timer by hand — a gesture that ends while the previous
@@ -136,8 +154,24 @@ fun FloatingGameButton(
                     MotionEvent.ACTION_DOWN -> {
                         interactions++
                         hasBuzzed = false
+                        longPressFired = false
+                        longPressJob?.cancel()
                         val origin = positionProvider()
                         gesture = gesture.began(event.rawX, event.rawY, origin.x, origin.y)
+                        if (onLongPress != null) {
+                            longPressJob = scope.launch {
+                                delay(longPressMillis)
+                                // Re-read the gesture: a finger that has travelled past the slop by the
+                                // time this wakes is dragging, not holding, and must not open anything.
+                                if (!longPressFired && !gesture.isDrag(slopPx)) {
+                                    longPressFired = true
+                                    if (config.hapticFeedback) {
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
+                                    onLongPress()
+                                }
+                            }
+                        }
                         true
                     }
 
@@ -148,6 +182,8 @@ fun FloatingGameButton(
                         // that wobbles by two pixels does not nudge the button and then open the panel
                         // from a position the user did not choose.
                         if (moved.isDrag(slopPx)) {
+                            longPressJob?.cancel()
+                            longPressJob = null
                             if (config.hapticFeedback && !hasBuzzed) {
                                 hasBuzzed = true
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -159,23 +195,32 @@ fun FloatingGameButton(
 
                     MotionEvent.ACTION_UP -> {
                         interactions++
+                        longPressJob?.cancel()
+                        longPressJob = null
                         val ended = gesture.movedTo(event.rawX, event.rawY)
                         gesture = ended.ended()
                         if (ended.isTap(slopPx)) {
-                            if (config.hapticFeedback) {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            }
-                            // When double-tap-to-open-panel is on, a tap that lands within the window of the
-                            // previous one is the double tap; otherwise every tap opens the quick sheet. The
-                            // single tap still fires immediately when the setting is off, so the common path
-                            // has no added latency — only an armed double-tap defers, and only to itself.
-                            val now = event.eventTime
-                            if (onDoubleTap != null && now - lastTapTime <= DOUBLE_TAP_WINDOW_MILLIS) {
+                            // A long press has already been answered on this touch; treating the lift as
+                            // a tap would open the sheet over the picker the user just asked for.
+                            if (longPressFired) {
                                 lastTapTime = 0L
-                                onDoubleTap()
                             } else {
-                                lastTapTime = now
-                                onTap()
+                                if (config.hapticFeedback) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                }
+                                // When double-tap-to-open-panel is on, a tap that lands within the window of
+                                // the previous one is the double tap; otherwise every tap opens the quick
+                                // sheet. The single tap still fires immediately when the setting is off, so
+                                // the common path has no added latency — only an armed double-tap defers,
+                                // and only to itself.
+                                val now = event.eventTime
+                                if (onDoubleTap != null && now - lastTapTime <= DOUBLE_TAP_WINDOW_MILLIS) {
+                                    lastTapTime = 0L
+                                    onDoubleTap()
+                                } else {
+                                    lastTapTime = now
+                                    onTap()
+                                }
                             }
                         } else {
                             onDragFinished(ended.targetX, ended.targetY)
@@ -184,6 +229,8 @@ fun FloatingGameButton(
                     }
 
                     MotionEvent.ACTION_CANCEL -> {
+                        longPressJob?.cancel()
+                        longPressJob = null
                         // A cancel means the gesture was taken away mid-drag — a notification arriving,
                         // the window being reparented. The button is left where it currently is and the
                         // position is committed, because leaving it un-persisted would move it back on

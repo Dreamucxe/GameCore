@@ -398,8 +398,9 @@ draws over your game, so the two never disagree.
   **Overlays**, **Capture** and **Session** tabs: brightness and media-volume sliders, saturation,
   contrast and hue, screenshot, screen recording, Do Not Disturb, orientation lock, flashlight,
   colour presets, display shape, refresh rate, a shortcut back into the game, and a
-  hold-to-confirm End session. Switching the panel's layout to split-across-both-edges keeps the
-  earlier design, with the game visible between the two halves.
+  hold-to-confirm End session. The panel has four shapes — **Turbo wings**, **Centered**,
+  **Split edges** and **Turbo deck** — and the shape is chosen in Settings or in-game: long-press
+  the floating button, or tap **Layout** in the quick sheet, to pick one without leaving the game.
 - A configurable performance pill, as a compact single line or a detailed card: pick which stats
   it shows and set its position, size, opacity, corner radius, text size and update interval. It
   samples only while something is looking at it — and not at all once the screen is off.

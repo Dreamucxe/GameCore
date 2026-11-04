@@ -121,11 +121,12 @@ import kotlin.math.roundToInt
  * plate and left the window behind would show a panel clipped by its own window for as long as the drag
  * lasted.
  *
- * This is the centered layout, one of three. [OverlaySplitPanel] and [TurboWingsPanel] are the other two,
- * and they reuse the content composables below rather than reimplementing them — which is why several of
- * them are `internal` and not `private`. What they do not reuse is anything on this function: the plate,
- * the height cap, the grip and the `ACTION_OUTSIDE` handling are all specific to a window that has an
- * outside and a width. The two edge layouts are full-screen and derive their own widths.
+ * This is the centered layout, one of four. [OverlaySplitPanel], [TurboWingsPanel] and [TurboDeckPanel]
+ * are the other three, and they reuse the content composables below rather than reimplementing them —
+ * which is why several of them are `internal` and not `private`. What they do not reuse is anything on
+ * this function: the plate, the height cap, the grip and the `ACTION_OUTSIDE` handling are all specific
+ * to a window that has an outside and a width. The three edge layouts are full-screen and derive their
+ * own widths.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -1945,11 +1946,12 @@ internal fun OverlayAction.icon(): ImageVector = when (this) {
 /**
  * How many action tiles fit across a panel [widthDp] wide.
  *
- * Shared arithmetic, and it has to be shared by all three of the places that care: the panel lays its
- * grid out with this, the settings screen's preview draws that many placeholder tiles with it, and a test
- * holds it to exactly two at [com.gamecore.core.model.FloatingButtonConfig.MIN_PANEL_WIDTH_DP], which is
- * where that floor came from. A second copy of the sum on the settings screen would be a preview that
- * promises a row the panel does not draw.
+ * Shared arithmetic, and it has to be shared by every surface that lays out a grid this way: the centered
+ * panel, turbo wings and turbo deck all size their rows with it, the settings screen's preview draws that
+ * many placeholder tiles with it, and a test holds it to exactly two at
+ * [com.gamecore.core.model.FloatingButtonConfig.MIN_PANEL_WIDTH_DP], which is where that floor came from.
+ * A second copy of the sum on the settings screen would be a preview that promises a row the panel does
+ * not draw.
  *
  * `n` tiles carry `n - 1` gaps between them, so the answer is the largest `n` satisfying
  * `n × MIN_ACTION_WIDTH_DP + (n − 1) × ACTION_GAP_DP ≤ available`, which is the division below. The

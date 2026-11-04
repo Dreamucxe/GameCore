@@ -137,8 +137,9 @@ enum class OverlayAction(val label: String) {
     REFRESH_RATE("Refresh"),
 
     /**
-     * The shape of this panel: one plate near the button, two rectangles on the screen's edges, or the
-     * angled turbo wings. [com.gamecore.core.model.PanelLayoutStyle], reachable from inside the panel.
+     * The shape of this panel: one plate near the button, two rectangles on the screen's edges, the
+     * angled turbo wings, or the left-anchored turbo deck. [com.gamecore.core.model.PanelLayoutStyle],
+     * reachable from inside the panel.
      *
      * A toggle rather than a row of chips, unlike the two tiles above, and the difference is the reason
      * this tile exists at all. A shape and a rate are one of several values the *device* reports, so their
@@ -147,9 +148,9 @@ enum class OverlayAction(val label: String) {
      * change — and the point of putting this in the grid is that changing it otherwise costs leaving the
      * game, opening GameCore and finding the setting.
      *
-     * The cycle is [com.gamecore.core.model.PanelLayoutStyle.next], so repeated taps reach all three. The
+     * The cycle is [com.gamecore.core.model.PanelLayoutStyle.next], so repeated taps reach all four. The
      * plate reads as it does everywhere else in this grid — *this is not the centered panel* — so lit means
-     * either edge layout, and the panel rearranges itself under the finger that made the change.
+     * one of the edge layouts, and the panel rearranges itself under the finger that made the change.
      *
      * The one action here that changes the window it was tapped in. That is handled where every layout
      * change is handled — the stored preference is written, and the service's own observer rebuilds the
