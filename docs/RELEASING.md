@@ -33,9 +33,9 @@ so it only ever goes up.
 
 ### Current baseline
 
-This tree is **GameCore 4.9**, `versionCode` **58**, signed with the real
+This tree is **GameCore 5.0**, `versionCode` **59**, signed with the real
 GameCore certificate. The next release starts here and bumps to `versionCode`
-**59**; nothing is built against the older 3.x line any more. The working copy
+**60**; nothing is built against the older 3.x line any more. The working copy
 lives at `/root/GameCore-4.0`.
 
 The tree also ships **GameCore Plugin Maker 1.1.0**, a separate app

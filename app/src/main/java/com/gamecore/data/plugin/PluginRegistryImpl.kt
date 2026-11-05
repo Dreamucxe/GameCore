@@ -16,6 +16,8 @@ import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.LoadedPlugin
 import com.gamecore.core.plugin.PluginAutomationHistoryStore
 import com.gamecore.core.plugin.PluginGrant
+import com.gamecore.core.plugin.PluginGroup
+import com.gamecore.core.plugin.PluginGrouping
 import com.gamecore.core.plugin.PluginInstallPlan
 import com.gamecore.core.plugin.PluginManifest
 import com.gamecore.core.plugin.PluginManifestCodec
@@ -63,6 +65,7 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.security.MessageDigest
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -111,6 +114,17 @@ class PluginRegistryImpl @Inject constructor(
 
     private val installedState = MutableStateFlow<List<InstalledPlugin>>(emptyList())
     override val installed: StateFlow<List<InstalledPlugin>> = installedState.asStateFlow()
+
+    /**
+     * The user's own groups. Automatic permission and section groups are not stored here — they are
+     * derived from [installedState] by [PluginGrouping.automatic] — so this flow never contains a
+     * membership that a removed plugin could leave behind.
+     */
+    private val groupsState = MutableStateFlow<List<PluginGroup>>(emptyList())
+    override val groups: StateFlow<List<PluginGroup>> = groupsState.asStateFlow()
+
+    /** The custom groups have been read once. Mirrors [loadedState] for the group document only. */
+    private var groupsLoaded = false
 
     private val activeThemeState = MutableStateFlow<ActiveTheme?>(null)
     override val activeTheme: StateFlow<ActiveTheme?> = activeThemeState.asStateFlow()
@@ -250,6 +264,10 @@ class PluginRegistryImpl @Inject constructor(
             if (!scanned.containsKey(id)) scanned[id] = record
         }
         records = scanned
+        if (!groupsLoaded) {
+            groupsState.value = PluginGroupCodec.decode(store.pluginGroupsJson())
+            groupsLoaded = true
+        }
         publish()
         loadedState.value = true
     }
@@ -682,6 +700,7 @@ class PluginRegistryImpl @Inject constructor(
             previousVersions.clear(pluginId)
             if (store.selectedThemePluginId() == pluginId) store.setSelectedThemePluginId(null)
             if (store.selectedIconPluginId() == pluginId) store.setSelectedIconPluginId(null)
+            forgetPluginFromGroups(pluginId)
 
             reload()
             true
@@ -737,6 +756,113 @@ class PluginRegistryImpl @Inject constructor(
                 }
             }
         }
+    }
+
+    // --------------------------------------------------------------------------------------- groups
+
+    override suspend fun createGroup(name: String, pluginIds: Set<String>): PluginGroup? =
+        withContext(io) {
+            lock.withLock {
+                val clean = PluginGrouping.normaliseName(name) ?: return@withLock null
+                val current = groupsState.value
+                if (current.size >= PluginGrouping.MAX_CUSTOM_GROUPS) return@withLock null
+                if (current.any { it.name.equals(clean, ignoreCase = true) }) return@withLock null
+                val group = PluginGroup(
+                    id = PluginGrouping.CUSTOM_PREFIX + UUID.randomUUID().toString(),
+                    name = clean,
+                    pluginIds = pluginIds
+                        .asSequence()
+                        .filter { it in records }
+                        .take(PluginGrouping.MAX_MEMBERS)
+                        .toSet(),
+                    automatic = false,
+                )
+                groupsState.value = current + group
+                persistGroups()
+                group
+            }
+        }
+
+    override suspend fun renameGroup(groupId: String, name: String): Boolean = withContext(io) {
+        lock.withLock {
+            val clean = PluginGrouping.normaliseName(name) ?: return@withLock false
+            val current = groupsState.value
+            val index = current.indexOfFirst { it.id == groupId && !it.automatic }
+            if (index < 0) return@withLock false
+            if (current.any { it.id != groupId && it.name.equals(clean, ignoreCase = true) }) {
+                return@withLock false
+            }
+            groupsState.value = current.toMutableList().also {
+                it[index] = it[index].copy(name = clean)
+            }
+            persistGroups()
+            true
+        }
+    }
+
+    override suspend fun deleteGroup(groupId: String): Boolean = withContext(io) {
+        lock.withLock {
+            val current = groupsState.value
+            if (current.none { it.id == groupId && !it.automatic }) return@withLock false
+            groupsState.value = current.filterNot { it.id == groupId }
+            persistGroups()
+            true
+        }
+    }
+
+    override suspend fun setGroupMember(
+        groupId: String,
+        pluginId: String,
+        member: Boolean,
+    ): Boolean = withContext(io) {
+        lock.withLock {
+            if (pluginId !in records) return@withLock false
+            val current = groupsState.value
+            val index = current.indexOfFirst { it.id == groupId && !it.automatic }
+            if (index < 0) return@withLock false
+            val group = current[index]
+            val updated = if (member) {
+                if (group.pluginIds.size >= PluginGrouping.MAX_MEMBERS) return@withLock false
+                group.pluginIds + pluginId
+            } else {
+                group.pluginIds - pluginId
+            }
+            if (updated == group.pluginIds) return@withLock true
+            groupsState.value = current.toMutableList().also {
+                it[index] = group.copy(pluginIds = updated)
+            }
+            persistGroups()
+            true
+        }
+    }
+
+    /**
+     * Writes the custom groups back in one edit.
+     *
+     * Kept private and called under [lock] by every mutator, so two quick taps cannot encode two
+     * different snapshots and leave the later write carrying the earlier membership. The encoded
+     * document is the only group value the store ever sees.
+     */
+    private fun persistGroups() {
+        store.setPluginGroupsJson(
+            if (groupsState.value.isEmpty()) null else PluginGroupCodec.encode(groupsState.value),
+        )
+    }
+
+    /**
+     * Drops [pluginId] from every custom group, persisting only when something changed.
+     *
+     * An uninstall clears the plugin's grant, namespace and flags; its group rows are the same kind
+     * of leftover. Keeping the id would make a reinstalled plugin silently inherit a membership the
+     * user did not renew, and would draw a count the installed list cannot match.
+     */
+    private fun forgetPluginFromGroups(pluginId: String) {
+        val current = groupsState.value
+        if (current.none { pluginId in it.pluginIds }) return
+        groupsState.value = current.map { group ->
+            if (pluginId !in group.pluginIds) group else group.copy(pluginIds = group.pluginIds - pluginId)
+        }
+        persistGroups()
     }
 
     override suspend fun setScheduledTheme(override: ScheduledTheme?) {

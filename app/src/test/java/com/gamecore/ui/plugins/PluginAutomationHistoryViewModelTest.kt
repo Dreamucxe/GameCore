@@ -12,6 +12,7 @@ import com.gamecore.core.plugin.DataScope
 import com.gamecore.core.plugin.InstallOutcome
 import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.PluginGrant
+import com.gamecore.core.plugin.PluginGroup
 import com.gamecore.core.plugin.PluginOrigin
 import com.gamecore.core.plugin.PluginRegistry
 import com.gamecore.core.plugin.PluginSections
@@ -148,6 +149,7 @@ class PluginAutomationHistoryViewModelTest {
 
         override val installed = MutableStateFlow<List<InstalledPlugin>>(emptyList())
         override val activeTheme = MutableStateFlow<ActiveTheme?>(null)
+        override val groups = MutableStateFlow<List<PluginGroup>>(emptyList())
         override val activeIcon = MutableStateFlow<ActiveIcon?>(null)
         override val iconOffers = MutableStateFlow<List<ActiveIcon>>(emptyList())
         override val activeOverlayModules = MutableStateFlow<List<ActiveOverlayModule>>(emptyList())

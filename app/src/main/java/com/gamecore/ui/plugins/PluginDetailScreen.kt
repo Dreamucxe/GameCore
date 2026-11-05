@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
@@ -45,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.core.common.TextSanitizer
 import com.gamecore.core.plugin.DataScope
 import com.gamecore.core.plugin.InstalledPlugin
+import com.gamecore.core.plugin.PluginGroup
 import com.gamecore.core.plugin.PluginInstallPlan
 import com.gamecore.core.plugin.PluginManifest
 import com.gamecore.core.plugin.PluginPermission
@@ -274,12 +276,22 @@ fun PluginDetailScreen(
                     ThemeCard(
                         theme = state.themePreview,
                         isThemeSource = state.isThemeSource,
+                        killSwitchOn = state.killSwitchOn,
                         onUseThisTheme = viewModel::useThisTheme,
                         onUseDefaultTheme = viewModel::useDefaultTheme,
                         modifier = padded,
                     )
                 }
             }
+        }
+
+        item {
+            PluginGroupsCard(
+                groups = state.groups,
+                pluginId = plugin.id,
+                onSetMembership = viewModel::setGroupMembership,
+                modifier = padded,
+            )
         }
 
         if (state.ruleCount > 0) {
@@ -827,6 +839,7 @@ private fun RefusedCapabilitiesCard(modifier: Modifier = Modifier) {
 private fun ThemeCard(
     theme: PluginTheme?,
     isThemeSource: Boolean,
+    killSwitchOn: Boolean,
     onUseThisTheme: () -> Unit,
     onUseDefaultTheme: () -> Unit,
     modifier: Modifier = Modifier,
@@ -867,6 +880,20 @@ private fun ThemeCard(
             }
         }
         Spacer(modifier = Modifier.height(10.dp))
+        SwitchRow(
+            title = "Use this theme",
+            checked = isThemeSource,
+            onCheckedChange = { on ->
+                if (on) onUseThisTheme() else onUseDefaultTheme()
+            },
+            enabled = !killSwitchOn,
+            description = when {
+                killSwitchOn -> "Turn all plugins off is on, so no plugin can supply a theme."
+                isThemeSource -> "In use now. Turning this off puts GameCore's own theme back."
+                else -> "Turning this on switches off the theme currently in use — only one can be active."
+            },
+        )
+        Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = "Consent and removal controls — the permission switches, Save/Revoke, theme reset " +
                 "and Remove — keep GameCore's own styling whatever a theme says.",
@@ -875,10 +902,85 @@ private fun ThemeCard(
         )
         Spacer(modifier = Modifier.height(10.dp))
         ActionRow {
-            if (!isThemeSource) {
-                Button(onClick = onUseThisTheme) { Text("Use this theme") }
-            }
             OutlinedButton(onClick = onUseDefaultTheme) { Text("Use GameCore's theme") }
+        }
+    }
+}
+
+/**
+ * The groups this plugin belongs to, and the custom ones it can join.
+ *
+ * Automatic groups are read-only because they are a statement about the package: it declares a
+ * theme, it requests `change_ui`, so it is a Theme plugin. Editing one would immediately be undone
+ * by the next registry read. Custom groups are the many-to-many part of the feature: every switch
+ * here is independent, so a plugin can sit in "Daily drivers", "Night mode" and "Testing" at once.
+ */
+@Composable
+private fun PluginGroupsCard(
+    groups: List<PluginGroup>,
+    pluginId: String,
+    onSetMembership: (String, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val automatic = groups.filter { it.automatic && it.contains(pluginId) }
+    val custom = groups.filterNot { it.automatic }
+    SectionCard(
+        title = "Groups",
+        subtitle = "A plugin can belong to more than one",
+        icon = Icons.Filled.Folder,
+        modifier = modifier,
+    ) {
+        if (automatic.isNotEmpty()) {
+            Text(
+                text = "From what this plugin declares",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            automatic.chunked(2).forEach { line ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    line.forEach { group ->
+                        Box(modifier = Modifier.weight(1f)) {
+                            StatusChip(text = group.name, tone = Tone.Accent)
+                        }
+                    }
+                    repeat(2 - line.size) { Spacer(modifier = Modifier.weight(1f)) }
+                }
+            }
+        }
+
+        if (custom.isEmpty()) {
+            Text(
+                text = "No custom groups yet. Create one in the plugin manager, then add this " +
+                    "plugin to it here.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@SectionCard
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Your groups",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        custom.forEachIndexed { index, group ->
+            if (index > 0) RowDivider()
+            SwitchRow(
+                title = group.name,
+                checked = group.contains(pluginId),
+                onCheckedChange = { on -> onSetMembership(group.id, on) },
+                description = if (group.contains(pluginId)) {
+                    "In this group. Turning it off leaves the plugin installed and every other " +
+                        "group untouched."
+                } else {
+                    "Not in this group."
+                },
+            )
         }
     }
 }

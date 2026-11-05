@@ -192,6 +192,18 @@ class SecurePluginGrantStore @Inject constructor(
         }
     }
 
+    // ------------------------------------------------------------------------------------ groups
+
+    /** The raw custom-group document, or null before the user has created one. */
+    fun pluginGroupsJson(): String? = readString(KEY_PLUGIN_GROUPS)
+
+    /** [setSelectedThemePluginId]'s shape: one document, cleared when there is nothing to keep. */
+    fun setPluginGroupsJson(raw: String?) {
+        edit {
+            if (raw == null) remove(KEY_PLUGIN_GROUPS) else putString(KEY_PLUGIN_GROUPS, raw)
+        }
+    }
+
     // ------------------------------------------------------------------------------------- icon
 
     /**
@@ -339,6 +351,7 @@ class SecurePluginGrantStore @Inject constructor(
 
         const val KEY_KILL_SWITCH = "kill_switch"
         const val KEY_SELECTED_THEME = "selected_theme"
+        const val KEY_PLUGIN_GROUPS = "plugin_groups"
         const val KEY_SELECTED_ICON_SLOT = "selected_icon_slot"
         const val KEY_SELECTED_ICON_PLUGIN = "selected_icon_plugin"
     }

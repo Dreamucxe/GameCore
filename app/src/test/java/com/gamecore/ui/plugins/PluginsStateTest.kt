@@ -5,6 +5,7 @@ import com.gamecore.core.plugin.InstallOutcome
 import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.PluginApi
 import com.gamecore.core.plugin.PluginGrant
+import com.gamecore.core.plugin.PluginGroup
 import com.gamecore.core.plugin.PluginManifest
 import com.gamecore.core.plugin.PluginOrigin
 import com.gamecore.core.plugin.PluginPackageLoader
@@ -64,6 +65,7 @@ class PluginsStateTest {
         suspended: Boolean = false,
         suspensionDetail: String? = null,
         installedAtMillis: Long = 0L,
+        grant: PluginGrant = PluginGrant.none(manifest.id),
     ): InstalledPlugin = InstalledPlugin(
         manifest = manifest,
         sha256 = "0".repeat(64),
@@ -71,7 +73,7 @@ class PluginsStateTest {
         enabled = enabled,
         suspended = suspended,
         suspensionDetail = suspensionDetail,
-        grant = PluginGrant.none(manifest.id),
+        grant = grant,
         installedAtMillis = installedAtMillis,
     )
 
@@ -174,6 +176,75 @@ class PluginsStateTest {
     @Test
     fun `no active theme flags nothing`() {
         assertFalse(rowFor(installed(), null).isThemeSource)
+    }
+
+    @Test
+    fun `a theme row is activatable only when it declares a theme, is running and holds change_ui`() {
+        val themeManifest = manifest(declares = setOf(PluginSection.THEME))
+        val grant = PluginGrant(
+            pluginId = themeManifest.id,
+            granted = mapOf(PluginPermission.CHANGE_UI to emptySet()),
+        )
+
+        assertTrue(rowFor(installed(themeManifest, enabled = true, grant = grant), null).canActivateTheme)
+
+        // Each refusal has a reason the switch can show, and none of them is offered as a live tap.
+        assertFalse(
+            rowFor(installed(themeManifest, enabled = false, grant = grant), null).canActivateTheme,
+        )
+        assertFalse(rowFor(installed(themeManifest, enabled = true), null).canActivateTheme)
+        assertFalse(
+            rowFor(
+                installed(themeManifest, enabled = true, suspended = true, grant = grant),
+                null,
+            ).canActivateTheme,
+        )
+
+        val notATheme = manifest(id = "com.example.pill", declares = setOf(PluginSection.PILL))
+        val notAThemeGrant = PluginGrant(
+            pluginId = notATheme.id,
+            granted = mapOf(PluginPermission.CHANGE_UI to emptySet()),
+        )
+        assertFalse(
+            rowFor(installed(notATheme, enabled = true, grant = notAThemeGrant), null).canActivateTheme,
+        )
+    }
+
+    @Test
+    fun `activating one theme turns the previous row's switch off`() {
+        // The screen has one radio-style control per theme row, and every switch reads the registry's
+        // single selected id. Switching from the first to the second must leave exactly one flagged,
+        // rather than both reading "on" because each row remembered its own last tap.
+        val first = installed(
+            manifest(id = "com.example.first", declares = setOf(PluginSection.THEME)),
+        )
+        val second = installed(
+            manifest(id = "com.example.second", declares = setOf(PluginSection.THEME)),
+        )
+        val rows = rowsOf(first, second)
+
+        val firstActive = listOf(first, second).map { rowFor(it, "com.example.first") }
+        assertEquals(listOf(true, false), firstActive.map { it.isThemeSource })
+
+        val secondActive = listOf(first, second).map { rowFor(it, "com.example.second") }
+        assertEquals(listOf(false, true), secondActive.map { it.isThemeSource })
+        assertEquals(1, secondActive.count { it.isThemeSource })
+        // The rows themselves keep the same identity; only the registry's selection decides the flag.
+        assertEquals(rows.map { it.id }, secondActive.map { it.id })
+    }
+
+    @Test
+    fun `only theme-declaring rows appear in the theme card`() {
+        val rows = rowsOf(
+            installed(manifest(id = "com.example.theme", declares = setOf(PluginSection.THEME))),
+            installed(manifest(id = "com.example.widget", declares = setOf(PluginSection.WIDGETS))),
+            installed(manifest(id = "com.example.plain")),
+        )
+
+        assertEquals(
+            listOf("com.example.theme"),
+            PluginsUiState(rows = rows).themeRows.map { it.id },
+        )
     }
 
     @Test
@@ -361,6 +432,74 @@ class PluginsStateTest {
         assertTrue(noMatch.hasSearchQuery)
         assertTrue(noMatch.filteredRows.isEmpty())
         assertEquals(rows, noMatch.copy(searchQuery = "").filteredRows)
+    }
+
+    @Test
+    fun `a group narrows the list and composes with the search`() {
+        val rows = searchableRows()
+        val groups = listOf(
+            PluginGroup(
+                id = "custom.daily",
+                name = "Daily",
+                pluginIds = setOf("com.example.thermal", "com.example.night"),
+            ),
+            PluginGroup(
+                id = "auto.section.theme",
+                name = "Themes",
+                pluginIds = setOf("com.example.pixel"),
+                automatic = true,
+            ),
+        )
+
+        assertEquals(
+            listOf("com.example.thermal", "com.example.night"),
+            filterRows(rows, "", "custom.daily", groups).map { it.id },
+        )
+        // The group is applied first, so a search word cannot reach a plugin outside it. "sunset"
+        // matches Night Shift only, while "blocky" matches Pixel Interface, which is not in the group.
+        assertEquals(
+            listOf("com.example.night"),
+            filterRows(rows, "sunset", "custom.daily", groups).map { it.id },
+        )
+        assertTrue(filterRows(rows, "blocky", "custom.daily", groups).isEmpty())
+        assertEquals(rows, filterRows(rows, "", null, groups))
+    }
+
+    @Test
+    fun `the selected group is reported as a real filter, not as a search miss`() {
+        val rows = searchableRows()
+        val group = PluginGroup("custom.daily", "Daily", setOf("com.example.thermal"))
+        val state = PluginsUiState(
+            isLoaded = true,
+            rows = rows,
+            groups = listOf(group),
+            groupFilterId = group.id,
+        )
+
+        assertEquals(group, state.selectedGroup)
+        assertTrue(state.hasGroupFilter)
+        assertTrue(state.hasPlugins)
+        assertEquals(listOf("com.example.thermal"), state.filteredRows.map { it.id })
+
+        // A search miss is a different empty state, and the screen offers a different way out.
+        val miss = state.copy(searchQuery = "nothing-like-this")
+        assertTrue(miss.filteredRows.isEmpty())
+        assertTrue(miss.hasGroupFilter)
+    }
+
+    @Test
+    fun `an unknown group id does not silently behave like no filter`() {
+        // A stale id can survive a rotation while the group it named is deleted elsewhere. Empty is
+        // the honest answer: showing every plugin would look like the filter was never applied.
+        val state = PluginsUiState(
+            isLoaded = true,
+            rows = searchableRows(),
+            groups = emptyList(),
+            groupFilterId = "custom.gone",
+        )
+        assertTrue(state.filteredRows.isEmpty())
+        assertNull(state.selectedGroup)
+        assertFalse(state.hasGroupFilter)
     }
 
     @Test

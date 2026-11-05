@@ -1,6 +1,6 @@
-# GameCore 4.9 feature map and user guide
+# GameCore 5.0 feature map and user guide
 
-This is the user-facing map of GameCore 4.9. It explains what each part of the app does, how the parts connect, what access each feature needs, and what GameCore deliberately cannot do.
+This is the user-facing map of GameCore 5.0. It explains what each part of the app does, how the parts connect, what access each feature needs, and what GameCore deliberately cannot do.
 
 > **The rule used throughout the app:** if GameCore cannot measure or confirm something, it says **Unavailable**, **Requires Shizuku**, **Not supported**, or gives the failure reason. It does not replace a missing reading with zero, estimate a value, or call an accepted request a successful change without reading it back.
 
@@ -386,12 +386,14 @@ A `.gcplugin` is a bounded data archive interpreted by GameCore. It is not an AP
 ### Manager safety controls
 
 - **Turn all plugins off** denies every plugin action while preserving individual choices.
+- **Theme** is a single-choice card: turning a plugin's theme on turns the previous theme off, while that plugin stays installed and running. A plugin's ordinary enable switch is separate — it controls whether the plugin runs at all, not whether it supplies the app's look.
 - **Use GameCore’s own theme** always restores the built-in appearance.
+- **Groups** filter the installed list. Theme, dashboard, Pill, automation, screen and icon groups come from what each package declares; permission groups come from what it requests; custom groups are yours. A plugin may belong to any number at once, and its detail page lists every group it is in.
 - Search covers name, id, developer, description, and version.
 - Sort by name, install/update date, or version.
 - Suspended plugins can be retried; quarantined plugins remain listed but do not load.
 - Rollback restores a retained previous package disabled with permissions cleared.
-- Removing a sideloaded plugin also removes its grants, settings, and namespace data. Bundled plugins can be disabled but not deleted from the APK.
+- Removing a sideloaded plugin also removes its grants, settings, and namespace data, and drops it from every custom group. Bundled plugins can be disabled but not deleted from the APK.
 
 ### Detail and consent
 

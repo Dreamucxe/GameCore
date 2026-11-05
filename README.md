@@ -126,6 +126,10 @@ adb install -r GameCore.apk
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
 
+## What's new in 5.0
+
+<p><strong>Themes are now a single-choice switch, and plugins can share groups.</strong> Activating a theme turns the previous one off in the same step while leaving that plugin installed and running. Theme, dashboard, Pill, automation, screen and icon groups are derived from each package's declarations, permission groups from its requests, and you can create custom groups that a plugin can join alongside any of them.</p>
+
 ## What's new in 4.9
 
 <p><strong>The CPU package frame is now slimmer.</strong> The outer body has been brought in at the sides and uses a single thin outline instead of a doubled rim, so the die and its core blocks take up more of the tile. The header rule and die outline are thinner too; the pins, traces, core clocks and performance/efficiency layout are unchanged.</p>
@@ -430,7 +434,7 @@ The full set lives in [`dist/`](dist/). Bundled copies are in [`app/src/main/ass
 ## Features
 
 For a screen-by-screen walkthrough, setup paths, permission map and troubleshooting guide, read the
-**[GameCore 4.9 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
+**[GameCore 5.0 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
 separate **[Plugin Studio feature map and tutorial](docs/PLUGIN_STUDIO_FEATURE_GUIDE.md)**.
 
 ### Feature map

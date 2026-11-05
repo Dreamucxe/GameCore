@@ -35,6 +35,30 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 59,
+            versionName = "5.0",
+            date = "2026-11-05",
+            features = listOf(
+                FeatureNote(
+                    "One theme at a time",
+                    "The plugin manager now gives theme selection its own single-choice switch " +
+                        "instead of borrowing each plugin's enable switch. Turning a theme on turns " +
+                        "the previous one off in the same step, and the plugin itself stays installed " +
+                        "and running — it simply stops supplying GameCore's colours. A plugin that is " +
+                        "off, stopped or missing \"Change the look\" stays visible with the reason it " +
+                        "cannot be selected yet.",
+                ),
+                FeatureNote(
+                    "Groups a plugin can share",
+                    "Plugins can now be filtered by groups, and one plugin can belong to as many as " +
+                        "it honestly matches. Theme, dashboard, Pill, automation, screen and icon " +
+                        "groups are derived from what each package declares, and permission groups " +
+                        "from what it requests. Create your own groups in the manager, then add any " +
+                        "number of plugins to them from each plugin's detail page.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 58,
             versionName = "4.9",
             date = "2026-11-05",

@@ -2,6 +2,7 @@ package com.gamecore.ui.plugins
 
 import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.PluginGrant
+import com.gamecore.core.plugin.PluginGroup
 import com.gamecore.core.plugin.PluginInstallPlan
 import com.gamecore.core.plugin.PluginPermission
 import com.gamecore.core.plugin.RiskTier
@@ -48,8 +49,17 @@ data class PluginDetailUiState(
     val enabled: Boolean = false,
     val suspended: Boolean = false,
     val suspensionDetail: String? = null,
+    /** The global kill switch, so the theme control can say why it cannot act instead of silently failing. */
+    val killSwitchOn: Boolean = false,
     /** True when this plugin is the one currently supplying the app's theme. */
     val isThemeSource: Boolean = false,
+    /**
+     * Every group the plugin could be in right now: automatic permission/section groups followed by
+     * the user's custom groups. A plugin is commonly in several, so this is a list rather than a
+     * single id. Custom membership is what the Groups card can change; automatic membership follows
+     * the manifest and is shown for information.
+     */
+    val groups: List<PluginGroup> = emptyList(),
     /**
      * True when this plugin holds the automation-history read scope in its *live* granted set — the
      * same gate [com.gamecore.core.plugin.PluginRegistry.automationHistory] applies at the call. The

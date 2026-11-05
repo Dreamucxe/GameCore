@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,8 +59,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.core.i18n.LocalStrings
 import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.PluginSectionFont
+import com.gamecore.core.plugin.PluginGroup
+import com.gamecore.core.plugin.PluginGrouping
 import com.gamecore.core.plugin.RiskTier
 import com.gamecore.ui.components.ActionRow
+import com.gamecore.ui.components.ChoiceChip
 import com.gamecore.ui.components.ChoiceRow
 import com.gamecore.ui.components.ClickableCard
 import com.gamecore.ui.components.ConfirmDialog
@@ -177,6 +182,15 @@ private const val NO_MATCHES_MESSAGE =
     "Nothing installed matches every word in the search. Try a plugin name, its id, the developer, or " +
         "a word from its description."
 
+private const val NO_GROUP_MATCHES_TITLE = "No plugins in this group"
+
+private const val NO_GROUP_MATCHES_MESSAGE =
+    "This group has no installed plugins. Open a plugin and use its Groups card to add it, or choose " +
+        "another group above."
+
+/** Group chips are equal-width pairs so the filter row does not jump between groups. */
+private const val GROUP_CHIPS_PER_ROW = 2
+
 private const val APPEARANCE_DESCRIPTION =
     "These controls change the plugin manager, its consent screen and automation history. Colours and " +
         "shapes still follow the theme the rest of GameCore is wearing; the safety card keeps " +
@@ -212,6 +226,8 @@ fun PluginsScreen(
     val visibleRows = state.filteredRows
     var picked by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var creating by remember { mutableStateOf(false) }
+    var creatingGroup by remember { mutableStateOf(false) }
+    var deletingGroup by remember { mutableStateOf<PluginGroup?>(null) }
     var studioDraft by remember { mutableStateOf(PluginDraft()) }
 
     // The picker callback runs on the main thread, so it only records the URIs. A cancelled pick returns
@@ -260,6 +276,18 @@ fun PluginsScreen(
                     hasAnyActive = state.hasAnyActive,
                     onSetKillSwitch = viewModel::setKillSwitch,
                     onResetTheme = viewModel::resetToDefaultTheme,
+                    modifier = padded,
+                )
+            }
+        }
+
+        if (state.themeRows.isNotEmpty()) {
+            item {
+                ThemeSelectionCard(
+                    rows = state.themeRows,
+                    killSwitchOn = state.killSwitchOn,
+                    onActivate = viewModel::activateTheme,
+                    onDeactivate = viewModel::resetToDefaultTheme,
                     modifier = padded,
                 )
             }
@@ -325,6 +353,19 @@ fun PluginsScreen(
                     modifier = padded,
                 )
             }
+            if (state.groups.isNotEmpty()) {
+                item {
+                    GroupsCard(
+                        groups = state.groups,
+                        selectedGroupId = state.groupFilterId,
+                        selectedGroup = state.selectedGroup,
+                        onSelect = viewModel::setGroupFilter,
+                        onCreate = { creatingGroup = true },
+                        onDelete = { deletingGroup = it },
+                        modifier = padded,
+                    )
+                }
+            }
         }
 
         when {
@@ -350,16 +391,25 @@ fun PluginsScreen(
                 }
             }
 
-            // A search with no hits is not an empty install. Saying so, and offering the way back to
-            // the full list, keeps the screen from looking like the plugins disappeared.
+            // A search or group with no hits is not an empty install. Saying so, and offering the way
+            // back to the full list, keeps the screen from looking like the plugins disappeared.
             visibleRows.isEmpty() -> item {
                 PlainCard(modifier = padded) {
+                    val filteredByGroup = state.hasGroupFilter
                     EmptyState(
-                        icon = Icons.Filled.Search,
-                        title = NO_MATCHES_TITLE,
-                        message = NO_MATCHES_MESSAGE,
-                        actionLabel = "Clear search",
-                        onAction = viewModel::clearSearch,
+                        icon = if (filteredByGroup) Icons.Filled.Folder else Icons.Filled.Search,
+                        title = if (filteredByGroup) NO_GROUP_MATCHES_TITLE else NO_MATCHES_TITLE,
+                        message = if (filteredByGroup) {
+                            NO_GROUP_MATCHES_MESSAGE
+                        } else {
+                            NO_MATCHES_MESSAGE
+                        },
+                        actionLabel = if (filteredByGroup) "Show every plugin" else "Clear search",
+                        onAction = if (filteredByGroup) {
+                            viewModel::clearGroupFilter
+                        } else {
+                            viewModel::clearSearch
+                        },
                     )
                 }
             }
@@ -501,6 +551,35 @@ fun PluginsScreen(
             }
         }
     }
+
+    val deleting = deletingGroup
+    if (deleting != null) {
+        safetyTheme {
+            ConfirmDialog(
+                title = "Delete \"${deleting.name}\"?",
+                message = "The group goes away. The plugins in it are not changed, and any other " +
+                    "group they belong to stays as it is.",
+                confirmLabel = "Delete group",
+                onConfirm = {
+                    viewModel.deleteGroup(deleting)
+                    deletingGroup = null
+                },
+                onDismiss = { deletingGroup = null },
+            )
+        }
+    }
+
+    if (creatingGroup) {
+        safetyTheme {
+            CreateGroupDialog(
+                onConfirm = { name ->
+                    viewModel.createGroup(name)
+                    creatingGroup = false
+                },
+                onDismiss = { creatingGroup = false },
+            )
+        }
+    }
 }
 
 /**
@@ -573,6 +652,162 @@ private fun SafetyCard(
             Button(onClick = onResetTheme) { Text("Use GameCore's own theme") }
         }
     }
+}
+
+/**
+ * The one theme in force, shown as the single-choice control it actually is.
+ *
+ * The list rows' switches are the *enable* switch, not the theme selection: a plugin can be running
+ * for its widgets or automations without supplying the app's colours. That distinction was invisible
+ * here, so switching to another theme left the previous row's enable switch on and looked like the
+ * old theme was still active. This card gives theme selection its own radio-style switches, and
+ * because every switch reads [PluginRow.isThemeSource], activating one row turns the previous one off
+ * on the same registry emission.
+ *
+ * A row that cannot be selected right now is disabled with the reason in its description rather than
+ * offering a tap the registry would refuse (§32). The reason says which thing to fix — turn it on,
+ * grant "Change the look", or release/unsuspend it — and the row itself still opens the detail screen.
+ */
+@Composable
+private fun ThemeSelectionCard(
+    rows: List<PluginRow>,
+    killSwitchOn: Boolean,
+    onActivate: (PluginRow) -> Unit,
+    onDeactivate: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Theme",
+        subtitle = "One plugin supplies GameCore's look at a time",
+        icon = Icons.Filled.Palette,
+        modifier = modifier,
+    ) {
+        rows.forEachIndexed { index, row ->
+            if (index > 0) RowDivider()
+            SwitchRow(
+                title = row.name,
+                checked = row.isThemeSource,
+                onCheckedChange = { on -> if (on) onActivate(row) else onDeactivate() },
+                enabled = !killSwitchOn && (row.canActivateTheme || row.isThemeSource),
+                description = when {
+                    killSwitchOn -> "Turn all plugins off is on, so no plugin can supply a theme."
+                    row.isThemeSource -> "In use now. Turning this off restores GameCore's own theme."
+                    row.canActivateTheme -> "Turning this on switches off the theme in use."
+                    !row.compatibility.isRunnable -> row.compatibility.reason
+                    row.quarantined -> "Quarantined. Release it before it can supply a theme."
+                    row.suspended -> "Stopped for this run. Let it try again before using its theme."
+                    !row.enabled -> "Turn this plugin on first, then use its theme."
+                    else -> "Grant it \"Change the look\" first, then use its theme."
+                },
+            )
+        }
+    }
+}
+
+/**
+ * The group lens over the installed list.
+ *
+ * Two kinds of chip share one row because they answer the same question — "show me this set" — even
+ * though they are made differently. Automatic groups come from the manifests (a declared theme, a
+ * requested permission) and cannot be edited; custom groups are the user's own. A plugin may appear
+ * in several chips at once, which is what makes the grouping many-to-many rather than a folder.
+ */
+@Composable
+private fun GroupsCard(
+    groups: List<PluginGroup>,
+    selectedGroupId: String?,
+    selectedGroup: PluginGroup?,
+    onSelect: (String?) -> Unit,
+    onCreate: () -> Unit,
+    onDelete: (PluginGroup) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Groups",
+        subtitle = "A plugin can be in more than one group",
+        icon = Icons.Filled.Folder,
+        modifier = modifier,
+        action = { TextButton(onClick = onCreate) { Text("New group") } },
+    ) {
+        val options: List<PluginGroup?> = listOf(null) + groups
+        options.chunked(GROUP_CHIPS_PER_ROW).forEach { line ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                line.forEach { group ->
+                    ChoiceChip(
+                        text = if (group == null) {
+                            "All plugins"
+                        } else {
+                            "${group.name} (${group.pluginIds.size})"
+                        },
+                        isSelected = if (group == null) {
+                            selectedGroupId == null
+                        } else {
+                            group.id == selectedGroupId
+                        },
+                        onClick = { onSelect(group?.id) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                repeat(GROUP_CHIPS_PER_ROW - line.size) { Spacer(modifier = Modifier.weight(1f)) }
+            }
+        }
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Text(
+            text = "Groups made from a plugin's own declared sections and permissions update with " +
+                "the plugin. Your groups are kept until you delete them.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (selectedGroup != null && !selectedGroup.automatic) {
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            ActionRow {
+                TextButton(onClick = { onDelete(selectedGroup) }) { Text("Delete this group") }
+            }
+        }
+    }
+}
+
+/** Names a custom group. The name is the only thing stored; membership is chosen on each plugin. */
+@Composable
+private fun CreateGroupDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    val clean = name.trim()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "New group", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Give the group a name. You can add any number of plugins to it from " +
+                        "their own screens, and a plugin can stay in several groups at once.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it.take(PluginGrouping.MAX_NAME_LENGTH) },
+                    label = { Text("Group name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(clean) },
+                enabled = clean.isNotEmpty(),
+            ) { Text("Create group") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.large,
+    )
 }
 
 /**

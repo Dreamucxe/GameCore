@@ -5,6 +5,7 @@ import com.gamecore.core.model.PluginSectionFont
 import com.gamecore.core.plugin.Compatibility
 import com.gamecore.core.plugin.InstallOutcome
 import com.gamecore.core.plugin.InstalledPlugin
+import com.gamecore.core.plugin.PluginGroup
 import com.gamecore.core.plugin.PluginOrigin
 import com.gamecore.core.plugin.PluginPackageLoader
 import com.gamecore.core.plugin.PluginPermission
@@ -89,6 +90,15 @@ data class PluginRow(
     val declares: Set<PluginSection> = emptySet(),
     val highestTier: RiskTier? = null,
     val isThemeSource: Boolean = false,
+    /**
+     * True when this row is a theme plugin that could be selected right now: it declares a theme,
+     * is enabled and runnable, and holds `change_ui` in its saved grant.
+     *
+     * The manager's theme switch is a single-choice control over this flag. A row that cannot be
+     * selected keeps the switch off with a reason beside it rather than offering a tap the registry
+     * would refuse — §32.
+     */
+    val canActivateTheme: Boolean = false,
     val canBeRemoved: Boolean = true,
     /** When these bytes reached the device; 0 when the platform could not say. See [InstalledPlugin]. */
     val installedAtMillis: Long = 0L,
@@ -168,6 +178,14 @@ data class PluginsUiState(
     val searchQuery: String = "",
     val killSwitchOn: Boolean = false,
     val activeThemeName: String? = null,
+    /**
+     * Every group the screen can filter by: automatic groups derived from the installed packages,
+     * then the user's custom groups. A plugin can appear in several, which is why this is a list of
+     * groups with membership sets rather than a single group per row.
+     */
+    val groups: List<PluginGroup> = emptyList(),
+    /** The group currently narrowing the list, or null for every plugin. */
+    val groupFilterId: String? = null,
     val message: String? = null,
     /** A validated package waiting for the user's yes. Null means nothing is pending. */
     val preview: PluginPreviewState? = null,
@@ -197,13 +215,27 @@ data class PluginsUiState(
     val hasSearchQuery: Boolean get() = searchQuery.isNotBlank()
 
     /**
-     * The rows the screen draws: sorted once by the ViewModel, then narrowed by [searchQuery].
+     * The rows the screen draws: sorted once by the ViewModel, then narrowed by [groupFilterId] and
+     * [searchQuery].
      *
      * Filtering happens after sorting so a search result keeps the order the user chose. [hasPlugins]
      * deliberately stays based on [rows], because "no plugins are installed" and "nothing matches this
      * search" are different states and the screen must be able to say which one it is showing.
      */
-    val filteredRows: List<PluginRow> get() = filterRows(rows, searchQuery)
+    val filteredRows: List<PluginRow>
+        get() = filterRows(rows, searchQuery, groupFilterId, groups)
+
+    /** The theme-capable rows, in list order, for the manager's single-choice theme card. */
+    val themeRows: List<PluginRow>
+        get() = rows.filter { PluginSection.THEME in it.declares }
+
+    /** The group the list is narrowed to, or null. */
+    val selectedGroup: PluginGroup?
+        get() = groups.firstOrNull { it.id == groupFilterId }
+
+    /** True when a group is narrowing the list, so an empty result is not "no plugins installed". */
+    val hasGroupFilter: Boolean
+        get() = selectedGroup != null
 
     /**
      * Whether any plugin is running *right now*.
@@ -256,6 +288,9 @@ internal fun rowFor(plugin: InstalledPlugin, activeThemeId: String?): PluginRow 
         // Null rather than LOW when nothing was requested — see [PluginRow.highestTier].
         highestTier = manifest.permissions.maxOfOrNull { it.permission.tier },
         isThemeSource = activeThemeId != null && activeThemeId == manifest.id,
+        canActivateTheme = PluginSection.THEME in manifest.declares &&
+            plugin.isActive &&
+            plugin.grant.has(PluginPermission.CHANGE_UI),
         canBeRemoved = plugin.canBeRemoved,
         versionCode = manifest.version,
         installedAtMillis = plugin.installedAtMillis,
@@ -305,14 +340,26 @@ internal fun sortedRows(rows: List<PluginRow>, sort: PluginSort): List<PluginRow
  * The version *code* is deliberately not searchable. It is an implementation number, and a search for
  * "44" should not return half the list because every package happened to share a build number.
  */
-internal fun filterRows(rows: List<PluginRow>, query: String): List<PluginRow> {
+internal fun filterRows(
+    rows: List<PluginRow>,
+    query: String,
+    groupFilterId: String? = null,
+    groups: List<PluginGroup> = emptyList(),
+): List<PluginRow> {
+    val narrowed = if (groupFilterId == null) {
+        rows
+    } else {
+        val group = groups.firstOrNull { it.id == groupFilterId } ?: return emptyList()
+        rows.filter { group.contains(it.id) }
+    }
+
     val terms = query.trim()
         .lowercase(Locale.ROOT)
         .split(' ', '\t', '\n')
         .filter { it.isNotBlank() }
-    if (terms.isEmpty()) return rows
+    if (terms.isEmpty()) return narrowed
 
-    return rows.filter { row ->
+    return narrowed.filter { row ->
         val haystack = buildString {
             append(row.name)
             append('\n')

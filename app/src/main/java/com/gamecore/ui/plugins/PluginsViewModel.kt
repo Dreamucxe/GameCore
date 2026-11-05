@@ -10,6 +10,8 @@ import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.PluginSectionFont
 import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.InstallOutcome
+import com.gamecore.core.plugin.PluginGroup
+import com.gamecore.core.plugin.PluginGrouping
 import com.gamecore.core.plugin.PluginOrigin
 import com.gamecore.core.plugin.PluginPackageLoader
 import com.gamecore.core.plugin.PluginPreviewResult
@@ -92,6 +94,8 @@ class PluginsViewModel @Inject constructor(
         val pendingRemoval: PluginRow? = null,
         val pendingRollback: PluginRow? = null,
         val searchQuery: String = "",
+        /** The group narrowing the list, or null for all plugins. Cleared when that group disappears. */
+        val groupFilterId: String? = null,
         /**
          * The value under the font-size slider while the finger is down.
          *
@@ -145,6 +149,8 @@ class PluginsViewModel @Inject constructor(
             rows = sortedRows(observed.rows, order),
             sort = order,
             searchQuery = own.searchQuery,
+            groupFilterId = own.groupFilterId
+                ?.takeIf { id -> observed.groups.any { it.id == id } },
             message = own.message,
             preview = own.preview,
             batch = own.batch,
@@ -165,13 +171,16 @@ class PluginsViewModel @Inject constructor(
                 registry.activeTheme,
                 registry.killSwitchOn,
                 registry.isLoaded,
-            ) { installed, theme, killSwitch, isLoaded ->
+                registry.groups,
+            ) { installed, theme, killSwitch, isLoaded, customGroups ->
+                val groups = PluginGrouping.all(installed, customGroups)
                 PluginsUiState(
                     isLoaded = isLoaded,
                     rows = installed.map { rowFor(it, theme?.pluginId) },
                     killSwitchOn = killSwitch,
                     activeThemeName = theme?.let { TextSanitizer.sanitizeName(it.pluginName) }
                         ?.takeIf { it.isNotBlank() },
+                    groups = groups,
                 )
             }.collect { fromRegistry.value = it }
         }
@@ -262,6 +271,96 @@ class PluginsViewModel @Inject constructor(
         viewModelScope.launch {
             registry.resetToDefaultTheme()
             transient.update { it.copy(message = THEME_RESET) }
+        }
+    }
+
+    /**
+     * Makes [row]'s plugin the one supplying GameCore's look.
+     *
+     * The registry already keeps a single selection, so this is not where the previous theme is
+     * turned off — [PluginRegistry.setActiveTheme] replaces the one id in one atomic publish. What
+     * this method adds is the refusal the row's switch cannot say on its own: a theme plugin that is
+     * switched off, suspended, incompatible or missing `change_ui` cannot supply a theme, and the
+     * user gets the reason rather than a switch that moves and springs back.
+     */
+    fun activateTheme(row: PluginRow) {
+        if (state.value.killSwitchOn) {
+            transient.update { it.copy(message = THEME_KILL_SWITCH_ON) }
+            return
+        }
+        if (!row.canActivateTheme) {
+            transient.update { it.copy(message = themeRefusal(row)) }
+            return
+        }
+        viewModelScope.launch { registry.setActiveTheme(row.id) }
+    }
+
+    /** The sentence that explains why [row] cannot be the active theme right now. */
+    private fun themeRefusal(row: PluginRow): String {
+        val name = row.name.ifBlank { row.id }
+        return when {
+            !row.compatibility.isRunnable -> row.compatibility.reason
+            row.quarantined -> "$name is quarantined, so it cannot supply a theme."
+            row.suspended -> "$name is stopped for this run, so it cannot supply a theme."
+            !row.enabled -> "Turn $name on before using its theme."
+            else -> "Grant $name permission to change the look before using its theme."
+        }
+    }
+
+    // --------------------------------------------------------------------------------- groups
+
+    /** Narrows the list to one group, or clears the filter when [groupId] is null. */
+    fun setGroupFilter(groupId: String?) {
+        transient.update { it.copy(groupFilterId = groupId) }
+    }
+
+    fun clearGroupFilter() {
+        transient.update { it.copy(groupFilterId = null) }
+    }
+
+    /**
+     * Creates a custom group and reports whether it was kept.
+     *
+     * The registry owns the rules (a non-blank name, the name cap, no duplicate, the group cap); this
+     * method only relays the outcome. It is intentionally empty at creation: a group becomes useful
+     * when a plugin is added to it, and that is done on the plugin's own screen where its permissions
+     * are already in view.
+     */
+    fun createGroup(name: String) {
+        val clean = PluginGrouping.normaliseName(name)
+        if (clean == null) {
+            transient.update { it.copy(message = GROUP_NAME_EMPTY) }
+            return
+        }
+        viewModelScope.launch {
+            val created = registry.createGroup(clean)
+            transient.update {
+                it.copy(
+                    message = if (created != null) {
+                        "\"${created.name}\" is ready. Open a plugin to add it to this group."
+                    } else {
+                        GROUP_CREATE_FAILED
+                    },
+                )
+            }
+        }
+    }
+
+    /** Deletes a custom group; automatic groups are rejected by the registry and never offered here. */
+    fun deleteGroup(group: PluginGroup) {
+        if (group.automatic) return
+        viewModelScope.launch {
+            val deleted = registry.deleteGroup(group.id)
+            if (deleted) {
+                transient.update {
+                    it.copy(
+                        groupFilterId = it.groupFilterId?.takeUnless { id -> id == group.id },
+                        message = "\"${group.name}\" was deleted. The plugins in it are untouched.",
+                    )
+                }
+            } else {
+                transient.update { it.copy(message = GROUP_DELETE_FAILED) }
+            }
         }
     }
 
@@ -741,6 +840,18 @@ class PluginsViewModel @Inject constructor(
         const val THEME_RESET =
             "GameCore's own theme is back. The plugin that supplied the previous one is untouched and " +
                 "still installed; it is simply no longer the one in force."
+
+        const val THEME_KILL_SWITCH_ON =
+            "\"Turn all plugins off\" is on, so no plugin can supply a theme. Turn it off first."
+
+        const val GROUP_NAME_EMPTY = "A group needs a name before it can be created."
+
+        const val GROUP_CREATE_FAILED =
+            "That group could not be created. There may already be a group with that name, or this " +
+                "device may be holding the maximum number of groups."
+
+        const val GROUP_DELETE_FAILED =
+            "That group could not be deleted. It is still in the list, and its plugins are untouched."
 
         const val CANNOT_REMOVE_BUNDLED =
             "That plugin ships inside GameCore, so there is no file to delete. Turning it off stops it " +

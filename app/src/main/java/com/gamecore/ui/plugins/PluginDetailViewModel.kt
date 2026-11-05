@@ -7,6 +7,8 @@ import com.gamecore.core.plugin.ApiResult
 import com.gamecore.core.plugin.DataScope
 import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.PluginGrant
+import com.gamecore.core.plugin.PluginGroup
+import com.gamecore.core.plugin.PluginGrouping
 import com.gamecore.core.plugin.PluginInstallPlan
 import com.gamecore.core.plugin.PluginPermission
 import com.gamecore.core.plugin.PluginRegistry
@@ -67,6 +69,21 @@ class PluginDetailViewModel @Inject constructor(
     val state: StateFlow<PluginDetailUiState> = editing.asStateFlow()
 
     /**
+     * One registry frame, assembled before it touches [editing].
+     *
+     * A named record rather than a `Triple`/`Quadruple`: four flows now contribute, and positional
+     * destructuring of four values is exactly where the loaded flag and the theme flag get swapped
+     * without a compile error.
+     */
+    private data class RegistryFrame(
+        val plugin: InstalledPlugin?,
+        val loaded: Boolean,
+        val isThemeSource: Boolean,
+        val killSwitchOn: Boolean,
+        val groups: List<PluginGroup>,
+    )
+
+    /**
      * The package digest whose sections have already been read.
      *
      * [PluginRegistry.sectionsOf] re-reads and re-parses a package from disk, and the installed flow
@@ -87,10 +104,15 @@ class PluginDetailViewModel @Inject constructor(
     /**
      * Follows the registry for as long as the screen is alive.
      *
-     * Three flows at once rather than three collectors, because all three contribute to one frame:
-     * which plugin (and its stored grant), whether the first disk read has finished, and whether this
-     * plugin is the one currently supplying the app's theme. Collected separately they would land as
-     * three recompositions showing two intermediate states that were never true together.
+     * Five flows at once rather than five collectors, because all five contribute to one frame:
+     * which plugin (and its stored grant), whether the first disk read has finished, whether this
+     * plugin is the one currently supplying the app's theme, whether the global kill switch is on,
+     * and the groups it belongs to. Collected separately they would land as several recompositions
+     * showing intermediate states that were never true together.
+     *
+     * The custom-group flow joined them for the same reason: the Groups card and the theme card are
+     * on one screen, and a group membership change must not briefly redraw beside the previous
+     * plugin or the previous theme.
      */
     private fun observe() {
         viewModelScope.launch {
@@ -98,10 +120,24 @@ class PluginDetailViewModel @Inject constructor(
                 registry.installed,
                 registry.isLoaded,
                 registry.activeTheme,
-            ) { plugins, loaded, theme ->
-                Triple(plugins.firstOrNull { it.id == pluginId }, loaded, theme?.pluginId == pluginId)
-            }.collect { (plugin, loaded, isThemeSource) ->
-                onRegistryChanged(plugin, loaded, isThemeSource)
+                registry.killSwitchOn,
+                registry.groups,
+            ) { plugins, loaded, theme, killSwitch, customGroups ->
+                RegistryFrame(
+                    plugin = plugins.firstOrNull { it.id == pluginId },
+                    loaded = loaded,
+                    isThemeSource = theme?.pluginId == pluginId,
+                    killSwitchOn = killSwitch,
+                    groups = PluginGrouping.all(plugins, customGroups),
+                )
+            }.collect { frame ->
+                onRegistryChanged(
+                    frame.plugin,
+                    frame.loaded,
+                    frame.isThemeSource,
+                    frame.killSwitchOn,
+                    frame.groups,
+                )
             }
         }
     }
@@ -115,7 +151,13 @@ class PluginDetailViewModel @Inject constructor(
      * id that never existed — and the screen says so and offers only Back. Holding the last known copy
      * instead would leave the user granting permissions to something that is no longer there.
      */
-    private fun onRegistryChanged(plugin: InstalledPlugin?, loaded: Boolean, isThemeSource: Boolean) {
+    private fun onRegistryChanged(
+        plugin: InstalledPlugin?,
+        loaded: Boolean,
+        isThemeSource: Boolean,
+        killSwitchOn: Boolean,
+        groups: List<PluginGroup>,
+    ) {
         if (plugin == null) {
             sectionsFor = null
             editing.value = if (loaded) {
@@ -137,6 +179,8 @@ class PluginDetailViewModel @Inject constructor(
             suspended = plugin.suspended,
             suspensionDetail = plugin.suspensionDetail,
             isThemeSource = isThemeSource,
+            killSwitchOn = killSwitchOn,
+            groups = groups,
             hasAutomationHistoryAccess = DataScope.AUTOMATION_HISTORY in registry.grantedScopesFor(pluginId),
             message = noteForStoredGrant(previous, plugin.grant) ?: previous.message,
         )
@@ -344,24 +388,30 @@ class PluginDetailViewModel @Inject constructor(
     // ------------------------------------------------------------------------------- the theme
 
     /**
-     * Hands the app's appearance to this plugin, or says which of three reasons it will not.
+     * Hands the app's appearance to this plugin, or says which reason it will not.
      *
      * Checked worst-first, because the ordering decides which sentence a user with two problems reads.
      * Incompatible comes first: nothing on this screen clears it, so offering them a permission to
      * grant instead would send them down a path that ends in the same refusal. A theme the package
-     * does not declare is the next most terminal. The grant is last because it is the one of the three
-     * the user can fix here, and it is the one that must be read off the **saved** grant rather than
-     * the draft — a theme applied from an unsaved switch would be the app restyling itself on the
-     * strength of a decision that was never stored.
+     * does not declare is the next most terminal. Quarantine and suspension follow because the
+     * registry cannot resolve a theme from a plugin that is not running, and `setActiveTheme` would
+     * quietly drop the selection. The grant is last because it is the one of the three the user can
+     * fix here, and it is the one that must be read off the **saved** grant rather than the draft — a
+     * theme applied from an unsaved switch would be the app restyling itself on the strength of a
+     * decision that was never stored.
      */
     fun useThisTheme() {
         val current = editing.value
         val plugin = current.plugin ?: return
         val stored = current.saved ?: return
         val refusal = when {
+            current.killSwitchOn -> THEME_KILL_SWITCH_ON
             !plugin.manifest.compatibility.isRunnable -> plugin.manifest.compatibility.reason
             PluginSection.THEME !in plugin.manifest.declares -> NO_THEME_DECLARED
             current.themePreview == null -> THEME_NOT_READ
+            plugin.quarantined -> THEME_PLUGIN_QUARANTINED
+            plugin.suspended -> THEME_PLUGIN_SUSPENDED
+            !plugin.enabled -> THEME_PLUGIN_OFF
             !stored.has(PluginPermission.CHANGE_UI) -> CHANGE_UI_NOT_GRANTED
             else -> null
         }
@@ -382,6 +432,22 @@ class PluginDetailViewModel @Inject constructor(
             registry.resetToDefaultTheme()
             editing.value = editing.value.copy(message = DEFAULT_THEME_RESTORED)
         }
+    }
+
+    // ------------------------------------------------------------------------------- groups
+
+    /**
+     * Adds or removes this plugin from one custom group.
+     *
+     * Automatic groups are derived from the manifest and have no stored membership, so a tap on one
+     * of those is ignored here rather than sent to the registry. The switch's new position comes back
+     * through [PluginRegistry.groups], not from an optimistic local edit, which keeps the same §24
+     * rule the permission switches follow: the screen shows what was stored.
+     */
+    fun setGroupMembership(groupId: String, member: Boolean) {
+        val group = editing.value.groups.firstOrNull { it.id == groupId } ?: return
+        if (group.automatic) return
+        viewModelScope.launch { registry.setGroupMember(groupId, pluginId, member) }
     }
 
     // ------------------------------------------------------------------------------- removal
@@ -449,10 +515,22 @@ class PluginDetailViewModel @Inject constructor(
             "This plugin declares a theme, but it could not be read back from its package. Nothing was " +
                 "changed."
 
+        const val THEME_PLUGIN_QUARANTINED =
+            "This plugin is quarantined, so it cannot supply a theme. Release it first."
+
+        const val THEME_PLUGIN_SUSPENDED =
+            "This plugin was stopped for this run, so it cannot supply a theme. Use \"Try again\" first."
+
+        const val THEME_PLUGIN_OFF =
+            "This plugin is switched off, so it cannot supply a theme. Turn it on first."
+
         const val CHANGE_UI_NOT_GRANTED =
             "\"Change the look\" is not granted. Grant it and save, then this theme can be applied."
 
         const val DEFAULT_THEME_RESTORED = "GameCore's own theme is in force."
+
+        const val THEME_KILL_SWITCH_ON =
+            "\"Turn all plugins off\" is on, so no plugin can supply a theme. Turn it off first."
 
         const val BUNDLED_CANNOT_BE_REMOVED =
             "This plugin ships inside GameCore, so there is no file to delete. Turning it off stops it " +

@@ -16,6 +16,7 @@ import com.gamecore.core.plugin.PluginApiFacade
 import com.gamecore.core.plugin.PluginAuditLog
 import com.gamecore.core.plugin.PluginGrant
 import com.gamecore.core.plugin.PluginGrantStore
+import com.gamecore.core.plugin.PluginGroup
 import com.gamecore.core.plugin.PluginManifest
 import com.gamecore.core.plugin.PluginNamespace
 import com.gamecore.core.plugin.PluginOrigin
@@ -188,6 +189,7 @@ class PluginDetailViewModelTest {
     ) : PluginRegistry {
         override val installed = MutableStateFlow(listOf(plugin))
         override val activeTheme = MutableStateFlow<ActiveTheme?>(null)
+        override val groups = MutableStateFlow<List<PluginGroup>>(emptyList())
         override val activeIcon = MutableStateFlow<ActiveIcon?>(null)
         override val iconOffers = MutableStateFlow<List<ActiveIcon>>(emptyList())
         override val activeOverlayModules = MutableStateFlow<List<ActiveOverlayModule>>(emptyList())
