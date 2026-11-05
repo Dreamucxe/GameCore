@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gamecore.ui.components.Readout
-import com.gamecore.ui.components.Sparkline
 import com.gamecore.ui.components.Tone
 import com.gamecore.ui.components.colour
 import com.gamecore.ui.theme.StatusGood
@@ -59,7 +58,9 @@ import com.gamecore.ui.theme.StatValueStyle
 import com.gamecore.ui.theme.ThermalCritical
 import com.gamecore.ui.theme.ThermalWarning
 import com.gamecore.ui.theme.readableOn
+import kotlin.math.PI
 import kotlin.math.ceil
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 /** The five Home readings. Every entry owns a different full-card silhouette. */
@@ -107,11 +108,12 @@ private data class MetricPalette(
  * A Home reading whose *whole tile* is the instrument.
  *
  * There is no standard card beneath this composable and no small logo parked beside the number. The CPU
- * tile is a pinned processor package whose die is split into one cell per core, sized by that core's
- * maximum clock and labelled with its current clock. RAM is the pinned module from the reference art,
- * Battery is the portrait pack with its terminal and bolt, Temperature is a vertical bulb thermometer with
- * a printed scale, and Refresh is a monitor on its stand. The bounds remain equal so the two-column grid
- * stays stable, but transparent corners expose each object's actual silhouette.
+ * tile is a pinned processor package whose die stacks the fastest core tier down the left and groups the
+ * slower cores beside it, each labelled with its current clock. RAM is the square pinned chip package from
+ * the reference art, Battery is the portrait pack with its terminal and bolt, Temperature is a vertical
+ * bulb thermometer with a printed scale, and Refresh is the rounded card with its recessed face and
+ * layered figure-eight glyph. The bounds remain equal so the two-column grid stays stable, but transparent
+ * corners expose each object's actual silhouette.
  *
  * @param cpuCores one entry per logical core, in kernel order. Empty until a sample has been read; the
  *   die then stays blank rather than inventing clocks for cores the device has not reported.
@@ -119,7 +121,6 @@ private data class MetricPalette(
 @Composable
 internal fun HomeMetric3DCard(
     readout: Readout,
-    trend: List<Float>,
     cpuCores: List<HomeCpuCore>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -203,7 +204,7 @@ internal fun HomeMetric3DCard(
             }
             when (shape) {
                 HomeMetricShape.CPU -> CpuCopy(readout, cpuCores, palette, width, height)
-                HomeMetricShape.MEMORY -> MemoryCopy(readout, trend, palette, width, height)
+                HomeMetricShape.MEMORY -> MemoryCopy(readout, palette, width, height)
                 HomeMetricShape.BATTERY -> BatteryCopy(readout, palette, width, height)
                 HomeMetricShape.TEMPERATURE -> TemperatureCopy(readout, palette, width, height)
                 HomeMetricShape.REFRESH -> RefreshCopy(readout, palette, width, height)
@@ -216,8 +217,9 @@ internal fun HomeMetric3DCard(
 // ------------------------------------------------------------------------------------------------ CPU
 
 /**
- * The package die is divided by this rule: four columns for the usual 7–12 core phone, a narrower grid
- * for four or six, and a square-ish grid beyond that. Returned as (columns, rows).
+ * Columns and rows for the ordinary weighted grid, used when the die has no separate performance tier:
+ * four columns for the usual 7–12 core phone, a narrower grid for four or six, and a square-ish grid
+ * beyond that.
  */
 internal fun cpuCoreGrid(coreCount: Int): Pair<Int, Int> {
     if (coreCount <= 0) return 0 to 0
@@ -234,20 +236,69 @@ internal fun cpuCoreGrid(coreCount: Int): Pair<Int, Int> {
 /**
  * One core's rectangle on the die, as fractions of the die's width and height.
  *
- * The grid still decides how many cells share a row, but the rows no longer have to be equal: a row of
- * big cores is taller than a row of little ones, and within a row a faster core is wider. On a full row
- * the two multiply to an area proportional to [HomeCpuCore.maxKHz], so a 2.8 GHz prime core is visibly
- * larger than a 1.8 GHz efficiency core instead of every core being the same stamped square. A short
- * last row keeps full-row cell widths and centres itself rather than stretching into false prominence.
- * A core whose ceiling the kernel hides falls back to the average of the cores that do report one.
+ * This follows the reference processor art rather than an even grid. The fastest reported tier — the
+ * performance cores — is stacked down the left edge as large blocks, one per row. Every slower core is
+ * grouped on the right in one or two columns, filling rows top to bottom. The split gives the performance
+ * side enough width to look like the reference at the common two-prime/six-efficiency layout, while a
+ * slower core's cell still shrinks when its ceiling is lower than its neighbours'. A core whose ceiling
+ * the kernel hides falls back to the average of the cores that do report one, and when every core has the
+ * same ceiling the die keeps a regular grid instead of inventing a performance tier.
  */
 internal fun cpuCoreCells(cores: List<HomeCpuCore>): List<CpuCoreCell> {
     if (cores.isEmpty()) return emptyList()
     val columns = cpuCoreGrid(cores.size).first
     if (columns == 0) return emptyList()
-    val known = cores.mapNotNull { core -> core.maxKHz.takeIf { it > 0L }?.toFloat() }
-    val fallback = if (known.isEmpty()) 1f else known.average().toFloat()
-    val weights = cores.map { core -> core.maxKHz.takeIf { it > 0L }?.toFloat() ?: fallback }
+    val weights = effectiveCoreWeights(cores)
+    val fastest = weights.max()
+    val fastIndices = weights.indices.filter { weights[it] >= fastest * FAST_TIER_TOLERANCE }
+    // One fast core among many would make an invented "performance" section rather than a cluster, and
+    // when every core is equally fast there is nothing to separate. Both keep the ordinary grid.
+    if (fastIndices.size <= 1 || fastIndices.size == cores.size) {
+        return weightedCoreCells(cores, weights, columns)
+    }
+
+    val fastSet = fastIndices.toHashSet()
+    val slowIndices = weights.indices.filterNot { it in fastSet }
+    val fastCount = fastIndices.size
+    val fastWidth = (0.30f + 0.52f * fastCount / cores.size.toFloat())
+        .coerceIn(0.36f, 0.58f)
+    val cells = ArrayList<CpuCoreCell>(cores.size)
+
+    // Performance cores: one wide block per row, stacked vertically on the left.
+    fastIndices.forEachIndexed { row, index ->
+        cells += CpuCoreCell(
+            core = cores[index],
+            left = 0f,
+            top = row.toFloat() / fastCount,
+            width = fastWidth,
+            height = 1f / fastCount,
+        )
+    }
+
+    // Everything else is grouped on the right. Two columns keep the six-core efficiency clusters of a
+    // typical phone in the same 2 x 3 shape as the reference; one or two slow cores simply stack.
+    val slowCores = slowIndices.map { cores[it] }
+    val slowWeights = slowIndices.map { weights[it] }
+    val slowColumns = if (slowCores.size <= 2) 1 else 2
+    val slowCells = weightedCoreCells(slowCores, slowWeights, slowColumns)
+    val slowLeft = fastWidth
+    val slowWidth = 1f - fastWidth
+    slowCells.forEach { cell ->
+        cells += cell.copy(
+            left = slowLeft + cell.left * slowWidth,
+            width = cell.width * slowWidth,
+        )
+    }
+    return cells.sortedBy { it.core.index }
+}
+
+/** A cell layout that lets each row's height follow its clocks and each cell's width follow its core. */
+private fun weightedCoreCells(
+    cores: List<HomeCpuCore>,
+    weights: List<Float>,
+    columns: Int,
+): List<CpuCoreCell> {
+    if (cores.isEmpty() || columns <= 0) return emptyList()
     val total = weights.sum()
     val rows = (cores.size + columns - 1) / columns
     val cells = ArrayList<CpuCoreCell>(cores.size)
@@ -277,7 +328,14 @@ internal fun cpuCoreCells(cores: List<HomeCpuCore>): List<CpuCoreCell> {
     return cells
 }
 
-/** A core cell's place inside the die, in 0..1 fractions so the Canvas and the text agree exactly. */
+/** Unknown ceilings take the average of the cores that do report one, never an invented clock. */
+private fun effectiveCoreWeights(cores: List<HomeCpuCore>): List<Float> {
+    val known = cores.mapNotNull { core -> core.maxKHz.takeIf { it > 0L }?.toFloat() }
+    val fallback = if (known.isEmpty()) 1f else known.average().toFloat()
+    return cores.map { core -> core.maxKHz.takeIf { it > 0L }?.toFloat() ?: fallback }
+}
+
+/** One core's place inside the die, in 0..1 fractions so the Canvas and the text agree exactly. */
 internal data class CpuCoreCell(
     val core: HomeCpuCore,
     val left: Float,
@@ -349,7 +407,10 @@ private fun CpuCoreGrid(cores: List<HomeCpuCore>, palette: MetricPalette, modifi
         val dieWidth = maxWidth
         val dieHeight = maxHeight
         cells.forEach { cell ->
-            val compact = cell.height < 0.22f || cell.width < 0.24f
+            // The performance blocks on the left are several times the area of an efficiency cell, so
+            // they get their own, larger stamp instead of the same 8 sp figure floating in a big box.
+            val large = cell.height >= 0.33f && cell.width >= 0.30f
+            val compact = !large && (cell.height < 0.22f || cell.width < 0.24f)
             Column(
                 modifier = Modifier
                     .offset(x = dieWidth * cell.left, y = dieHeight * cell.top)
@@ -361,8 +422,16 @@ private fun CpuCoreGrid(cores: List<HomeCpuCore>, palette: MetricPalette, modifi
                 Text(
                     text = "C${cell.core.index}",
                     style = MaterialCaption.copy(
-                        fontSize = if (compact) 5.5.sp else 6.5.sp,
-                        lineHeight = if (compact) 7.sp else 8.sp,
+                        fontSize = when {
+                            large -> 8.sp
+                            compact -> 5.5.sp
+                            else -> 6.5.sp
+                        },
+                        lineHeight = when {
+                            large -> 9.5.sp
+                            compact -> 7.sp
+                            else -> 8.sp
+                        },
                     ),
                     color = if (cell.core.isOnline) {
                         palette.muted
@@ -377,8 +446,16 @@ private fun CpuCoreGrid(cores: List<HomeCpuCore>, palette: MetricPalette, modifi
                     style = TextStyle(
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = if (compact) 6.8.sp else 8.sp,
-                        lineHeight = if (compact) 8.sp else 9.sp,
+                        fontSize = when {
+                            large -> 11.sp
+                            compact -> 6.8.sp
+                            else -> 8.sp
+                        },
+                        lineHeight = when {
+                            large -> 13.sp
+                            compact -> 8.sp
+                            else -> 9.sp
+                        },
                     ),
                     color = if (cell.core.isOnline) palette.ink else palette.muted.copy(alpha = 0.55f),
                     maxLines = 1,
@@ -540,31 +617,51 @@ private fun DrawScope.drawCpuCard(palette: MetricPalette, cores: List<HomeCpuCor
 
 // ----------------------------------------------------------------------------------------------- RAM
 
-/** The reference RAM module: a grey frame, a dark centre face, and pins above and below. */
+/**
+ * The reference RAM package: a square body with pins on all four sides, a printed "RAM" header and a
+ * horizontal meter. The percentage and used/total pair are overlaid by [MemoryCopy] so they stay real
+ * text and scale with the user's font setting.
+ */
 private fun DrawScope.drawMemoryCard(palette: MetricPalette) {
-    val w = size.width
-    val h = size.height
-    val left = w * 0.06f
-    val top = h * 0.13f
-    val right = w * 0.94f
-    val bottom = h * 0.87f
-    val bodyW = right - left
-    val bodyH = bottom - top
-    val pinColour = palette.pin.copy(alpha = 0.78f)
+    // The chip is square in the reference, so it is limited by the shorter axis and centred in the tile.
+    val side = minOf(size.width * 0.70f, size.height * 0.64f)
+    val left = (size.width - side) / 2f
+    val top = (size.height - side) / 2f
+    val bottom = top + side
+    val pinLength = side * 0.075f
+    val pinHalf = side * 0.018f
+    val pinColour = palette.pin.copy(alpha = 0.85f)
+    val pinRadius = CornerRadius(1.dp.toPx())
+    val overlap = 1.dp.toPx()
 
-    repeat(10) { index ->
-        val x = left + bodyW * (0.055f + index * 0.098f)
+    // Eight pins per edge, drawn first so the package face hides where each one enters the body.
+    repeat(8) { index ->
+        val fraction = 0.11f + index / 7f * 0.78f
+        val x = left + side * fraction
+        val y = top + side * fraction
         drawRoundRect(
             color = pinColour,
-            topLeft = Offset(x, top - h * 0.068f),
-            size = Size(w * 0.022f, h * 0.068f),
-            cornerRadius = CornerRadius(1.2.dp.toPx()),
+            topLeft = Offset(x - pinHalf, top - pinLength),
+            size = Size(pinHalf * 2f, pinLength + overlap),
+            cornerRadius = pinRadius,
         )
         drawRoundRect(
             color = pinColour,
-            topLeft = Offset(x, bottom),
-            size = Size(w * 0.022f, h * 0.068f),
-            cornerRadius = CornerRadius(1.2.dp.toPx()),
+            topLeft = Offset(x - pinHalf, bottom - overlap),
+            size = Size(pinHalf * 2f, pinLength + overlap),
+            cornerRadius = pinRadius,
+        )
+        drawRoundRect(
+            color = pinColour,
+            topLeft = Offset(left - pinLength, y - pinHalf),
+            size = Size(pinLength + overlap, pinHalf * 2f),
+            cornerRadius = pinRadius,
+        )
+        drawRoundRect(
+            color = pinColour,
+            topLeft = Offset(left + side - overlap, y - pinHalf),
+            size = Size(pinLength + overlap, pinHalf * 2f),
+            cornerRadius = pinRadius,
         )
     }
 
@@ -572,112 +669,95 @@ private fun DrawScope.drawMemoryCard(palette: MetricPalette) {
         brush = Brush.linearGradient(
             listOf(palette.bodyTop, palette.bodyBottom),
             Offset(left, top),
-            Offset(right, bottom),
+            Offset(left + side, bottom),
         ),
         topLeft = Offset(left, top),
-        size = Size(bodyW, bodyH),
-        cornerRadius = CornerRadius(8.dp.toPx()),
+        size = Size(side, side),
+        cornerRadius = CornerRadius(12.dp.toPx()),
     )
     drawRoundRect(
         color = palette.edge,
         topLeft = Offset(left, top),
-        size = Size(bodyW, bodyH),
-        cornerRadius = CornerRadius(8.dp.toPx()),
-        style = Stroke(1.3.dp.toPx()),
+        size = Size(side, side),
+        cornerRadius = CornerRadius(12.dp.toPx()),
+        style = Stroke(1.4.dp.toPx()),
     )
-    val faceLeft = w * 0.105f
-    val faceTop = h * 0.19f
-    val faceRight = w * 0.895f
-    val faceBottom = h * 0.81f
+    // A shallow inner rim reads as the pressed lid of a chip package without adding a shadow.
+    val rim = 3.dp.toPx()
     drawRoundRect(
-        color = palette.face,
-        topLeft = Offset(faceLeft, faceTop),
-        size = Size(faceRight - faceLeft, faceBottom - faceTop),
-        cornerRadius = CornerRadius(4.dp.toPx()),
-    )
-    drawRoundRect(
-        color = palette.accent.copy(alpha = 0.34f),
-        topLeft = Offset(faceLeft, faceTop),
-        size = Size(faceRight - faceLeft, faceBottom - faceTop),
-        cornerRadius = CornerRadius(4.dp.toPx()),
-        style = Stroke(1.1.dp.toPx()),
-    )
-    // The keying notch on the bottom edge keeps the module recognisable at a glance.
-    val notch = w * 0.045f
-    drawRoundRect(
-        color = palette.face,
-        topLeft = Offset(w * 0.50f - notch / 2f, bottom - h * 0.018f),
-        size = Size(notch, h * 0.018f),
-        cornerRadius = CornerRadius(1.dp.toPx()),
+        color = palette.accent.copy(alpha = 0.24f),
+        topLeft = Offset(left + rim, top + rim),
+        size = Size(side - rim * 2f, side - rim * 2f),
+        cornerRadius = CornerRadius(9.dp.toPx()),
+        style = Stroke(0.9.dp.toPx()),
     )
 }
 
 @Composable
 private fun MemoryCopy(
     readout: Readout,
-    trend: List<Float>,
     palette: MetricPalette,
     width: Dp,
     height: Dp,
 ) {
+    val side = minOf(width * 0.70f, height * 0.64f)
+    val left = (width - side) / 2f
+    val top = (height - side) / 2f
+    val fraction = readout.fraction?.coerceIn(0f, 1f) ?: 0f
     Column(
         modifier = Modifier
-            .offset(x = width * 0.125f, y = height * 0.205f)
-            .width(width * 0.75f)
-            .height(height * 0.59f)
-            .padding(horizontal = 4.dp, vertical = 2.dp),
+            .offset(x = left, y = top)
+            .size(side)
+            .padding(horizontal = side * 0.10f),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
+        Spacer(modifier = Modifier.height(side * 0.13f))
         Text(
             text = "RAM",
-            style = StatLabelStyle.copy(fontSize = 10.sp, lineHeight = 12.sp, letterSpacing = 1.4.sp),
-            color = palette.muted,
+            style = StatLabelStyle.copy(fontSize = 15.sp, lineHeight = 17.sp, letterSpacing = 2.sp),
+            color = palette.ink,
             maxLines = 1,
         )
-        Text(
-            text = readout.value,
-            style = StatValueStyle.copy(fontSize = 24.sp, lineHeight = 27.sp),
-            color = palette.value,
-            maxLines = 1,
-        )
-        readout.detail?.let { detail ->
-            Text(
-                text = detail,
-                style = MaterialCaption,
-                color = palette.muted,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        when {
-            trend.size >= 2 -> {
-                Spacer(modifier = Modifier.height(4.dp))
-                Sparkline(
-                    values = trend,
-                    colour = palette.accent,
-                    height = 16,
-                    modifier = Modifier.fillMaxWidth(0.72f),
-                )
-            }
-            readout.fraction != null -> {
-                Spacer(modifier = Modifier.height(6.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.72f)
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(palette.track),
-                ) {
+        Spacer(modifier = Modifier.height(side * 0.09f))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(side * 0.17f)
+                    .clip(RoundedCornerShape(50))
+                    .background(palette.face),
+            ) {
+                if (fraction > 0f) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(readout.fraction.coerceIn(0f, 1f))
+                            .fillMaxWidth(fraction)
                             .fillMaxHeight()
                             .background(palette.accent),
                     )
                 }
             }
+            Spacer(modifier = Modifier.width(side * 0.07f))
+            Text(
+                text = readout.value,
+                style = StatValueStyle.copy(fontSize = 19.sp, lineHeight = 21.sp),
+                color = palette.value,
+                maxLines = 1,
+            )
+        }
+        Spacer(modifier = Modifier.height(side * 0.035f))
+        readout.detail?.let { detail ->
+            Text(
+                text = detail,
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialCaption.copy(fontSize = 8.5.sp, lineHeight = 10.sp),
+                color = palette.muted,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -956,14 +1036,19 @@ private fun TemperatureCopy(
 
 // ------------------------------------------------------------------------------------------ Refresh
 
-/** The refresh-rate tile is a display on a stand: theme-toned bezel, deep screen, physical base. */
+/**
+ * The reference refresh card: a rounded outer shell, a recessed face, a layered figure-eight glyph and
+ * the rate printed large beneath it. The glyph is built from accent-coloured strokes only; there is no
+ * glow or cast shadow, so light, dark, AMOLED and custom-accent themes all keep control of the colour.
+ */
 private fun DrawScope.drawRefreshCard(palette: MetricPalette) {
     val w = size.width
     val h = size.height
-    val left = w * 0.075f
-    val top = h * 0.085f
-    val right = w * 0.925f
-    val bottom = h * 0.655f
+    val left = w * 0.055f
+    val top = h * 0.06f
+    val right = w * 0.945f
+    val bottom = h * 0.94f
+    val outerRadius = CornerRadius(20.dp.toPx())
     drawRoundRect(
         brush = Brush.linearGradient(
             listOf(palette.bodyTop, palette.bodyBottom),
@@ -972,74 +1057,67 @@ private fun DrawScope.drawRefreshCard(palette: MetricPalette) {
         ),
         topLeft = Offset(left, top),
         size = Size(right - left, bottom - top),
-        cornerRadius = CornerRadius(12.dp.toPx()),
+        cornerRadius = outerRadius,
     )
     drawRoundRect(
         color = palette.edge,
         topLeft = Offset(left, top),
         size = Size(right - left, bottom - top),
-        cornerRadius = CornerRadius(12.dp.toPx()),
-        style = Stroke(1.6.dp.toPx()),
+        cornerRadius = outerRadius,
+        style = Stroke(1.4.dp.toPx()),
     )
-    val screenLeft = w * 0.105f
-    val screenTop = h * 0.12f
-    val screenRight = w * 0.895f
-    val screenBottom = h * 0.615f
+
+    val inset = 9.dp.toPx()
+    val panelLeft = left + inset
+    val panelTop = top + inset
+    val panelRight = right - inset
+    val panelBottom = bottom - inset
+    val panelWidth = panelRight - panelLeft
+    val panelHeight = panelBottom - panelTop
+    val panelRadius = CornerRadius(15.dp.toPx())
     drawRoundRect(
         brush = Brush.linearGradient(
-            listOf(
-                lerp(palette.face, palette.accent, 0.10f),
-                palette.face,
-                lerp(palette.face, palette.accent, 0.05f),
-            ),
-            Offset(screenLeft, screenTop),
-            Offset(screenRight, screenBottom),
+            listOf(lerp(palette.face, palette.accent, 0.07f), palette.face),
+            Offset(panelLeft, panelTop),
+            Offset(panelRight, panelBottom),
         ),
-        topLeft = Offset(screenLeft, screenTop),
-        size = Size(screenRight - screenLeft, screenBottom - screenTop),
-        cornerRadius = CornerRadius(6.dp.toPx()),
+        topLeft = Offset(panelLeft, panelTop),
+        size = Size(panelWidth, panelHeight),
+        cornerRadius = panelRadius,
     )
     drawRoundRect(
-        color = palette.accent.copy(alpha = 0.55f),
-        topLeft = Offset(screenLeft, screenTop),
-        size = Size(screenRight - screenLeft, screenBottom - screenTop),
-        cornerRadius = CornerRadius(6.dp.toPx()),
-        style = Stroke(1.2.dp.toPx()),
+        color = palette.accent.copy(alpha = 0.40f),
+        topLeft = Offset(panelLeft, panelTop),
+        size = Size(panelWidth, panelHeight),
+        cornerRadius = panelRadius,
+        style = Stroke(1.1.dp.toPx()),
     )
-    // A few scan lines give the panel depth without adding a shadow.
-    repeat(3) { index ->
-        val y = screenTop + (screenBottom - screenTop) * (0.22f + index * 0.26f)
-        drawLine(
-            color = palette.accent.copy(alpha = 0.10f),
-            start = Offset(screenLeft + 4.dp.toPx(), y),
-            end = Offset(screenRight - 4.dp.toPx(), y),
-            strokeWidth = 1.dp.toPx(),
+
+    // A vertical figure eight drawn as six nested filaments. The outermost is faintest, so the glyph
+    // reads as layered strokes rather than a halo.
+    val centreX = panelLeft + panelWidth / 2f
+    val centreY = panelTop + panelHeight * 0.30f
+    val halfWidth = panelWidth * 0.25f
+    val halfHeight = panelHeight * 0.17f
+    val steps = 96
+    repeat(6) { layer ->
+        val scale = 1f - layer * 0.09f
+        val path = Path()
+        repeat(steps + 1) { step ->
+            val t = step / steps.toFloat() * 2f * PI.toFloat()
+            val x = centreX + halfWidth * scale * sin(2f * t)
+            val y = centreY + halfHeight * scale * sin(t)
+            if (step == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(
+            path = path,
+            color = palette.accent.copy(alpha = 0.30f + layer * 0.11f),
+            style = Stroke(
+                width = (1.5f - layer * 0.12f).dp.toPx(),
+                cap = StrokeCap.Round,
+            ),
         )
     }
-    drawPath(
-        path = Path().apply {
-            moveTo(w * 0.43f, bottom)
-            lineTo(w * 0.57f, bottom)
-            lineTo(w * 0.61f, h * 0.84f)
-            lineTo(w * 0.39f, h * 0.84f)
-            close()
-        },
-        brush = Brush.verticalGradient(
-            listOf(palette.bodyTop, palette.bodyBottom, palette.face),
-            bottom,
-            h * 0.84f,
-        ),
-    )
-    drawRoundRect(
-        brush = Brush.verticalGradient(
-            listOf(palette.bodyTop, palette.bodyBottom, palette.face),
-            h * 0.84f,
-            h * 0.91f,
-        ),
-        topLeft = Offset(w * 0.30f, h * 0.84f),
-        size = Size(w * 0.40f, h * 0.07f),
-        cornerRadius = CornerRadius(3.dp.toPx()),
-    )
 }
 
 @Composable
@@ -1049,33 +1127,49 @@ private fun RefreshCopy(
     width: Dp,
     height: Dp,
 ) {
+    val inset = 9.dp
+    val panelLeft = width * 0.055f + inset
+    val panelTop = height * 0.06f + inset
+    val panelWidth = width * 0.89f - inset * 2f
+    val panelHeight = height * 0.88f - inset * 2f
+    val value = readout.value.trim()
+    val unit = if (value.endsWith(" Hz")) "Hz" else ""
+    val amount = if (unit.isEmpty()) value else value.removeSuffix(" Hz").trim()
     Column(
         modifier = Modifier
-            .offset(x = width * 0.115f, y = height * 0.135f)
-            .width(width * 0.77f)
-            .height(height * 0.47f),
+            .offset(x = panelLeft, y = panelTop)
+            .width(panelWidth)
+            .height(panelHeight),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
-        Text(
-            text = "REFRESH RATE",
-            style = StatLabelStyle.copy(fontSize = 8.5.sp, lineHeight = 10.sp, letterSpacing = 0.5.sp),
-            color = palette.muted,
-            maxLines = 1,
-        )
-        Text(
-            text = readout.value,
-            style = StatValueStyle.copy(fontSize = 22.sp, lineHeight = 25.sp),
-            color = palette.value,
-            maxLines = 1,
-        )
+        Spacer(modifier = Modifier.height(panelHeight * 0.52f))
+        Row {
+            Text(
+                text = amount,
+                modifier = Modifier.alignByBaseline(),
+                style = StatValueStyle.copy(fontSize = 34.sp, lineHeight = 38.sp),
+                color = palette.ink,
+                maxLines = 1,
+            )
+            if (unit.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(panelWidth * 0.025f))
+                Text(
+                    text = unit,
+                    modifier = Modifier.alignByBaseline(),
+                    style = StatValueStyle.copy(fontSize = 14.sp, lineHeight = 16.sp),
+                    color = palette.ink,
+                    maxLines = 1,
+                )
+            }
+        }
         readout.detail?.let { detail ->
+            Spacer(modifier = Modifier.height(panelHeight * 0.02f))
             Text(
                 text = detail,
-                style = MaterialCaption.copy(fontSize = 8.sp, lineHeight = 10.sp),
+                style = MaterialCaption.copy(fontSize = 9.sp, lineHeight = 11.sp),
                 color = palette.muted,
                 textAlign = TextAlign.Center,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -1183,6 +1277,9 @@ private const val CPU_DIE_RIGHT = 0.83f
 private const val CPU_DIE_TOP = 0.38f
 private const val CPU_DIE_BOTTOM = 0.86f
 private const val CPU_CELL_GAP = 1.6f
+
+/** Ceilings within 5% of the fastest count as the same performance tier; cpufreq values are noisy. */
+private const val FAST_TIER_TOLERANCE = 0.95f
 
 private val MaterialCaption = TextStyle(
     fontFamily = FontFamily.Default,

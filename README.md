@@ -126,19 +126,19 @@ adb install -r GameCore.apk
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
 
-## What's new in 4.7
+## What's new in 4.8
 
-<p><strong>The 3D CPU tile now reflects the shape of the chip.</strong> Faster cores take up more of the die instead of every core receiving the same stamped square, and the package frame has been trimmed to give the silicon more room.</p>
+<p><strong>The CPU, RAM and refresh tiles now follow their reference hardware.</strong> The processor die separates the performance cluster from the efficiency cores, and the memory and display instruments have been rebuilt around the chip package and rounded card art.</p>
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <h3>🧩 Core cells sized by their ceiling</h3>
-      <p>Each core's cell is weighted by that core's maximum clock, so a 2.8 GHz prime core is visibly larger than a 1.8 GHz efficiency core. Rows are weighted too: a row of big cores is taller than a row of little ones, while a partial last row stays centred instead of stretching. A core whose ceiling the kernel hides uses the average of the cores that do report one.</p>
+      <h3>🧩 Performance cores down the left</h3>
+      <p>The fastest reported tier is stacked as large blocks down the left of the CPU die; every slower core is grouped in the grid beside it. At the usual two-prime/six-efficiency layout each performance block is more than twice the area of an efficiency cell. Ceilings within 5% count as one tier, hidden ceilings use the average of the reported ones, and a lone fast core keeps the ordinary grid instead of inventing a cluster.</p>
     </td>
     <td width="50%" valign="top">
-      <h3>🔲 A tighter CPU package</h3>
-      <p>The package outline is slightly smaller and its border is thinner, leaving more breathing room around the die while keeping the pins and traces that identify the object. The theme colours, per-core clocks and load bars are unchanged.</p>
+      <h3>🔲 The RAM chip and refresh card</h3>
+      <p>RAM is a square package with pins on all four sides, a printed RAM header, a horizontal meter and the percentage with used/total printed beneath it. Refresh rate is a rounded outer card with a recessed face, a layered figure-eight glyph and the rate set large over its caption. Both use the active theme's surfaces, outline and accent, so they still switch with light, dark, AMOLED and custom accents.</p>
     </td>
   </tr>
 </table>
@@ -426,7 +426,7 @@ The full set lives in [`dist/`](dist/). Bundled copies are in [`app/src/main/ass
 ## Features
 
 For a screen-by-screen walkthrough, setup paths, permission map and troubleshooting guide, read the
-**[GameCore 4.7 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
+**[GameCore 4.8 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
 separate **[Plugin Studio feature map and tutorial](docs/PLUGIN_STUDIO_FEATURE_GUIDE.md)**.
 
 ### Feature map

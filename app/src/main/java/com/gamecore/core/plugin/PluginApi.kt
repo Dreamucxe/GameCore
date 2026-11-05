@@ -56,13 +56,13 @@ object PluginApi {
      * on an older build is told the plugin is too new rather than shown a screen the
      * build cannot draw.
      *
-     * This build is versionCode 56 (versionName 4.7). The constant is duplicated
+     * This build is versionCode 57 (versionName 4.8). The constant is duplicated
      * here rather than read from `BuildConfig` so this object stays Android-free and
      * unit-testable; `PluginHostVersionTest` asserts the two agree, so a release that
      * bumps one and forgets the other fails the gate rather than shipping a host that
      * lies to every plugin about which build it is.
      */
-    const val HOST_VERSION_CODE = 56
+    const val HOST_VERSION_CODE = 57
 
     /**
      * The verdict for a plugin that declares API [pluginApi] and a minimum host

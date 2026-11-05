@@ -1,6 +1,6 @@
-# GameCore 4.7 feature map and user guide
+# GameCore 4.8 feature map and user guide
 
-This is the user-facing map of GameCore 4.7. It explains what each part of the app does, how the parts connect, what access each feature needs, and what GameCore deliberately cannot do.
+This is the user-facing map of GameCore 4.8. It explains what each part of the app does, how the parts connect, what access each feature needs, and what GameCore deliberately cannot do.
 
 > **The rule used throughout the app:** if GameCore cannot measure or confirm something, it says **Unavailable**, **Requires Shizuku**, **Not supported**, or gives the failure reason. It does not replace a missing reading with zero, estimate a value, or call an accepted request a successful change without reading it back.
 
@@ -154,7 +154,7 @@ RAM and temperature include short-lived trends made only from samples collected 
 
 **Settings → Appearance → Show GameCore stats on Home** can hide the five built-in live tiles. Plugin dashboard widgets remain, as do the Device, Status, and action cards.
 
-**Settings → Appearance → 3D Home stat designs** switches those five readings between the original rectangular cards and five distinct host-drawn instruments. The entire tile becomes the object: CPU is a pinned processor package whose die splits into one cell per detected core, each showing that core's current clock and sized by that core's maximum clock so prime cores take more of the die; RAM is a pinned module; battery is a portrait pack with a terminal and lightning mark; temperature is a vertical bulb thermometer with a printed scale; and refresh rate is a monitor on its stand. The reading is engraved into the face; it is not a small icon placed inside the old card. Every body, edge and face is drawn from the active theme's surfaces, outline and accent, so the objects blend into the dashboard and switch with light, dark, AMOLED and custom-accent themes. A core whose clock the kernel hides shows a dash in its cell rather than an invented frequency.
+**Settings → Appearance → 3D Home stat designs** switches those five readings between the original rectangular cards and five distinct host-drawn instruments. The entire tile becomes the object: CPU is a pinned processor package whose die puts the fastest core tier in large blocks down the left and groups every slower core in the grid beside it, each cell showing that core's current clock and sized by its maximum clock; RAM is a square chip package with pins on all four sides, a printed RAM header, a horizontal meter and the percentage and used/total pair on its face; battery is a portrait pack with a terminal and lightning mark; temperature is a vertical bulb thermometer with a printed scale; and refresh rate is a rounded card with a recessed panel, a layered figure-eight glyph and the rate printed large over its caption. The reading is engraved into the face; it is not a small icon placed inside the old card. Every body, edge and face is drawn from the active theme's surfaces, outline and accent, so the objects blend into the dashboard and switch with light, dark, AMOLED and custom-accent themes. A core whose clock the kernel hides shows a dash in its cell rather than an invented frequency.
 
 ### Device, Status, Overlays, and Tools
 

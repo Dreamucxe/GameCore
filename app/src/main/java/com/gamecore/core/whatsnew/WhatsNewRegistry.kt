@@ -35,6 +35,30 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 57,
+            versionName = "4.8",
+            date = "2026-11-05",
+            features = listOf(
+                FeatureNote(
+                    "A CPU die arranged like the silicon",
+                    "The fastest core tier now sits as large blocks stacked down the left side of " +
+                        "the die, while every slower core is grouped in the grid beside it, matching " +
+                        "the reference chip. A performance block is more than twice the area of an " +
+                        "efficiency core at the usual two-plus-six layout. When only one core is " +
+                        "faster, or every ceiling is equal, the tile keeps the ordinary grid instead " +
+                        "of inventing a cluster.",
+                ),
+                FeatureNote(
+                    "RAM and refresh rate match their references",
+                    "RAM is now a square chip package with pins on all four sides, a printed RAM " +
+                        "header, a horizontal meter and the percentage and used/total pair on its " +
+                        "face. Refresh rate is a rounded card with a recessed panel, a layered " +
+                        "figure-eight glyph and the rate printed large over its caption. Both stay " +
+                        "drawn from the active theme's surfaces, outline and accent.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 56,
             versionName = "4.7",
             date = "2026-11-04",

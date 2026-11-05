@@ -808,7 +808,6 @@ private fun MetricTile(
     if (use3D) {
         HomeMetric3DCard(
             readout = readout,
-            trend = trend,
             cpuCores = cpuCores,
             onClick = onClick,
             modifier = modifier,
