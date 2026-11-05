@@ -535,28 +535,21 @@ private fun DrawScope.drawCpuCard(palette: MetricPalette, cores: List<HomeCpuCor
         ),
         topLeft = Offset(left, top),
         size = Size(bodyW, bodyH),
-        cornerRadius = CornerRadius(16.dp.toPx()),
+        cornerRadius = CornerRadius(12.dp.toPx()),
     )
     drawRoundRect(
         color = palette.edge,
         topLeft = Offset(left, top),
         size = Size(bodyW, bodyH),
-        cornerRadius = CornerRadius(16.dp.toPx()),
-        style = Stroke(1.2.dp.toPx()),
-    )
-    drawRoundRect(
-        color = palette.edge.copy(alpha = 0.28f),
-        topLeft = Offset(left + 2.dp.toPx(), top + 2.dp.toPx()),
-        size = Size(bodyW - 4.dp.toPx(), bodyH - 4.dp.toPx()),
-        cornerRadius = CornerRadius(14.dp.toPx()),
+        cornerRadius = CornerRadius(12.dp.toPx()),
         style = Stroke(0.8.dp.toPx()),
     )
     // The header rule separates the printed CPU figure from the die, like a package lid.
     drawLine(
-        color = palette.edge.copy(alpha = 0.65f),
+        color = palette.edge.copy(alpha = 0.55f),
         start = Offset(left + 3.dp.toPx(), h * CPU_RULE_Y),
         end = Offset(right - 3.dp.toPx(), h * CPU_RULE_Y),
-        strokeWidth = 1.dp.toPx(),
+        strokeWidth = 0.7.dp.toPx(),
     )
 
     val dieLeft = w * CPU_DIE_LEFT
@@ -576,7 +569,7 @@ private fun DrawScope.drawCpuCard(palette: MetricPalette, cores: List<HomeCpuCor
         topLeft = Offset(dieLeft, dieTop),
         size = Size(dieW, dieH),
         cornerRadius = CornerRadius(6.dp.toPx()),
-        style = Stroke(1.dp.toPx()),
+        style = Stroke(0.8.dp.toPx()),
     )
 
     val cells = cpuCoreCells(cores)
@@ -1265,17 +1258,17 @@ private fun FallbackCopy(readout: Readout, palette: MetricPalette) {
 
 // CPU package fractions, shared by the Canvas and the text overlay so a core's label always sits inside
 // the cell that was drawn for it.
-private const val CPU_BODY_LEFT = 0.10f
-private const val CPU_BODY_RIGHT = 0.90f
-private const val CPU_BODY_TOP = 0.16f
-private const val CPU_BODY_BOTTOM = 0.895f
-private const val CPU_HEADER_TOP = 0.172f
-private const val CPU_HEADER_HEIGHT = 0.178f
-private const val CPU_RULE_Y = 0.368f
+private const val CPU_BODY_LEFT = 0.125f
+private const val CPU_BODY_RIGHT = 0.875f
+private const val CPU_BODY_TOP = 0.175f
+private const val CPU_BODY_BOTTOM = 0.885f
+private const val CPU_HEADER_TOP = 0.187f
+private const val CPU_HEADER_HEIGHT = 0.170f
+private const val CPU_RULE_Y = 0.372f
 private const val CPU_DIE_LEFT = 0.17f
 private const val CPU_DIE_RIGHT = 0.83f
-private const val CPU_DIE_TOP = 0.38f
-private const val CPU_DIE_BOTTOM = 0.86f
+private const val CPU_DIE_TOP = 0.385f
+private const val CPU_DIE_BOTTOM = 0.858f
 private const val CPU_CELL_GAP = 1.6f
 
 /** Ceilings within 5% of the fastest count as the same performance tier; cpufreq values are noisy. */

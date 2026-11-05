@@ -126,6 +126,10 @@ adb install -r GameCore.apk
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
 
+## What's new in 4.9
+
+<p><strong>The CPU package frame is now slimmer.</strong> The outer body has been brought in at the sides and uses a single thin outline instead of a doubled rim, so the die and its core blocks take up more of the tile. The header rule and die outline are thinner too; the pins, traces, core clocks and performance/efficiency layout are unchanged.</p>
+
 ## What's new in 4.8
 
 <p><strong>The CPU, RAM and refresh tiles now follow their reference hardware.</strong> The processor die separates the performance cluster from the efficiency cores, and the memory and display instruments have been rebuilt around the chip package and rounded card art.</p>
@@ -426,7 +430,7 @@ The full set lives in [`dist/`](dist/). Bundled copies are in [`app/src/main/ass
 ## Features
 
 For a screen-by-screen walkthrough, setup paths, permission map and troubleshooting guide, read the
-**[GameCore 4.8 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
+**[GameCore 4.9 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
 separate **[Plugin Studio feature map and tutorial](docs/PLUGIN_STUDIO_FEATURE_GUIDE.md)**.
 
 ### Feature map

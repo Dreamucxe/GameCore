@@ -191,7 +191,7 @@ data class PluginDraft(
         const val MINIMUM_API = 1
 
         /** The `versionCode` of the GameCore release this studio was written against. */
-        const val DEFAULT_MIN_HOST_VERSION = 57
+        const val DEFAULT_MIN_HOST_VERSION = 58
 
         const val DEFAULT_ID = "com.example.mytheme"
 

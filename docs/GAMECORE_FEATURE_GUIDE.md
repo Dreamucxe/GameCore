@@ -1,6 +1,6 @@
-# GameCore 4.8 feature map and user guide
+# GameCore 4.9 feature map and user guide
 
-This is the user-facing map of GameCore 4.8. It explains what each part of the app does, how the parts connect, what access each feature needs, and what GameCore deliberately cannot do.
+This is the user-facing map of GameCore 4.9. It explains what each part of the app does, how the parts connect, what access each feature needs, and what GameCore deliberately cannot do.
 
 > **The rule used throughout the app:** if GameCore cannot measure or confirm something, it says **Unavailable**, **Requires Shizuku**, **Not supported**, or gives the failure reason. It does not replace a missing reading with zero, estimate a value, or call an accepted request a successful change without reading it back.
 
