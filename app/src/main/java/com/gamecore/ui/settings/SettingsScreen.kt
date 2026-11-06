@@ -777,6 +777,13 @@ private fun GamesCard(
             trailing = Formatters.count(state.profileCount, "profile"),
         )
         RowDivider()
+        NavRow(
+            title = "Performance Intelligence",
+            onClick = { onNavigate(Destination.Intelligence) },
+            description = "Choose a goal, inspect recommendations, run real captures and manage local learning.",
+            icon = Icons.Filled.Insights,
+        )
+        RowDivider()
         SwitchRow(
             title = "Apply profiles automatically",
             checked = state.settings.autoApplyProfiles,

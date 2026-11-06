@@ -33,8 +33,8 @@ so it only ever goes up.
 
 ### Current baseline
 
-This tree is **GameCore 5.0**, `versionCode` **59**, signed with the real
-GameCore certificate. The next release starts here and bumps to `versionCode`
+This tree is **GameCore 5.1**, `versionCode` **60**, signed with the real
+GameCore certificate. The next release starts here and bumps above `versionCode`
 **60**; nothing is built against the older 3.x line any more. The working copy
 lives at `/root/GameCore-4.0`.
 

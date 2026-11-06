@@ -95,6 +95,7 @@ import com.gamecore.ui.home.HomeScreen
 import com.gamecore.ui.hud.HudEditorScreen
 import com.gamecore.ui.hud.HudScreen
 import com.gamecore.ui.hunt.HuntScreen
+import com.gamecore.ui.intelligence.IntelligenceScreen
 import com.gamecore.ui.macros.MacroEditorScreen
 import com.gamecore.ui.media.MediaAccessScreen
 import com.gamecore.ui.motion.MotionScreen
@@ -518,6 +519,16 @@ private fun GameCoreNav(
 
         composable(Destination.Performance.route) {
             PerformanceScreen(onNavigate = open)
+        }
+
+        composable(Destination.Intelligence.route) {
+            IntelligenceScreen(
+                onBack = back,
+                onOpenProfile = { packageName ->
+                    navController.push(Destination.ProfileEditor.routeFor(packageName))
+                },
+                onOpenAccess = { navController.push(Destination.SetupHealth.route) },
+            )
         }
 
         composable(Destination.Crosshair.route) {

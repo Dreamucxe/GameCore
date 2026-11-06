@@ -834,6 +834,97 @@ internal object GameCoreMigrations {
         }
     }
 
+    /**
+     * **Version 23** adds the Smart Intelligence tables.
+     *
+     * Two strictly additive tables: completed benchmark summaries with the per-window FPS sample
+     * set, and the local decision/outcome log the confidence adjustment is computed from. No
+     * existing table or row is touched. The summary columns are nullable because a device that
+     * never reported a metric must read back as absent rather than zero, and the raw sampling
+     * points are deliberately not stored — they exist only to produce the summary and the
+     * per-window list.
+     */
+    val MIGRATION_22_23 = object : Migration(22, 23) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `smart_benchmarks` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`profile` TEXT NOT NULL, " +
+                    "`game_package` TEXT, " +
+                    "`game_label` TEXT, " +
+                    "`goal` TEXT NOT NULL, " +
+                    "`started_at` INTEGER NOT NULL, " +
+                    "`ended_at` INTEGER NOT NULL, " +
+                    "`sample_count` INTEGER NOT NULL, " +
+                    "`duration_ms` INTEGER NOT NULL, " +
+                    "`avg_fps` REAL, " +
+                    "`lowest_window_fps` REAL, " +
+                    "`one_percent_low_fps` REAL, " +
+                    "`frame_variation_percent` REAL, " +
+                    "`p95_frame_ms` REAL, " +
+                    "`p99_frame_ms` REAL, " +
+                    "`jank_percent` REAL, " +
+                    "`avg_cpu` REAL, " +
+                    "`peak_cpu` REAL, " +
+                    "`cpu_source` TEXT, " +
+                    "`avg_gpu` REAL, " +
+                    "`peak_gpu` REAL, " +
+                    "`gpu_source` TEXT, " +
+                    "`avg_memory` REAL, " +
+                    "`peak_memory` REAL, " +
+                    "`memory_source` TEXT, " +
+                    "`avg_temperature` INTEGER, " +
+                    "`peak_temperature` INTEGER, " +
+                    "`temperature_source` TEXT, " +
+                    "`start_battery` INTEGER, " +
+                    "`end_battery` INTEGER, " +
+                    "`battery_drain_per_hour` REAL, " +
+                    "`battery_source` TEXT, " +
+                    "`avg_refresh_rate` REAL, " +
+                    "`refresh_rate_source` TEXT, " +
+                    "`fps_source` TEXT, " +
+                    "`unavailable` TEXT NOT NULL, " +
+                    "`fps_windows` TEXT NOT NULL, " +
+                    "`baseline_run_id` INTEGER)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_smart_benchmarks_started_at` " +
+                    "ON `smart_benchmarks` (`started_at`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_smart_benchmarks_game_package` " +
+                    "ON `smart_benchmarks` (`game_package`)",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `smart_learning_records` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`action_key` TEXT NOT NULL, " +
+                    "`game_package` TEXT, " +
+                    "`goal` TEXT NOT NULL, " +
+                    "`decision` TEXT NOT NULL, " +
+                    "`outcome` TEXT NOT NULL, " +
+                    "`metric_name` TEXT, " +
+                    "`before_value` REAL, " +
+                    "`after_value` REAL, " +
+                    "`note` TEXT, " +
+                    "`source_run_id` INTEGER, " +
+                    "`created_at` INTEGER NOT NULL)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_smart_learning_records_action_key` " +
+                    "ON `smart_learning_records` (`action_key`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_smart_learning_records_game_package` " +
+                    "ON `smart_learning_records` (`game_package`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_smart_learning_records_created_at` " +
+                    "ON `smart_learning_records` (`created_at`)",
+            )
+        }
+    }
+
     /** Every migration, in order, for [androidx.room.RoomDatabase.Builder.addMigrations]. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
@@ -857,5 +948,6 @@ internal object GameCoreMigrations {
         MIGRATION_19_20,
         MIGRATION_20_21,
         MIGRATION_21_22,
+        MIGRATION_22_23,
     )
 }

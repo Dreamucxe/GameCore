@@ -184,6 +184,13 @@ object SearchIndex {
             category = SearchCategory.PERFORMANCE,
         ))
         add(SearchEntry(
+            title = "Performance Intelligence",
+            description = "Offline device analysis, evidence-backed recommendations, real benchmark captures and local learning.",
+            keywords = listOf("intelligence", "recommendation", "benchmark", "goal", "learning", "comparison", "device report", "optimization"),
+            route = Destination.Intelligence.route,
+            category = SearchCategory.PERFORMANCE,
+        ))
+        add(SearchEntry(
             title = "Network Stability",
             description = "Live connection readout: transport, Wi-Fi band, signal, link speed, ping and jitter.",
             keywords = listOf("network", "wifi", "ping", "jitter", "latency", "signal", "band", "stability", "connection"),
@@ -685,6 +692,7 @@ object SearchIndex {
             Destination.Sessions.route,
             Destination.Settings.route,
             Destination.Performance.route,
+            Destination.Intelligence.route,
             Destination.Hud.route,
             Destination.Crosshair.route,
             Destination.Overlay.route,

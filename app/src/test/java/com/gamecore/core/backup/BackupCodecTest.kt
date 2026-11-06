@@ -24,6 +24,8 @@ import com.gamecore.core.model.HudDisplayMode
 import com.gamecore.core.model.HudLayout
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HudWidget
+import com.gamecore.core.model.IntelligenceAnalysisFrequency
+import com.gamecore.core.model.OptimizationGoal
 import com.gamecore.core.model.OverlayConfig
 import com.gamecore.core.model.PanelLayoutStyle
 import com.gamecore.core.model.PillDisplayMode
@@ -97,6 +99,10 @@ class BackupCodecTest {
             dockCustomizationEnabled = false,
             quickActionsEnabled = false,
             lastSeenWhatsNewVersionCode = 25,
+            optimizationGoal = OptimizationGoal.COOLER_GAMING,
+            smartLearningEnabled = false,
+            intelligenceAnalysisFrequency = IntelligenceAnalysisFrequency.WEEKLY,
+            intelligenceNotificationsEnabled = true,
         )
         val overlay = OverlayConfig(
             showPill = true,
@@ -808,4 +814,3 @@ class BackupCodecTest {
         const val DELTA = 1e-6f
     }
 }
-

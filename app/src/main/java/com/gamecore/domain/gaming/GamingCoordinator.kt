@@ -16,6 +16,7 @@ import com.gamecore.core.system.ScreenCaptureController
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.ColorPresetRepository
 import com.gamecore.data.repository.GameProfileRepository
+import com.gamecore.domain.intelligence.AutomaticIntelligenceAnalyzer
 import com.gamecore.domain.memory.BackgroundAppReclaimer
 import com.gamecore.domain.monitoring.PerformanceMonitor
 import com.gamecore.domain.overlay.OverlayController
@@ -159,6 +160,7 @@ class GamingCoordinator @Inject constructor(
     private val networkAlertMonitor: NetworkAlertMonitor,
     private val networkEvents: NetworkEventRecorder,
     private val capture: ScreenCaptureController,
+    private val intelligence: AutomaticIntelligenceAnalyzer,
 ) {
 
     private val state = MutableStateFlow(GamingState.IDLE)
@@ -376,6 +378,15 @@ class GamingCoordinator @Inject constructor(
         // player toggles it from the panel — so this opens no capture and raises no consent; it just
         // marks the buffer as already-used if the player armed it before the game came to the front.
         capture.beginReplaySession()
+
+        // Optional and independent of profile application. It reuses this configured-game event,
+        // runs on IO through its repositories, and catches its own failure boundary here so a scan
+        // source that misbehaves can never stop game detection or session recording.
+        scope.launch {
+            runCatching {
+                intelligence.onGameStarted(event.packageName, label, event.atMillis)
+            }
+        }
 
         if (profile.freeRamOnLaunch) freeMemoryFor(event)
     }

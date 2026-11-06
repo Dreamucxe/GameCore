@@ -323,6 +323,10 @@ object BackupCodec {
         put("dockCustomizationEnabled", s.dockCustomizationEnabled)
         put("quickActionsEnabled", s.quickActionsEnabled)
         put("lastSeenWhatsNewVersionCode", s.lastSeenWhatsNewVersionCode)
+        put("optimizationGoal", s.optimizationGoal.name)
+        put("smartLearningEnabled", s.smartLearningEnabled)
+        put("intelligenceAnalysisFrequency", s.intelligenceAnalysisFrequency.name)
+        put("intelligenceNotificationsEnabled", s.intelligenceNotificationsEnabled)
     }
 
     private fun encodeQuickTrigger(q: QuickTriggerSettings): JSONObject = JSONObject().apply {
@@ -735,6 +739,16 @@ object BackupCodec {
             quickActionsEnabled = o.optBoolean("quickActionsEnabled", d.quickActionsEnabled),
             lastSeenWhatsNewVersionCode =
                 o.optInt("lastSeenWhatsNewVersionCode", d.lastSeenWhatsNewVersionCode),
+            optimizationGoal = enumByName(o.optString("optimizationGoal"), d.optimizationGoal),
+            smartLearningEnabled = o.optBoolean("smartLearningEnabled", d.smartLearningEnabled),
+            intelligenceAnalysisFrequency = enumByName(
+                o.optString("intelligenceAnalysisFrequency"),
+                d.intelligenceAnalysisFrequency,
+            ),
+            intelligenceNotificationsEnabled = o.optBoolean(
+                "intelligenceNotificationsEnabled",
+                d.intelligenceNotificationsEnabled,
+            ),
         ).normalised()
     }
 

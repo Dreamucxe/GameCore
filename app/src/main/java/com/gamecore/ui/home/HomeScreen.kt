@@ -934,6 +934,12 @@ private fun DeviceCard(
             onClick = { onNavigate(Destination.Fitness) },
         )
         NavRow(
+            title = "Performance Intelligence",
+            description = "Offline device analysis, evidence-backed recommendations and real benchmarks.",
+            icon = Icons.Filled.TrackChanges,
+            onClick = { onNavigate(Destination.Intelligence) },
+        )
+        NavRow(
             title = "Sensor calibration",
             description = "Ten seconds still, then the bias, noise and drift the gyroscope actually shows.",
             icon = Icons.Filled.Sensors,

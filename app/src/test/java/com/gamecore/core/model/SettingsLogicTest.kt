@@ -103,6 +103,15 @@ class SettingsLogicTest {
     }
 
     @Test
+    fun `automatic intelligence is privacy first by default`() {
+        val defaults = AppSettings()
+        assertEquals(OptimizationGoal.MAXIMUM_PERFORMANCE, defaults.optimizationGoal)
+        assertTrue(defaults.smartLearningEnabled)
+        assertEquals(IntelligenceAnalysisFrequency.MANUAL, defaults.intelligenceAnalysisFrequency)
+        assertEquals(false, defaults.intelligenceNotificationsEnabled)
+    }
+
+    @Test
     fun `the plugin section scale is clamped on read as well as write`() {
         assertEquals(
             AppSettings.MIN_PLUGIN_SECTION_FONT_SCALE,

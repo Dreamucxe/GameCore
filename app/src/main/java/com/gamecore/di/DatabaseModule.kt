@@ -16,6 +16,7 @@ import com.gamecore.data.database.PluginAutomationEventDao
 import com.gamecore.data.database.RestorePointDao
 import com.gamecore.data.database.RomDao
 import com.gamecore.data.database.SessionDao
+import com.gamecore.data.database.SmartIntelligenceDao
 import com.gamecore.data.preferences.DatabaseKeyStore
 import dagger.Module
 import dagger.Provides
@@ -117,6 +118,10 @@ object DatabaseModule {
 
     @Provides
     fun romDao(database: GameCoreDatabase): RomDao = database.romLibrary()
+
+    @Provides
+    fun smartIntelligenceDao(database: GameCoreDatabase): SmartIntelligenceDao =
+        database.smartIntelligence()
 
     /**
      * Loads `libsqlcipher.so`.

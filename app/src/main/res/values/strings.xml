@@ -29,6 +29,8 @@
     <string name="channel_trigger_description">Shown while GameCore watches the accelerometer for the shake shortcut. Android requires a service that runs outside the app to post a notification, so this appears whenever the shake trigger is armed.</string>
     <string name="channel_alerts_name">Thermal, battery and network alerts</string>
     <string name="channel_alerts_description">Warnings about device temperature, unusually fast battery drain, or a poor network connection during a session.</string>
+    <string name="channel_intelligence_name">Performance recommendations</string>
+    <string name="channel_intelligence_description">Optional results from offline analysis when a configured game starts.</string>
 
     <!-- Foreground-service notifications -->
     <string name="notification_overlay_title">Overlay active</string>

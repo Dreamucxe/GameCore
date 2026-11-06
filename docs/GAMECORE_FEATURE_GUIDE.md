@@ -1,6 +1,6 @@
-# GameCore 5.0 feature map and user guide
+# GameCore 5.1 feature map and user guide
 
-This is the user-facing map of GameCore 5.0. It explains what each part of the app does, how the parts connect, what access each feature needs, and what GameCore deliberately cannot do.
+This is the user-facing map of GameCore 5.1. It explains what each part of the app does, how the parts connect, what access each feature needs, and what GameCore deliberately cannot do.
 
 > **The rule used throughout the app:** if GameCore cannot measure or confirm something, it says **Unavailable**, **Requires Shizuku**, **Not supported**, or gives the failure reason. It does not replace a missing reading with zero, estimate a value, or call an accepted request a successful change without reading it back.
 
@@ -41,6 +41,7 @@ GameCore
 │   ├── Device
 │   │   ├── Codec & GPU scanner
 │   │   ├── Device check
+│   │   ├── Performance Intelligence
 │   │   └── Sensor calibration
 │   ├── Status → Setup health / Permissions / Shizuku / Games
 │   ├── Overlays → Overlay setup / HUD / Crosshair
@@ -86,6 +87,17 @@ GameCore
 ```
 
 The global search on Home can find screens, settings, and features without remembering which card contains them.
+
+### Performance Intelligence (5.1)
+
+Open **Home → Device → Performance Intelligence**, **Settings → Games → Performance Intelligence**, or search for it. The feature works offline and has four connected parts:
+
+1. **Device report.** One snapshot reads processor topology, RAM and storage headroom, display modes, battery and thermal state, plus the controls the capability checker has actually verified. Strengths, limits and opportunities always name their source; there is no overall device score.
+2. **Recommendations.** Choose **Maximum performance**, **Stable FPS**, **Cooler gaming**, or **Battery efficiency**. Each compatible recommendation shows the current and proposed state, confidence, evidence and trade-off. Device actions use the normal optimization/restore engine. A profile action requires a selected game, and experimental CPU-affinity advice opens the profile editor for review rather than writing silently.
+3. **Benchmark centre.** Quick, full gaming, thermal stability, memory pressure, battery efficiency and optimization-comparison profiles observe a workload that is already running. They do not launch a game or synthetic load. FPS appears only when Android exposes real per-game `gfxinfo` frame timing. Before-and-after results require the same game/profile, sufficient samples, similar duration and temperature, a practical FPS change and a Welch statistical test; otherwise the result says why it is inconclusive.
+4. **Local learning.** Generated recommendations, applications, dismissals and measured outcomes stay in Room on this device. Improvements can raise confidence and regressions lower it; one regression never blocks an action. Learning can be switched off without deleting history, and benchmark history and learning history have separate confirmed reset actions.
+
+**Smart settings** also choose manual, every-launch, daily or weekly analysis. Automatic analysis reuses the existing configured-game detector and never applies a newly generated recommendation. Optional notifications are sent only when an automatic local scan finds at least one compatible action. Both automatic analysis and its notifications default to off/manual.
 
 Some editors are intentionally reached from the feature they configure rather than duplicated in Settings:
 colour correction opens from a profile, the in-game panel, or Search; media access opens from the panel;

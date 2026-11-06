@@ -35,6 +35,35 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 60,
+            versionName = "5.1",
+            date = "2026-11-06",
+            features = listOf(
+                FeatureNote(
+                    "Performance Intelligence, entirely offline",
+                    "A new screen turns this device's real CPU, memory, display, battery, thermal " +
+                        "and capability readings into a plain-language report and evidence-backed " +
+                        "recommendations. Choose maximum performance, stable FPS, cooler gaming or " +
+                        "battery efficiency; missing readings stay missing, and incompatible actions " +
+                        "are never offered.",
+                ),
+                FeatureNote(
+                    "Real capture benchmarks and comparisons",
+                    "Six capture profiles observe a game or device workload that is already running. " +
+                        "Completed runs retain measured summaries and real FPS windows when Android " +
+                        "exposes them; before-and-after verdicts require matching conditions, a " +
+                        "practical difference and statistical confidence instead of a simulated score.",
+                ),
+                FeatureNote(
+                    "Local outcome learning with full controls",
+                    "Applications, dismissals and measured improvements or regressions can adjust " +
+                        "future confidence without leaving the phone. Learning can be paused without " +
+                        "deleting history, benchmark and learning data reset separately, and optional " +
+                        "game-launch analysis and recommendation notifications start off manual/off.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 59,
             versionName = "5.0",
             date = "2026-11-05",

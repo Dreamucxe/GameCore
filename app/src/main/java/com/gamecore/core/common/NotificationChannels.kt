@@ -57,6 +57,9 @@ object NotificationChannels {
      */
     const val TRIGGER = "gamecore.trigger"
 
+    /** Optional offline-analysis results. Never used by a foreground service. */
+    const val INTELLIGENCE = "gamecore.intelligence"
+
     // Notification ids. Distinct per service, because two services posting the same id
     // replace each other's notification and Android then kills the one whose
     // notification vanished.
@@ -66,6 +69,7 @@ object NotificationChannels {
     const val ID_RECORDING = 1004
     const val ID_MONITOR = 1005
     const val ID_TRIGGER = 1006
+    const val ID_INTELLIGENCE = 1007
     const val ID_ALERT_THERMAL = 1101
     const val ID_ALERT_BATTERY = 1102
 
@@ -127,6 +131,12 @@ object NotificationChannels {
             channel(
                 context, TRIGGER, R.string.channel_trigger_name,
                 R.string.channel_trigger_description, NotificationManager.IMPORTANCE_MIN,
+            ),
+        )
+        manager.createNotificationChannel(
+            channel(
+                context, INTELLIGENCE, R.string.channel_intelligence_name,
+                R.string.channel_intelligence_description, NotificationManager.IMPORTANCE_DEFAULT,
             ),
         )
         // The alerts channel is the exception. A device approaching its thermal limit

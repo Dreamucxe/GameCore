@@ -126,6 +126,12 @@ adb install -r GameCore.apk
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
 
+## What's new in 5.1
+
+<p><strong>Performance Intelligence is local, measured and explicit.</strong> GameCore now builds a device report from readings this phone actually exposes, weighs recommendations against one of four user-selected goals, and names every piece of evidence and trade-off. Six benchmark capture profiles observe a workload that is already running; they never start a synthetic game or fill in missing FPS. Stored runs can be compared only under compatible conditions, with practical and statistical thresholds before any improvement or regression is claimed.</p>
+
+<p>Applications, dismissals and measured outcomes can adjust confidence locally. Learning can be paused without deleting its history, benchmarks and learning reset separately, and automatic game-launch analysis plus recommendation notifications are opt-in. Device changes still go through the existing checked optimization and restore pipeline; per-game changes are saved only to a profile the user selected.</p>
+
 ## What's new in 5.0
 
 <p><strong>Themes are now a single-choice switch, and plugins can share groups.</strong> Activating a theme turns the previous one off in the same step while leaving that plugin installed and running. Theme, dashboard, Pill, automation, screen and icon groups are derived from each package's declarations, permission groups from its requests, and you can create custom groups that a plugin can join alongside any of them.</p>
@@ -434,7 +440,7 @@ The full set lives in [`dist/`](dist/). Bundled copies are in [`app/src/main/ass
 ## Features
 
 For a screen-by-screen walkthrough, setup paths, permission map and troubleshooting guide, read the
-**[GameCore 5.0 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
+**[GameCore 5.1 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
 separate **[Plugin Studio feature map and tutorial](docs/PLUGIN_STUDIO_FEATURE_GUIDE.md)**.
 
 ### Feature map

@@ -65,6 +65,12 @@ import androidx.room.RoomDatabase
  * remembered emulator package. It does not store emulator binaries, ROM contents or anything GameCore
  * did not read from the file's own metadata. [GameCoreMigrations.MIGRATION_21_22].
  *
+ * **Version 23** adds `smart_benchmarks` and `smart_learning_records`, two new tables for the Smart
+ * Intelligence feature. Strictly additive: no existing table or row is touched. The benchmark table
+ * stores each completed capture's summary, the per-window FPS values a statistical comparison needs,
+ * and the reasons behind every absent metric. The learning table stores local decisions and measured
+ * outcomes, one row per event, and is never uploaded. [GameCoreMigrations.MIGRATION_22_23].
+ *
  * There are no `@TypeConverter`s registered anywhere in this class, deliberately. Enums are stored
  * as their names and parsed back defensively in [Mappers]; a converter would move that parsing
  * into generated code where the fallback for an unrecognised name is a thrown exception rather
@@ -94,8 +100,10 @@ import androidx.room.RoomDatabase
         ControllerProfileEntity::class,
         ControllerTestResultEntity::class,
         RomEntity::class,
+        SmartBenchmarkEntity::class,
+        SmartLearningRecordEntity::class,
     ],
-    version = 22,
+    version = 23,
     exportSchema = true,
 )
 abstract class GameCoreDatabase : RoomDatabase() {
@@ -131,6 +139,8 @@ abstract class GameCoreDatabase : RoomDatabase() {
     abstract fun controllerTestResults(): ControllerTestResultDao
 
     abstract fun romLibrary(): RomDao
+
+    abstract fun smartIntelligence(): SmartIntelligenceDao
 
     companion object {
         /**

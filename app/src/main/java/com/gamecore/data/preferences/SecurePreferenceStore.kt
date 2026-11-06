@@ -20,6 +20,8 @@ import com.gamecore.core.model.GammaMode
 import com.gamecore.core.model.HudDisplayMode
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.HuntFilter
+import com.gamecore.core.model.IntelligenceAnalysisFrequency
+import com.gamecore.core.model.OptimizationGoal
 import com.gamecore.core.model.OverlayConfig
 import com.gamecore.core.model.PanelLayoutStyle
 import com.gamecore.core.model.PillDisplayMode
@@ -343,6 +345,26 @@ class SecurePreferenceStore @Inject constructor(
             customAspectRatios = readCustomAspectRatios(p),
             lastSeenWhatsNewVersionCode =
                 p.getInt(KEY_LAST_SEEN_WHATSNEW, defaults.lastSeenWhatsNewVersionCode),
+            optimizationGoal = enumOrDefault(
+                p.getString(KEY_OPTIMIZATION_GOAL, null),
+                OptimizationGoal.entries,
+                defaults.optimizationGoal,
+            ),
+            smartLearningEnabled =
+                p.getBoolean(KEY_SMART_LEARNING, defaults.smartLearningEnabled),
+            intelligenceAnalysisFrequency = enumOrDefault(
+                p.getString(KEY_INTELLIGENCE_FREQUENCY, null),
+                IntelligenceAnalysisFrequency.entries,
+                defaults.intelligenceAnalysisFrequency,
+            ),
+            intelligenceNotificationsEnabled = p.getBoolean(
+                KEY_INTELLIGENCE_NOTIFICATIONS,
+                defaults.intelligenceNotificationsEnabled,
+            ),
+            lastIntelligenceAnalysisAtMillis = p.getLong(
+                KEY_LAST_INTELLIGENCE_ANALYSIS,
+                defaults.lastIntelligenceAnalysisAtMillis,
+            ),
         ).normalised()
     }
 
@@ -446,6 +468,11 @@ class SecurePreferenceStore @Inject constructor(
             putString(KEY_PINNED_PACKAGE, value.pinnedPackage ?: "")
             putString(KEY_CUSTOM_ASPECT_RATIOS, value.customAspectRatios.joinToString(SEPARATOR))
             putInt(KEY_LAST_SEEN_WHATSNEW, value.lastSeenWhatsNewVersionCode)
+            putString(KEY_OPTIMIZATION_GOAL, value.optimizationGoal.name)
+            putBoolean(KEY_SMART_LEARNING, value.smartLearningEnabled)
+            putString(KEY_INTELLIGENCE_FREQUENCY, value.intelligenceAnalysisFrequency.name)
+            putBoolean(KEY_INTELLIGENCE_NOTIFICATIONS, value.intelligenceNotificationsEnabled)
+            putLong(KEY_LAST_INTELLIGENCE_ANALYSIS, value.lastIntelligenceAnalysisAtMillis)
         }?.apply()
     }
 
@@ -1275,6 +1302,11 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_PINNED_PACKAGE = "pinned_package"
         const val KEY_CUSTOM_ASPECT_RATIOS = "custom_aspect_ratios"
         const val KEY_LAST_SEEN_WHATSNEW = "last_seen_whatsnew_version"
+        const val KEY_OPTIMIZATION_GOAL = "optimization_goal"
+        const val KEY_SMART_LEARNING = "smart_learning_enabled"
+        const val KEY_INTELLIGENCE_FREQUENCY = "intelligence_analysis_frequency"
+        const val KEY_INTELLIGENCE_NOTIFICATIONS = "intelligence_notifications_enabled"
+        const val KEY_LAST_INTELLIGENCE_ANALYSIS = "last_intelligence_analysis_at"
         const val KEY_APPEARANCE_SCHEDULE = "appearance_schedule"
 
         const val KEY_SHOW_PILL = "pill_show"

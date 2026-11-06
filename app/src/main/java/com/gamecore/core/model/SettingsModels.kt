@@ -517,6 +517,35 @@ data class AppSettings(
     val retentionDays: Int = 0,
 
     /**
+     * The priority Smart Intelligence uses when weighing measured trade-offs.
+     *
+     * A preference, not a device state: it changes which recommendation the engine prefers when two
+     * are defensible, never what the device is allowed to do. Stored by name and read defensively,
+     * so a goal written by a newer build falls back to [OptimizationGoal.MAXIMUM_PERFORMANCE] rather
+     * than preventing the settings file from loading.
+     */
+    val optimizationGoal: OptimizationGoal = OptimizationGoal.MAXIMUM_PERFORMANCE,
+
+    /**
+     * Whether locally recorded outcomes may adjust recommendation confidence.
+     *
+     * On by default and entirely local: the records live in the app's encrypted database and are
+     * never uploaded. Turning it off stops new confidence adjustments without deleting the history —
+     * the reset action on the Intelligence screen is the separate, destructive choice.
+     */
+    val smartLearningEnabled: Boolean = true,
+
+    /** How often a detected configured game may trigger a fresh local analysis. */
+    val intelligenceAnalysisFrequency: IntelligenceAnalysisFrequency =
+        IntelligenceAnalysisFrequency.MANUAL,
+
+    /** Whether an automatic analysis may notify the user when it finds supported actions. */
+    val intelligenceNotificationsEnabled: Boolean = false,
+
+    /** Last completed automatic analysis, used only to enforce [intelligenceAnalysisFrequency]. */
+    val lastIntelligenceAnalysisAtMillis: Long = 0L,
+
+    /**
      * Packages explicitly excluded from game detection.
      *
      * A package in this set will never trigger a profile auto-apply, even if it matches an
@@ -593,6 +622,7 @@ data class AppSettings(
         // hand-edited preference file, and the right answer there is a legible app, not no app.
         wallpaperScrimPercent = wallpaperScrimPercent
             .coerceIn(MIN_WALLPAPER_SCRIM, MAX_WALLPAPER_SCRIM),
+        lastIntelligenceAnalysisAtMillis = lastIntelligenceAnalysisAtMillis.coerceAtLeast(0L),
         // Validate the pinned package name if set.
         pinnedPackage = pinnedPackage?.takeIf { TextSanitizer.validatePackageName(it) != null },
         // Validate custom aspect ratios: parse "WxH", keep only positive sizes, dedupe.

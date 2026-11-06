@@ -99,6 +99,17 @@ sealed interface Destination {
         const val EXTERNAL = "performance"
     }
 
+    /**
+     * Offline device analysis, evidence-backed recommendations, real capture benchmarks and the
+     * local outcome history. It is deliberately internal: a benchmark needs an explicit target and
+     * informed start action, so an outside intent cannot silently begin one.
+     */
+    data object Intelligence : Destination {
+        override val route = "intelligence"
+
+        const val EXTERNAL = "intelligence"
+    }
+
     data object Crosshair : Destination {
         override val route = "crosshair"
     }
@@ -743,6 +754,7 @@ sealed interface Destination {
             Colour.EXTERNAL to Colour,
             MediaAccess.EXTERNAL to MediaAccess,
             Performance.EXTERNAL to Performance,
+            Intelligence.EXTERNAL to Intelligence,
             ScreenExtraction.EXTERNAL to ScreenExtraction,
             SamplingMonitor.EXTERNAL to SamplingMonitor,
             // The dead-man's switch's notices. The user who taps one is looking at a display they may
