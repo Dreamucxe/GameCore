@@ -41,8 +41,8 @@ object WhatsNewRegistry {
             features = listOf(
                 FeatureNote(
                     "Performance Intelligence, entirely offline",
-                    "A new screen turns this device's real CPU, memory, display, battery, thermal " +
-                        "and capability readings into a plain-language report and evidence-backed " +
+                    "A new screen turns this device's real CPU, memory, display, battery, thermal, " +
+                        "GPU clock and capability readings into a plain-language report and evidence-backed " +
                         "recommendations. Choose maximum performance, stable FPS, cooler gaming or " +
                         "battery efficiency; missing readings stay missing, and incompatible actions " +
                         "are never offered.",

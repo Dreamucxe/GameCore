@@ -6,7 +6,9 @@ import com.gamecore.core.common.valueOrNull
 import com.gamecore.core.model.CpuCluster
 import com.gamecore.core.model.CpuClusterLayout
 import com.gamecore.core.model.DeviceScan
+import com.gamecore.core.model.GpuClockSample
 import com.gamecore.core.system.DisplayReader
+import com.gamecore.core.system.GpuClockReader
 import com.gamecore.core.system.MetricsReader
 import com.gamecore.core.system.ProcFsReader
 import com.gamecore.domain.optimization.DeviceCapabilityChecker
@@ -36,6 +38,7 @@ class SmartDeviceScanner @Inject constructor(
     private val procFs: ProcFsReader,
     private val displayReader: DisplayReader,
     private val capabilities: DeviceCapabilityChecker,
+    private val gpuClockReader: GpuClockReader,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) {
 
@@ -46,6 +49,7 @@ class SmartDeviceScanner @Inject constructor(
         val battery = metrics.readBattery()
         val thermal = metrics.readThermal()
         val storage = metrics.readStorage()
+        val gpuClock = gpuClockReader.read()
 
         val coreCount = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
         val frequencies = procFs.readCoreFrequencies(coreCount).valueOrNull.orEmpty()
@@ -67,6 +71,9 @@ class SmartDeviceScanner @Inject constructor(
             if (cpuTemperature == null) add("No CPU-class thermal zone reported a temperature.")
             if (sensors.isEmpty()) add("No thermal zone was readable.")
             if (batteryTemperature == null) add("The battery did not report a temperature.")
+            if (gpuClock.valueOrNull == null) {
+                add("The kernel did not expose a GPU clock frequency on this device.")
+            }
             if (storage.totalBytes <= 0L) add("Internal storage size was not readable.")
             if (Build.VERSION.SDK_INT < 31) {
                 add("SoC manufacturer and model names need Android 12 or newer.")
@@ -96,6 +103,10 @@ class SmartDeviceScanner @Inject constructor(
             cpuClusters = clusters,
             gpuRenderer = null,
             gpuVendor = null,
+            gpuClockMhz = gpuClock.valueOrNull?.currentMhz,
+            gpuMaxClockMhz = gpuClock.valueOrNull?.maxMhz,
+            gpuClockFrequenciesMhz = gpuClock.valueOrNull?.availableMhz.orEmpty(),
+            gpuClockSource = gpuClock.valueOrNull?.nodeLabel,
             totalRamBytes = memory.totalBytes,
             availableRamBytes = memory.availableBytes,
             lowMemory = memory.isLowMemory,

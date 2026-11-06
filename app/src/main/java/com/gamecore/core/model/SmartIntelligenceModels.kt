@@ -201,6 +201,14 @@ data class DeviceScan(
     val cpuClusters: List<CpuCluster>,
     val gpuRenderer: String?,
     val gpuVendor: String?,
+    /** Current GPU clock in megahertz, or null when the kernel exposes no frequency node. */
+    val gpuClockMhz: Float?,
+    /** The ceiling the GPU node itself reports, in megahertz; null if it reported none. */
+    val gpuMaxClockMhz: Float?,
+    /** The node's full frequency table in megahertz, ascending; empty when it published none. */
+    val gpuClockFrequenciesMhz: List<Float>,
+    /** Where the clock figure was read from, e.g. `/sys/class/devfreq/7c.../cur_freq`; null if never read. */
+    val gpuClockSource: String?,
     val totalRamBytes: Long,
     val availableRamBytes: Long,
     val lowMemory: Boolean,

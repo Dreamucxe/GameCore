@@ -748,7 +748,7 @@ sealed class ShellCommand(
      * `cat` on a GPU sysfs node returns whatever the driver exposes — Adreno's `gpu_busy_percentage`
      * is a ready percentage, `gpubusy` a busy/total pair, a Mali/devfreq `gpu_load` a percentage — so
      * the reader pulls the raw text and parses the one it found. Read-only and path-validated for the
-     * same reason [ReadChargeControlNode] is: [of] runs the path through [gpuBusyPathOrNull], so
+     * same reason [ReadChargeControlNode] is: [of] runs the path through [gpuSysfsPathOrNull], so
      * nothing outside `/sys` can be reached through `cat` by this command.
      */
     class ReadGpuBusyNode private constructor(val path: String) : ShellCommand(
@@ -759,7 +759,30 @@ sealed class ShellCommand(
         companion object {
             /** Null unless [path] is a well-formed GPU-load sysfs node path. */
             fun of(path: String): ReadGpuBusyNode? =
-                gpuBusyPathOrNull(path)?.let(::ReadGpuBusyNode)
+                gpuSysfsPathOrNull(path)?.let(::ReadGpuBusyNode)
+        }
+    }
+
+    /**
+     * Reads a GPU clock (frequency) node, without interpreting it.
+     *
+     * This is the same validated `cat` as [ReadGpuBusyNode] pointed at a frequency node instead of a
+     * load node: `/sys/class/devfreq/<gpu>/cur_freq` and its siblings, or the kgsl devfreq node
+     * under `/sys/class/kgsl/kgsl-3d0/devfreq/`. A separate command type rather than a flag on the
+     * load one, because the two have different readers, different explanations in the log, and
+     * different things to say when the read fails. Read-only and path-validated through
+     * [gpuSysfsPathOrNull] for the same reason the load node is: nothing outside `/sys` can be
+     * reached through `cat` by this command either.
+     */
+    class ReadGpuClockNode private constructor(val path: String) : ShellCommand(
+        listOf("cat", path),
+        "Read the GPU clock node $path",
+        Effect.READ_ONLY,
+    ) {
+        companion object {
+            /** Null unless [path] is a well-formed GPU clock sysfs node path. */
+            fun of(path: String): ReadGpuClockNode? =
+                gpuSysfsPathOrNull(path)?.let(::ReadGpuClockNode)
         }
     }
 
@@ -976,6 +999,10 @@ sealed class ShellCommand(
         fun readGpuBusyNode(path: String): ReadGpuBusyNode? =
             ReadGpuBusyNode.of(path)
 
+        /** Null unless [path] is a well-formed GPU clock sysfs node. */
+        fun readGpuClockNode(path: String): ReadGpuClockNode? =
+            ReadGpuClockNode.of(path)
+
         /** Null unless the directory is inside the named game's own external files. */
         fun listConfigDir(packageName: String, userId: Int, relativePath: String = ""): ListConfigDir? =
             ListConfigDir.of(packageName, userId, relativePath)
@@ -1093,18 +1120,19 @@ private fun chargeControlPathOrNull(path: String): String? =
 private val CHARGE_CONTROL_NODE = Regex("^/sys/class/power_supply/[A-Za-z0-9_]+/[A-Za-z0-9_]+$")
 
 /**
- * A GPU-load sysfs node path, or null if [path] is not one.
+ * A GPU sysfs node path, or null if [path] is not one.
  *
- * GPU utilisation lives in a handful of vendor-specific places under `/sys` — Adreno's
- * `/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage`, a Mali/devfreq `gpu_load`, and their siblings — all
- * read-only counters. This holds a path to that tree with the same shape-check discipline
- * [chargeControlPathOrNull] applies to a power-supply node, widened only to the characters real
- * devfreq device names carry (`.`, `,`, `:`, `@`, `-`): the path must start `/sys/`, run no deeper
- * than [MAX_GPU_NODE_DEPTH] segments, and every segment must be a plain name — never empty, never
- * `.` or `..`, so a validated path can climb nowhere and [ShellCommand.ReadGpuBusyNode] can `cat` a
- * discovered node without the argument ever naming a file outside `/sys`.
+ * GPU load and GPU clock live in a handful of vendor-specific places under `/sys` — Adreno's
+ * `/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage`, a Mali/devfreq `gpu_load`, and their siblings —
+ * all read-only counters and frequency attributes. This holds a path to that tree with the same
+ * shape-check discipline [chargeControlPathOrNull] applies to a power-supply node, widened only to
+ * the characters real devfreq device names carry (`.`, `,`, `:`, `@`, `-`): the path must start
+ * `/sys/`, run no deeper than [MAX_GPU_NODE_DEPTH] segments, and every segment must be a plain
+ * name — never empty, never `.` or `..`, so a validated path can climb nowhere and
+ * [ShellCommand.ReadGpuBusyNode] and [ShellCommand.ReadGpuClockNode] can `cat` a discovered node
+ * without the argument ever naming a file outside `/sys`.
  */
-private fun gpuBusyPathOrNull(path: String): String? {
+private fun gpuSysfsPathOrNull(path: String): String? {
     if (!path.startsWith("/sys/") || path.length > MAX_GPU_NODE_PATH_LENGTH) return null
     val segments = path.removePrefix("/").split('/')
     if (segments.size < 2 || segments.size > MAX_GPU_NODE_DEPTH) return null

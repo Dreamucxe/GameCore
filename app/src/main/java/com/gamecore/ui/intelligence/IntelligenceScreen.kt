@@ -586,6 +586,23 @@ private fun DeviceOverview(report: DeviceIntelligenceReport, modifier: Modifier 
         KeyValueRow("Device", listOf(scan.manufacturer, scan.model).filter { it.isNotBlank() }.joinToString(" "))
         KeyValueRow("Processor", scan.socModel ?: "Not reported")
         KeyValueRow("GPU", scan.gpuRenderer ?: "Model not exposed by Android")
+        KeyValueRow(
+            "GPU clock",
+            if (scan.gpuClockMhz == null) {
+                "Not reported"
+            } else {
+                buildString {
+                    append(formatMhz(scan.gpuClockMhz))
+                    scan.gpuMaxClockMhz?.let { append(" · max ${formatMhz(it)}") }
+                }
+            },
+        )
+        if (scan.gpuClockFrequenciesMhz.size > 1) {
+            KeyValueRow(
+                "GPU steps",
+                scan.gpuClockFrequenciesMhz.joinToString(" · ") { formatMhz(it) },
+            )
+        }
         KeyValueRow("CPU", "${scan.coreCount} cores · ${scan.cpuArchitecture}")
         KeyValueRow("RAM available", "${Formatters.bytes(scan.availableRamBytes)} / ${Formatters.bytes(scan.totalRamBytes)}")
         KeyValueRow("Storage available", "${Formatters.bytes(scan.storageAvailableBytes)} / ${Formatters.bytes(scan.storageTotalBytes)}")
@@ -1386,6 +1403,10 @@ private fun formatHz(value: Float): String =
     else String.format(Locale.US, "%.1f Hz", value)
 
 private fun formatFps(value: Float): String = String.format(Locale.US, "%.1f FPS", value)
+
+private fun formatMhz(value: Float): String =
+    if (kotlin.math.abs(value - value.toInt()) < 0.05f) "${value.toInt()} MHz"
+    else String.format(Locale.US, "%.0f MHz", value)
 
 private fun formatPercent(value: Float): String = String.format(Locale.US, "%.1f%%", value)
 
