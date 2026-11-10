@@ -17,7 +17,9 @@ import com.gamecore.core.plugin.PluginPackageLoader
 import com.gamecore.core.plugin.PluginPreviewResult
 import com.gamecore.core.plugin.PluginPreviewState
 import com.gamecore.core.plugin.PluginRegistry
+import com.gamecore.core.plugin.PluginSection
 import com.gamecore.core.plugin.RollbackOutcome
+import com.gamecore.core.plugin.theme.PluginTheme
 import com.gamecore.data.preferences.SecurePreferenceStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -25,7 +27,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -64,10 +69,9 @@ import javax.inject.Inject
  *    into a [PluginPreviewState] and stops. [confirmInstall] installs exactly those bytes, so the user's
  *    yes is to the package they were shown. The bytes are held in this ViewModel, not in the UI state,
  *    so a recomposition cannot lose them and a preview cannot be confused with an install.
- *  - **The combine is one coroutine.** Five registry flows, one [combine], one collector. Separate
- *    collectors would recompose the screen up to five times for facts that arrive in the same instant
- *    on load, and would briefly publish rows beside the *previous* active theme — long enough for the
- *    "supplies the current theme" badge to sit on the wrong row.
+ *  - **Registry facts are combined before they are rendered.** The five live registry flows become one
+ *    snapshot before rows are made. Theme previews are parsed separately and keyed by package digest,
+ *    so a colour swatch can arrive later without ever showing colours from the version it replaced.
  *  - **No plugin text is logged.** Nothing here writes a manifest string, a grant or an install detail to
  *    the log; the only place plugin-supplied text goes is a `Text` on the screen, via [rowFor].
  */
@@ -105,6 +109,19 @@ class PluginsViewModel @Inject constructor(
         val pluginFontScaleDraft: Int? = null,
     )
 
+    /** The five registry flows at one instant, before optional theme previews are attached. */
+    private data class RegistrySnapshot(
+        val installed: List<InstalledPlugin>,
+        val activeThemeId: String?,
+        val activeThemeName: String?,
+        val killSwitchOn: Boolean,
+        val isLoaded: Boolean,
+        val groups: List<PluginGroup>,
+    )
+
+    /** A parsed theme tied to the exact package bytes it came from. */
+    private data class ThemePreview(val sha256: String, val theme: PluginTheme)
+
     /**
      * The bytes the preview described.
      *
@@ -128,6 +145,8 @@ class PluginsViewModel @Inject constructor(
     private val fromRegistry = MutableStateFlow(PluginsUiState())
 
     private val transient = MutableStateFlow(Transient())
+
+    private val themePreviews = MutableStateFlow<Map<String, ThemePreview>>(emptyMap())
 
     /**
      * The user's chosen order for the list.
@@ -165,22 +184,54 @@ class PluginsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, PluginsUiState())
 
     init {
+        // A theme is deliberately parsed on demand by the registry. Only parse the few declared themes,
+        // and only when their id/digest set changes; flipping an enable switch must not unzip them again.
         viewModelScope.launch {
-            combine(
+            registry.installed
+                .map { plugins ->
+                    plugins.filter { PluginSection.THEME in it.manifest.declares }
+                        .map { it.id to it.sha256 }
+                }
+                .distinctUntilChanged()
+                .collectLatest { packages ->
+                    themePreviews.value = packages.mapNotNull { (id, sha256) ->
+                        registry.sectionsOf(id)?.theme?.let { theme ->
+                            id to ThemePreview(sha256 = sha256, theme = theme)
+                        }
+                    }.toMap()
+                }
+        }
+
+        viewModelScope.launch {
+            val registrySnapshots = combine(
                 registry.installed,
                 registry.activeTheme,
                 registry.killSwitchOn,
                 registry.isLoaded,
                 registry.groups,
             ) { installed, theme, killSwitch, isLoaded, customGroups ->
-                val groups = PluginGrouping.all(installed, customGroups)
-                PluginsUiState(
-                    isLoaded = isLoaded,
-                    rows = installed.map { rowFor(it, theme?.pluginId) },
-                    killSwitchOn = killSwitch,
+                RegistrySnapshot(
+                    installed = installed,
+                    activeThemeId = theme?.pluginId,
                     activeThemeName = theme?.let { TextSanitizer.sanitizeName(it.pluginName) }
                         ?.takeIf { it.isNotBlank() },
-                    groups = groups,
+                    killSwitchOn = killSwitch,
+                    isLoaded = isLoaded,
+                    groups = PluginGrouping.all(installed, customGroups),
+                )
+            }
+            combine(registrySnapshots, themePreviews) { snapshot, previews ->
+                PluginsUiState(
+                    isLoaded = snapshot.isLoaded,
+                    rows = snapshot.installed.map { plugin ->
+                        val preview = previews[plugin.id]
+                            ?.takeIf { it.sha256 == plugin.sha256 }
+                            ?.theme
+                        rowFor(plugin, snapshot.activeThemeId, preview)
+                    },
+                    killSwitchOn = snapshot.killSwitchOn,
+                    activeThemeName = snapshot.activeThemeName,
+                    groups = snapshot.groups,
                 )
             }.collect { fromRegistry.value = it }
         }

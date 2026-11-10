@@ -52,6 +52,20 @@ class OverlayModelsTest {
     }
 
     /**
+     * Entering the app must not raise a window the user never asked for.
+     *
+     * Both overlays are drawn over other apps, so their shipped state is off. A fresh install that
+     * opened with the stats pill or the floating button already on was the "why is this here?" bug;
+     * the stored flags are the only thing `restoreManualState` reads on launch, which is why this
+     * default and the Home switches have to agree.
+     */
+    @Test
+    fun `a fresh install raises neither the stats pill nor the floating button`() {
+        assertFalse(OverlayConfig().showPill)
+        assertFalse(FloatingButtonConfig().show)
+    }
+
+    /**
      * The position is stored raw and snapped at layout time, so nothing in the width's clamp may touch it:
      * a normalise triggered by a slider release must not move a button the user dragged somewhere.
      */

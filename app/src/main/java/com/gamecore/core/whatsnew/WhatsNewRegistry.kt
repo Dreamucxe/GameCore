@@ -35,6 +35,27 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 62,
+            versionName = "5.3",
+            date = "2026-11-09",
+            features = listOf(
+                FeatureNote(
+                    "A compact Plugin section",
+                    "The plugin manager now opens with a one-line safety card, a horizontal row of " +
+                        "theme swatches, collapsible appearance controls, one combined install-and-create " +
+                        "card and compact plugin cards whose secondary actions fold behind Manage. Every " +
+                        "installed plugin, group, setting, permission, install, rollback and removal " +
+                        "action remains available.",
+                ),
+                FeatureNote(
+                    "Ordering and overlays fixed",
+                    "\"By date\" now breaks equal install timestamps by version, so bundled plugins " +
+                        "visibly reorder. The stats pill and floating button stay off until you turn " +
+                        "them on, and Home remembers when you turn them off.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 60,
             versionName = "5.1",
             date = "2026-11-06",

@@ -519,6 +519,10 @@ class HomeViewModel @Inject constructor(
             local.update { it.copy(message = OVERLAY_PERMISSION_MESSAGE) }
             return
         }
+        // Store the choice before asking the controller to show it. `restoreManualState` rebuilds the
+        // windows from these preferences on the next launch, so a switch that only talked to the
+        // controller would come back on by itself the next time GameCore opened.
+        preferences.updateOverlay { it.copy(showPill = visible) }
         overlay.setPill(visible)
     }
 
@@ -527,11 +531,23 @@ class HomeViewModel @Inject constructor(
             local.update { it.copy(message = OVERLAY_PERMISSION_MESSAGE) }
             return
         }
+        preferences.updateFloatingButton { it.copy(show = visible) }
         overlay.setButton(visible)
     }
 
-    /** Takes every window down and stops the service with it. The panic button. */
-    fun hideOverlays() = overlay.hideAll()
+    /**
+     * Takes every window down and stops the service with it. The panic button.
+     *
+     * The stored flags are cleared too, for [setStatsOverlay]'s reason: "hide everything" that lasts
+     * only until the next launch is not the control its label promises.
+     */
+    fun hideOverlays() {
+        preferences.updateOverlay { it.copy(showPill = false) }
+        preferences.updateFloatingButton { it.copy(show = false) }
+        preferences.showCrosshairOverlay = false
+        preferences.showHudOverlay = false
+        overlay.hideAll()
+    }
 
     // ------------------------------------------------------------------------- outstanding restores
 

@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -151,6 +152,7 @@ fun SectionGap(height: Int = 12) = Spacer(modifier = Modifier.height(height.dp))
 @Composable
 fun PlainCard(
     modifier: Modifier = Modifier,
+    contentPadding: Dp = 14.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = MaterialTheme.shapes.large
@@ -162,7 +164,7 @@ fun PlainCard(
         contentColor = MaterialTheme.colorScheme.onSurface,
         border = if (glass == null) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
     ) {
-        Column(modifier = Modifier.padding(14.dp), content = content)
+        Column(modifier = Modifier.padding(contentPadding), content = content)
     }
 }
 
@@ -181,6 +183,7 @@ fun PlainCard(
 fun ClickableCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    contentPadding: Dp = 14.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = MaterialTheme.shapes.large
@@ -193,7 +196,7 @@ fun ClickableCard(
         contentColor = MaterialTheme.colorScheme.onSurface,
         border = if (glass == null) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
     ) {
-        Column(modifier = Modifier.padding(14.dp), content = content)
+        Column(modifier = Modifier.padding(contentPadding), content = content)
     }
 }
 

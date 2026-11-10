@@ -13,6 +13,7 @@ import com.gamecore.core.plugin.PluginPreviewResult
 import com.gamecore.core.plugin.PluginPreviewState
 import com.gamecore.core.plugin.PluginSection
 import com.gamecore.core.plugin.RiskTier
+import com.gamecore.core.plugin.theme.PluginTheme
 import com.gamecore.core.plugin.RollbackOutcome
 import java.util.Locale
 
@@ -102,6 +103,10 @@ data class PluginRow(
     val canBeRemoved: Boolean = true,
     /** When these bytes reached the device; 0 when the platform could not say. See [InstalledPlugin]. */
     val installedAtMillis: Long = 0L,
+    /** Real colours parsed from this plugin's theme, used only by the compact theme swatch. */
+    val themePrimaryArgb: Int? = null,
+    val themeAccentArgb: Int? = null,
+    val themeSurfaceArgb: Int? = null,
 )
 
 /**
@@ -261,7 +266,11 @@ data class PluginsUiState(
  * is entirely format characters is rare but not impossible, and a nameless row with a switch on it is
  * the one row a user cannot reason about.
  */
-internal fun rowFor(plugin: InstalledPlugin, activeThemeId: String?): PluginRow {
+internal fun rowFor(
+    plugin: InstalledPlugin,
+    activeThemeId: String?,
+    themePreview: PluginTheme? = null,
+): PluginRow {
     val manifest = plugin.manifest
     val name = TextSanitizer.sanitizeName(manifest.name)
     return PluginRow(
@@ -294,6 +303,9 @@ internal fun rowFor(plugin: InstalledPlugin, activeThemeId: String?): PluginRow 
         canBeRemoved = plugin.canBeRemoved,
         versionCode = manifest.version,
         installedAtMillis = plugin.installedAtMillis,
+        themePrimaryArgb = themePreview?.primary,
+        themeAccentArgb = themePreview?.accent,
+        themeSurfaceArgb = themePreview?.surface,
     )
 }
 
@@ -307,7 +319,9 @@ internal fun rowFor(plugin: InstalledPlugin, activeThemeId: String?): PluginRow 
  *
  * `By name` is a plain alphabetical order across both origins. `By date` is newest first and puts a
  * plugin whose date the platform could not report (0) at the bottom, rather than at the top as a
- * descending numeric sort would. `By version` is highest first, comparing the manifest's integer
+ * descending numeric sort would. Bundled plugins legitimately share the APK's one timestamp, so their
+ * version is the secondary key; without it the date control would often produce the exact same list as
+ * the default name control and appear broken. `By version` is highest first, comparing the manifest's integer
  * [PluginRow.versionCode] and then the version *name* as dotted numbers — so `1.10` sorts above `1.9`,
  * which a string sort gets backwards.
  */
@@ -317,7 +331,10 @@ internal fun sortedRows(rows: List<PluginRow>, sort: PluginSort): List<PluginRow
         PluginSort.NAME -> rows.sortedWith(byNameThenId)
 
         PluginSort.NEWEST -> rows.sortedWith(
-            compareByDescending<PluginRow> { it.installedAtMillis }.then(byNameThenId),
+            compareByDescending<PluginRow> { it.installedAtMillis }
+                .thenByDescending { it.versionCode }
+                .thenComparator { a, b -> compareVersionNames(b.versionName, a.versionName) }
+                .then(byNameThenId),
         )
 
         PluginSort.VERSION -> rows.sortedWith(

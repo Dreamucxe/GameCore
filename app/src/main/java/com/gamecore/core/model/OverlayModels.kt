@@ -268,7 +268,11 @@ enum class ButtonSizePreset(val label: String, val sizeDp: Int) {
  * which is a separate window the user places separately.
  */
 data class FloatingButtonConfig(
-    val show: Boolean = true,
+    /**
+     * Off by default. The button is a window over every other app, so it appears only when the user
+     * asks for it; a fresh install that raised it on first launch was the "why is this here?" bug.
+     */
+    val show: Boolean = false,
     val x: Int = 0,
     val y: Int = 400,
     val sizeDp: Int = DEFAULT_SIZE_DP,

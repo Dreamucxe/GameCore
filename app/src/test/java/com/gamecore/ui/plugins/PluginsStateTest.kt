@@ -335,6 +335,27 @@ class PluginsStateTest {
     }
 
     @Test
+    fun `by date uses version for packages sharing one install timestamp`() {
+        // Bundled plugins all inherit the APK's timestamp. Falling straight back to name would make the
+        // date option draw the same order as the default on a fresh install and look like a dead control.
+        val rows = rowsOf(
+            installed(
+                manifest(id = "com.example.alpha", name = "Alpha", version = 1, versionName = "1.0"),
+                installedAtMillis = 5_000,
+            ),
+            installed(
+                manifest(id = "com.example.zeta", name = "Zeta", version = 2, versionName = "2.0"),
+                installedAtMillis = 5_000,
+            ),
+        )
+
+        assertEquals(
+            listOf("com.example.zeta", "com.example.alpha"),
+            sortedRows(rows, PluginSort.NEWEST).map { it.id },
+        )
+    }
+
+    @Test
     fun `by version compares version names as numbers, not as text`() {
         val rows = rowsOf(
             installed(manifest(id = "com.example.nine", name = "Nine", versionName = "1.9")),
