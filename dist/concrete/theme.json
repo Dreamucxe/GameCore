@@ -1,0 +1,40 @@
+{
+  "name": "Brutalist",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#909090",
+  "onPrimary": "#1A1A1A",
+  "background": "#1A1A1A",
+  "surface": "#222222",
+  "onSurface": "#C0C0C0",
+  "accent": "#505050",
+  "cornerRadiusDp": 0,
+  "uiScale": 1.0,
+  "font": "press-start-2p",
+  "roles": {
+    "secondary": "#C0C0C0",
+    "tertiary": "#909090",
+    "surfaceVariant": "#2A2A2A",
+    "onSurfaceVariant": "#C0C0C0",
+    "outline": "#4A4A4A",
+    "error": "#909090",
+    "onError": "#1A1A1A"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "Methane Lakes",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#DAA520",
+  "onPrimary": "#1A150A",
+  "background": "#1A150A",
+  "surface": "#282010",
+  "onSurface": "#E8D8A8",
+  "accent": "#B8860B",
+  "cornerRadiusDp": 8,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#E8D8A8",
+    "tertiary": "#DAA520",
+    "surfaceVariant": "#302818",
+    "onSurfaceVariant": "#E8D8A8",
+    "outline": "#5A4A2A",
+    "error": "#DAA520",
+    "onError": "#1A150A"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

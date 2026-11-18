@@ -1,0 +1,40 @@
+{
+  "name": "Bauhaus",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#FF0000",
+  "onPrimary": "#FFFFFF",
+  "background": "#FFFFFF",
+  "surface": "#FAFAFA",
+  "onSurface": "#1A1A1A",
+  "accent": "#FF6666",
+  "cornerRadiusDp": 0,
+  "uiScale": 1.0,
+  "font": "inter",
+  "roles": {
+    "secondary": "#FFD700",
+    "tertiary": "#FF0000",
+    "surfaceVariant": "#F5F5F5",
+    "onSurfaceVariant": "#1A1A1A",
+    "outline": "#CCCCCC",
+    "error": "#FF0000",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

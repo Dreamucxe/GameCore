@@ -1,0 +1,40 @@
+{
+  "name": "Atomic Age",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#0066CC",
+  "onPrimary": "#FFFFFF",
+  "background": "#F0F8FF",
+  "surface": "#FFFFFF",
+  "onSurface": "#0A1A3A",
+  "accent": "#0044AA",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "orbitron",
+  "roles": {
+    "secondary": "#A8C8E8",
+    "tertiary": "#0066CC",
+    "surfaceVariant": "#E8F0F8",
+    "onSurfaceVariant": "#0A1A3A",
+    "outline": "#B8D0E8",
+    "error": "#0066CC",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

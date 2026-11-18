@@ -1,0 +1,535 @@
+{
+  "format": "gamecore.plugin.screens",
+  "version": 1,
+  "screens": [
+    {
+      "id": "overview",
+      "title": "Emerald Isle",
+      "icon": "insights",
+      "content": {
+        "type": "column",
+        "children": [
+          {
+            "type": "row",
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "icon": "dot",
+                  "color": "#2A5A2A",
+                  "size": 14
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "GAMECORE  /  THEME",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#2A5A2A"
+                }
+              }
+            ],
+            "props": {
+              "gap": 8,
+              "align": "center"
+            }
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#0C2D0C",
+              "padding": 18,
+              "gap": 10
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "THEME",
+                  "size": 11,
+                  "bold": true,
+                  "color": "#2A5A2A"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Luck is\ndesign.",
+                  "size": 28,
+                  "bold": true,
+                  "color": "#D4F5D4",
+                  "max_lines": 4
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Shamrock black. Mist green. Pure emerald action.",
+                  "size": 13,
+                  "color": "#D4F5D4",
+                  "max_lines": 5
+                }
+              },
+              {
+                "type": "spacer",
+                "props": {
+                  "size": 2
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#061A06",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "BG",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#D4F5D4"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#061A06",
+                          "size": 9,
+                          "color": "#D4F5D4"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#0C2D0C",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SURFACE",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#D4F5D4"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#0C2D0C",
+                          "size": 9,
+                          "color": "#D4F5D4"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#00C853",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "PRIMARY",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#061A06"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#00C853",
+                          "size": 9,
+                          "color": "#061A06"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "props": {
+                  "gap": 7,
+                  "align": "stretch"
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#103A10",
+              "padding": 16,
+              "gap": 10
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "ROLES",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#D4F5D4"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#D4F5D4",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SECONDARY",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#D4F5D4"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#D4F5D4",
+                          "size": 9,
+                          "color": "#D4F5D4"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#103A10",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SURFACE VAR",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#D4F5D4"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#103A10",
+                          "size": 9,
+                          "color": "#D4F5D4"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#2A5A2A",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "OUTLINE",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#2A5A2A"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#2A5A2A",
+                          "size": 9,
+                          "color": "#2A5A2A"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "props": {
+                  "gap": 7,
+                  "align": "stretch"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Every color from theme roles. Zero hardcoded hex in screens.",
+                  "size": 12,
+                  "color": "#D4F5D4",
+                  "max_lines": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#00C853",
+              "padding": 16,
+              "gap": 7
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "PRIMARY ACTION",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#061A06"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "FAB, buttons, selection = theme primary",
+                  "size": 14,
+                  "bold": true,
+                  "color": "#061A06",
+                  "max_lines": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "props": {
+              "text": "Neutral bg/surf + accent seed → tonal palette. 10% brand = primary.",
+              "size": 11,
+              "color": "#D4F5D4",
+              "max_lines": 2
+            }
+          }
+        ],
+        "props": {
+          "padding": 16,
+          "gap": 14
+        }
+      }
+    },
+    {
+      "id": "system",
+      "title": "System",
+      "icon": "extension",
+      "content": {
+        "type": "column",
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "text": "SYSTEM",
+              "size": 10,
+              "bold": true,
+              "color": "#2A5A2A"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "text": "Celtic knot precision.",
+              "size": 22,
+              "bold": true,
+              "color": "#D4F5D4",
+              "max_lines": 3
+            }
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#103A10",
+              "padding": 16,
+              "gap": 6
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "TYPE",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#D4F5D4"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Display",
+                  "size": 30,
+                  "bold": true,
+                  "color": "#D4F5D4"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Heading",
+                  "size": 20,
+                  "bold": true,
+                  "color": "#D4F5D4"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Body text uses onSurface — readable on neutral backgrounds.",
+                  "size": 13,
+                  "color": "#D4F5D4",
+                  "max_lines": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "row",
+            "children": [
+              {
+                "type": "card",
+                "props": {
+                  "color": "#0C2D0C",
+                  "padding": 12
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "text": "BG / NEUTRAL",
+                      "size": 9,
+                      "bold": true,
+                      "color": "#D4F5D4"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "card",
+                "props": {
+                  "color": "#103A10",
+                  "padding": 12
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "text": "CONTAINER",
+                      "size": 9,
+                      "bold": true,
+                      "color": "#D4F5D4"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "card",
+                "props": {
+                  "color": "#00C853",
+                  "padding": 12
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "props": {
+                      "text": "PRIMARY",
+                      "size": 9,
+                      "bold": true,
+                      "color": "#061A06"
+                    }
+                  }
+                ]
+              }
+            ],
+            "props": {
+              "gap": 8,
+              "align": "stretch"
+            }
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#103A10",
+              "padding": 16,
+              "gap": 9
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "ACCENT SEED",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#D4F5D4"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Material3 tonal palette from #2E7D32 → subtle containers.",
+                  "size": 13,
+                  "bold": true,
+                  "color": "#D4F5D4",
+                  "max_lines": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#00C853",
+              "padding": 14,
+              "gap": 7
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "THE CHECK",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#061A06"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Every color comes from theme roles. No hardcoded hex in screens.",
+                  "size": 12,
+                  "color": "#061A06",
+                  "max_lines": 3
+                }
+              }
+            ]
+          }
+        ],
+        "props": {
+          "padding": 16,
+          "gap": 14
+        }
+      }
+    }
+  ]
+}

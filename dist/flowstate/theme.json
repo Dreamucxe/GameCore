@@ -1,0 +1,40 @@
+{
+  "name": "In the Zone",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#4CAF50",
+  "onPrimary": "#081008",
+  "background": "#081008",
+  "surface": "#101810",
+  "onSurface": "#C0E0C0",
+  "accent": "#388E3C",
+  "cornerRadiusDp": 4,
+  "uiScale": 1.0,
+  "font": "mono",
+  "roles": {
+    "secondary": "#C0E0C0",
+    "tertiary": "#4CAF50",
+    "surfaceVariant": "#182018",
+    "onSurfaceVariant": "#C0E0C0",
+    "outline": "#3A5A3A",
+    "error": "#4CAF50",
+    "onError": "#081008"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

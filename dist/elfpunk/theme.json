@@ -1,0 +1,40 @@
+{
+  "name": "Fae Court",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#40E0D0",
+  "onPrimary": "#0D1A0D",
+  "background": "#0D1A0D",
+  "surface": "#162816",
+  "onSurface": "#E8FFE8",
+  "accent": "#20B0A0",
+  "cornerRadiusDp": 24,
+  "uiScale": 1.0,
+  "font": "cursive",
+  "roles": {
+    "secondary": "#E8FFE8",
+    "tertiary": "#40E0D0",
+    "surfaceVariant": "#1E381E",
+    "onSurfaceVariant": "#E8FFE8",
+    "outline": "#3A6A3A",
+    "error": "#40E0D0",
+    "onError": "#0D1A0D"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "light"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

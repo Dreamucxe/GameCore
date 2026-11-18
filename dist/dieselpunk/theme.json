@@ -1,0 +1,40 @@
+{
+  "name": "Iron War",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#B87A3A",
+  "onPrimary": "#141210",
+  "background": "#141210",
+  "surface": "#1E1A16",
+  "onSurface": "#D8C8A8",
+  "accent": "#8B5A2B",
+  "cornerRadiusDp": 0,
+  "uiScale": 1.0,
+  "font": "press-start-2p",
+  "roles": {
+    "secondary": "#D8C8A8",
+    "tertiary": "#B87A3A",
+    "surfaceVariant": "#2A2420",
+    "onSurfaceVariant": "#D8C8A8",
+    "outline": "#5A4A3A",
+    "error": "#B87A3A",
+    "onError": "#141210"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

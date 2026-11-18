@@ -1,0 +1,40 @@
+{
+  "name": "Carrara",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#8A8A8A",
+  "onPrimary": "#FFFFFF",
+  "background": "#F8F8F8",
+  "surface": "#FFFFFF",
+  "onSurface": "#2A2A2A",
+  "accent": "#A0A0A0",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#D0D0D0",
+    "tertiary": "#8A8A8A",
+    "surfaceVariant": "#F0F0F0",
+    "onSurfaceVariant": "#2A2A2A",
+    "outline": "#C0C0C0",
+    "error": "#8A8A8A",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "light"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "Volcanic Glass",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#B8B8B8",
+  "onPrimary": "#080808",
+  "background": "#080808",
+  "surface": "#101010",
+  "onSurface": "#E8E8E8",
+  "accent": "#606060",
+  "cornerRadiusDp": 0,
+  "uiScale": 1.0,
+  "font": "mono",
+  "roles": {
+    "secondary": "#E8E8E8",
+    "tertiary": "#B8B8B8",
+    "surfaceVariant": "#181818",
+    "onSurfaceVariant": "#E8E8E8",
+    "outline": "#383838",
+    "error": "#B8B8B8",
+    "onError": "#080808"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

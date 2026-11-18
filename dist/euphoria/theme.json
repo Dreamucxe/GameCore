@@ -1,0 +1,40 @@
+{
+  "name": "Dopamine",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#FF0099",
+  "onPrimary": "#FFFFFF",
+  "background": "#FFF0F8",
+  "surface": "#FFFFFF",
+  "onSurface": "#3A0A2A",
+  "accent": "#CC0077",
+  "cornerRadiusDp": 28,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#FFB8E0",
+    "tertiary": "#FF0099",
+    "surfaceVariant": "#FFF8FC",
+    "onSurfaceVariant": "#3A0A2A",
+    "outline": "#FFD0E8",
+    "error": "#FF0099",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

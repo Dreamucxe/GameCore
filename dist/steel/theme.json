@@ -1,0 +1,40 @@
+{
+  "name": "Crucible",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#B0B0C0",
+  "onPrimary": "#121214",
+  "background": "#121214",
+  "surface": "#1A1A1C",
+  "onSurface": "#D0D0D8",
+  "accent": "#606070",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "rubik",
+  "roles": {
+    "secondary": "#D0D0D8",
+    "tertiary": "#B0B0C0",
+    "surfaceVariant": "#222224",
+    "onSurfaceVariant": "#D0D0D8",
+    "outline": "#4A4A4C",
+    "error": "#B0B0C0",
+    "onError": "#121214"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}
