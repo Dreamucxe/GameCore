@@ -1,0 +1,28 @@
+{
+  "name": "Tall Case Clock",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#C8C8C8",
+  "onPrimary": "#0C0C0E",
+  "background": "#444444",
+  "surface": "#5A5A59",
+  "onSurface": "#F8F8F6",
+  "accent": "#A8A8A8",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "jetbrains-mono",
+  "roles": {
+    "secondary": "#A8A8A8",
+    "tertiary": "#C8C8C8",
+    "surfaceVariant": "#525252",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#767676",
+    "error": "#C8C8C8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Bureau Secretary",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#885808",
+  "onPrimary": "#F8F8F6",
+  "background": "#251504",
+  "surface": "#3E3021",
+  "onSurface": "#F8F8F6",
+  "accent": "#D8D8D8",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#D8D8D8",
+    "tertiary": "#885808",
+    "surfaceVariant": "#3E3021",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#605548",
+    "error": "#885808",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

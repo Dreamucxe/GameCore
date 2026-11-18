@@ -1,0 +1,40 @@
+{
+  "name": "Shawl Border Fragment",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#A8A8B8",
+  "onPrimary": "#0C0C0E",
+  "background": "#2C2424",
+  "surface": "#443D3D",
+  "onSurface": "#F8F8F6",
+  "accent": "#584848",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#584848",
+    "tertiary": "#A8A8B8",
+    "surfaceVariant": "#3C3535",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#655F5F",
+    "error": "#A8A8B8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

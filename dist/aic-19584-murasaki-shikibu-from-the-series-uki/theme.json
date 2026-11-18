@@ -1,0 +1,28 @@
+{
+  "name": "Murasaki Shikibu, from the series \"Ukiyo-e Genji",
+  "schema": 2,
+  "dark": false,
+  "amoled": false,
+  "primary": "#383828",
+  "onPrimary": "#F8F8F6",
+  "background": "#F5EFE8",
+  "surface": "#FCF9F7",
+  "onSurface": "#0F0F11",
+  "accent": "#C8B888",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#C8B888",
+    "tertiary": "#383828",
+    "surfaceVariant": "#D9D4CE",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#B5B0AC",
+    "error": "#383828",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

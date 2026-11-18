@@ -1,0 +1,28 @@
+{
+  "name": "Rocking Chair",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#B86858",
+  "onPrimary": "#0C0C0E",
+  "background": "#3C1C14",
+  "surface": "#53362F",
+  "onSurface": "#F8F8F6",
+  "accent": "#985848",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "jetbrains-mono",
+  "roles": {
+    "secondary": "#985848",
+    "tertiary": "#B86858",
+    "surfaceVariant": "#4B2E26",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#715A53",
+    "error": "#B86858",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

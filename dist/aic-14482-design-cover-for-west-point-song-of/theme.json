@@ -1,0 +1,28 @@
+{
+  "name": "Design cover for West Point Song of the Graduate",
+  "schema": 2,
+  "dark": false,
+  "amoled": false,
+  "primary": "#988888",
+  "onPrimary": "#0C0C0E",
+  "background": "#FCF5EF",
+  "surface": "#FEFCF9",
+  "onSurface": "#0F0F11",
+  "accent": "#F8D8B8",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#F8D8B8",
+    "tertiary": "#988888",
+    "surfaceVariant": "#E0D9D4",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#BAB5B1",
+    "error": "#988888",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "The Girl by the Window",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#6888A8",
+  "onPrimary": "#0C0C0E",
+  "background": "#151515",
+  "surface": "#303030",
+  "onSurface": "#F8F8F6",
+  "accent": "#684848",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#684848",
+    "tertiary": "#6888A8",
+    "surfaceVariant": "#303030",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#555554",
+    "error": "#6888A8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}
