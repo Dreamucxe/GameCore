@@ -1,0 +1,42 @@
+{
+  "name": "La Samaritaine",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#E8D8B8",
+  "onPrimary": "#0C0C0E",
+  "background": "#544C3C",
+  "surface": "#686152",
+  "onSurface": "#F8F8F6",
+  "accent": "#F8F8D8",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "inter",
+  "roles": {
+    "secondary": "#F8F8D8",
+    "tertiary": "#E8D8B8",
+    "surfaceVariant": "#615A4B",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#827C70",
+    "error": "#E8D8B8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  },
+  "effects": {
+    "glitch": {
+      "intensity": 0.25,
+      "slices": 3,
+      "sliceOffsetDp": 12,
+      "ghostOffsetDp": 3,
+      "fractureLines": true,
+      "noise": true,
+      "microJitter": true,
+      "hardwareReactive": true,
+      "burstMinMs": 200,
+      "burstMaxMs": 1200
+    }
+  }
+}

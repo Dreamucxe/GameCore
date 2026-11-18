@@ -1,0 +1,40 @@
+{
+  "name": "Cray",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#989888",
+  "onPrimary": "#0C0C0E",
+  "background": "#4C4C44",
+  "surface": "#616159",
+  "onSurface": "#F8F8F6",
+  "accent": "#A8A8A8",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#A8A8A8",
+    "tertiary": "#989888",
+    "surfaceVariant": "#5A5A52",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#7C7C76",
+    "error": "#989888",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}
