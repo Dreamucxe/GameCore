@@ -1,0 +1,28 @@
+{
+  "name": "A Witches' Sabbath",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#987848",
+  "onPrimary": "#0C0C0E",
+  "background": "#0C0C04",
+  "surface": "#282821",
+  "onSurface": "#F8F8F6",
+  "accent": "#181808",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#181808",
+    "tertiary": "#987848",
+    "surfaceVariant": "#282821",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#4E4E48",
+    "error": "#987848",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

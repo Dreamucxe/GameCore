@@ -1,0 +1,28 @@
+{
+  "name": "Goat and Bee Cream Jug",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#989898",
+  "onPrimary": "#0C0C0E",
+  "background": "#1D1D1D",
+  "surface": "#373737",
+  "onSurface": "#F8F8F6",
+  "accent": "#F8F8E8",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#F8F8E8",
+    "tertiary": "#989898",
+    "surfaceVariant": "#373737",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#5A5A5A",
+    "error": "#989898",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

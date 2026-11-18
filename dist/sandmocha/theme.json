@@ -1,0 +1,40 @@
+{
+  "name": "Sand & Mocha",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#FC75B4",
+  "onPrimary": "#1A1A1A",
+  "background": "#FDFBF7",
+  "surface": "#FFFFFF",
+  "onSurface": "#474329",
+  "accent": "#2F5D62",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#474329",
+    "tertiary": "#FC75B4",
+    "surfaceVariant": "#F3EDE2",
+    "onSurfaceVariant": "#474329",
+    "outline": "#D4C8B8",
+    "error": "#FC75B4",
+    "onError": "#1A1A1A"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.4,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

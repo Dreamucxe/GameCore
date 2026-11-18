@@ -1,0 +1,28 @@
+{
+  "name": "Still Life—Strawberries, Nuts, &c.",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#784808",
+  "onPrimary": "#F8F8F6",
+  "background": "#0C0C0C",
+  "surface": "#282828",
+  "onSurface": "#F8F8F6",
+  "accent": "#581808",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#581808",
+    "tertiary": "#784808",
+    "surfaceVariant": "#282828",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#4E4E4E",
+    "error": "#784808",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

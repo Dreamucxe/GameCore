@@ -1,0 +1,28 @@
+{
+  "name": "Botanical Specimen",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#887868",
+  "onPrimary": "#0C0C0E",
+  "background": "#36362E",
+  "surface": "#4D4D46",
+  "onSurface": "#F8F8F6",
+  "accent": "#B8B898",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#B8B898",
+    "tertiary": "#887868",
+    "surfaceVariant": "#4D4D46",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#6C6C66",
+    "error": "#887868",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}
