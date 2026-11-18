@@ -1,0 +1,25 @@
+{
+  "format": "gamecore.plugin",
+  "id": "com.dreamucxe.gamecore.aic.art31635",
+  "name": "Autumn: Harvesting Rice (Aki: inekari no zu), No. 3 fro…",
+  "version": 1,
+  "versionName": "1.0.0",
+  "api": 4,
+  "minHostVersion": 60,
+  "developer": "Dream · AIC Open Access",
+  "description": "Palette extracted from the public-domain work “Autumn: Harvesting Rice (Aki: inekari no zu), No. 3 from the series \"The Four Seasons of Farmers (Shiki no hyakusho)\"” by Torii Kiyomasu II (c. 1730s), Art Institute of Chicago artwork 31635. Adapted for high-contrast GameCore 5.1 UI.",
+  "permissions": [
+    {
+      "id": "change_ui"
+    },
+    {
+      "id": "change_icon"
+    }
+  ],
+  "declares": [
+    "theme",
+    "screens",
+    "icon"
+  ],
+  "changelog": "1.0.0 — source-backed palette; ≥7:1 body text and ≥4.5:1 controls."
+}

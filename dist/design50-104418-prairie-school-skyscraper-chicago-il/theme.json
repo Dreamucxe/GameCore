@@ -1,0 +1,28 @@
+{
+  "name": "Prairie School Skyscraper, Chicago, Illinois, Pe",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#A88858",
+  "onPrimary": "#0C0C0E",
+  "background": "#3C4444",
+  "surface": "#535A59",
+  "onSurface": "#F8F8F6",
+  "accent": "#788888",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "inter",
+  "roles": {
+    "secondary": "#788888",
+    "tertiary": "#A88858",
+    "surfaceVariant": "#4B5252",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#717676",
+    "error": "#A88858",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

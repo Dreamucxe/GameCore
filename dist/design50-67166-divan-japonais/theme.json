@@ -1,0 +1,42 @@
+{
+  "name": "Divan Japonais",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#181828",
+  "onPrimary": "#F8F8F6",
+  "background": "#0C0C14",
+  "surface": "#28282F",
+  "onSurface": "#F8F8F6",
+  "accent": "#989888",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#989888",
+    "tertiary": "#181828",
+    "surfaceVariant": "#1F1F26",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#4E4E53",
+    "error": "#181828",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glitch": {
+      "intensity": 0.25,
+      "slices": 3,
+      "sliceOffsetDp": 12,
+      "ghostOffsetDp": 3,
+      "fractureLines": true,
+      "noise": true,
+      "microJitter": true,
+      "hardwareReactive": true,
+      "burstMinMs": 200,
+      "burstMaxMs": 1200
+    }
+  }
+}

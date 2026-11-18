@@ -1,0 +1,28 @@
+{
+  "name": "Autumn (Harvesting and Wine Tasting), from The F",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#C8B8A8",
+  "onPrimary": "#0C0C0E",
+  "background": "#3E3636",
+  "surface": "#544D4D",
+  "onSurface": "#F8F8F6",
+  "accent": "#585848",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#585848",
+    "tertiary": "#C8B8A8",
+    "surfaceVariant": "#544D4D",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#726C6C",
+    "error": "#C8B8A8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "Furisode",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#F8F8F8",
+  "onPrimary": "#0C0C0E",
+  "background": "#2C241C",
+  "surface": "#443D36",
+  "onSurface": "#F8F8F6",
+  "accent": "#584838",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#584838",
+    "tertiary": "#F8F8F8",
+    "surfaceVariant": "#3C352D",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#655F59",
+    "error": "#F8F8F8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

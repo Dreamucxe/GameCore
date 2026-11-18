@@ -1,0 +1,28 @@
+{
+  "name": "Panel Entitled \"Femme à marguerite\" (Woman with ",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#B8B888",
+  "onPrimary": "#0C0C0E",
+  "background": "#15040C",
+  "surface": "#302128",
+  "onSurface": "#F8F8F6",
+  "accent": "#480828",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#480828",
+    "tertiary": "#B8B888",
+    "surfaceVariant": "#302128",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#55484E",
+    "error": "#B8B888",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}
