@@ -1,0 +1,42 @@
+{
+  "name": "Ambassadeurs: Aristide Bruant",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#283838",
+  "onPrimary": "#F8F8F6",
+  "background": "#141C1C",
+  "surface": "#2F3636",
+  "onSurface": "#F8F8F6",
+  "accent": "#D8A878",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "inter",
+  "roles": {
+    "secondary": "#D8A878",
+    "tertiary": "#283838",
+    "surfaceVariant": "#262E2D",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#545A59",
+    "error": "#283838",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  },
+  "effects": {
+    "glitch": {
+      "intensity": 0.25,
+      "slices": 3,
+      "sliceOffsetDp": 12,
+      "ghostOffsetDp": 3,
+      "fractureLines": true,
+      "noise": true,
+      "microJitter": true,
+      "hardwareReactive": true,
+      "burstMinMs": 200,
+      "burstMaxMs": 1200
+    }
+  }
+}

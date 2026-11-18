@@ -1,0 +1,28 @@
+{
+  "name": "Saint Benedict Presenting his Rule to Benedictin",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#785818",
+  "onPrimary": "#F8F8F6",
+  "background": "#151515",
+  "surface": "#303030",
+  "onSurface": "#F8F8F6",
+  "accent": "#C8C8B8",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#C8C8B8",
+    "tertiary": "#785818",
+    "surfaceVariant": "#303030",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#555554",
+    "error": "#785818",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

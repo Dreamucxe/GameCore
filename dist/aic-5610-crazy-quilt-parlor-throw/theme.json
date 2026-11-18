@@ -1,0 +1,28 @@
+{
+  "name": "'Crazy Quilt' Parlor Throw",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#D8B858",
+  "onPrimary": "#0C0C0E",
+  "background": "#0C0C0C",
+  "surface": "#282828",
+  "onSurface": "#F8F8F6",
+  "accent": "#783818",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#783818",
+    "tertiary": "#D8B858",
+    "surfaceVariant": "#282828",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#4E4E4E",
+    "error": "#D8B858",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

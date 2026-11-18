@@ -1,0 +1,40 @@
+{
+  "name": "Atsuita karaori (Noh Costume)",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#585858",
+  "onPrimary": "#F8F8F6",
+  "background": "#2C2C2C",
+  "surface": "#444444",
+  "onSurface": "#F8F8F6",
+  "accent": "#888888",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#888888",
+    "tertiary": "#585858",
+    "surfaceVariant": "#3C3C3C",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#656565",
+    "error": "#585858",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Scenic Wallpaper Panel: Vues de Lyon",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#B88858",
+  "onPrimary": "#0C0C0E",
+  "background": "#1D3647",
+  "surface": "#374D5C",
+  "onSurface": "#F8F8F6",
+  "accent": "#386888",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#386888",
+    "tertiary": "#B88858",
+    "surfaceVariant": "#374D5C",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#5A6C78",
+    "error": "#B88858",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

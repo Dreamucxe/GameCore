@@ -1,0 +1,42 @@
+{
+  "name": "La vache enragée",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#E8C898",
+  "onPrimary": "#0C0C0E",
+  "background": "#F5EDDF",
+  "surface": "#7D7B77",
+  "onSurface": "#0F0F11",
+  "accent": "#C8B888",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#C8B888",
+    "tertiary": "#E8C898",
+    "surfaceVariant": "#E3DBCF",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#B5AFA5",
+    "error": "#E8C898",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glitch": {
+      "intensity": 0.25,
+      "slices": 3,
+      "sliceOffsetDp": 12,
+      "ghostOffsetDp": 3,
+      "fractureLines": true,
+      "noise": true,
+      "microJitter": true,
+      "hardwareReactive": true,
+      "burstMinMs": 200,
+      "burstMaxMs": 1200
+    }
+  }
+}

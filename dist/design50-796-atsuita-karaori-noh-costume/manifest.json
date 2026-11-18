@@ -1,0 +1,25 @@
+{
+  "format": "gamecore.plugin",
+  "id": "com.dreamucxe.gamecore.design50.obj796",
+  "name": "Atsuita karaori (Noh Costume)",
+  "version": 2,
+  "versionName": "1.1.0",
+  "api": 4,
+  "minHostVersion": 60,
+  "developer": "Dream · AIC Open Access",
+  "description": "Palette extracted from “Atsuita karaori (Noh Costume)” by Japan (late Edo period (1789–1868), 1801/25), Art Institute of Chicago artwork 796. 3–5 semantic variants, glass/glitch effects.",
+  "permissions": [
+    {
+      "id": "change_ui"
+    },
+    {
+      "id": "change_icon"
+    }
+  ],
+  "declares": [
+    "theme",
+    "screens",
+    "icon"
+  ],
+  "changelog": "1.1.0 — source-backed design object palette; 3–5 variants; glass or glitch."
+}
