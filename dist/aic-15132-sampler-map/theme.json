@@ -1,0 +1,28 @@
+{
+  "name": "Sampler (Map)",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#B89868",
+  "onPrimary": "#0C0C0E",
+  "background": "#3E3625",
+  "surface": "#544D3E",
+  "onSurface": "#F8F8F6",
+  "accent": "#683818",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "mono",
+  "roles": {
+    "secondary": "#683818",
+    "tertiary": "#B89868",
+    "surfaceVariant": "#544D3E",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#726C60",
+    "error": "#B89868",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  }
+}

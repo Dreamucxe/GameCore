@@ -1,0 +1,28 @@
+{
+  "name": "At the Circus: Work in the Ring",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#E8D8B8",
+  "onPrimary": "#0C0C0E",
+  "background": "#2E2E25",
+  "surface": "#46463E",
+  "onSurface": "#F8F8F6",
+  "accent": "#7898B8",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "comic-neue",
+  "roles": {
+    "secondary": "#7898B8",
+    "tertiary": "#E8D8B8",
+    "surfaceVariant": "#46463E",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#676760",
+    "error": "#E8D8B8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

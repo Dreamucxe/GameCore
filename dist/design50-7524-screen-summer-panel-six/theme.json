@@ -1,0 +1,42 @@
+{
+  "name": "Screen: Summer (Panel Six)",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#88A8B8",
+  "onPrimary": "#0C0C0E",
+  "background": "#341C0C",
+  "surface": "#4C3628",
+  "onSurface": "#F8F8F6",
+  "accent": "#785838",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#785838",
+    "tertiary": "#88A8B8",
+    "surfaceVariant": "#442E1F",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#6B5A4E",
+    "error": "#88A8B8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glitch": {
+      "intensity": 0.25,
+      "slices": 3,
+      "sliceOffsetDp": 12,
+      "ghostOffsetDp": 3,
+      "fractureLines": true,
+      "noise": true,
+      "microJitter": true,
+      "hardwareReactive": true,
+      "burstMinMs": 200,
+      "burstMaxMs": 1200
+    }
+  }
+}

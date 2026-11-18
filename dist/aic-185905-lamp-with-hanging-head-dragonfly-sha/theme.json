@@ -1,0 +1,28 @@
+{
+  "name": "Lamp with Hanging Head Dragonfly Shade and Mosai",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#485828",
+  "onPrimary": "#F8F8F6",
+  "background": "#1D1D15",
+  "surface": "#373730",
+  "onSurface": "#F8F8F6",
+  "accent": "#886858",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#886858",
+    "tertiary": "#485828",
+    "surfaceVariant": "#373730",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#5A5A54",
+    "error": "#485828",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

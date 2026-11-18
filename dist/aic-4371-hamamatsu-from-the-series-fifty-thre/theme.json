@@ -1,0 +1,28 @@
+{
+  "name": "Hamamatsu, from the series \"Fifty-three Stations",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#E8D898",
+  "onPrimary": "#0C0C0E",
+  "background": "#25251D",
+  "surface": "#3E3E37",
+  "onSurface": "#F8F8F6",
+  "accent": "#685848",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#685848",
+    "tertiary": "#E8D898",
+    "surfaceVariant": "#3E3E37",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#60605A",
+    "error": "#E8D898",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}
