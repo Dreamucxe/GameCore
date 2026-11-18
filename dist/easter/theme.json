@@ -1,0 +1,40 @@
+{
+  "name": "Spring Dawn",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#BA68C8",
+  "onPrimary": "#FFFFFF",
+  "background": "#FEFEFE",
+  "surface": "#FFFFFF",
+  "onSurface": "#3D2B3D",
+  "accent": "#9575CD",
+  "cornerRadiusDp": 28,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#E1BEE7",
+    "tertiary": "#BA68C8",
+    "surfaceVariant": "#F8F4F8",
+    "onSurfaceVariant": "#3D2B3D",
+    "outline": "#E8DAE8",
+    "error": "#BA68C8",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "light"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

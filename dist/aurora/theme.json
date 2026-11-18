@@ -1,0 +1,40 @@
+{
+  "name": "Northern Lights",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#7DF9FF",
+  "onPrimary": "#0A1A2A",
+  "background": "#0A1A2A",
+  "surface": "#12283A",
+  "onSurface": "#E8F8FF",
+  "accent": "#00BFFF",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "cursive",
+  "roles": {
+    "secondary": "#E8F8FF",
+    "tertiary": "#7DF9FF",
+    "surfaceVariant": "#1A3040",
+    "onSurfaceVariant": "#E8F8FF",
+    "outline": "#3A5A6A",
+    "error": "#7DF9FF",
+    "onError": "#0A1A2A"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "light"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

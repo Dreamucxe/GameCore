@@ -1,0 +1,40 @@
+{
+  "name": "Core Collapse",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FFD700",
+  "onPrimary": "#1A0000",
+  "background": "#1A0000",
+  "surface": "#2D0000",
+  "onSurface": "#FFF0A0",
+  "accent": "#CCAA00",
+  "cornerRadiusDp": 0,
+  "uiScale": 1.0,
+  "font": "press-start-2p",
+  "roles": {
+    "secondary": "#FFF0A0",
+    "tertiary": "#FFD700",
+    "surfaceVariant": "#3A0000",
+    "onSurfaceVariant": "#FFF0A0",
+    "outline": "#6A0000",
+    "error": "#FFD700",
+    "onError": "#1A0000"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

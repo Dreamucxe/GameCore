@@ -1,0 +1,40 @@
+{
+  "name": "International Typographic",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#003399",
+  "onPrimary": "#FFFFFF",
+  "background": "#FFFFFF",
+  "surface": "#FAFAFA",
+  "onSurface": "#0A0A0A",
+  "accent": "#0066CC",
+  "cornerRadiusDp": 0,
+  "uiScale": 1.0,
+  "font": "inter",
+  "roles": {
+    "secondary": "#CCCCCC",
+    "tertiary": "#003399",
+    "surfaceVariant": "#F5F5F5",
+    "onSurfaceVariant": "#0A0A0A",
+    "outline": "#999999",
+    "error": "#003399",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

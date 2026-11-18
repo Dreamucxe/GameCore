@@ -1,0 +1,40 @@
+{
+  "name": "Eight Nights",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#2196F3",
+  "onPrimary": "#0A0A2E",
+  "background": "#0A0A2E",
+  "surface": "#121242",
+  "onSurface": "#E3F2FD",
+  "accent": "#1565C0",
+  "cornerRadiusDp": 10,
+  "uiScale": 1.0,
+  "font": "rubik",
+  "roles": {
+    "secondary": "#E3F2FD",
+    "tertiary": "#2196F3",
+    "surfaceVariant": "#1A1A5A",
+    "onSurfaceVariant": "#E3F2FD",
+    "outline": "#3A3A7A",
+    "error": "#2196F3",
+    "onError": "#0A0A2E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

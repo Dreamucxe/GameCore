@@ -1,0 +1,40 @@
+{
+  "name": "Midnight Countdown",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FFD700",
+  "onPrimary": "#050510",
+  "background": "#050510",
+  "surface": "#0A0A1A",
+  "onSurface": "#FFD700",
+  "accent": "#B8860B",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "orbitron",
+  "roles": {
+    "secondary": "#FFD700",
+    "tertiary": "#FFD700",
+    "surfaceVariant": "#101028",
+    "onSurfaceVariant": "#FFD700",
+    "outline": "#3A3A5A",
+    "error": "#FFD700",
+    "onError": "#050510"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

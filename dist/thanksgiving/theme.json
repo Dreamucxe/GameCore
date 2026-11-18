@@ -1,0 +1,40 @@
+{
+  "name": "Harvest Feast",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#E67E22",
+  "onPrimary": "#2D1810",
+  "background": "#2D1810",
+  "surface": "#3D2218",
+  "onSurface": "#F5E6CC",
+  "accent": "#D35400",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#F5E6CC",
+    "tertiary": "#E67E22",
+    "surfaceVariant": "#4A2E20",
+    "onSurfaceVariant": "#F5E6CC",
+    "outline": "#6B4A30",
+    "error": "#E67E22",
+    "onError": "#2D1810"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

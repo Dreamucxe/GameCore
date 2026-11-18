@@ -1,0 +1,40 @@
+{
+  "name": "Christmas Eve",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#C41E3A",
+  "onPrimary": "#FFFFFF",
+  "background": "#0B1D0B",
+  "surface": "#142814",
+  "onSurface": "#F5F5DC",
+  "accent": "#2D5A2D",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "cursive",
+  "roles": {
+    "secondary": "#F5F5DC",
+    "tertiary": "#C41E3A",
+    "surfaceVariant": "#1A3A1A",
+    "onSurfaceVariant": "#F5F5DC",
+    "outline": "#3A6B3A",
+    "error": "#C41E3A",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}
