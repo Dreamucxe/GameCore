@@ -1,0 +1,28 @@
+{
+  "name": "The Departure of the Boats, Étretat",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#88A8A8",
+  "onPrimary": "#0C0C0E",
+  "background": "#252525",
+  "surface": "#3E3E3E",
+  "onSurface": "#F8F8F6",
+  "accent": "#B8C8C8",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#B8C8C8",
+    "tertiary": "#88A8A8",
+    "surfaceVariant": "#3E3E3E",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#606060",
+    "error": "#88A8A8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

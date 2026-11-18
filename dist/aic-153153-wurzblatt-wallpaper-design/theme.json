@@ -1,0 +1,28 @@
+{
+  "name": "Wurzblatt (Wallpaper Design)",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#C89838",
+  "onPrimary": "#0C0C0E",
+  "background": "#151515",
+  "surface": "#303030",
+  "onSurface": "#F8F8F6",
+  "accent": "#F8E8C8",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#F8E8C8",
+    "tertiary": "#C89838",
+    "surfaceVariant": "#303030",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#555554",
+    "error": "#C89838",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Vase",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#D8B868",
+  "onPrimary": "#0C0C0E",
+  "background": "#36363E",
+  "surface": "#4D4D54",
+  "onSurface": "#F8F8F6",
+  "accent": "#484868",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#484868",
+    "tertiary": "#D8B868",
+    "surfaceVariant": "#4D4D54",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#6C6C72",
+    "error": "#D8B868",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

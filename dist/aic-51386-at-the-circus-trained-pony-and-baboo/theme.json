@@ -1,0 +1,28 @@
+{
+  "name": "At the Circus: Trained Pony and Baboon",
+  "schema": 2,
+  "dark": false,
+  "amoled": false,
+  "primary": "#D8B878",
+  "onPrimary": "#0C0C0E",
+  "background": "#EFE8E1",
+  "surface": "#F9F7F4",
+  "onSurface": "#0F0F11",
+  "accent": "#686858",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "comic-neue",
+  "roles": {
+    "secondary": "#686858",
+    "tertiary": "#D8B878",
+    "surfaceVariant": "#D4CEC8",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#B0ABA7",
+    "error": "#D8B878",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

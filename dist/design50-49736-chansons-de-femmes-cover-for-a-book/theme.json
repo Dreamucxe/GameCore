@@ -1,0 +1,42 @@
+{
+  "name": "Chansons de femmes, cover for a book by Paul Del",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#D8C8A8",
+  "onPrimary": "#0C0C0E",
+  "background": "#EDE6D8",
+  "surface": "#7D7B78",
+  "onSurface": "#0F0F11",
+  "accent": "#B8A878",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#B8A878",
+    "tertiary": "#D8C8A8",
+    "surfaceVariant": "#DBD5C8",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#AFAAA0",
+    "error": "#D8C8A8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glitch": {
+      "intensity": 0.25,
+      "slices": 3,
+      "sliceOffsetDp": 12,
+      "ghostOffsetDp": 3,
+      "fractureLines": true,
+      "noise": true,
+      "microJitter": true,
+      "hardwareReactive": true,
+      "burstMinMs": 200,
+      "burstMaxMs": 1200
+    }
+  }
+}

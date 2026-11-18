@@ -1,0 +1,40 @@
+{
+  "name": "Oinochoe (Pitcher)",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#D8D8D8",
+  "onPrimary": "#0C0C0E",
+  "background": "#141414",
+  "surface": "#2F2F2F",
+  "onSurface": "#F8F8F6",
+  "accent": "#282828",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#282828",
+    "tertiary": "#D8D8D8",
+    "surfaceVariant": "#262626",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#545453",
+    "error": "#D8D8D8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

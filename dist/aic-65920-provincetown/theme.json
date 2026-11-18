@@ -1,0 +1,28 @@
+{
+  "name": "Provincetown",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#B89888",
+  "onPrimary": "#0C0C0E",
+  "background": "#151515",
+  "surface": "#303030",
+  "onSurface": "#F8F8F6",
+  "accent": "#785848",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "mono",
+  "roles": {
+    "secondary": "#785848",
+    "tertiary": "#B89888",
+    "surfaceVariant": "#303030",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#555554",
+    "error": "#B89888",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  }
+}

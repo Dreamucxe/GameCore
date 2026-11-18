@@ -1,0 +1,40 @@
+{
+  "name": "Hand Mirror",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#C8C8C8",
+  "onPrimary": "#0C0C0E",
+  "background": "#2C2C24",
+  "surface": "#44443D",
+  "onSurface": "#F8F8F6",
+  "accent": "#988878",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "jetbrains-mono",
+  "roles": {
+    "secondary": "#988878",
+    "tertiary": "#C8C8C8",
+    "surfaceVariant": "#3C3C35",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#65655F",
+    "error": "#C8C8C8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

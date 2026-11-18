@@ -1,0 +1,28 @@
+{
+  "name": "Shiva as Lord of the Dance (Nataraja)",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#B8A888",
+  "onPrimary": "#0C0C0E",
+  "background": "#2E2E1D",
+  "surface": "#464637",
+  "onSurface": "#F8F8F6",
+  "accent": "#383828",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#383828",
+    "tertiary": "#B8A888",
+    "surfaceVariant": "#464637",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#67675A",
+    "error": "#B8A888",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}
