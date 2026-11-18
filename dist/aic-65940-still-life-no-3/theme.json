@@ -1,0 +1,28 @@
+{
+  "name": "Still Life No. 3",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#884838",
+  "onPrimary": "#F8F8F6",
+  "background": "#150C0C",
+  "surface": "#302828",
+  "onSurface": "#F8F8F6",
+  "accent": "#B89888",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "mono",
+  "roles": {
+    "secondary": "#B89888",
+    "tertiary": "#884838",
+    "surfaceVariant": "#302828",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#554E4E",
+    "error": "#884838",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  }
+}

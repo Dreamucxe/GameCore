@@ -1,0 +1,28 @@
+{
+  "name": "Moonlight. Night in St Cloud",
+  "schema": 2,
+  "dark": false,
+  "amoled": false,
+  "primary": "#484838",
+  "onPrimary": "#F8F8F6",
+  "background": "#F5F5EF",
+  "surface": "#FCFCF9",
+  "onSurface": "#0F0F11",
+  "accent": "#F8F8F8",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#F8F8F8",
+    "tertiary": "#484838",
+    "surfaceVariant": "#D9D9D4",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#B5B5B1",
+    "error": "#484838",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

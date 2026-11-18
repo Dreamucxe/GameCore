@@ -1,0 +1,28 @@
+{
+  "name": "Fragments (Border)",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#983828",
+  "onPrimary": "#F8F8F6",
+  "background": "#150C0C",
+  "surface": "#302828",
+  "onSurface": "#F8F8F6",
+  "accent": "#F8F8F8",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#F8F8F8",
+    "tertiary": "#983828",
+    "surfaceVariant": "#302828",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#554E4E",
+    "error": "#983828",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

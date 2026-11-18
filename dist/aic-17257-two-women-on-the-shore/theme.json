@@ -1,0 +1,28 @@
+{
+  "name": "Two Women on the Shore",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#78A878",
+  "onPrimary": "#0C0C0E",
+  "background": "#152525",
+  "surface": "#303E3E",
+  "onSurface": "#F8F8F6",
+  "accent": "#E8E8D8",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#E8E8D8",
+    "tertiary": "#78A878",
+    "surfaceVariant": "#303E3E",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#556060",
+    "error": "#78A878",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}
