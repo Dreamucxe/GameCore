@@ -1,12 +1,19 @@
 package com.gamecore.ui.sessions
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,21 +23,31 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -50,25 +67,27 @@ import com.gamecore.core.model.tilesSentence
 import com.gamecore.ui.Destination
 import com.gamecore.ui.components.ActionRow
 import com.gamecore.ui.components.ChoiceChip
-import com.gamecore.ui.components.ChoiceRow
 import com.gamecore.ui.components.ClickableCard
 import com.gamecore.ui.components.ConfirmDialog
 import com.gamecore.ui.components.EmptyState
 import com.gamecore.ui.components.NoteBanner
 import com.gamecore.ui.components.OnResume
 import com.gamecore.ui.components.PlainCard
-import com.gamecore.ui.components.ReadoutRow
 import com.gamecore.ui.components.RowDivider
 import com.gamecore.ui.components.ScreenBottomPadding
 import com.gamecore.ui.components.ScreenHeader
 import com.gamecore.ui.components.ScreenPadding
 import com.gamecore.ui.components.SectionCard
+import com.gamecore.ui.components.SectionLabel
+import com.gamecore.ui.components.StatTile
 import com.gamecore.ui.components.StatusChip
 import com.gamecore.ui.components.Tone
 import com.gamecore.ui.components.colour
 import com.gamecore.ui.games.GameIcon
 import com.gamecore.ui.theme.Density
+import com.gamecore.ui.theme.LocalAnimationsEnabled
 import com.gamecore.ui.theme.Spacing
+import com.gamecore.ui.theme.StatLabelStyle
 import com.gamecore.ui.theme.statusColor
 // Two extensions called colour() meet on this screen: Tone's, which paints the app's own accents, and
 // StatusColor's, which paints a classified temperature. Aliasing one keeps both call sites readable and
@@ -158,7 +177,7 @@ fun SessionsScreen(
         }
 
         if (state.statistics.isNotEmpty()) {
-            item { StatisticsCard(state = state, modifier = padded) }
+            item { StatisticsBento(state = state, modifier = padded) }
         }
 
         if (state.isEmpty && !state.isLoading) {
@@ -174,17 +193,26 @@ fun SessionsScreen(
         }
 
         if (!state.isEmpty) {
+            item {
+                SectionLabel(
+                    text = "History",
+                    subtitle = "Every game session and training run, in one list.",
+                    modifier = padded.padding(top = Spacing.xs),
+                )
+            }
+            // The filters are a rail on the page, not a card in the stack: they narrow the list below
+            // them, so they belong directly above it rather than in a container of their own.
             item { KindFilterRow(state = state, onKind = viewModel::setKind) }
             if (state.showsGameFilters) {
                 item { GameFilterRow(state = state, onFilter = viewModel::setFilter) }
             }
-            item { SortCard(state = state, onSort = viewModel::setSort, modifier = padded) }
+            item { OrderToolbar(state = state, onSort = viewModel::setSort) }
         }
 
         // Keyed on the composite key and never on the id: the two repositories number their rows
         // independently, so a game session and a training run can both be id 5.
         items(state.rows, key = { it.key }) { row ->
-            SessionCard(
+            SessionTimelineRow(
                 row = row,
                 onOpen = {
                     when (row.kind) {
@@ -193,7 +221,9 @@ fun SessionsScreen(
                     }
                 },
                 onDelete = { viewModel.askDelete(row) },
-                modifier = padded,
+                // Filtering and sorting move rows through each other; this makes the list reflow
+                // instead of jumping to its new arrangement in one frame.
+                modifier = padded.animateItem(),
             )
         }
 
@@ -249,59 +279,171 @@ fun SessionsScreen(
  */
 @Composable
 private fun LiveCard(live: LiveSession, onStop: () -> Unit, modifier: Modifier = Modifier) {
-    SectionCard(
-        title = "Recording now",
-        icon = Icons.Filled.Insights,
-        modifier = modifier,
-        // A word, not a pulsing dot: §2 does not allow a state to be carried by colour or motion alone.
-        action = { StatusChip(text = "Active", tone = Tone.Accent) },
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            GameIcon(packageName = live.packageName, label = live.label, size = ROW_ICON)
-            Spacer(modifier = Modifier.width(Spacing.md))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = live.label,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = live.detail,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+    PlainCard(modifier = modifier, contentPadding = 0.dp) {
+        Column {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                Color.Transparent,
+                            ),
+                        ),
+                    )
+                    .padding(16.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // The pulse is decoration; the words "RECORDING NOW" and "Active" carry the state,
+                    // because §2 does not allow it to rest on colour or motion alone. Under reduced
+                    // motion the dot is simply steady.
+                    RecordingPulse()
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "RECORDING NOW",
+                        style = StatLabelStyle,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatusChip(text = "Active", tone = Tone.Accent)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(MaterialTheme.shapes.large)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        GameIcon(packageName = live.packageName, label = live.label, size = 46.dp)
+                    }
+                    Spacer(modifier = Modifier.width(Spacing.md))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = live.label,
+                            style = MaterialTheme.typography.titleLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = live.detail,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(Spacing.md))
+                    Text(
+                        text = live.duration,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                if (live.tiles.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                    SessionTileStrip(tiles = live.tiles, spoken = tilesSentence(live.tiles))
+                }
             }
-            Spacer(modifier = Modifier.width(Spacing.md))
-            Text(text = live.duration, style = MaterialTheme.typography.headlineSmall)
-        }
-        if (live.tiles.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(Spacing.md))
-            SessionTileStrip(tiles = live.tiles, spoken = tilesSentence(live.tiles))
-        }
-        ActionRow {
-            TextButton(onClick = onStop) { Text("Stop recording") }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(
+                    onClick = onStop,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Stop recording")
+                }
+            }
         }
     }
 }
 
 /**
- * The totals, across every game session ever recorded.
+ * A small breathing dot beside "RECORDING NOW".
  *
- * The subtitle is doing real work twice over. These figures ignore the chips below, so a user reading "14 h
- * played" under a list filtered to one game has to be told which of the two they are looking at. And they
- * are game aggregates: the repository that answers them has never seen a training run, so the card says
- * "game session" rather than quietly counting Aim Lab into a total it did not measure.
+ * It is the one continuous animation in the app, and it exists for one moment: a session is being written
+ * right now, and a living signal is the honest way to say so. It runs only while this card is composed, so
+ * leaving the screen stops it. Reduced motion replaces the pulse with a steady dot of the same size — the
+ * state is still there, it just does not move.
  */
 @Composable
-private fun StatisticsCard(state: SessionsUiState, modifier: Modifier = Modifier) {
-    SectionCard(
-        title = "All time",
-        subtitle = "Across every game session recorded, whatever the chips below show",
-        icon = Icons.Filled.History,
-        modifier = modifier,
-    ) {
-        state.statistics.forEach { ReadoutRow(it) }
+private fun RecordingPulse() {
+    val colour = MaterialTheme.colorScheme.primary
+    if (!LocalAnimationsEnabled.current) {
+        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(colour))
+        return
+    }
+    val transition = rememberInfiniteTransition(label = "recording")
+    val alpha by transition.animateFloat(
+        initialValue = 0.30f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "recordingPulse",
+    )
+    Box(
+        modifier = Modifier
+            .size(8.dp)
+            .clip(CircleShape)
+            .background(colour.copy(alpha = alpha)),
+    )
+}
+
+/**
+ * The totals, across every game session ever recorded, as a bento of figures.
+ *
+ * The first reading gets a full-width tile and the rest sit two to a row, so the totals read as a
+ * dashboard rather than as the label/value list this used to be. The subtitle is doing real work twice
+ * over. These figures ignore the chips below, so a user reading "14 h played" under a list filtered to one
+ * game has to be told which of the two they are looking at. And they are game aggregates: the repository
+ * that answers them has never seen a training run, so the section says "game session" rather than quietly
+ * counting Aim Lab into a total it did not measure.
+ */
+@Composable
+private fun StatisticsBento(state: SessionsUiState, modifier: Modifier = Modifier) {
+    val stats = state.statistics
+    if (stats.isEmpty()) return
+    Column(modifier = modifier.fillMaxWidth()) {
+        SectionLabel(
+            text = "All time",
+            subtitle = "Across every game session recorded, whatever the chips below show.",
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        val lead = stats.first()
+        StatTile(
+            label = lead.label,
+            value = lead.value,
+            modifier = Modifier.fillMaxWidth(),
+            icon = Icons.Filled.Insights,
+            tone = lead.tone,
+            detail = lead.detail,
+            fraction = lead.fraction,
+        )
+        stats.drop(1).chunked(2).forEach { row ->
+            Row(
+                modifier = Modifier.padding(top = Spacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                row.forEach { readout ->
+                    StatTile(
+                        label = readout.label,
+                        value = readout.value,
+                        modifier = Modifier.weight(1f),
+                        tone = readout.tone,
+                        detail = readout.detail,
+                        fraction = readout.fraction,
+                    )
+                }
+                if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
+            }
+        }
     }
 }
 
@@ -354,18 +496,155 @@ private fun GameFilterRow(state: SessionsUiState, onFilter: (String?) -> Unit) {
     }
 }
 
+/**
+ * The order control, as a toolbar on the page rather than another card.
+ *
+ * The old card spent a full section heading and a two-column choice grid on three options. A dropdown in
+ * one row does the same job in a tenth of the height, and the row can also state how many rows are
+ * showing, which is the question the filters above it raise. It stays a real button with a real menu, so
+ * the control is reachable by keyboard and screen reader exactly as the choice grid was.
+ */
 @Composable
-private fun SortCard(state: SessionsUiState, onSort: (SessionSort) -> Unit, modifier: Modifier = Modifier) {
-    SectionCard(title = "Order", modifier = modifier) {
-        ChoiceRow(
-            options = SessionSort.entries.toList(),
-            selected = state.sort,
-            onSelect = onSort,
-            label = { it.label },
-            perRow = 2,
+private fun OrderToolbar(state: SessionsUiState, onSort: (SessionSort) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = ScreenPadding),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Order",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.width(Spacing.sm))
+        Box {
+            OutlinedButton(
+                onClick = { expanded = true },
+                shape = MaterialTheme.shapes.small,
+            ) {
+                Text(state.sort.label)
+                Icon(imageVector = Icons.Filled.ArrowDropDown, contentDescription = null)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                SessionSort.entries.forEach { sort ->
+                    DropdownMenuItem(
+                        text = { Text(sort.label) },
+                        onClick = {
+                            expanded = false
+                            onSort(sort)
+                        },
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = "${state.rows.size} shown",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
+
+/**
+ * One recorded session as a timeline entry: the clock on the left rail, a dot on the line, then the card.
+ *
+ * The rail is what makes this a history rather than a stack of cards. The time used to be one more line
+ * inside the card; pulled out to its own column it lines up down the screen, so a user can scan *when*
+ * they played without reading every card. The dot's tint distinguishes a game session from an Aim Lab run
+ * as a second cue, but the icon and label inside the card still carry that distinction in words and shape —
+ * §2 does not let colour be the only signal.
+ *
+ * The line is drawn per row rather than as one continuous rail behind the list, so it breaks at each gap.
+ * That is deliberate: a lazy list cannot know its neighbours' heights, and a segmented timeline reads as a
+ * sequence of recorded moments rather than as a diagram that might imply data between them.
+ */
+@Composable
+private fun SessionTimelineRow(
+    row: SessionRow,
+    onOpen: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(
+            modifier = Modifier
+                .width(CLOCK_RAIL_WIDTH)
+                .padding(top = 14.dp, end = 2.dp),
+            horizontalAlignment = Alignment.End,
+        ) {
+            Text(
+                text = row.clockText(),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+            )
+            val day = row.dayText()
+            if (day.isNotEmpty()) {
+                Text(
+                    text = day,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .width(RAIL_WIDTH)
+                .fillMaxHeight(),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.outlineVariant),
+            )
+            Box(
+                modifier = Modifier
+                    .padding(top = 18.dp)
+                    .size(9.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (row.kind == SessionKind.AIMLAB) {
+                            MaterialTheme.colorScheme.secondary
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                    ),
+            )
+        }
+        Spacer(modifier = Modifier.width(Spacing.sm))
+        SessionCard(
+            row = row,
+            onOpen = onOpen,
+            onDelete = onDelete,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/** "14:32" from a row's "Today · 14:32" — the rail's headline. */
+private fun SessionRow.clockText(): String = started.substringAfterLast(STARTED_SEPARATOR, started)
+
+/** "Today" from the same line; empty when the formatter did not put a separator in it. */
+private fun SessionRow.dayText(): String = started.substringBefore(STARTED_SEPARATOR, "")
+
+/** The width of the clock column and of the dot rail. Together they are the timeline's left margin. */
+private val CLOCK_RAIL_WIDTH = 54.dp
+private val RAIL_WIDTH = 16.dp
+
+/** What [SessionsViewModel.startedText] joins the relative day and the clock with. */
+private const val STARTED_SEPARATOR = " · "
 
 /**
  * One recorded session — a game session or an Aim Lab run, drawn the same way on purpose.

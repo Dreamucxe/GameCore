@@ -255,6 +255,10 @@ All windows in this section require **Display over other apps**. The UI reports 
 
 The draggable button can:
 
+- wear one of three looks: **Reactor** (segmented energy ring and lit core, the default), **Vanguard**
+  (rounded armour plate with corner brackets), or **Classic** (the original disc, unchanged);
+- animate its own state: a press dip, a one-shot shockwave or light sweep when a surface opens, a ring
+  turn, and a charge arc while the layout-picker long press is held — Classic keeps the old static disc;
 - snap to a corner or nearest edge;
 - remember separate portrait and landscape positions;
 - change size, normal opacity, and faded opacity;

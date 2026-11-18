@@ -262,6 +262,9 @@ fun IntelligenceScreen(
                     comparison = comparison,
                     learningEnabled = state.learningEnabled,
                     outcomeRecorded = state.outcomeRecorded,
+                    attributable = state.benchmarks
+                        .firstOrNull { it.id == state.comparedRunId }
+                        ?.testedAction != null,
                     onRecord = viewModel::recordOutcome,
                     modifier = padded,
                 )
@@ -901,6 +904,19 @@ private fun BenchmarkCentre(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         KeyValueRow("Capture length", formatDuration(state.benchmarkProfile.defaultDurationMillis))
+        state.testedActionPreview?.let { preview ->
+            val tested = preview.testedAction
+            if (tested != null) {
+                KeyValueRow("Under test", tested.title)
+                KeyValueRow("Measured by", tested.metricNames.firstOrNull() ?: "No relevant metric")
+            } else {
+                NoteBanner(
+                    text = preview.reason
+                        ?: "No confirmed optimization is attached to this run.",
+                    tone = Tone.Muted,
+                )
+            }
+        }
         if (state.selectedPackage == null) {
             NoteBanner(
                 text = "No game is selected. CPU, memory, battery, display and thermal readings can " +
@@ -998,6 +1014,7 @@ private fun ComparisonCard(
     comparison: BenchmarkComparison,
     learningEnabled: Boolean,
     outcomeRecorded: Boolean,
+    attributable: Boolean,
     onRecord: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1043,6 +1060,11 @@ private fun ComparisonCard(
                 Tone.Muted,
             )
             comparison.verdict == ComparisonVerdict.NOT_COMPARABLE -> Unit
+            !attributable -> NoteBanner(
+                "This run has no confirmed optimization attached, so it cannot be attributed to " +
+                    "one change.",
+                Tone.Muted,
+            )
             else -> OutlinedButton(onClick = onRecord, modifier = Modifier.fillMaxWidth()) {
                 Text("Use this measured result for learning")
             }
@@ -1269,7 +1291,8 @@ private fun LearningHistoryCard(records: List<LearningRecord>, modifier: Modifie
                         text = when (record.decision) {
                             LearningDecision.GENERATED -> "Generated"
                             LearningDecision.APPLIED -> "Applied"
-                            LearningDecision.ATTEMPTED -> "Unconfirmed"
+                            LearningDecision.ATTEMPTED -> "Failed"
+                            LearningDecision.UNCONFIRMED -> "Unconfirmed"
                             LearningDecision.IGNORED -> "Dismissed"
                             LearningDecision.TESTED -> "Tested"
                             LearningDecision.UNKNOWN -> "Unrecognised"
@@ -1278,6 +1301,7 @@ private fun LearningHistoryCard(records: List<LearningRecord>, modifier: Modifie
                             LearningDecision.GENERATED -> Tone.Accent
                             LearningDecision.APPLIED -> Tone.Good
                             LearningDecision.ATTEMPTED -> Tone.Warning
+                            LearningDecision.UNCONFIRMED -> Tone.Warning
                             LearningDecision.IGNORED -> Tone.Muted
                             LearningDecision.TESTED -> outcomeTone(record.outcome)
                             LearningDecision.UNKNOWN -> Tone.Muted

@@ -1,7 +1,9 @@
 package com.gamecore.ui.games
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -46,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -64,6 +67,7 @@ import com.gamecore.core.model.CpuAffinityPreset
 import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.PerformanceMode
+import com.gamecore.core.model.RefreshRateMechanism
 import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.ScreenOrientationLock
 import com.gamecore.core.model.VolumeTriggerConfig
@@ -91,6 +95,7 @@ import com.gamecore.ui.components.Tone
 import com.gamecore.ui.components.colour
 import com.gamecore.ui.components.startIntentSafely
 import com.gamecore.ui.games.GameEnergyCard
+import com.gamecore.ui.theme.Spacing
 import com.gamecore.ui.trigger.VolumeTriggerSection
 
 /**
@@ -358,10 +363,24 @@ private fun GameCard(
     val profile = state.profile ?: return
     PlainCard(modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(MaterialTheme.shapes.large)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                GameIcon(
+                    packageName = profile.packageName,
+                    label = profile.label,
+                    size = 46.dp,
+                )
+            }
+            Spacer(modifier = Modifier.width(Spacing.md))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = profile.label,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -1364,21 +1383,57 @@ private fun SmartFeaturesSection(
 ) {
     val profile = state.profile ?: return
     val elevated = state.capabilities.hasElevatedAccess
+    val mechanism = state.capabilities.refreshRateMechanism
     val floorRates = state.refreshRateChoices
+    // The machine starts a session at the profile's target rate, or the panel's peak when no target
+    // is set. A floor at or above that rate is not a step down, so it cannot be offered as one.
+    val startRate = profile.targetRefreshRate ?: floorRates.maxOrNull()
+    val lowerFloorRates = floorRates.filter { rate ->
+        // 1.5 Hz is the same tolerance ThermalDownshiftConfig uses to call two rates the same rung.
+        startRate == null || rate < startRate - 1.5f
+    }
+    val canConfigureThermal = when (mechanism) {
+        RefreshRateMechanism.SYSTEM_SETTINGS -> lowerFloorRates.isNotEmpty()
+        RefreshRateMechanism.SHIZUKU_SETTINGS -> elevated && lowerFloorRates.isNotEmpty()
+        else -> false
+    }
     SectionCard(title = "Smart features", icon = Icons.Filled.AutoAwesome, modifier = modifier) {
         // --- §B thermal auto-downshift ---
         SwitchRow(
             title = "Auto-cool when hot",
             checked = profile.thermalDownshiftEnabled,
-            onCheckedChange = { on -> onEdit { it.copy(thermalDownshiftEnabled = on) } },
+            onCheckedChange = { on ->
+                onEdit { current ->
+                    if (!on) {
+                        current.copy(thermalDownshiftEnabled = false)
+                    } else {
+                        current.copy(
+                            thermalDownshiftEnabled = true,
+                            // Materialise what the controls below display, so enabling the switch
+                            // cannot save an enabled profile with no trigger or no lower floor.
+                            thermalLimitDeciCelsius = current.thermalLimitDeciCelsius
+                                ?: DEFAULT_THERMAL_LIMIT_DECI,
+                            thermalFloorRateHz = current.thermalFloorRateHz
+                                ?.takeIf { floor -> lowerFloorRates.any { it == floor } }
+                                ?: lowerFloorRates.minOrNull(),
+                        )
+                    }
+                }
+            },
             description = "Steps the refresh rate down while the phone stays hot and back up as it " +
                 "cools, never below the floor you set. It reports what it changed — it does not claim " +
                 "to cool the device.",
-            enabled = elevated || profile.thermalDownshiftEnabled,
+            enabled = profile.thermalDownshiftEnabled || canConfigureThermal,
         )
         if (profile.thermalDownshiftEnabled) {
-            if (!elevated) {
-                NoteBanner(
+            when {
+                mechanism == RefreshRateMechanism.NONE -> NoteBanner(
+                    text = "This device does not expose a way to change the refresh rate, so " +
+                        "auto-cooling cannot run.",
+                    tone = Tone.Muted,
+                    icon = Icons.Filled.Info,
+                )
+                mechanism == RefreshRateMechanism.SHIZUKU_SETTINGS && !elevated -> NoteBanner(
                     text = "Needs Shizuku running to change the refresh rate — it will be skipped until " +
                         "then.",
                     tone = Tone.Muted,
@@ -1396,12 +1451,14 @@ private fun SmartFeaturesSection(
                 valueLabel = "$limitCelsius°C",
                 description = "The auto-cool kicks in once the device stays at or above this.",
             )
-            if (floorRates.isNotEmpty()) {
+            if (lowerFloorRates.isNotEmpty()) {
                 Text(text = "Never below", style = MaterialTheme.typography.bodyLarge)
                 Spacer(modifier = Modifier.height(6.dp))
                 ChoiceRow(
-                    options = floorRates,
-                    selected = profile.thermalFloorRateHz ?: floorRates.minOrNull(),
+                    options = lowerFloorRates,
+                    selected = profile.thermalFloorRateHz
+                        ?.takeIf { floor -> lowerFloorRates.any { it == floor } }
+                        ?: lowerFloorRates.minOrNull(),
                     onSelect = { hz -> onEdit { it.copy(thermalFloorRateHz = hz) } },
                     label = { Formatters.hertz(it) },
                     perRow = 3,

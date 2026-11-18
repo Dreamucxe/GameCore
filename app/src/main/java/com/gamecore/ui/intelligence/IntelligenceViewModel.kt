@@ -17,15 +17,20 @@ import com.gamecore.core.model.LearningSummary
 import com.gamecore.core.model.OptimizationGoal
 import com.gamecore.core.model.PerformanceMode
 import com.gamecore.core.model.RecommendationTarget
+import com.gamecore.core.model.RefreshRateMechanism
 import com.gamecore.core.model.SmartProfileField
 import com.gamecore.core.model.SmartRecommendation
+import com.gamecore.core.model.TestedActionResolution
 import com.gamecore.core.system.InstalledAppLister
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.data.repository.SessionRepository
 import com.gamecore.data.repository.SmartIntelligenceRepository
+import com.gamecore.domain.intelligence.ThermalProfileApplier
+import com.gamecore.domain.intelligence.ThermalProfileApplyResult
 import com.gamecore.domain.optimization.OptimizationManager
 import com.gamecore.domain.optimization.OptimizationRequest
+import com.gamecore.core.model.OptimizationResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -58,6 +63,8 @@ data class IntelligenceUiState(
     val learning: Map<String, LearningSummary> = emptyMap(),
     val learningRecords: List<LearningRecord> = emptyList(),
     val benchmarkProfile: BenchmarkProfile = BenchmarkProfile.QUICK,
+    /** What a capture started now would be attributed to, or why it would not be. */
+    val testedActionPreview: TestedActionResolution? = null,
     val progress: BenchmarkProgress? = null,
     val isCapturing: Boolean = false,
     val comparison: BenchmarkComparison? = null,
@@ -103,6 +110,7 @@ class IntelligenceViewModel @Inject constructor(
     val state: StateFlow<IntelligenceUiState> = mutableState.asStateFlow()
 
     private var benchmarkJob: Job? = null
+    private var previewJob: Job? = null
     private var sessionSnapshot: List<GameSession> = emptyList()
 
     init {
@@ -232,6 +240,7 @@ class IntelligenceViewModel @Inject constructor(
                         suppressedKeys = emptySet(),
                     )
                 }
+                refreshTestedActionPreview()
             } catch (error: Throwable) {
                 mutableState.update {
                     it.copy(
@@ -264,6 +273,33 @@ class IntelligenceViewModel @Inject constructor(
                     },
                 )
             }
+            refreshTestedActionPreview()
+        }
+    }
+
+    /**
+     * Re-reads what the next capture would be attributed to.
+     *
+     * The repository resolves this again at capture start; this copy exists so the screen can show
+     * "under test", "waiting for the game to start" or "two changes, so this run is unattributed"
+     * before the user spends a capture on it.
+     */
+    private fun refreshTestedActionPreview() {
+        previewJob?.cancel()
+        previewJob = viewModelScope.launch {
+            val current = mutableState.value
+            val preview = try {
+                repository.previewTestedAction(
+                    profile = current.benchmarkProfile,
+                    gamePackage = current.selectedPackage,
+                    goal = current.goal,
+                )
+            } catch (error: Throwable) {
+                TestedActionResolution(
+                    reason = "The tested-action preview could not be read: ${error.shortMessage()}",
+                )
+            }
+            mutableState.update { it.copy(testedActionPreview = preview) }
         }
     }
 
@@ -343,6 +379,7 @@ class IntelligenceViewModel @Inject constructor(
 
     fun selectBenchmarkProfile(profile: BenchmarkProfile) {
         mutableState.update { it.copy(benchmarkProfile = profile) }
+        refreshTestedActionPreview()
     }
 
     // ---------------------------------------------------------------------------------- benchmarks
@@ -388,9 +425,13 @@ class IntelligenceViewModel @Inject constructor(
                         outcomeRecorded = false,
                         message = "Saved ${profile.label.lowercase()}: " +
                             "${run.summary.sampleCount} readings over " +
-                            "${formatDuration(run.summary.durationMillis)}.",
+                            "${formatDuration(run.summary.durationMillis)}." +
+                            (run.testedAction?.let { action ->
+                                " Under test: ${action.title}."
+                            } ?: " No confirmed optimization was attached to this run."),
                     )
                 }
+                refreshTestedActionPreview()
             } catch (cancelled: CancellationException) {
                 mutableState.update {
                     it.copy(
@@ -485,6 +526,7 @@ class IntelligenceViewModel @Inject constructor(
                     message = "Benchmark history cleared.",
                 )
             }
+            refreshTestedActionPreview()
         }
     }
 
@@ -538,12 +580,14 @@ class IntelligenceViewModel @Inject constructor(
                         if (mutableState.value.learningEnabled) {
                             repository.recordDecision(
                                 recommendation = recommendation,
-                                decision = if (result.isApplied) {
-                                    LearningDecision.APPLIED
-                                } else {
-                                    // The attempt remains inspectable, but an unconfirmed, skipped or
-                                    // failed operation must not be counted as a setting that was applied.
-                                    LearningDecision.ATTEMPTED
+                                decision = when {
+                                    result.isApplied -> LearningDecision.APPLIED
+                                    result is OptimizationResult.Unverified ->
+                                        LearningDecision.UNCONFIRMED
+                                    // The attempt remains inspectable, but a refused, skipped or
+                                    // failed operation must not be counted as a setting that was
+                                    // applied.
+                                    else -> LearningDecision.ATTEMPTED
                                 },
                                 goal = mutableState.value.goal,
                                 note = result.message,
@@ -602,10 +646,91 @@ class IntelligenceViewModel @Inject constructor(
                 return "This needs a profile for the game. Opening the editor so one can be created."
             }
 
+        var alreadySaved = false
         val updated = when (field) {
             SmartProfileField.REFRESH_RATE ->
                 profile.copy(targetRefreshRate = recommendation.targetRefreshRateHz)
-            SmartProfileField.THERMAL_DOWNSHIFT -> profile.copy(thermalDownshiftEnabled = true)
+            SmartProfileField.THERMAL_DOWNSHIFT -> {
+                val scan = mutableState.value.scan
+                    ?: return "Thermal auto-cooling needs a fresh device scan; nothing was saved."
+                val capabilities = scan.capabilities
+                val mechanism = capabilities.refreshRateMechanism
+                if (mechanism != RefreshRateMechanism.SYSTEM_SETTINGS &&
+                    mechanism != RefreshRateMechanism.SHIZUKU_SETTINGS
+                ) {
+                    return "Thermal auto-cooling needs working refresh-rate control; nothing was saved."
+                }
+                if (mechanism == RefreshRateMechanism.SHIZUKU_SETTINGS &&
+                    !capabilities.shizuku.isUsable
+                ) {
+                    return "Thermal auto-cooling needs Shizuku running; nothing was saved."
+                }
+
+                // Re-check the recommendation against the scan apply was pressed on: a stale
+                // status-only trigger, or a floor at the starting rate, would save a no-op.
+                val hasUsableTrigger = recommendation.targetThermalLimitDeciCelsius != null ||
+                    (recommendation.targetThermalStatusFloor != null &&
+                        capabilities.thermalStatusSupported)
+                if (!hasUsableTrigger) {
+                    return "This recommendation has no usable thermal trigger on this device; " +
+                        "nothing was saved."
+                }
+                val startRate = profile.targetRefreshRate
+                    ?: scan.supportedRefreshRates.maxOrNull()
+                // Mirror ThermalProfileApplier: a floor the user already reviewed wins.
+                val floor = profile.thermalFloorRateHz
+                    ?: recommendation.targetThermalFloorRateHz
+                if (startRate == null || floor == null ||
+                    !ThermalProfileApplier.isUsableFloor(
+                        floorRateHz = floor,
+                        startRateHz = startRate,
+                        supportedRates = scan.supportedRefreshRates,
+                    )
+                ) {
+                    return "Thermal auto-cooling would have no lower refresh-rate step; " +
+                        "nothing was saved."
+                }
+
+                when (
+                    val result = ThermalProfileApplier.apply(
+                        recommendation = recommendation,
+                        profile = profile,
+                        save = { profiles.save(it) },
+                    )
+                ) {
+                    is ThermalProfileApplyResult.Applied -> {
+                        val saved = profiles.profileFor(packageName)
+                        val hasTrigger = saved?.thermalLimitDeciCelsius != null ||
+                            (saved?.thermalStatusFloor != null &&
+                                capabilities.thermalStatusSupported)
+                        val savedFloor = saved?.thermalFloorRateHz
+                        val hasLowerRung = savedFloor != null &&
+                            ThermalProfileApplier.isUsableFloor(
+                                floorRateHz = savedFloor,
+                                startRateHz = startRate,
+                                supportedRates = scan.supportedRefreshRates,
+                            )
+                        if (saved?.thermalDownshiftEnabled != true ||
+                            !hasTrigger ||
+                            !hasLowerRung
+                        ) {
+                            return "The thermal settings could not be verified after saving."
+                        }
+                        alreadySaved = true
+                        result.profile
+                    }
+
+                    ThermalProfileApplyResult.AlreadyConfigured ->
+                        return "This profile already has that thermal configuration; " +
+                            "nothing was changed."
+
+                    ThermalProfileApplyResult.NoUsableTrigger ->
+                        return "This recommendation has no usable thermal trigger; nothing was saved."
+
+                    is ThermalProfileApplyResult.Failed ->
+                        return "The thermal settings could not be saved: ${result.detail}"
+                }
+            }
             SmartProfileField.FULL_PERFORMANCE -> profile.copy(fullPerformanceEnabled = true)
             SmartProfileField.FREE_RAM_ON_LAUNCH -> profile.copy(freeRamOnLaunch = true)
             SmartProfileField.CPU_AFFINITY ->
@@ -613,7 +738,7 @@ class IntelligenceViewModel @Inject constructor(
             SmartProfileField.PERFORMANCE_MODE ->
                 profile.copy(performanceMode = PerformanceMode.PERFORMANCE)
         }
-        profiles.save(updated)
+        if (!alreadySaved) profiles.save(updated)
         if (mutableState.value.learningEnabled) {
             repository.recordDecision(
                 recommendation = recommendation,

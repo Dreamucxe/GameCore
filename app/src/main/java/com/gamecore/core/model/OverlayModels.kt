@@ -255,6 +255,55 @@ enum class ButtonSizePreset(val label: String, val sizeDp: Int) {
 }
 
 /**
+ * The floating button's three looks (5.6).
+ *
+ * [CLASSIC] is the exact disc that shipped before 5.6 — the same dark plate, thin accent border,
+ * gamepad glyph, thermal dot and fade — and it stays as the revert option. [REACTOR] is the shipped
+ * default: a segmented energy ring around a lit core, with a one-shot shockwave when a surface opens
+ * and a charge arc while the layout-picker long press is being held. [VANGUARD] is a rounded armour
+ * plate with lit corner brackets and a light sweep across it when it opens.
+ *
+ * The style is presentation only. Size, opacity, idle fade, drag and snap behaviour, tap/double-tap,
+ * long press, haptics, the thermal dot and every setting on the Overlay screen are shared by all
+ * three, so choosing a look never changes what the button can do. A stored name is resolved by
+ * [of], which falls back to [DEFAULT] for an unknown or absent value — the same forward/backward
+ * compatibility rule the panel layout and gauge choices follow.
+ */
+enum class FloatingButtonStyle(
+    val label: String,
+    val tagline: String,
+    val description: String,
+) {
+    REACTOR(
+        label = "Reactor",
+        tagline = "Energy ring",
+        description = "A segmented ring around a lit core. Opening a surface sends a shockwave, and " +
+            "holding for the layout picker fills the ring as the press charges.",
+    ),
+    VANGUARD(
+        label = "Vanguard",
+        tagline = "Armour plate",
+        description = "A rounded armour plate with lit corner brackets and a light sweep across it " +
+            "when a surface opens.",
+    ),
+    CLASSIC(
+        label = "Classic",
+        tagline = "Original disc",
+        description = "The original dark disc, unchanged. Choose this to go back to the button from " +
+            "before 5.6.",
+    ),
+    ;
+
+    companion object {
+        /** The look a fresh install gets, and what an unknown saved name falls back to. */
+        val DEFAULT: FloatingButtonStyle = REACTOR
+
+        /** Parse a stored name, falling back to [DEFAULT] for an unknown or absent value. */
+        fun of(name: String?): FloatingButtonStyle = entries.firstOrNull { it.name == name } ?: DEFAULT
+    }
+}
+
+/**
  * The floating button's configuration and remembered position.
  *
  * [snapToEdge] is on by default because a button that sits under the user's thumb in the
@@ -276,6 +325,15 @@ data class FloatingButtonConfig(
     val x: Int = 0,
     val y: Int = 400,
     val sizeDp: Int = DEFAULT_SIZE_DP,
+    /**
+     * Which of the three looks the button wears (5.6). See [FloatingButtonStyle].
+     *
+     * Stored beside the size and opacities because all three answer the same question — what the
+     * control looks like over a game — and a style change recomposes the live window exactly as a
+     * size change does, without the window being re-added. [FloatingButtonStyle.CLASSIC] is the
+     * pre-5.6 button, kept so a user who prefers it can go back without losing any other setting.
+     */
+    val style: FloatingButtonStyle = FloatingButtonStyle.DEFAULT,
     val opacityPercent: Int = 80,
     val snapToEdge: Boolean = true,
     /** Fades to this while a game is in the foreground and the panel is closed. */

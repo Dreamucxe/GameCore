@@ -296,6 +296,40 @@ class OverlayModelsTest {
         assertNull(ButtonSizePreset.of(FloatingButtonConfig.MAX_SIZE_DP + 1))
     }
 
+    /**
+     * 5.6 gives the button three looks, and the shipped one is the new Reactor. Classic has to stay a
+     * real, resolvable choice rather than a label kept for show, because it is the revert path: a user
+     * who dislikes the new button taps Classic and gets the pre-5.6 disc back.
+     */
+    @Test
+    fun `the button ships on reactor and classic remains a resolvable choice`() {
+        val fresh = FloatingButtonConfig()
+        assertEquals(FloatingButtonStyle.REACTOR, fresh.style)
+        assertEquals(FloatingButtonStyle.REACTOR, FloatingButtonStyle.DEFAULT)
+        assertEquals(FloatingButtonStyle.CLASSIC, FloatingButtonStyle.of("CLASSIC"))
+        assertEquals(FloatingButtonStyle.VANGUARD, FloatingButtonStyle.of("VANGUARD"))
+        assertEquals(3, FloatingButtonStyle.entries.size)
+        assertEquals(
+            "the three looks need distinct labels",
+            FloatingButtonStyle.entries.size,
+            FloatingButtonStyle.entries.map { it.label }.distinct().size,
+        )
+    }
+
+    @Test
+    fun `an unknown or absent saved look falls back to the shipped one`() {
+        assertEquals(FloatingButtonStyle.DEFAULT, FloatingButtonStyle.of(null))
+        assertEquals(FloatingButtonStyle.DEFAULT, FloatingButtonStyle.of(""))
+        assertEquals(FloatingButtonStyle.DEFAULT, FloatingButtonStyle.of("SOMETHING_FROM_A_NEWER_BUILD"))
+    }
+
+    @Test
+    fun `normalising preserves the chosen look`() {
+        for (style in FloatingButtonStyle.entries) {
+            assertEquals(style, FloatingButtonConfig(style = style).normalised().style)
+        }
+    }
+
     /** The pill's own clamps, alongside, since the two configs are normalised by the same call sites. */
     @Test
     fun `the pill keeps its stats distinct and its interval usable`() {

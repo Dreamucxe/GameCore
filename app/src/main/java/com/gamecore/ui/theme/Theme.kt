@@ -27,6 +27,7 @@ import androidx.core.view.WindowCompat
 import com.gamecore.core.model.AnimationsMode
 import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.ThemeChoice
+import com.gamecore.core.model.ThemePreset
 import com.gamecore.core.plugin.theme.PluginTheme
 
 /**
@@ -40,6 +41,39 @@ val GameCoreShapes = Shapes(
     large = RoundedCornerShape(22.dp),
     extraLarge = RoundedCornerShape(28.dp),
 )
+
+/**
+ * The corner personality of a [ThemePreset].
+ *
+ * Shapes are the second half of a look after colour: Neon's near-square corners read as hardware, while
+ * Violet's rounder ones read as a softer consumer surface. The radii stay inside the range the existing
+ * layouts were measured against — a card's content padding and a row's height do not change — so a preset
+ * changes the silhouette without moving a single control.
+ */
+private fun presetShapes(preset: ThemePreset?): Shapes = when (preset) {
+    ThemePreset.NEON -> Shapes(
+        extraSmall = RoundedCornerShape(3.dp),
+        small = RoundedCornerShape(5.dp),
+        medium = RoundedCornerShape(8.dp),
+        large = RoundedCornerShape(12.dp),
+        extraLarge = RoundedCornerShape(16.dp),
+    )
+    ThemePreset.CYBER -> Shapes(
+        extraSmall = RoundedCornerShape(4.dp),
+        small = RoundedCornerShape(7.dp),
+        medium = RoundedCornerShape(11.dp),
+        large = RoundedCornerShape(16.dp),
+        extraLarge = RoundedCornerShape(22.dp),
+    )
+    ThemePreset.VIOLET -> Shapes(
+        extraSmall = RoundedCornerShape(8.dp),
+        small = RoundedCornerShape(13.dp),
+        medium = RoundedCornerShape(20.dp),
+        large = RoundedCornerShape(26.dp),
+        extraLarge = RoundedCornerShape(34.dp),
+    )
+    else -> GameCoreShapes
+}
 
 // THEME_BODY
 
@@ -148,9 +182,11 @@ fun GameCoreTheme(
         }
     }
 
-    // A plugin's own shapes win; then Redline's cut corners; otherwise the house rounded set.
-    val shapes = remember(effectivePluginTheme, settings.redlineSkin) {
-        effectivePluginTheme?.toShapes() ?: if (settings.redlineSkin) RedlineShapes else GameCoreShapes
+    // A plugin's own shapes win; then Redline's cut corners; otherwise the active preset's silhouette.
+    val preset = ThemePreset.matching(settings)
+    val shapes = remember(effectivePluginTheme, settings.redlineSkin, preset) {
+        effectivePluginTheme?.toShapes()
+            ?: if (settings.redlineSkin) RedlineShapes else presetShapes(preset)
     }
 
     // The stat styles in `Type.kt` are deliberately not reached by this: `StatValueStyle` is monospaced

@@ -16,6 +16,7 @@ import com.gamecore.core.model.DockActionId
 import com.gamecore.core.model.DockActions
 import com.gamecore.core.model.DockConfig
 import com.gamecore.core.model.FloatingButtonConfig
+import com.gamecore.core.model.FloatingButtonStyle
 import com.gamecore.core.model.GammaMode
 import com.gamecore.core.model.HudDisplayMode
 import com.gamecore.core.model.HudStat
@@ -751,6 +752,11 @@ class SecurePreferenceStore @Inject constructor(
             x = p.getInt(KEY_BUTTON_X, defaults.x),
             y = p.getInt(KEY_BUTTON_Y, defaults.y),
             sizeDp = p.getInt(KEY_BUTTON_SIZE, defaults.sizeDp),
+            style = enumOrDefault(
+                p.getString(KEY_BUTTON_STYLE, null),
+                FloatingButtonStyle.entries,
+                defaults.style,
+            ),
             opacityPercent = p.getInt(KEY_BUTTON_OPACITY, defaults.opacityPercent),
             snapToEdge = p.getBoolean(KEY_BUTTON_SNAP, defaults.snapToEdge),
             idleOpacityPercent = p.getInt(KEY_BUTTON_IDLE_OPACITY, defaults.idleOpacityPercent),
@@ -814,6 +820,7 @@ class SecurePreferenceStore @Inject constructor(
             putInt(KEY_BUTTON_X, value.x)
             putInt(KEY_BUTTON_Y, value.y)
             putInt(KEY_BUTTON_SIZE, value.sizeDp)
+            putString(KEY_BUTTON_STYLE, value.style.name)
             putInt(KEY_BUTTON_OPACITY, value.opacityPercent)
             putBoolean(KEY_BUTTON_SNAP, value.snapToEdge)
             putInt(KEY_BUTTON_IDLE_OPACITY, value.idleOpacityPercent)
@@ -1329,6 +1336,7 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_BUTTON_X = "button_x"
         const val KEY_BUTTON_Y = "button_y"
         const val KEY_BUTTON_SIZE = "button_size"
+        const val KEY_BUTTON_STYLE = "button_style"
         const val KEY_BUTTON_OPACITY = "button_opacity"
         const val KEY_BUTTON_SNAP = "button_snap"
         const val KEY_BUTTON_IDLE_OPACITY = "button_idle_opacity"

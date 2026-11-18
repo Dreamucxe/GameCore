@@ -1,55 +1,79 @@
 package com.gamecore.aimlab.ui.home
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SportsEsports
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.aimlab.engine.SessionSummary
 import com.gamecore.aimlab.engine.TrainingMode
 import com.gamecore.aimlab.engine.TrainingPlanRecommendation
 import com.gamecore.core.common.Formatters
+import com.gamecore.ui.components.ClickableCard
+import com.gamecore.ui.components.CompactStat
 import com.gamecore.ui.components.EmptyState
-import com.gamecore.ui.components.NavRow
+import com.gamecore.ui.components.PlainCard
+import com.gamecore.ui.components.RowDivider
 import com.gamecore.ui.components.ScreenBottomPadding
 import com.gamecore.ui.components.ScreenHeader
 import com.gamecore.ui.components.ScreenPadding
-import com.gamecore.ui.components.SectionCard
-import com.gamecore.ui.components.StatEntry
-import com.gamecore.ui.components.StatStrip
+import com.gamecore.ui.components.SectionLabel
+import com.gamecore.ui.components.StatusChip
 import com.gamecore.ui.components.Tone
 import com.gamecore.ui.theme.Density
 import com.gamecore.ui.theme.Spacing
+import com.gamecore.ui.theme.StatLabelStyle
 
 /**
- * The front door to Aim Lab: what the thirteen things you can do are, and how you have done so far.
+ * The front door to Aim Lab: what the section can do, and how you have done so far.
  *
- * The order is deliberate and matches the rest of the app's screens. The summary of real progress is at the
- * top — the reason a returning user opens the section is to see it — followed by today's plan, which turns
- * that progress into one concrete run. The thirteen entries follow, grouped into Training, Setup and
- * Progress so a grid of a dozen bare rows does not read as one undifferentiated list. Every card is a
- * [NavRow] that hands its route back through [onOpen]; this screen navigates nothing itself, which keeps
- * the whole section's routing in the graph the orchestrator owns.
+ * The screen is arranged as three shelves rather than a stack of cards. Progress is a hero at the top —
+ * the reason a returning user opens the section — with the session count at display size and the bests
+ * laid out as a bento underneath it. Today's plan is a single recommendation banner whose button starts
+ * the run it names. The thirteen destinations are a two-column grid of mode tiles, grouped into Training,
+ * Setup and Progress, so a dozen equal rows no longer read as one undifferentiated menu.
  *
- * The summary is the honesty rule of §1/§30 made concrete. Before any session exists there is nothing true
- * to put in a stat strip, so the top of the screen is an inviting [EmptyState] banner rather than a row of
- * zeroes that would read as "your best reaction time is 0 ms". The moment a real session lands, the strip
- * replaces it, every figure in it computed from stored history by [AimLabSummary].
+ * Every card still hands its route back through [onOpen]; this screen navigates nothing itself, which
+ * keeps the whole section's routing in the graph the orchestrator owns.
+ *
+ * The hero is the honesty rule of §1/§30 made concrete. Before any session exists there is nothing true
+ * to put in a stat strip, so the hero holds an inviting [EmptyState] rather than a row of zeroes that
+ * would read as "your best reaction time is 0 ms". The moment a real session lands, the figures replace
+ * it, every one computed from stored history by [AimLabSummary].
  *
  * @param onOpen navigate to one of [AimLabRoutes]' constants. The screen calls this and nothing else to
  *   move; the graph decides what each route resolves to.
@@ -89,136 +113,329 @@ fun AimLabHomeScreen(
         // database has answered.
         if (!state.loading) {
             item {
-                SummaryCard(summary = state.summary, hasHistory = state.hasHistory, modifier = padded)
+                ProgressHero(summary = state.summary, hasHistory = state.hasHistory, modifier = padded)
             }
             // Today's recommendation follows the summary because it is the action the figures point at.
             // It is hidden until the plan exists, so the cold-start card never appears on the loading frame.
             state.plan?.let { plan ->
                 item {
-                    PlanCard(plan = plan, onOpen = onOpen, modifier = padded)
+                    PlanBanner(plan = plan, onOpen = onOpen, modifier = padded)
                 }
             }
         }
 
-        // The thirteen entries, grouped. Each group is one card of NavRows.
+        // The thirteen entries, as mode tiles. Each group is a shelf with its own heading; the tiles are
+        // built in rows of two because this LazyColumn already scrolls vertically.
         AimLabGroup.entries.forEach { group ->
             item {
-                GroupCard(group = group, onOpen = onOpen, modifier = padded)
+                SectionLabel(
+                    text = group.title,
+                    subtitle = groupSubtitle(group),
+                    modifier = padded.padding(top = Spacing.xs),
+                )
+            }
+            AimLabDestination.inGroup(group).chunked(2).forEach { row ->
+                item {
+                    Row(
+                        modifier = padded
+                            // A row of mode tiles fades and slides when the section list changes,
+                            // matching the library and session lists.
+                            .animateItem()
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Max),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        row.forEach { entry ->
+                            ModeTile(
+                                entry = entry,
+                                onOpen = onOpen,
+                                modifier = Modifier.weight(1f).fillMaxHeight(),
+                            )
+                        }
+                        if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
             }
         }
     }
 }
 
 /**
- * The summary strip, or the "you haven't trained yet" banner.
+ * The progress hero: the session count at display size, the total training time beside it, and the four
+ * personal bests as a bento underneath.
  *
- * Which one is shown is decided entirely by [hasHistory], which is true only once a real session has been
- * recorded. When it is false there is nothing honest to put in figures, so the card holds an [EmptyState]
+ * Which half is shown is decided entirely by [hasHistory], which is true only once a real session has been
+ * recorded. When it is false there is nothing honest to put in figures, so the hero holds an [EmptyState]
  * that points at the first thing worth doing rather than a grid of zeroes.
+ *
+ * A best never set reads as a word, not an em-dash and never a zero — "Not set" is the truer statement,
+ * and a zero would be an outright lie.
  */
 @Composable
-private fun SummaryCard(
+private fun ProgressHero(
     summary: AimLabSummary,
     hasHistory: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    SectionCard(
-        title = "Your progress",
-        icon = Icons.Filled.Insights,
-        modifier = modifier,
-    ) {
-        if (!hasHistory) {
-            EmptyState(
-                icon = Icons.Filled.SportsEsports,
-                title = "No sessions yet",
-                message = "Run any training mode and your stats, bests and personal records will build up " +
-                    "here. Nothing is shown until there is something real to show.",
-                actionLabel = null,
-                onAction = null,
-            )
-            return@SectionCard
+    val scheme = MaterialTheme.colorScheme
+    PlainCard(modifier = modifier, contentPadding = 0.dp) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            scheme.primary.copy(alpha = 0.24f),
+                            scheme.primary.copy(alpha = 0.06f),
+                            Color.Transparent,
+                        ),
+                    ),
+                )
+                .padding(16.dp),
+        ) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "YOUR PROGRESS",
+                        style = StatLabelStyle,
+                        color = scheme.primary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (hasHistory) {
+                        StatusChip(text = "All runs", tone = Tone.Accent)
+                    }
+                }
+                if (!hasHistory) {
+                    EmptyState(
+                        icon = Icons.Filled.SportsEsports,
+                        title = "No sessions yet",
+                        message = "Run any training mode and your stats, bests and personal records will " +
+                            "build up here. Nothing is shown until there is something real to show.",
+                        actionLabel = null,
+                        onAction = null,
+                    )
+                    return@Column
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = summary.totalSessions.toString(),
+                            style = MaterialTheme.typography.displaySmall,
+                            color = scheme.onSurface,
+                        )
+                        Text(
+                            text = "sessions recorded",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = Formatters.durationTotal(summary.totalTrainingMillis),
+                            style = MaterialTheme.typography.titleLarge,
+                            color = scheme.onSurface,
+                        )
+                        Text(
+                            text = "total training",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                // The personal bests, two to a row. A best never set is a muted word, not a zero.
+                Row(
+                    modifier = Modifier.padding(top = Spacing.md),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                ) {
+                    CompactStat(
+                        label = "Best reaction",
+                        value = summary.bestReactionMillis?.let { "$it ms" } ?: NOT_SET,
+                        tone = if (summary.bestReactionMillis != null) Tone.Good else Tone.Muted,
+                        modifier = Modifier.weight(1f),
+                    )
+                    CompactStat(
+                        label = "Best accuracy",
+                        value = summary.bestAccuracyPercent?.let { "$it%" } ?: NOT_SET,
+                        tone = if (summary.bestAccuracyPercent != null) Tone.Good else Tone.Muted,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Row(
+                    modifier = Modifier.padding(top = Spacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                ) {
+                    CompactStat(
+                        label = "Best flick",
+                        value = summary.bestFlickScore?.let { Formatters.count(it, "pt") } ?: NOT_SET,
+                        tone = if (summary.bestFlickScore != null) Tone.Good else Tone.Muted,
+                        modifier = Modifier.weight(1f),
+                    )
+                    CompactStat(
+                        label = "Best tracking",
+                        value = summary.bestTrackingScore?.let { Formatters.count(it, "pt") } ?: NOT_SET,
+                        tone = if (summary.bestTrackingScore != null) Tone.Good else Tone.Muted,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                RowDivider()
+                CompactStat(
+                    label = "Last session",
+                    value = lastSessionLabel(summary.lastSession),
+                    tone = Tone.Accent,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
-
-        // First row: activity. Totals from real, stored sessions.
-        StatStrip(
-            entries = listOf(
-                StatEntry("Sessions", summary.totalSessions.toString(), Tone.Neutral),
-                StatEntry("Total time", Formatters.durationTotal(summary.totalTrainingMillis), Tone.Neutral),
-                StatEntry("Last session", lastSessionLabel(summary.lastSession), Tone.Accent),
-            ),
-        )
-
-        // Second row: personal bests. A best never set reads as a word, not an em-dash and never a zero.
-        StatStrip(
-            modifier = Modifier.padding(top = Spacing.md),
-            entries = listOf(
-                StatEntry(
-                    label = "Best reaction",
-                    value = summary.bestReactionMillis?.let { "$it ms" } ?: NOT_SET,
-                    tone = if (summary.bestReactionMillis != null) Tone.Good else Tone.Muted,
-                ),
-                StatEntry(
-                    label = "Best accuracy",
-                    value = summary.bestAccuracyPercent?.let { "$it%" } ?: NOT_SET,
-                    tone = if (summary.bestAccuracyPercent != null) Tone.Good else Tone.Muted,
-                ),
-                StatEntry(
-                    label = "Best flick",
-                    value = summary.bestFlickScore?.let { Formatters.count(it, "pt") } ?: NOT_SET,
-                    tone = if (summary.bestFlickScore != null) Tone.Good else Tone.Muted,
-                ),
-                StatEntry(
-                    label = "Best tracking",
-                    value = summary.bestTrackingScore?.let { Formatters.count(it, "pt") } ?: NOT_SET,
-                    tone = if (summary.bestTrackingScore != null) Tone.Good else Tone.Muted,
-                ),
-            ),
-        )
     }
 }
 
 /**
- * Today's recommended run, with the measured reason it was chosen and one button to start it.
+ * Today's recommended run as one banner, with the measured reason it was chosen and one button to start it.
  *
- * The card is deliberately the bridge from the figures above to the actions below: the summary says what
+ * The banner is deliberately the bridge from the figures above to the grid below: the hero says what
  * happened, the plan says what to do about it, and the button goes straight to that mode's route. [plan]
  * already carries the difficulty and the evidence, so this composable adds no judgement of its own — it
  * only lays the recommendation out and resolves the mode's route.
  */
 @Composable
-private fun PlanCard(
+private fun PlanBanner(
     plan: TrainingPlanRecommendation,
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SectionCard(
-        title = "Today's plan",
-        icon = Icons.Filled.AutoAwesome,
-        modifier = modifier,
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = scheme.primary.copy(alpha = 0.10f),
+        contentColor = scheme.onSurface,
+        border = BorderStroke(1.dp, scheme.primary.copy(alpha = 0.35f)),
     ) {
-        Text(
-            text = "${plan.modeLabel} · ${plan.difficulty.label}",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = plan.reason,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
-        Text(
-            text = plan.detail,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
-        Button(
-            onClick = { onOpen(plan.mode.route()) },
-            modifier = Modifier.padding(top = Spacing.md),
-        ) {
-            Text("Start ${plan.modeLabel}")
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(scheme.primary.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.AutoAwesome,
+                        contentDescription = null,
+                        tint = scheme.primary,
+                        modifier = Modifier.size(19.dp),
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "TODAY'S PLAN",
+                        style = StatLabelStyle,
+                        color = scheme.primary,
+                    )
+                    Text(
+                        text = "${plan.modeLabel} · ${plan.difficulty.label}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = scheme.onSurface,
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = plan.reason,
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onSurface,
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Text(
+                text = plan.detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(Spacing.md))
+            Button(
+                onClick = { onOpen(plan.mode.route()) },
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Start ${plan.modeLabel}")
+            }
         }
+    }
+}
+
+/**
+ * One destination as a mode tile: its icon, its name, and the one-line reason to tap it.
+ *
+ * A [ClickableCard] rather than a row, because a grid cell is a destination in its own right and should
+ * carry the same spring press feedback as every other card in the app. [fillHeight] keeps the two tiles
+ * in a row the same height when one description runs longer than the other.
+ */
+@Composable
+private fun ModeTile(
+    entry: AimLabDestination,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ClickableCard(
+        onClick = { onOpen(entry.route) },
+        modifier = modifier.defaultMinSize(minHeight = 136.dp),
+        contentPadding = 12.dp,
+        fillHeight = true,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = entry.icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = entry.label,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = entry.description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -239,40 +456,11 @@ private fun TrainingMode.route(): String = when (this) {
     TrainingMode.FREE_PRACTICE -> AimLabRoutes.PRACTICE
 }
 
-/**
- * One group of entries — Training, Setup or Progress — as a card of tappable rows.
- *
- * The card's own icon is the group's, chosen to read at a glance; each row carries the destination's own
- * icon and its one-line "why you'd tap it". The row's trailing text is left off deliberately: there is no
- * per-entry figure worth repeating here, and the description already earns the tap.
- */
-@Composable
-private fun GroupCard(
-    group: AimLabGroup,
-    onOpen: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    SectionCard(
-        title = group.title,
-        icon = groupIcon(group),
-        modifier = modifier,
-    ) {
-        AimLabDestination.inGroup(group).forEach { entry ->
-            NavRow(
-                title = entry.label,
-                onClick = { onOpen(entry.route) },
-                description = entry.description,
-                icon = entry.icon,
-            )
-        }
-    }
-}
-
-/** The header icon for each group. */
-private fun groupIcon(group: AimLabGroup): ImageVector = when (group) {
-    AimLabGroup.TRAIN -> Icons.Filled.SportsEsports
-    AimLabGroup.SETUP -> Icons.Filled.Tune
-    AimLabGroup.PROGRESS -> Icons.Filled.EmojiEvents
+/** One line per shelf, so the heading says why these entries are together. */
+private fun groupSubtitle(group: AimLabGroup): String = when (group) {
+    AimLabGroup.TRAIN -> "Scored modes and the free sandbox."
+    AimLabGroup.SETUP -> "Tune the controls the runs use."
+    AimLabGroup.PROGRESS -> "The record behind the figures above."
 }
 
 /**

@@ -18,6 +18,7 @@ import com.gamecore.core.model.DockActionId
 import com.gamecore.core.model.DockActions
 import com.gamecore.core.model.DockConfig
 import com.gamecore.core.model.FloatingButtonConfig
+import com.gamecore.core.model.FloatingButtonStyle
 import com.gamecore.core.model.GammaMode
 import com.gamecore.core.model.GameSession
 import com.gamecore.core.model.HudDisplayMode
@@ -123,6 +124,7 @@ class BackupCodecTest {
         val button = FloatingButtonConfig(
             show = false,
             sizeDp = 60,
+            style = FloatingButtonStyle.VANGUARD,
             opacityPercent = 90,
             snapToEdge = false,
             idleOpacityPercent = 55,

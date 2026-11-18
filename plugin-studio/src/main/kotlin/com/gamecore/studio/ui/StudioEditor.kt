@@ -268,7 +268,7 @@ internal fun StudioEditor(
         val contentModifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
 
         when (tab) {
             StudioTab.BUILD -> CreatorBuildTab(
@@ -392,11 +392,11 @@ private fun StudioTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
+            .padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Plugin Studio", style = MaterialTheme.typography.titleLarge)
+            Text("Plugin Studio", style = MaterialTheme.typography.titleMedium)
             Text(
                 draft.name.ifBlank { "Untitled plugin" },
                 style = MaterialTheme.typography.bodySmall,
@@ -430,7 +430,15 @@ private fun DesignTab(
     modifier: Modifier = Modifier,
 ) {
     val theme = draft.theme
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    var themeExpanded by rememberSaveable { mutableStateOf(false) }
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        CompactThemeHeader(
+            theme = theme,
+            expanded = themeExpanded,
+            onToggle = { themeExpanded = !themeExpanded },
+        )
+
+        if (themeExpanded) {
         TemplateStrip(onApply = { template ->
             commit(draft.copy(theme = template.theme.copy(name = theme.name)))
         })
@@ -546,7 +554,26 @@ private fun DesignTab(
         }
 
         EffectsCard(draft = draft, commit = commit)
+        }
 
+        Text(
+            "The Build and Logic tabs author GameCore's real screens, overlay, settings, widgets " +
+                "and automation sections. Plugin-provided assets, sounds, arbitrary animations and " +
+                "interactive screen or overlay controls are not offered because the current host " +
+                "has no complete execution path for them.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+
+/**
+ * The manifest identity and permission requests belong with the Build workspace. Keeping them in
+ * one composable preserves every control while letting the Theme workspace stay purely visual.
+ */
+@Composable
+internal fun PluginManifestCards(draft: PluginDraft, commit: (PluginDraft) -> Unit) {
         ExpandableCard(
             title = "Identity",
             subtitle = "The package's name, id and version",
@@ -691,24 +718,122 @@ private fun DesignTab(
                 }
             }
         }
+}
 
-        Text(
-            "The Build and Logic tabs author GameCore's real screens, overlay, settings, widgets " +
-                "and automation sections. Plugin-provided assets, sounds, arbitrary animations and " +
-                "interactive screen or overlay controls are not offered because the current host " +
-                "has no complete execution path for them.",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+/**
+ * The collapsed theme workspace: one horizontally scrollable row with the information needed to
+ * recognise the current design. The whole card is a real expand control; opening it reveals the
+ * unchanged template, palette, shape, typography, glass and glitch editors below it.
+ */
+@Composable
+private fun CompactThemeHeader(
+    theme: ThemeDraft,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // The design summary scrolls; the expand control stays pinned so a narrow phone can
+            // always open the full editor without first discovering a hidden horizontal gesture.
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .width(156.dp)
+                        .height(40.dp)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp)),
+                ) {
+                    val palette = theme.palette()
+                    palette.forEachIndexed { index, colour ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxSize()
+                                .background(
+                                    colour.toThemeColor(),
+                                    when (index) {
+                                        0 -> RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp)
+                                        palette.lastIndex -> RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp)
+                                        else -> RoundedCornerShape(0.dp)
+                                    },
+                                ),
+                        )
+                    }
+                }
+                Column(modifier = Modifier.width(112.dp)) {
+                    Text("Theme", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        theme.name.ifBlank { "Untitled theme" },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(theme.cornerRadiusDp.dp.coerceAtMost(20.dp)),
+                    color = theme.surfaceVariant.toThemeColor(),
+                ) {
+                    Text(
+                        "${theme.cornerRadiusDp} dp",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = theme.onSurfaceVariant.toThemeColor(),
+                    )
+                }
+                Column(modifier = Modifier.width(118.dp)) {
+                    Text(
+                        "Aa GameCore",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontFamily = theme.fontThemeFamily(),
+                        fontWeight = when (theme.typographyWeight) {
+                            "light" -> FontWeight.Light
+                            "medium" -> FontWeight.Medium
+                            "bold" -> FontWeight.Bold
+                            else -> FontWeight.Normal
+                        },
+                        maxLines = 1,
+                    )
+                    Text(
+                        ThemeDraft.FONT_NAMES[theme.font] ?: theme.font,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
+            }
+            Text(
+                if (expanded) "Hide" else "Edit",
+                modifier = Modifier.padding(start = 10.dp),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
     }
 }
 
 @Composable
 private fun EffectsCard(draft: PluginDraft, commit: (PluginDraft) -> Unit) {
     val theme = draft.theme
-    StudioCard(
+    ExpandableCard(
         title = "Material and motion",
         subtitle = "The schema-4 glass block and the schema-3 glitch block",
+        initiallyExpanded = false,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -1118,8 +1243,8 @@ private fun StudioCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (icon != null) {
@@ -1161,7 +1286,7 @@ private fun ExpandableCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1192,8 +1317,8 @@ private fun ExpandableCard(
             }
             if (expanded) {
                 Column(
-                    modifier = Modifier.padding(top = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     content()
                 }

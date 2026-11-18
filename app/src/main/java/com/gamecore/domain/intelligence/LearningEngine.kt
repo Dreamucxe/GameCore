@@ -63,7 +63,12 @@ object LearningEngine {
         val mine = records.filter { it.actionKey == actionKey }
         val generated = mine.count { it.decision == LearningDecision.GENERATED }
         val applied = mine.count { it.decision == LearningDecision.APPLIED }
-        val attempted = mine.count { it.decision == LearningDecision.ATTEMPTED }
+        // A failed attempt and a write that could not be read back are both non-applications.
+        // Keeping them in this count is what stops either from raising confidence.
+        val attempted = mine.count {
+            it.decision == LearningDecision.ATTEMPTED ||
+                it.decision == LearningDecision.UNCONFIRMED
+        }
         val ignored = mine.count { it.decision == LearningDecision.IGNORED }
         val tested = mine.count { it.decision == LearningDecision.TESTED }
         val improved = mine.count { it.outcome == LearningOutcome.IMPROVED }
@@ -141,7 +146,7 @@ object LearningEngine {
             if (unknown > 0) add("$unknown unclassified outcome${plural(unknown)}")
             if (applied > 0) add("$applied application${plural(applied)}")
             if (attempted > 0) {
-                add("$attempted unconfirmed attempt${plural(attempted)}")
+                add("$attempted failed or unconfirmed attempt${plural(attempted)}")
             }
             if (tested > 0) add("$tested explicit test${plural(tested)}")
             if (ignored > 0) add("$ignored dismissal${plural(ignored)}")

@@ -1,10 +1,14 @@
 package com.gamecore.studio.core
 
 import com.gamecore.studio.model.BrokerActionId
+import com.gamecore.studio.model.BoolSetting
 import com.gamecore.studio.model.CreatorCategory
 import com.gamecore.studio.model.CreatorSections
+import com.gamecore.studio.model.EnumSetting
 import com.gamecore.studio.model.FloatSetting
 import com.gamecore.studio.model.GlassDraft
+import com.gamecore.studio.model.GlitchDraft
+import com.gamecore.studio.model.IntSetting
 import com.gamecore.studio.model.NodeDraft
 import com.gamecore.studio.model.Operator
 import com.gamecore.studio.model.OverlayDraft
@@ -14,6 +18,7 @@ import com.gamecore.studio.model.RuleDraft
 import com.gamecore.studio.model.RuleVariable
 import com.gamecore.studio.model.ScreenDraft
 import com.gamecore.studio.model.StatId
+import com.gamecore.studio.model.StringSetting
 import com.gamecore.studio.model.Trigger
 import com.gamecore.studio.model.WidgetDraft
 import com.gamecore.studio.model.WidgetSize
@@ -41,7 +46,25 @@ class MultiSectionRoundTripTest {
         creatorCategory = CreatorCategory.COMBINED,
         theme = com.gamecore.studio.model.ThemeDraft(
             name = "Creator package",
+            dark = true,
+            amoled = true,
+            primary = 0xFF9D6CFFL,
+            secondary = 0xFF7EE7D4L,
+            tertiary = 0xFFFFB86BL,
+            cornerRadiusDp = 14,
+            uiScale = 0.95f,
+            font = "orbitron",
+            typographyWeight = "bold",
+            typographyScale = 1.1f,
             glass = GlassDraft(intensitySetting = "glass_level"),
+            glitch = GlitchDraft(
+                intensity = 0.35f,
+                slices = 4,
+                sliceOffsetDp = 12,
+                ghostOffsetDp = 3,
+                burstMinMs = 250,
+                burstMaxMs = 1200,
+            ),
         ),
         sections = CreatorSections(
             screens = listOf(
@@ -60,12 +83,40 @@ class MultiSectionRoundTripTest {
                 content = NodeDraft.row(listOf(NodeDraft.stat(StatId.BATTERY))),
             ),
             settings = listOf(
+                BoolSetting(
+                    id = "show_label",
+                    default = true,
+                    label = "Show label",
+                    description = "Studio project metadata",
+                ),
+                IntSetting(
+                    id = "sample_count",
+                    default = 5,
+                    min = 1,
+                    max = 10,
+                    label = "Sample count",
+                    description = "Studio project metadata",
+                ),
                 FloatSetting(
                     id = "glass_level",
                     default = 0.7,
                     min = 0.0,
                     max = 1.0,
                     label = "Glass level",
+                    description = "Studio project metadata",
+                ),
+                EnumSetting(
+                    id = "display_mode",
+                    options = listOf("compact", "detailed"),
+                    default = "compact",
+                    label = "Display mode",
+                    description = "Studio project metadata",
+                ),
+                StringSetting(
+                    id = "caption",
+                    default = "Ready",
+                    maxLength = 32,
+                    label = "Caption",
                     description = "Studio project metadata",
                 ),
             ),
@@ -154,13 +205,21 @@ class MultiSectionRoundTripTest {
         assertEquals(rich.sections.overlay, imported.sections.overlay)
         assertEquals(rich.sections.widgets, imported.sections.widgets)
         assertEquals(rich.sections.rules, imported.sections.rules)
+        assertEquals(rich.theme, imported.theme)
         assertEquals("glass_level", imported.theme.glass?.intensitySetting)
         assertEquals(setOf("games", "device_stats", "thermals"), imported.effectivePermissionScopes()["read_approved_data"])
 
         // Labels/descriptions are Studio-project metadata and are intentionally not package fields.
-        val importedSetting = imported.sections.settings.single() as FloatSetting
-        assertEquals("", importedSetting.label)
-        assertEquals("", importedSetting.description)
+        assertEquals(5, imported.sections.settings.size)
+        assertEquals(true, (imported.sections.settings[0] as BoolSetting).default)
+        assertEquals(5L, (imported.sections.settings[1] as IntSetting).default)
+        assertEquals(0.7, (imported.sections.settings[2] as FloatSetting).default, 0.0001)
+        assertEquals("compact", (imported.sections.settings[3] as EnumSetting).default)
+        assertEquals("Ready", (imported.sections.settings[4] as StringSetting).default)
+        imported.sections.settings.forEach { setting ->
+            assertEquals("", setting.label)
+            assertEquals("", setting.description)
+        }
     }
 
     @Test

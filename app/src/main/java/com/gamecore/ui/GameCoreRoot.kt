@@ -1,25 +1,43 @@
 package com.gamecore.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,7 +49,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -123,8 +149,12 @@ import com.gamecore.ui.shizuku.ShizukuScreen
 import com.gamecore.ui.storage.GameStorageScreen
 import com.gamecore.ui.theme.GameCoreTheme
 import com.gamecore.ui.theme.GlassBackdrop
+import com.gamecore.ui.theme.LocalAnimationsEnabled
+import com.gamecore.ui.theme.LocalGlassMaterial
+import com.gamecore.ui.theme.MotionTokens
 import com.gamecore.ui.theme.PluginSectionTheme
 import com.gamecore.ui.theme.WallpaperLayer
+import com.gamecore.ui.theme.glassPanel
 import com.gamecore.ui.tools.ToolsScreen
 import com.gamecore.ui.touch.SamplingMonitorScreen
 import com.gamecore.ui.touch.TouchScreen
@@ -342,26 +372,33 @@ fun GameCoreRoot(
 }
 
 /**
- * §27's floating bottom navigation: the top destinations on a plate that clears the system bar.
+ * The floating dock: the top destinations on a plate that clears the system bar.
  *
- * Material's own [NavigationBar] does the work, and it is used rather than a hand-rolled row of buttons
- * for the part that is not visible — the tab role and selected state a screen reader announces, which a
- * row of clickable columns would not have. The plate around it is the card treatment from everywhere else
- * in the app: `surface`, a hairline outline and no shadow, since a shadow is invisible against a
+ * This is deliberately not Material's [NavigationBar] any more. The dock is the app's most-seen surface,
+ * so it carries the new identity: a pill that slides between items, an icon that springs up when it is
+ * selected, and a label that is revealed only for the current tab. Five labelled tabs at phone width
+ * would either shrink the text or wrap it; one label at a time keeps every tab name readable while the
+ * icon row stays compact.
+ *
+ * The parts a screen reader needs are still exact. Each item is a `selectable` with [Role.Tab], so it
+ * announces "tab, selected" and is reachable by switch access; the icon carries the label because the
+ * visible text is cleared from semantics to avoid reading the name twice.
+ *
+ * The width change is animated with the same [MotionTokens.SHORT_MILLIS] budget as the pill, and the
+ * whole thing collapses to a snap when [LocalAnimationsEnabled] is false. The plate keeps the card
+ * treatment — `surface`, a hairline outline, no shadow — because a shadow is invisible against the
  * near-black scheme and only costs a layer.
  *
- * Its own window insets are zeroed — [NavigationBar] would otherwise pad itself from the inside and its
- * rounded corners would disappear behind the gesture area. The navigation-bar inset it needs is applied by
- * the caller instead, on the column this shares with the ad banner, because the element that has to clear
- * the gesture area is whichever one is lowest — the bar on a tab, the banner on a screen where the bar is
- * gone — and that changes with the screen. The gap that is still applied here is [BarMargin], which is the
- * plate's own breathing room and belongs to it.
+ * The navigation-bar inset is applied by the caller, on the column this shares with the ad banner,
+ * because the element that has to clear the gesture area is whichever one is lowest — the dock on a tab,
+ * the banner on a screen where the dock is gone — and that changes with the screen. The gap applied here
+ * is [BarMargin], which is the plate's own breathing room.
  *
- * [currentRoute] is compared here rather than a [Destination.Top] being handed in, so that while the bar
+ * [currentRoute] is compared here rather than a [Destination.Top] being handed in, so that while the dock
  * slides away toward a screen that is not a tab, nothing is highlighted — which is the truth.
  *
  * [tabs] is passed in rather than read from [Destination.top] here, because the set is not constant: Aim
- * Lab can be switched off, and the bar has to be four items on the frame that happens rather than five
+ * Lab can be switched off, and the dock has to be four items on the frame that happens rather than five
  * with one that goes nowhere. The caller owns the settings, so the caller decides.
  */
 @Composable
@@ -373,33 +410,180 @@ private fun FloatingNavBar(
 ) {
     val scheme = MaterialTheme.colorScheme
     val strings = com.gamecore.core.i18n.LocalStrings.current
+    val motion = LocalAnimationsEnabled.current
+    val duration = if (motion) MotionTokens.SHORT_MILLIS else 0
+    // A plugin theme that asked for a material gets to dress the dock too. Before this the bar was the
+    // one large surface a glass theme could not reach, which made the material stop at the bottom edge
+    // of every screen. Null is the ordinary case and leaves the plate exactly as it was.
+    val glass = LocalGlassMaterial.current
+    val shape = MaterialTheme.shapes.extraLarge
+
+    // A single specular band crosses the plate when the selected tab changes. It is the dock's version
+    // of the glass sheen — one shot per selection, never a loop — so the bar acknowledges the tap with
+    // light rather than with a second colour flash. Reduced motion leaves the band at rest.
+    val sheen = remember { Animatable(1f) }
+    LaunchedEffect(currentRoute) {
+        if (!motion) {
+            sheen.snapTo(1f)
+            return@LaunchedEffect
+        }
+        sheen.snapTo(0f)
+        sheen.animateTo(1f, tween(DOCK_SHEEN_MILLIS))
+    }
+
+    val plate = modifier
+        .padding(horizontal = ScreenPadding, vertical = BarMargin)
+        .clip(shape)
+        .drawWithContent {
+            drawContent()
+            val progress = sheen.value
+            if (progress < 1f) {
+                val band = size.width * 0.16f
+                val x = -band + (size.width + band * 2f) * progress
+                drawRect(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.White.copy(alpha = DOCK_SHEEN_ALPHA),
+                            Color.Transparent,
+                        ),
+                        start = Offset(x - band, 0f),
+                        end = Offset(x + band, size.height),
+                    ),
+                )
+            }
+        }
+    val panel = if (glass == null) plate else plate.glassPanel(glass, shape)
+
     Surface(
-        modifier = modifier
-            .padding(horizontal = ScreenPadding, vertical = BarMargin),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = scheme.surface,
-        border = BorderStroke(1.dp, scheme.outlineVariant),
+        modifier = panel,
+        shape = shape,
+        color = if (glass == null) scheme.surface else Color.Transparent,
+        border = if (glass == null) BorderStroke(1.dp, scheme.outlineVariant) else null,
     ) {
-        NavigationBar(
-            containerColor = Color.Transparent,
-            tonalElevation = 0.dp,
-            windowInsets = WindowInsets(0, 0, 0, 0),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             tabs.forEach { destination ->
-                NavigationBarItem(
-                    selected = destination.route == currentRoute,
+                val selected = destination.route == currentRoute
+                // The selected item takes the room its label needs; the rest give it up. Animating the
+                // weight is what turns "the label appeared" into "the dock made space for it".
+                val weight by animateFloatAsState(
+                    targetValue = if (selected) 1.8f else 0.8f,
+                    animationSpec = tween(duration),
+                    label = "dockWeight",
+                )
+                DockItem(
+                    destination = destination,
+                    label = destination.localizedLabel(strings),
+                    selected = selected,
+                    motion = motion,
                     onClick = { onSelect(destination) },
-                    // Null description: the label beside it names the tab, and the item merges the two
-                    // into one announcement rather than reading the name twice.
-                    icon = { Icon(imageVector = destination.icon, contentDescription = null) },
-                    label = { Text(text = destination.localizedLabel(strings), maxLines = 1) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = scheme.primary,
-                        selectedTextColor = scheme.primary,
-                        indicatorColor = scheme.primaryContainer,
-                        unselectedIconColor = scheme.onSurfaceVariant,
-                        unselectedTextColor = scheme.onSurfaceVariant,
-                    ),
+                    modifier = Modifier.weight(weight),
+                )
+            }
+        }
+    }
+}
+
+/** One tab in the dock. See [FloatingNavBar] for why the label is selected-only. */
+@Composable
+private fun DockItem(
+    destination: Destination.Top,
+    label: String,
+    selected: Boolean,
+    motion: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val glass = LocalGlassMaterial.current
+    val duration = if (motion) MotionTokens.SHORT_MILLIS else 0
+    val pill by animateColorAsState(
+        // On a glass plate the opaque container would read as a hole in the material, so the selected
+        // capsule is a tinted pane instead — the same accent, letting the backdrop through.
+        targetValue = when {
+            !selected -> Color.Transparent
+            glass != null -> scheme.primary.copy(alpha = 0.20f)
+            else -> scheme.primaryContainer
+        },
+        animationSpec = tween(duration),
+        label = "dockPill",
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (selected) scheme.primary else scheme.onSurfaceVariant,
+        animationSpec = tween(duration),
+        label = "dockContent",
+    )
+    val iconScale by animateFloatAsState(
+        targetValue = if (selected) 1.12f else 1f,
+        animationSpec = if (motion) {
+            spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+        } else {
+            snap()
+        },
+        label = "dockIcon",
+    )
+    // The selected icon lifts a couple of dp as it swells, so the motion has a direction instead of
+    // being a scale around a fixed centre. It settles back with the same spring.
+    val iconLift by animateDpAsState(
+        targetValue = if (selected) (-2).dp else 0.dp,
+        animationSpec = if (motion) {
+            spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+        } else {
+            snap()
+        },
+        label = "dockLift",
+    )
+    Box(
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
+            .padding(horizontal = 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(pill)
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = destination.icon,
+                contentDescription = label,
+                tint = contentColor,
+                modifier = Modifier
+                    .offset(y = iconLift)
+                    .size(22.dp)
+                    .graphicsLayer {
+                        scaleX = iconScale
+                        scaleY = iconScale
+                    },
+            )
+            AnimatedVisibility(
+                visible = selected,
+                enter = fadeIn(tween(duration)) + expandHorizontally(
+                    animationSpec = tween(duration),
+                    expandFrom = Alignment.Start,
+                ),
+                exit = fadeOut(tween(duration)) + shrinkHorizontally(
+                    animationSpec = tween(duration),
+                    shrinkTowards = Alignment.Start,
+                ),
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = contentColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .padding(start = 6.dp)
+                        .clearAndSetSemantics { },
                 )
             }
         }
@@ -419,7 +603,9 @@ private fun FloatingNavBar(
  * those ViewModels also accept a string and parse it, which is the braces to this belt — a route reached
  * from anywhere else still resolves rather than opening an editor on layout zero.
  *
- * The transition is a short cross-fade in both directions. It is also load-bearing: an entry is not
+ * The transition is a short fade with a small horizontal push — twelve per cent of the width in, a
+ * little less out — so a push reads as moving deeper and a pop reads as coming back, without the
+ * full-screen slide that makes a tab switch feel heavy. It is also load-bearing: an entry is not
  * `RESUMED` until it settles, and [isSettled] uses exactly that to tell a second tap from a second
  * destination.
  *
@@ -448,8 +634,26 @@ private fun GameCoreNav(
         navController = navController,
         startDestination = Destination.Home.route,
         modifier = modifier,
-        enterTransition = { fadeIn(tween(SCREEN_IN_MILLIS)) },
-        exitTransition = { fadeOut(tween(SCREEN_OUT_MILLIS)) },
+        enterTransition = {
+            fadeIn(tween(SCREEN_IN_MILLIS)) +
+                slideInHorizontally(tween(SCREEN_IN_MILLIS)) { it / 10 } +
+                scaleIn(tween(SCREEN_IN_MILLIS), initialScale = 0.97f)
+        },
+        exitTransition = {
+            fadeOut(tween(SCREEN_OUT_MILLIS)) +
+                slideOutHorizontally(tween(SCREEN_OUT_MILLIS)) { -it / 18 } +
+                scaleOut(tween(SCREEN_OUT_MILLIS), targetScale = 1.01f)
+        },
+        popEnterTransition = {
+            fadeIn(tween(SCREEN_IN_MILLIS)) +
+                slideInHorizontally(tween(SCREEN_IN_MILLIS)) { -it / 10 } +
+                scaleIn(tween(SCREEN_IN_MILLIS), initialScale = 0.97f)
+        },
+        popExitTransition = {
+            fadeOut(tween(SCREEN_OUT_MILLIS)) +
+                slideOutHorizontally(tween(SCREEN_OUT_MILLIS)) { it / 18 } +
+                scaleOut(tween(SCREEN_OUT_MILLIS), targetScale = 1.01f)
+        },
     ) {
         composable(Destination.Home.route) {
             HomeScreen(
@@ -1163,11 +1367,15 @@ private fun NavHostController.openSearchResult(
     push(route)
 }
 
-/** The bar's rise and the cross-fade between screens: short enough to read as a response (§27). */
+/** The bar's rise and the fade-through between screens: short enough to read as a response (§27). */
 private const val BAR_IN_MILLIS = 220
 private const val BAR_OUT_MILLIS = 140
 private const val SCREEN_IN_MILLIS = 200
 private const val SCREEN_OUT_MILLIS = 160
+
+/** The one-shot specular sweep across the dock when the selected tab changes. */
+private const val DOCK_SHEEN_MILLIS = 520
+private const val DOCK_SHEEN_ALPHA = 0.16f
 
 /** The gap under the plate, above the navigation bar. `ScreenBottomPadding` is sized to clear both. */
 private val BarMargin = 12.dp

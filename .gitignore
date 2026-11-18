@@ -43,3 +43,10 @@ gate_*.log
 /GraphicsTools_Audit.md
 /InstantReplay_Progress.md
 /GC_ConfigEditor_Handover.md
+
+# Generated code-knowledge graph — a local analysis artifact, not source.
+/graphify-out/
+
+# Internal planning and audit notes — kept local, never published.
+/tasks/
+/GAMECORE_AUDIT_REPORT.md

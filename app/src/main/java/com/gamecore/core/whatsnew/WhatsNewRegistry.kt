@@ -35,6 +35,85 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 65,
+            versionName = "5.6",
+            date = "2026-11-18",
+            features = listOf(
+                FeatureNote(
+                    "Three floating buttons, one switch",
+                    "The in-game button now has three looks. Reactor, the new default, puts a segmented " +
+                        "energy ring around a lit core; Vanguard is a rounded armour plate with lit corner " +
+                        "brackets; Classic is the original dark disc, unchanged. Choose one in Settings › " +
+                        "Overlay › Floating button, and the live button changes on the next frame.",
+                ),
+                FeatureNote(
+                    "Motion that answers the touch",
+                    "Reactor and Vanguard dip under the thumb, spring back on release, and send a one-shot " +
+                        "shockwave or light sweep when a surface opens. Reactor's ring turns a quarter turn " +
+                        "and its glyph becomes a close mark while the panel is up. Holding for the layout " +
+                        "picker fills a charge arc before the picker appears. Classic deliberately skips " +
+                        "all of it, so reverting really is the old button.",
+                ),
+                FeatureNote(
+                    "The same button underneath",
+                    "Size, both opacities, idle fade, edge snap, remembered portrait and landscape " +
+                        "positions, tap and double-tap behaviour, the layout-picker long press, haptics and " +
+                        "the thermal dot work exactly as before. The style is stored with the rest of the " +
+                        "button settings, so it survives restarts and travels in a config backup.",
+                ),
+            ),
+        ),
+        ReleaseNote(
+            versionCode = 64,
+            versionName = "5.5",
+            date = "2026-11-18",
+            features = listOf(
+                FeatureNote(
+                    "A Settings control centre",
+                    "Settings now opens on the look you are wearing: the current theme, accent, text " +
+                        "size and density read as four figures, with the theme packs underneath them. " +
+                        "Four shortcut tiles open Overlay, Permissions, Plugins and Tools directly, and " +
+                        "the rest of the screen is grouped under Look & feel, Game behaviour, Monitoring " +
+                        "and Access & data instead of one long unbroken card stack.",
+                ),
+                FeatureNote(
+                    "A liquid glass dock",
+                    "The bottom bar now wears the same material as the rest of a glass plugin theme — " +
+                        "translucency, gloss, rim and the theme's own backdrop — instead of staying an " +
+                        "opaque plate. Selecting a tab sends one specular band across the bar, lifts the " +
+                        "icon and springs the selected capsule; the sweep is skipped when animations are " +
+                        "off.",
+                ),
+                FeatureNote(
+                    "Livelier navigation",
+                    "Screen pushes and pops now scale slightly as they fade and slide, so moving deeper " +
+                        "and coming back read as different motions. Theme pack chips swell and warm as " +
+                        "they are selected, and the custom-colour picker expands into place.",
+                ),
+            ),
+        ),
+        ReleaseNote(
+            versionCode = 63,
+            versionName = "5.4",
+            date = "2026-11-17",
+            features = listOf(
+                FeatureNote(
+                    "Every primary screen rearranged",
+                    "Home leads with a full-bleed hero and a bento of live readings; Games is a " +
+                        "two-column library grid; Aim Lab opens on a progress hero and a grouped mode " +
+                        "grid; Sessions keeps a stat bento and a timeline history. Cards were moved, " +
+                        "not only recoloured.",
+                ),
+                FeatureNote(
+                    "More motion, still short",
+                    "Cards and tiles dip under the thumb, overlay tiles cross-fade their fill and " +
+                        "outline, live figures roll to their new value, warning chips and permission " +
+                        "notes expand into place, and lists reflow instead of jumping. Reduced motion " +
+                        "snaps every one of them to its end state.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 62,
             versionName = "5.3",
             date = "2026-11-09",
@@ -52,6 +131,20 @@ object WhatsNewRegistry {
                     "\"By date\" now breaks equal install timestamps by version, so bundled plugins " +
                         "visibly reorder. The stats pill and floating button stay off until you turn " +
                         "them on, and Home remembers when you turn them off.",
+                ),
+            ),
+        ),
+        ReleaseNote(
+            versionCode = 61,
+            versionName = "5.2",
+            date = "2026-11-08",
+            features = listOf(
+                FeatureNote(
+                    "A compact Plugin Studio",
+                    "Plugin authoring now uses shorter cards, collapsed summaries and tighter " +
+                        "spacing on mobile. The Theme workspace starts as one horizontal row with " +
+                        "its palette, corner radius and type preview, while every existing editor, " +
+                        "preview, validation, import and export control remains available.",
                 ),
             ),
         ),

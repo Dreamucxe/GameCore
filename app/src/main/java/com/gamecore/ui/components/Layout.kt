@@ -2,34 +2,48 @@ package com.gamecore.ui.components
 
 import android.app.Activity
 import android.view.WindowManager
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
@@ -40,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.gamecore.ui.theme.LocalAnimationsEnabled
 import com.gamecore.ui.theme.LocalGlassMaterial
 import com.gamecore.ui.theme.StatusGood
 import com.gamecore.ui.theme.ThermalCritical
@@ -92,6 +107,13 @@ fun Tone.colour(): Color = when (this) {
 /**
  * A screen's title, and its way back.
  *
+ * The title is the largest type on the screen and sits beside a short accent rail — the two together are
+ * the header's identity, and the rail is the one place the accent appears before any content. A caller
+ * that has a real icon for the screen (a plugin's own mark, say) swaps the rail for a tinted tile, the
+ * same trade [SectionCard] makes, so the two headings cannot disagree about which mark is the app's.
+ * The back control is a circular tonal surface rather than a bare arrow, which gives it a 40 dp target
+ * and a visible resting state without borrowing a button's prominence.
+ *
  * The back arrow is present only when [onBack] is — the five destinations on the bottom bar have no
  * "back" that means anything, and drawing a disabled arrow on them would suggest otherwise.
  */
@@ -100,32 +122,77 @@ fun ScreenHeader(
     title: String,
     subtitle: String? = null,
     onBack: (() -> Unit)? = null,
+    icon: ImageVector? = null,
     action: @Composable (() -> Unit)? = null,
 ) {
+    val scheme = MaterialTheme.colorScheme
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = if (onBack == null) ScreenPadding else 4.dp, end = 4.dp, top = 8.dp),
+            .padding(start = if (onBack == null) ScreenPadding else 8.dp, end = 8.dp, top = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (onBack != null) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            Surface(
+                onClick = onBack,
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                color = scheme.surfaceVariant.copy(alpha = 0.55f),
+                contentColor = scheme.onSurface,
+            ) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
+            Spacer(modifier = Modifier.width(12.dp))
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(scheme.primary.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = scheme.primary,
+                            modifier = Modifier.size(17.dp),
+                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .width(22.dp)
+                            .height(3.dp)
+                            .clip(CircleShape)
+                            .background(scheme.primary),
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = scheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             if (subtitle != null) {
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = scheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 30.dp, top = 2.dp),
                 )
             }
         }
@@ -133,9 +200,61 @@ fun ScreenHeader(
     }
 }
 
-/** Vertical space between sections. Named so the rhythm of a screen is not a pile of literals. */
+/** Vertical space between sections. Named so the rhythm of a screen is not a pile of literal values. */
 @Composable
 fun SectionGap(height: Int = 12) = Spacer(modifier = Modifier.height(height.dp))
+
+/**
+ * A heading that sits *outside* the card it introduces.
+ *
+ * The redesign uses these to turn a screen into a set of shelves rather than one long stack of cards: the
+ * label names the shelf, the content under it can be a grid, a rail or a bento, and the page gains a
+ * rhythm that a column of identically-titled cards cannot. [SectionCard] is still the right component when
+ * the heading belongs to one card; this one is for the headings that belong to a *region*.
+ *
+ * The accent rail and the uppercase label match [ScreenHeader]'s mark and [SectionCard]'s rail, so the
+ * three read as one system. [action] is for the one thing a region offers as a whole — "See all", a
+ * filter, a state word — never for a per-item control.
+ */
+@Composable
+fun SectionLabel(
+    text: String,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    action: @Composable (() -> Unit)? = null,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(16.dp)
+                .clip(CircleShape)
+                .background(scheme.primary),
+        )
+        Spacer(modifier = Modifier.width(9.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = text.uppercase(),
+                style = MaterialTheme.typography.labelLarge,
+                color = scheme.onSurface,
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (action != null) action()
+    }
+}
 
 /**
  * The card everything sits in.
@@ -153,6 +272,7 @@ fun SectionGap(height: Int = 12) = Spacer(modifier = Modifier.height(height.dp))
 fun PlainCard(
     modifier: Modifier = Modifier,
     contentPadding: Dp = 14.dp,
+    fillHeight: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = MaterialTheme.shapes.large
@@ -164,7 +284,13 @@ fun PlainCard(
         contentColor = MaterialTheme.colorScheme.onSurface,
         border = if (glass == null) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
     ) {
-        Column(modifier = Modifier.padding(contentPadding), content = content)
+        // `fillHeight` exists for grids: when two cards share a row, the shorter one should stretch to
+        // the taller one and keep its action row on the same baseline. A plain card keeps wrapping its
+        // content, which is what every list row wants.
+        Column(
+            modifier = (if (fillHeight) Modifier.fillMaxHeight() else Modifier).padding(contentPadding),
+            content = content,
+        )
     }
 }
 
@@ -184,19 +310,43 @@ fun ClickableCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: Dp = 14.dp,
+    fillHeight: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = MaterialTheme.shapes.large
     val glass = LocalGlassMaterial.current
+    val motion = LocalAnimationsEnabled.current
+    // Press feedback is a 2.5% scale, not a colour flash: the card is usually a game's own artwork or a
+    // live reading, and dimming either would read as a disabled state. The interaction source is passed
+    // to Surface so the ripple and this scale share one press lifecycle.
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed && motion) 0.975f else 1f,
+        animationSpec = if (motion) {
+            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
+        } else {
+            snap()
+        },
+        label = "cardPress",
+    )
     Surface(
         onClick = onClick,
-        modifier = if (glass == null) modifier else modifier.glassPanel(glass, shape),
+        interactionSource = interaction,
+        modifier = (if (glass == null) modifier else modifier.glassPanel(glass, shape))
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
         shape = shape,
         color = if (glass == null) MaterialTheme.colorScheme.surface else Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onSurface,
         border = if (glass == null) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
     ) {
-        Column(modifier = Modifier.padding(contentPadding), content = content)
+        Column(
+            modifier = (if (fillHeight) Modifier.fillMaxHeight() else Modifier).padding(contentPadding),
+            content = content,
+        )
     }
 }
 
@@ -216,34 +366,55 @@ fun SectionCard(
     action: @Composable (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    PlainCard(modifier = modifier.fillMaxWidth()) {
+    val scheme = MaterialTheme.colorScheme
+    PlainCard(modifier = modifier.fillMaxWidth(), contentPadding = 16.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // An icon gets a tinted tile; a heading without one gets a short accent rail. Both are the
+            // same job — a deliberate mark at the start of the row — and the rail keeps icon-less cards
+            // from looking like plain lists.
             if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(scheme.primary.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = scheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+            } else {
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height(18.dp)
+                        .clip(CircleShape)
+                        .background(scheme.primary),
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(10.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = scheme.onSurface,
                 )
                 if (subtitle != null) {
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = scheme.onSurfaceVariant,
                     )
                 }
             }
             if (action != null) action()
         }
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         content()
     }
 }
@@ -358,16 +529,24 @@ fun EmptyState(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 28.dp, horizontal = 20.dp),
+            .padding(vertical = 32.dp, horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(34.dp),
-        )
-        Spacer(modifier = Modifier.height(10.dp))
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(26.dp),
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
         Text(text = title, style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -377,8 +556,10 @@ fun EmptyState(
             textAlign = TextAlign.Center,
         )
         if (actionLabel != null && onAction != null) {
-            Spacer(modifier = Modifier.height(6.dp))
-            TextButton(onClick = onAction) { Text(actionLabel) }
+            Spacer(modifier = Modifier.height(14.dp))
+            Button(onClick = onAction, shape = MaterialTheme.shapes.medium) {
+                Text(actionLabel)
+            }
         }
     }
 }
@@ -391,9 +572,10 @@ fun StatusChip(text: String, tone: Tone = Tone.Neutral, icon: ImageVector? = nul
         shape = MaterialTheme.shapes.small,
         color = colour.copy(alpha = 0.14f),
         contentColor = colour,
+        border = BorderStroke(1.dp, colour.copy(alpha = 0.30f)),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (icon != null) {
@@ -426,9 +608,10 @@ fun NoteBanner(
         shape = MaterialTheme.shapes.medium,
         color = colour.copy(alpha = 0.10f),
         contentColor = colour,
+        border = BorderStroke(1.dp, colour.copy(alpha = 0.22f)),
     ) {
         Row(
-            modifier = Modifier.padding(10.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (icon != null) {

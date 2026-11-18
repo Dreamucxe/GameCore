@@ -71,6 +71,11 @@ import androidx.room.RoomDatabase
  * and the reasons behind every absent metric. The learning table stores local decisions and measured
  * outcomes, one row per event, and is never uploaded. [GameCoreMigrations.MIGRATION_22_23].
  *
+ * **Version 24** adds the nullable tested-action snapshot columns to `smart_benchmarks`. A run now
+ * keeps the exact confirmed action it was captured to test, instead of having one guessed from the
+ * learning log after the fact. Existing rows stay NULL and remain readable but unattributed.
+ * [GameCoreMigrations.MIGRATION_23_24].
+ *
  * There are no `@TypeConverter`s registered anywhere in this class, deliberately. Enums are stored
  * as their names and parsed back defensively in [Mappers]; a converter would move that parsing
  * into generated code where the fallback for an unrecognised name is a thrown exception rather
@@ -103,7 +108,7 @@ import androidx.room.RoomDatabase
         SmartBenchmarkEntity::class,
         SmartLearningRecordEntity::class,
     ],
-    version = 23,
+    version = 24,
     exportSchema = true,
 )
 abstract class GameCoreDatabase : RoomDatabase() {

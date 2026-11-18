@@ -1,6 +1,15 @@
 package com.gamecore.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -20,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
@@ -28,6 +38,8 @@ import com.gamecore.core.common.Observed
 import com.gamecore.core.common.isAwaitingSample
 import com.gamecore.core.common.shortUnavailabilityText
 import com.gamecore.core.common.unavailabilityText
+import com.gamecore.ui.theme.LocalAnimationsEnabled
+import com.gamecore.ui.theme.MotionTokens
 import com.gamecore.ui.theme.StatLabelStyle
 import com.gamecore.ui.theme.StatValueCompactStyle
 import com.gamecore.ui.theme.StatValueStyle
@@ -67,13 +79,21 @@ fun StatTile(
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (icon != null) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(MaterialTheme.shapes.small)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
                 }
                 Text(
                     text = label.uppercase(),
@@ -83,13 +103,31 @@ fun StatTile(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = value,
-                style = StatValueStyle,
-                color = tone.colour(),
-                maxLines = 1,
-            )
+            Spacer(modifier = Modifier.height(8.dp))
+            // A tile's figure is often live (a session total after a delete, a status value after a
+            // permission change). Rolling the number instead of swapping it keeps the change readable.
+            val motion = LocalAnimationsEnabled.current
+            val duration = if (motion) MotionTokens.SHORT_MILLIS else 0
+            AnimatedContent(
+                targetState = value,
+                transitionSpec = {
+                    (
+                        fadeIn(tween(duration)) +
+                            slideInVertically(tween(duration)) { height -> height / 3 }
+                        ).togetherWith(
+                        fadeOut(tween(duration)) +
+                            slideOutVertically(tween(duration)) { height -> -height / 3 },
+                    )
+                },
+                label = "statValue",
+            ) { shown ->
+                Text(
+                    text = shown,
+                    style = StatValueStyle,
+                    color = tone.colour(),
+                    maxLines = 1,
+                )
+            }
             if (fraction != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Meter(fraction = fraction, tone = tone)

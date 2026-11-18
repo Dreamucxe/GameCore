@@ -1,5 +1,7 @@
 package com.gamecore.ui.config
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -9,26 +11,26 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.gamecore.ui.components.ClickableCard
+import com.gamecore.ui.components.ScreenHeader
+import com.gamecore.ui.components.ScreenPadding
 import com.gamecore.ui.theme.Spacing
 
 /**
@@ -59,7 +61,6 @@ data class ConfigBrowserItem(
  * tap descends into a folder or opens a file to view or edit. The browser draws no "read only" verdict of
  * its own — see [ConfigBrowserItem] for why that decision belongs to the editor, not here.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConfigBrowserScreen(
     title: String,
@@ -69,31 +70,14 @@ fun ConfigBrowserScreen(
     onOpen: (ConfigBrowserItem) -> Unit,
     onBack: () -> Unit,
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
-    ) { innerPadding ->
+    Column(modifier = Modifier.fillMaxSize()) {
+        ScreenHeader(title = title, onBack = onBack)
         when {
-            isLoading -> CenteredBox(modifier = Modifier.padding(innerPadding)) {
+            isLoading -> CenteredBox {
                 CircularProgressIndicator()
             }
 
-            items.isEmpty() -> CenteredBox(modifier = Modifier.padding(innerPadding)) {
+            items.isEmpty() -> CenteredBox {
                 Text(
                     text = emptyMessage,
                     style = MaterialTheme.typography.bodyMedium,
@@ -104,10 +88,9 @@ fun ConfigBrowserScreen(
             }
 
             else -> LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = Spacing.xs),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
                 items(items = items, key = { it.relativePath }) { item ->
                     ConfigBrowserRow(item = item, onOpen = onOpen)
@@ -120,25 +103,35 @@ fun ConfigBrowserScreen(
 /**
  * One tappable file row: its name, its path under it, and its size on the right.
  *
- * Built as a clickable [Surface] with a transparent fill — the shape the app's other navigating rows use —
- * so the whole row is a single focus target and a single ripple. Every row reads the same: the tap lands and
- * the caller decides what "open" means, so there is no dimmed or "read only" variant to draw here.
+ * Built as a [ClickableCard] with an icon tile — the shape the app's other navigating rows use — so the
+ * whole row is a single focus target and a single ripple. Every row reads the same: the tap lands and the
+ * caller decides what "open" means, so there is no dimmed or "read only" variant to draw here.
  */
 @Composable
 private fun ConfigBrowserRow(
     item: ConfigBrowserItem,
     onOpen: (ConfigBrowserItem) -> Unit,
 ) {
-    Surface(
+    ClickableCard(
         onClick = { onOpen(item) },
-        color = Color.Transparent,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.padding(horizontal = ScreenPadding),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Description,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(modifier = Modifier.width(Spacing.sm))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.displayName,

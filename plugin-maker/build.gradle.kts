@@ -16,8 +16,8 @@ android {
         targetSdk = 34
         // The maker's own version line. It is a separate app from GameCore: GameCore 4.x
         // and the Plugin Maker 1.x are released independently.
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
     }
 
     // The same keystore as GameCore, so one installation instruction covers both and the

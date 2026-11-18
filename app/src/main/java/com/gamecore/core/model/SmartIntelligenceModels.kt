@@ -437,6 +437,73 @@ data class BenchmarkSummary(
     }
 }
 
+/**
+ * The exact optimization action a benchmark run was captured to test.
+ *
+ * This is an immutable snapshot, not a pointer to "whatever was applied most recently". It is
+ * written when the capture starts and is never recomputed from the learning log afterwards, so a
+ * later application cannot change what an older benchmark is said to have tested. [appliedRecordId]
+ * identifies the one confirmed application event, while the copied fields keep the snapshot
+ * readable even if the learning history is later cleared or an action key is renamed.
+ */
+data class TestedAction(
+    /** The `smart_learning_records.id` of the confirmed application this run tests. */
+    val appliedRecordId: Long,
+    val actionKey: String,
+    val title: String,
+    val gamePackage: String?,
+    val goal: OptimizationGoal,
+    val appliedAtMillis: Long,
+    /** Ordered metrics this action is expected to move; the first present one is used. */
+    val metricNames: List<String>,
+    val target: TestedActionTarget,
+    /** When the action's effect was confirmed: its apply time, or the session start for a profile. */
+    val effectConfirmedAtMillis: Long,
+)
+
+/** How an action takes effect, snapshotted so a later enum change cannot reinterpret history. */
+enum class TestedActionTarget { DEVICE, PROFILE }
+
+/** Why an applied-looking learning row is or is not a usable tested-action snapshot. */
+enum class TestedActionStatus {
+    ELIGIBLE,
+    PENDING_GAME_START,
+    SUPERSEDED,
+    /** The write was refused, blocked or did not change the device. */
+    FAILED,
+    /** The write was issued but could not be read back, so its effect is uncertain. */
+    UNCONFIRMED,
+    WRONG_GOAL,
+    UNKNOWN_ACTION,
+    AMBIGUOUS,
+}
+
+/** One learning row considered while deciding what a benchmark is testing. */
+data class TestedActionCandidate(
+    val recordId: Long,
+    val actionKey: String,
+    val title: String,
+    val status: TestedActionStatus,
+    val reason: String,
+    /** Present only when [status] is [TestedActionStatus.ELIGIBLE]. */
+    val testedAction: TestedAction? = null,
+)
+
+/**
+ * The result of looking for the single confirmed change a capture can be attributed to.
+ *
+ * [testedAction] is null unless exactly one confirmed, currently effective change exists. The
+ * candidates explain every row that was considered, including pending and superseded ones, so the
+ * UI can say why a run will not be attributed instead of silently guessing.
+ */
+data class TestedActionResolution(
+    val testedAction: TestedAction? = null,
+    val candidates: List<TestedActionCandidate> = emptyList(),
+    val reason: String? = null,
+) {
+    val isAttributable: Boolean get() = testedAction != null
+}
+
 /** A persisted benchmark run. [summary] carries every measured figure and every absence. */
 data class BenchmarkRun(
     val id: Long = 0L,
@@ -448,6 +515,8 @@ data class BenchmarkRun(
     val endedAtMillis: Long,
     val summary: BenchmarkSummary,
     val baselineRunId: Long? = null,
+    /** The action this run was captured to test, or null for an unattributed/legacy run. */
+    val testedAction: TestedAction? = null,
 )
 
 /** The direction a measured change moved in, stated in the unit it was measured in. */
@@ -541,6 +610,12 @@ data class SmartRecommendation(
     val targetRefreshRateHz: Float? = null,
     /** The affinity preset an apply should test, for a CPU-affinity action. */
     val targetCpuAffinity: CpuAffinityPreset? = null,
+    /** The temperature trigger an apply should write, in tenths °C. Null means no temperature trigger. */
+    val targetThermalLimitDeciCelsius: Int? = null,
+    /** The platform-status trigger an apply should write. Null means no status trigger. */
+    val targetThermalStatusFloor: ThermalClass? = null,
+    /** The lowest rate auto-cooling may step to. Null means the recommendation has no usable floor. */
+    val targetThermalFloorRateHz: Float? = null,
 )
 
 /** What happened to a recommendation, recorded locally. */
@@ -549,10 +624,21 @@ data class SmartRecommendation(
  *
  * [ATTEMPTED] is deliberately separate from [APPLIED]: a write Android refused, ignored or could
  * not confirm is a real event worth keeping, but it must never be counted as a setting that changed.
- * [UNKNOWN] is only used when a row written by a different build carries a decision this build does
- * not know; it prevents an unrecognised string from being mistaken for a successful application.
+ * [UNCONFIRMED] is the narrower case where the write was issued but could not be read back; it is
+ * kept apart from a plain failure because it may still have changed the device, so a benchmark
+ * cannot be attributed across it. [UNKNOWN] is only used when a row written by a different build
+ * carries a decision this build does not know; it prevents an unrecognised string from being
+ * mistaken for a successful application.
  */
-enum class LearningDecision { GENERATED, APPLIED, ATTEMPTED, IGNORED, TESTED, UNKNOWN }
+enum class LearningDecision {
+    GENERATED,
+    APPLIED,
+    ATTEMPTED,
+    UNCONFIRMED,
+    IGNORED,
+    TESTED,
+    UNKNOWN,
+}
 
 /** What a real before/after comparison said about a recommendation. */
 enum class LearningOutcome { IMPROVED, NEUTRAL, REGRESSED, INCONCLUSIVE, UNKNOWN }

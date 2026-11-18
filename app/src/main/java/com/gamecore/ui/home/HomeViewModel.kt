@@ -18,6 +18,7 @@ import com.gamecore.core.model.PerformanceSnapshot
 import com.gamecore.core.model.PlayRecord
 import com.gamecore.core.model.RowRestoreOutcome
 import com.gamecore.core.model.StopReason
+import com.gamecore.core.model.ThemePreset
 import com.gamecore.core.model.ThermalClassifier
 import com.gamecore.core.model.ThermalSensorType
 import com.gamecore.core.model.lastPlayedByPackage
@@ -219,6 +220,7 @@ class HomeViewModel @Inject constructor(
             detectionAvailable = own.detectionAvailable,
             isCompact = own.isCompact,
             redlineSkin = own.redlineSkin,
+            themePreset = own.themePreset,
             showBuiltInHomeStats = own.showBuiltInHomeStats,
             show3DHomeStats = own.show3DHomeStats,
             repairedSessions = own.repairedSessions,
@@ -267,6 +269,7 @@ class HomeViewModel @Inject constructor(
                         isCompact = settings.compactDensity,
                         autoApply = settings.autoApplyProfiles,
                         redlineSkin = settings.redlineSkin,
+                        themePreset = ThemePreset.matching(settings),
                         showBuiltInHomeStats = (appearanceScheduler.dashboardOverride.value
                             ?: settings.showBuiltInHomeStats),
                         show3DHomeStats = settings.show3DHomeStats,
@@ -626,6 +629,17 @@ class HomeViewModel @Inject constructor(
         preferences.updateSettings { it.copy(suggestionDismissals = it.suggestionDismissals + packageName) }
     }
 
+    /**
+     * Moves the quick theme switch to the next named look.
+     *
+     * One write, through the same store every other appearance control uses, so Home, Settings and the
+     * theme itself all see the change on the next emission. [ThemePreset.next] decides the order and
+     * [ThemePreset.applyTo] clears a custom accent that would otherwise outrank the preset's swatch.
+     */
+    fun cycleTheme() {
+        preferences.updateSettings { ThemePreset.next(it).applyTo(it) }
+    }
+
     // ------------------------------------------------------------------------------ current session
 
     /** Ends the tracked session from Home. The game itself is left alone. */
@@ -872,6 +886,7 @@ private data class LocalState(
     val detectionAvailable: Boolean = false,
     val isCompact: Boolean = false,
     val redlineSkin: Boolean = false,
+    val themePreset: ThemePreset? = null,
     val showBuiltInHomeStats: Boolean = true,
     val show3DHomeStats: Boolean = true,
     val selectedPackage: String? = null,

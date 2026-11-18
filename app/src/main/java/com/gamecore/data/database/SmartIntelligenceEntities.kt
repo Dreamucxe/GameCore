@@ -146,6 +146,41 @@ data class SmartBenchmarkEntity(
 
     @ColumnInfo(name = "baseline_run_id")
     val baselineRunId: Long?,
+
+    /**
+     * The exact confirmed action this run was captured to test, snapshotted at capture start.
+     *
+     * All nine columns are nullable together. A row written before schema 24 has no snapshot, and
+     * null is the honest reading: the run cannot be attributed to an action. A partially written
+     * snapshot also reads back as null rather than as a guess.
+     */
+    @ColumnInfo(name = "tested_action_record_id")
+    val testedActionRecordId: Long? = null,
+
+    @ColumnInfo(name = "tested_action_key")
+    val testedActionKey: String? = null,
+
+    @ColumnInfo(name = "tested_action_title")
+    val testedActionTitle: String? = null,
+
+    @ColumnInfo(name = "tested_action_game_package")
+    val testedActionGamePackage: String? = null,
+
+    @ColumnInfo(name = "tested_action_goal")
+    val testedActionGoal: String? = null,
+
+    @ColumnInfo(name = "tested_action_applied_at")
+    val testedActionAppliedAtMillis: Long? = null,
+
+    /** Ordered metric names joined by `|`; empty when the action has no attributable metric. */
+    @ColumnInfo(name = "tested_action_metrics")
+    val testedActionMetrics: String? = null,
+
+    @ColumnInfo(name = "tested_action_target")
+    val testedActionTarget: String? = null,
+
+    @ColumnInfo(name = "tested_action_effect_confirmed_at")
+    val testedActionEffectConfirmedAtMillis: Long? = null,
 )
 
 /**

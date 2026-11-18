@@ -785,6 +785,69 @@ enum class ThemeChoice(val label: String) {
 }
 
 /**
+ * The named looks the quick theme switch cycles through.
+ *
+ * A preset is not a second theme engine: it is a curated pair of the two settings that already exist —
+ * [ThemeChoice] and [AccentChoice] — plus the shape personality [com.gamecore.ui.theme.GameCoreTheme]
+ * derives from the same pair. That keeps one source of truth: the Settings screen still edits the mode
+ * and the accent individually, and picking a preset simply writes both. A custom accent or wallpaper
+ * colours deliberately match no preset, so the switch reports "Custom" instead of pretending the user
+ * is on Graphite.
+ *
+ * Stored nowhere. [matching] recomputes the active preset from settings on every read, so an older
+ * build's settings file, a hand-edited accent and a preset applied by a newer build all resolve the
+ * same way without a migration.
+ */
+enum class ThemePreset(
+    val label: String,
+    val theme: ThemeChoice,
+    val accent: AccentChoice,
+    val description: String,
+) {
+    GRAPHITE("Graphite", ThemeChoice.DARK, AccentChoice.CYAN, "Cool graphite and cyan"),
+    NEON("Neon", ThemeChoice.DARK, AccentChoice.GREEN, "Electric lime on black"),
+    CYBER("Cyber", ThemeChoice.DARK, AccentChoice.TEAL, "Deep teal command centre"),
+    VIOLET("Violet", ThemeChoice.DARK, AccentChoice.VIOLET, "Violet over graphite"),
+    EMBER("Ember", ThemeChoice.DARK, AccentChoice.ORANGE, "Warm ember highlights"),
+    DAYLIGHT("Daylight", ThemeChoice.LIGHT, AccentChoice.BLUE, "Bright cool daylight"),
+    AMOLED("AMOLED", ThemeChoice.AMOLED, AccentChoice.GREEN, "True black, lime edge"),
+    ;
+
+    /** Writes this preset's mode and accent, and drops the overrides that would outrank them. */
+    fun applyTo(settings: AppSettings): AppSettings = settings.copy(
+        theme = theme,
+        accent = accent,
+        useCustomAccent = false,
+        useDynamicColour = false,
+        // Redline paints its own scheme ahead of the house palettes, so leaving it on would make a pack
+        // tap change two fields the user cannot see. [matching] already refuses to name a pack under it;
+        // choosing one has to be the way out, or the rail is a control that does nothing.
+        redlineSkin = false,
+    )
+
+    companion object {
+        /**
+         * The preset the current settings describe, or null when the user has stepped outside the set.
+         *
+         * Wallpaper colours and a custom accent both outrank the palette in [GameCoreTheme], so reporting
+         * a preset while either is on would name a look the screen is not wearing. Redline is a skin with
+         * its own identity and likewise matches nothing.
+         */
+        fun matching(settings: AppSettings): ThemePreset? {
+            if (settings.useCustomAccent || settings.useDynamicColour || settings.redlineSkin) return null
+            return entries.firstOrNull { it.theme == settings.theme && it.accent == settings.accent }
+        }
+
+        /** The preset a tap on the quick switch moves to, wrapping at the end. */
+        fun next(settings: AppSettings): ThemePreset {
+            val current = matching(settings)
+            val index = if (current == null) -1 else entries.indexOf(current)
+            return entries[(index + 1) % entries.size]
+        }
+    }
+}
+
+/**
  * The typeface choices offered by the plugin section's appearance card.
  *
  * [THEME] is not a family of its own: it is the instruction to keep the current theme's typography,

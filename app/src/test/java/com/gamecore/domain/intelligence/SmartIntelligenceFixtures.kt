@@ -7,6 +7,7 @@ import com.gamecore.core.model.DeviceCapabilities
 import com.gamecore.core.model.DeviceScan
 import com.gamecore.core.model.OptimizationGoal
 import com.gamecore.core.model.RefreshRateMechanism
+import com.gamecore.core.model.ThermalStatus
 
 internal fun deviceScan(
     totalRamBytes: Long = 8L * 1024 * 1024 * 1024,
@@ -15,6 +16,8 @@ internal fun deviceScan(
     currentRefreshRate: Float? = 60f,
     supportedRefreshRates: List<Float> = listOf(60f, 120f),
     cpuTemperatureDeciCelsius: Int? = 400,
+    batteryTemperatureDeciCelsius: Int? = 320,
+    platformThermalStatus: ThermalStatus? = null,
     batteryPowerSave: Boolean = false,
     capabilities: DeviceCapabilities = DeviceCapabilities.UNKNOWN.copy(
         refreshRateMechanism = RefreshRateMechanism.SYSTEM_SETTINGS,
@@ -51,12 +54,12 @@ internal fun deviceScan(
     sdkInt = 35,
     kernelVersion = "test",
     batteryLevelPercent = 75,
-    batteryTemperatureDeciCelsius = 320,
+    batteryTemperatureDeciCelsius = batteryTemperatureDeciCelsius,
     batteryCharging = false,
     batteryPowerSave = batteryPowerSave,
     thermalSensors = emptyList(),
     cpuTemperatureDeciCelsius = cpuTemperatureDeciCelsius,
-    platformThermalStatus = null,
+    platformThermalStatus = platformThermalStatus,
     capabilities = capabilities,
     unavailableReadings = emptyList(),
 )

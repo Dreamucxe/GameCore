@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -87,31 +88,44 @@ internal fun CreatorBuildTab(
     commit: (PluginDraft) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        WorkspaceCard("Project category", "Studio organisation only") {
-            Text(
-                "Categories organise projects in Studio. They are not plugin manifest claims and grant no capability.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            ChoiceStrip(
-                values = CreatorCategory.entries,
-                selected = draft.creatorCategory,
-                label = { it.displayName() },
-                onSelect = { commit(draft.copy(creatorCategory = it)) },
-            )
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        PluginManifestCards(draft = draft, commit = commit)
+
+        // Two small, self-contained groups sit side by side on every supported width. Their
+        // controls scroll horizontally or wrap internally, so a 360dp screen loses no action.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            WorkspaceCard(
+                title = "Project category",
+                subtitle = "Studio organisation only",
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    "Categories organise projects in Studio. They are not plugin manifest claims and grant no capability.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ChoiceStrip(
+                    values = CreatorCategory.entries,
+                    selected = draft.creatorCategory,
+                    label = { it.displayName() },
+                    onSelect = { commit(draft.copy(creatorCategory = it)) },
+                )
+            }
+            WorkspaceCard(
+                title = "Theme section",
+                subtitle = "Theme.json entry",
+                modifier = Modifier.weight(1f),
+            ) {
+                SwitchLine(
+                    label = "Include theme.json",
+                    detail = "Turning this off preserves the draft theme but removes the theme declaration and entry.",
+                    checked = draft.sections.themeEnabled,
+                    onChange = { enabled -> commit(draft.editSections { copy(themeEnabled = enabled) }) },
+                )
+            }
         }
 
         SectionSummary(draft.sections)
-
-        WorkspaceCard("Theme section", "The existing theme editor owns its design values") {
-            SwitchLine(
-                label = "Include theme.json",
-                detail = "Turning this off preserves the draft theme but removes the theme declaration and entry.",
-                checked = draft.sections.themeEnabled,
-                onChange = { enabled -> commit(draft.editSections { copy(themeEnabled = enabled) }) },
-            )
-        }
 
         ScreensEditor(draft, commit)
         OverlayEditor(draft, commit)
@@ -130,7 +144,7 @@ internal fun AutomationStudioTab(
     var selectedRule by rememberSaveable { mutableStateOf(0) }
     val rules = draft.sections.rules
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         WorkspaceCard("Automation contract", "Host-owned decisions and device actions") {
             Text(
                 "Rules are edge-triggered and run only while GameCore's GameDetectionService runtime is active. " +
@@ -203,7 +217,7 @@ internal fun CreatorTestTab(
     val context = LocalContext.current
     val capabilities = remember(context) { inspectCapabilities(context.applicationContext) }
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ValidationReport(draft)
         SimulationSandbox(draft)
 
@@ -245,22 +259,27 @@ internal fun CreatorTestTab(
             )
         }
 
-        BoundaryCard(
-            "No plugin-to-plugin communication",
-            "The package schema has no messaging, discovery, shared-memory, or rule-to-rule call surface.",
-        )
-        BoundaryCard(
-            "No release-key package signing",
-            "Studio creates a deterministic .gcplugin data archive. It cannot access or sign with GameCore's release private key.",
-        )
-        BoundaryCard(
-            "No interactive overlay or screens",
-            "Overlay windows take no touches and full screens are read-only. Studio therefore authors no button, slider, or switch nodes.",
-        )
-        BoundaryCard(
-            "No generic settings binding",
-            "A setting cannot target arbitrary UI or system state. The sole schema bridge is a numeric setting named by glass.intensitySetting.",
-        )
+        WorkspaceCard(
+            "Security and runtime boundaries",
+            "Four enforced limits · no code, messaging or fake interaction",
+        ) {
+            BoundaryCard(
+                "No plugin-to-plugin communication",
+                "The package schema has no messaging, discovery, shared-memory, or rule-to-rule call surface.",
+            )
+            BoundaryCard(
+                "No release-key package signing",
+                "Studio creates a deterministic .gcplugin data archive. It cannot access or sign with GameCore's release private key.",
+            )
+            BoundaryCard(
+                "No interactive overlay or screens",
+                "Overlay windows take no touches and full screens are read-only. Studio therefore authors no button, slider, or switch nodes.",
+            )
+            BoundaryCard(
+                "No generic settings binding",
+                "A setting cannot target arbitrary UI or system state. The sole schema bridge is a numeric setting named by glass.intensitySetting.",
+            )
+        }
     }
 }
 
@@ -1164,17 +1183,43 @@ private fun CapabilityRow(observation: CapabilityObservation) {
 // ------------------------------------------------------------------------------------- UI pieces
 
 @Composable
-private fun WorkspaceCard(title: String, subtitle: String? = null, content: @Composable () -> Unit) {
+private fun WorkspaceCard(
+    title: String,
+    subtitle: String? = null,
+    modifier: Modifier = Modifier,
+    initiallyExpanded: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    var expanded by rememberSaveable(title) { mutableStateOf(initiallyExpanded) }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                subtitle?.let { MutedText(it) }
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.titleSmall)
+                    subtitle?.let { MutedText(it) }
+                }
+                Text(
+                    if (expanded) "Hide" else "Edit",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
-            content()
+            if (expanded) {
+                Column(
+                    modifier = Modifier.padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    content()
+                }
+            }
         }
     }
 }
@@ -1185,7 +1230,7 @@ private fun BoundaryCard(title: String, detail: String) {
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
+        Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.Top) {
             Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
             Column(modifier = Modifier.padding(start = 10.dp)) {
                 Text(title, style = MaterialTheme.typography.titleSmall)

@@ -16,6 +16,7 @@ import com.gamecore.core.shizuku.ShizukuManager
 import com.gamecore.core.system.InstalledAppLister
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.GameProfileRepository
+import com.gamecore.domain.gaming.ProfileSuggester
 import com.gamecore.domain.optimization.DeviceCapabilityChecker
 import com.gamecore.domain.setup.PermissionNeed
 import com.gamecore.domain.setup.PresetSupport
@@ -97,7 +98,7 @@ class SetupWizardViewModel @Inject constructor(
                 isLoaded = true,
                 isPersisting = preferences.isPersisting,
                 isApi33OrHigher = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
-                smart = smartStatesFor(DeviceCapabilities.UNKNOWN),
+                smart = smartStatesFor(DeviceCapabilities.UNKNOWN, editing.value.preset),
             )
             recheck()
         }
@@ -186,7 +187,7 @@ class SetupWizardViewModel @Inject constructor(
             choices = choices,
             step = resumeAt(current.step, steps),
             permissionRows = permissionRowsFor(choices, current.isApi33OrHigher),
-            smart = smartStatesFor(capabilityChecker.capabilities.value),
+            smart = smartStatesFor(capabilityChecker.capabilities.value, current.preset),
         )
         preferences.setupChoices = choices
     }
@@ -219,7 +220,7 @@ class SetupWizardViewModel @Inject constructor(
                     totalControls = capabilities.controlCount,
                 ),
                 presetViews = presetViewsFor(capabilities),
-                smart = smartStatesFor(capabilities),
+                smart = smartStatesFor(capabilities, current.preset),
             )
         }
     }
@@ -344,11 +345,33 @@ class SetupWizardViewModel @Inject constructor(
 
     /** Clears the pick, which puts step 5 back to its skippable state rather than deleting anything. */
     fun clearGame() {
-        editing.value = editing.value.copy(pickedGame = null, preset = null)
+        editing.value = editing.value.copy(
+            pickedGame = null,
+            preset = null,
+            smart = smartStatesForCurrentDevice(preset = null),
+        )
     }
 
     fun choosePreset(preset: SetupPreset) {
-        editing.value = editing.value.copy(preset = preset)
+        editing.value = editing.value.copy(
+            preset = preset,
+            // A preset that pins the lowest rate leaves auto-cooling nothing to step down to.
+            smart = smartStatesForCurrentDevice(preset),
+        )
+    }
+
+    /**
+     * Re-derives the smart-feature switches when the preset changes, but only from a device answer
+     * that actually contains rates. Before the first capability check the list is empty, and treating
+     * that as "one refresh rate" would turn a feature off for a reason the device never gave.
+     */
+    private fun smartStatesForCurrentDevice(preset: SetupPreset?): SmartFeatureStates {
+        val capabilities = capabilityChecker.capabilities.value
+        return if (capabilities.supportedRefreshRates.isEmpty()) {
+            editing.value.smart
+        } else {
+            smartStatesFor(capabilities, preset)
+        }
     }
 
     /**
@@ -413,14 +436,34 @@ class SetupWizardViewModel @Inject constructor(
      * type is an ordinary `ConnectivityManager` call, and the optional latency probe is a socket any app
      * may open.
      */
-    private fun smartStatesFor(capabilities: DeviceCapabilities): SmartFeatureStates {
+    private fun smartStatesFor(
+        capabilities: DeviceCapabilities,
+        preset: SetupPreset?,
+    ): SmartFeatureStates {
         val current = editing.value.smart
+        val rates = capabilities.supportedRefreshRates.filter { it > 0f }.distinct().sorted()
+        val targetRate = when (preset) {
+            SetupPreset.MAX_PERFORMANCE -> rates.maxOrNull()
+            SetupPreset.BATTERY_SAVER -> rates.minOrNull()
+            SetupPreset.BALANCED, null -> null
+        }
+        val hasLowerRung = when {
+            targetRate == null -> rates.size >= 2
+            // 1.5 Hz is the same tolerance ThermalDownshiftConfig uses to call two rates one rung.
+            else -> rates.any { it < targetRate - 1.5f }
+        }
         val thermalReason = when {
-            capabilities.refreshRateMechanism == RefreshRateMechanism.NONE && capabilities.shizuku.isUsable ->
+            rates.size < 2 ->
                 "This display reports one refresh rate, so there is nothing to step down to."
+            !hasLowerRung ->
+                "The chosen preset already holds the lowest refresh rate, so there is nothing to " +
+                    "step down to."
+            capabilities.refreshRateMechanism == RefreshRateMechanism.SYSTEM_SETTINGS -> null
             !capabilities.shizuku.isUsable ->
                 "Needs Shizuku running. GameCore can read the temperature without it, but not change the " +
                     "refresh rate in response."
+            capabilities.refreshRateMechanism == RefreshRateMechanism.NONE ->
+                "This device does not expose a way to change the refresh rate."
             else -> null
         }
         val fullPerformanceReason = when (capabilities.batterySaverControl) {
@@ -483,9 +526,23 @@ class SetupWizardViewModel @Inject constructor(
      */
     private fun buildProfile(option: AppOption): GameProfile {
         val capabilities = capabilityChecker.capabilities.value
-        val rates = capabilities.supportedRefreshRates
+        val rates = capabilities.supportedRefreshRates.filter { it > 0f }.distinct().sorted()
         val smart = editing.value.smart
         val base = GameProfile.forGame(option.packageName, option.label)
+        val targetRefreshRate = when (editing.value.preset) {
+            SetupPreset.MAX_PERFORMANCE -> rates.maxOrNull().takeIf { rates.size > 1 }
+            SetupPreset.BATTERY_SAVER -> rates.minOrNull().takeIf { rates.size > 1 }
+            SetupPreset.BALANCED, null -> base.targetRefreshRate
+        }
+        val startRate = targetRefreshRate ?: rates.maxOrNull()
+        // Materialise the trigger and a floor below the rate the session starts at. Without both,
+        // the thermal machine would react only at platform CRITICAL, or never step at all.
+        val thermalFloor = if (smart.thermalDownshift) {
+            rates.filter { startRate == null || it < startRate - 1.5f }.minOrNull()
+        } else {
+            null
+        }
+        val thermalEnabled = smart.thermalDownshift && thermalFloor != null
         return base.copy(
             performanceMode = when (editing.value.preset) {
                 SetupPreset.MAX_PERFORMANCE -> PerformanceMode.PERFORMANCE
@@ -493,15 +550,13 @@ class SetupWizardViewModel @Inject constructor(
                 SetupPreset.BALANCED -> PerformanceMode.BALANCED
                 null -> base.performanceMode
             },
-            targetRefreshRate = when (editing.value.preset) {
-                SetupPreset.MAX_PERFORMANCE -> rates.maxOrNull().takeIf { rates.size > 1 }
-                SetupPreset.BATTERY_SAVER -> rates.minOrNull().takeIf { rates.size > 1 }
-                else -> base.targetRefreshRate
-            },
+            targetRefreshRate = targetRefreshRate,
             enableDoNotDisturb = editing.value.choices.dnd && permissions.hasNotificationPolicyAccess(),
             showPerformancePill = editing.value.choices.overlay,
             showFloatingButton = editing.value.choices.overlay,
-            thermalDownshiftEnabled = smart.thermalDownshift,
+            thermalDownshiftEnabled = thermalEnabled,
+            thermalLimitDeciCelsius = if (thermalEnabled) ProfileSuggester.HOT_PEAK_DECI else null,
+            thermalFloorRateHz = thermalFloor,
             networkCheckEnabled = smart.networkCheck,
             fullPerformanceEnabled = smart.fullPerformance,
         )

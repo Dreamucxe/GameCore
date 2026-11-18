@@ -78,6 +78,9 @@ object RecommendationEngine {
     /** Free RAM below this fraction of total is pressure worth reporting. */
     const val LOW_AVAILABLE_RAM_FRACTION = 0.10f
 
+    /** A panel advertising 119.998 Hz is offering 120; the same tolerance the rate controller uses. */
+    private const val THERMAL_RATE_TOLERANCE = 1.5f
+
     fun recommend(
         scan: DeviceScan,
         goal: OptimizationGoal,
@@ -266,13 +269,62 @@ object RecommendationEngine {
         // to, so the honest output is no recommendation rather than one with no target.
         if (facts.gamePackage == null) return null
         val scan = facts.scan
-        if (facts.profile?.thermalDownshiftEnabled == true) return null
+        val capabilities = scan.capabilities
+        val mechanism = capabilities.refreshRateMechanism
+        // Auto-cooling works by changing the device-wide refresh-rate bounds. A per-window
+        // preference cannot touch the game, and NONE means no write path exists at all.
+        if (mechanism != RefreshRateMechanism.SYSTEM_SETTINGS &&
+            mechanism != RefreshRateMechanism.SHIZUKU_SETTINGS
+        ) {
+            return null
+        }
+        // The mechanism is read from the same scan's Shizuku state. Keep the check explicit so a
+        // stale SHIZUKU_SETTINGS answer cannot be presented as currently usable.
+        if (mechanism == RefreshRateMechanism.SHIZUKU_SETTINGS && !capabilities.shizuku.isUsable) {
+            return null
+        }
+
+        val rates = scan.supportedRefreshRates
+            .filter { it > 0f }
+            .distinct()
+            .sorted()
+        if (rates.size < 2) return null
+
+        val profile = facts.profile
+        val startRate = profile?.targetRefreshRate
+            ?.takeIf { target -> rates.any { abs(it - target) <= THERMAL_RATE_TOLERANCE } }
+            ?: rates.last()
+        val explicitFloor = profile?.thermalFloorRateHz
+            ?.takeIf { floor ->
+                floor < startRate - THERMAL_RATE_TOLERANCE &&
+                    rates.any { abs(it - floor) <= THERMAL_RATE_TOLERANCE }
+            }
+        val floor = explicitFloor
+            ?: rates.firstOrNull { it < startRate - THERMAL_RATE_TOLERANCE }
+            ?: return null
+
+        // A floor the user explicitly set at or above the starting rate is a valid "never step
+        // down" choice. Do not override it just to make the feature appear to work.
+        if (profile?.thermalFloorRateHz != null && explicitFloor == null) return null
+
+        val statusSupported = capabilities.thermalStatusSupported
+        val configuredTrigger = profile?.thermalLimitDeciCelsius != null ||
+            (profile?.thermalStatusFloor != null && statusSupported)
+        if (profile?.thermalDownshiftEnabled == true && configuredTrigger) {
+            // The runner derives its floor from `thermalFloorRateHz ?: targetRefreshRate ?: min`.
+            // When the floor is absent and the target is not the panel's lowest rate, that default
+            // is the rate the profile already starts at, so the machine has no lower rung. Treat
+            // that profile as incomplete rather than "already configured".
+            val effectiveFloor = explicitFloor ?: profile.targetRefreshRate ?: rates.first()
+            val hasLowerRung = effectiveFloor < startRate - THERMAL_RATE_TOLERANCE
+            if (explicitFloor != null || hasLowerRung) return null
+        }
 
         val classification = scan.thermalClass
         val benchmarkTemp = facts.benchmark?.summary?.averageTemperatureDeciCelsius
         val temperature = scan.cpuTemperatureDeciCelsius ?: scan.batteryTemperatureDeciCelsius
         val thermalEvidenceExists = temperature != null ||
-            scan.capabilities.thermalStatusSupported ||
+            statusSupported ||
             benchmarkTemp != null
         if (!thermalEvidenceExists) return null
 
@@ -297,19 +349,42 @@ object RecommendationEngine {
             hotSessions.isNotEmpty() -> WARM_TEMPERATURE_DECI
             else -> null
         }
-        val proposed = when {
-            proposedTemperature != null ->
-                "Downshift at ${formatTemperature(proposedTemperature)} or when Android reports throttling"
-            else -> "Downshift on Android's own thermal status"
+        // Preserve a trigger the user already set; only fill what is missing, so applying the
+        // recommendation does not silently rewrite a reviewed setting. A temperature reading is
+        // more precise than the platform's coarse status, so it is preferred when none is set.
+        val existingLimit = profile?.thermalLimitDeciCelsius
+        val existingStatus = profile?.thermalStatusFloor?.takeIf { statusSupported }
+        val targetLimit = existingLimit
+            ?: if (existingStatus == null) proposedTemperature else null
+        val targetStatus = existingStatus
+            ?: if (existingLimit == null && targetLimit == null && statusSupported) {
+                ThermalClass.HOT
+            } else {
+                null
+            }
+        if (targetLimit == null && targetStatus == null) return null
+
+        val proposed = buildString {
+            when {
+                targetLimit != null && targetStatus != null ->
+                    append("Downshift at ${formatTemperature(targetLimit)} or when Android reports throttling")
+                targetLimit != null -> append("Downshift at ${formatTemperature(targetLimit)}")
+                else -> append("Downshift when Android reports throttling")
+            }
+            append(", never below ${formatHz(floor)}")
         }
 
         return finalize(
             facts = facts,
             action = RecommendationAction.ENABLE_THERMAL_DOWNSHIFT,
-            current = if (facts.profile == null) {
-                "No game profile is selected, so no thermal behaviour is configured"
-            } else {
-                "Off for this game's profile"
+            current = when {
+                profile == null ->
+                    "No game profile is selected, so no thermal behaviour is configured"
+                profile.thermalDownshiftEnabled && !configuredTrigger ->
+                    "On, but no usable trigger is configured"
+                profile.thermalDownshiftEnabled ->
+                    "On, but the floor leaves no lower refresh rate to step to"
+                else -> "Off for this game's profile"
             },
             proposed = proposed,
             reason = buildString {
@@ -361,10 +436,18 @@ object RecommendationEngine {
                 add(
                     RecommendationEvidence(
                         "Profile field",
-                        "thermalDownshiftEnabled, applied only while this game runs",
+                        buildList {
+                            add("thermalDownshiftEnabled")
+                            targetLimit?.let { add("thermalLimitDeciCelsius=$it") }
+                            targetStatus?.let { add("thermalStatusFloor=${it.name}") }
+                            add("thermalFloorRateHz=${formatHz(floor)}")
+                        }.joinToString(", ") + ", applied only while this game runs",
                     ),
                 )
             },
+            targetThermalLimitDeciCelsius = targetLimit,
+            targetThermalStatusFloor = targetStatus,
+            targetThermalFloorRateHz = floor,
         )
     }
 
@@ -699,6 +782,9 @@ object RecommendationEngine {
         evidence: List<RecommendationEvidence>,
         targetRefreshRateHz: Float? = null,
         targetCpuAffinity: CpuAffinityPreset? = null,
+        targetThermalLimitDeciCelsius: Int? = null,
+        targetThermalStatusFloor: ThermalClass? = null,
+        targetThermalFloorRateHz: Float? = null,
     ): SmartRecommendation? {
         if (!compatibility.isUsable) return null
 
@@ -745,6 +831,9 @@ object RecommendationEngine {
             history = history,
             targetRefreshRateHz = targetRefreshRateHz,
             targetCpuAffinity = targetCpuAffinity,
+            targetThermalLimitDeciCelsius = targetThermalLimitDeciCelsius,
+            targetThermalStatusFloor = targetThermalStatusFloor,
+            targetThermalFloorRateHz = targetThermalFloorRateHz,
         )
     }
 

@@ -6,12 +6,42 @@ import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.Animation
@@ -21,6 +51,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.DateRange
@@ -49,7 +80,9 @@ import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -57,9 +90,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -73,6 +115,7 @@ import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.RecordingQuality
 import com.gamecore.core.model.TextSizePreset
 import com.gamecore.core.model.ThemeChoice
+import com.gamecore.core.model.ThemePreset
 import com.gamecore.core.model.appVersionLabel
 import com.gamecore.core.model.customAccentLabel
 import com.gamecore.core.model.scaleForPreset
@@ -81,6 +124,7 @@ import com.gamecore.core.model.uiScaleLabel
 import com.gamecore.ui.Destination
 import com.gamecore.ui.components.ActionRow
 import com.gamecore.ui.components.ChoiceRow
+import com.gamecore.ui.components.ClickableCard
 import com.gamecore.ui.components.ColourPicker
 import com.gamecore.ui.components.ColourSwatches
 import com.gamecore.ui.components.ConfirmDialog
@@ -94,12 +138,17 @@ import com.gamecore.ui.components.ScreenBottomPadding
 import com.gamecore.ui.components.ScreenHeader
 import com.gamecore.ui.components.ScreenPadding
 import com.gamecore.ui.components.SectionCard
+import com.gamecore.ui.components.SectionLabel
 import com.gamecore.ui.components.SliderRow
 import com.gamecore.ui.components.StepperRow
 import com.gamecore.ui.components.SwitchRow
 import com.gamecore.ui.components.TextFieldRow
 import com.gamecore.ui.components.Tone
 import com.gamecore.ui.components.startIntentSafely
+import com.gamecore.ui.theme.LocalAnimationsEnabled
+import com.gamecore.ui.theme.MotionTokens
+import com.gamecore.ui.theme.Spacing
+import com.gamecore.ui.theme.StatLabelStyle
 
 /**
  * §22's settings, in the order a user looks for them.
@@ -157,6 +206,51 @@ fun SettingsScreen(
             }
         }
 
+        // The screen opens on a control centre rather than on a form: the current look, its four
+        // most-changed properties, and the theme packs that change all of them together. AppearanceCard
+        // below keeps every individual control; this is the summary a returning user reads first.
+        item {
+            SettingsHero(
+                state = state,
+                onEdit = viewModel::update,
+                modifier = padded,
+            )
+        }
+
+        item {
+            SectionLabel(
+                text = "Shortcuts",
+                subtitle = "The screens you open most often from Settings.",
+                modifier = padded.padding(top = Spacing.xs),
+            )
+        }
+        SETTINGS_SHORTCUTS.chunked(2).forEach { row ->
+            item {
+                Row(
+                    modifier = padded
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Max),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    row.forEach { shortcut ->
+                        SettingsShortcutTile(
+                            shortcut = shortcut,
+                            onClick = { onNavigate(shortcut.destination) },
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                        )
+                    }
+                    if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+
+        item {
+            SectionLabel(
+                text = "Look & feel",
+                subtitle = "Theme, type, icon and accessibility.",
+                modifier = padded.padding(top = Spacing.xs),
+            )
+        }
         item {
             AppearanceCard(
                 state = state,
@@ -184,6 +278,14 @@ fun SettingsScreen(
                 modifier = padded,
             )
         }
+
+        item {
+            SectionLabel(
+                text = "Game behaviour",
+                subtitle = "What happens when a game starts, and what draws over it.",
+                modifier = padded.padding(top = Spacing.xs),
+            )
+        }
         item { BehaviorCard(state = state, onEdit = viewModel::update, modifier = padded) }
         item { OverlaysCard(state = state, onEdit = viewModel::update, onNavigate = onNavigate, modifier = padded) }
         item {
@@ -200,6 +302,14 @@ fun SettingsScreen(
                 state = state,
                 onNavigate = onNavigate,
                 modifier = padded,
+            )
+        }
+
+        item {
+            SectionLabel(
+                text = "Monitoring",
+                subtitle = "What is measured, how often, and where it goes.",
+                modifier = padded.padding(top = Spacing.xs),
             )
         }
         item {
@@ -229,6 +339,14 @@ fun SettingsScreen(
                 modifier = padded,
             )
         }
+
+        item {
+            SectionLabel(
+                text = "Access & data",
+                subtitle = "Permissions, plugins, backups and the destructive controls.",
+                modifier = padded.padding(top = Spacing.xs),
+            )
+        }
         item {
             AccessCard(
                 hasGlassTheme = state.hasGlassTheme,
@@ -246,6 +364,14 @@ fun SettingsScreen(
                 onSetRetention = viewModel::setRetentionDays,
                 onNavigate = onNavigate,
                 modifier = padded,
+            )
+        }
+
+        item {
+            SectionLabel(
+                text = "About",
+                subtitle = "Version, device and the way back to the release notes.",
+                modifier = padded.padding(top = Spacing.xs),
             )
         }
         item { AboutCard(onNavigate = onNavigate, modifier = padded) }
@@ -289,6 +415,416 @@ fun SettingsScreen(
  * somebody tapped a swatch while the toggle was off.
  */
 @Composable
+private fun ThemePresetRow(
+    active: ThemePreset?,
+    onSelect: (ThemePreset) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ThemePreset.entries.forEach { preset ->
+            ThemePresetChip(
+                preset = preset,
+                selected = preset == active,
+                onClick = { onSelect(preset) },
+            )
+        }
+    }
+}
+
+/**
+ * One named look: a miniature of its surface and accent, its name, and the one-line promise.
+ *
+ * The miniature is drawn from fixed preview literals rather than the current scheme, because its job is
+ * to show what the preset looks like *instead* of the current theme. The swatch under the name is the
+ * preset's real [AccentChoice] value, so the two cannot drift apart.
+ */
+@Composable
+private fun ThemePresetChip(
+    preset: ThemePreset,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val motion = LocalAnimationsEnabled.current
+    val duration = if (motion) MotionTokens.SHORT_MILLIS else 0
+    val previewSurface = when (preset.theme) {
+        ThemeChoice.LIGHT -> Color(0xFFF2F4F8)
+        ThemeChoice.AMOLED -> Color.Black
+        else -> Color(0xFF101318)
+    }
+    // A pack is a whole look, so selecting one is a bigger event than flipping a switch. The chip swells
+    // and its fill warms while the check fades in, which makes the tap feel like the app changing clothes
+    // rather than a radio button being ticked.
+    val background by animateColorAsState(
+        targetValue = if (selected) {
+            scheme.primaryContainer.copy(alpha = 0.55f)
+        } else {
+            scheme.surfaceVariant.copy(alpha = 0.35f)
+        },
+        animationSpec = tween(duration),
+        label = "presetFill",
+    )
+    val borderColour by animateColorAsState(
+        targetValue = if (selected) scheme.primary else scheme.outlineVariant,
+        animationSpec = tween(duration),
+        label = "presetBorder",
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1f else 0.97f,
+        animationSpec = if (motion) {
+            spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+        } else {
+            snap()
+        },
+        label = "presetScale",
+    )
+    val checkAlpha by animateFloatAsState(
+        targetValue = if (selected) 1f else 0f,
+        animationSpec = tween(duration),
+        label = "presetCheck",
+    )
+    Surface(
+        modifier = Modifier
+            .width(104.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .semantics {
+                contentDescription = "${preset.label}. ${preset.description}"
+            },
+        shape = MaterialTheme.shapes.medium,
+        color = background,
+        contentColor = scheme.onSurface,
+        border = BorderStroke(
+            width = if (selected) 1.5.dp else 1.dp,
+            color = borderColour,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(previewSurface),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth(0.58f)
+                        .height(6.dp)
+                        .background(Color(preset.accent.argb)),
+                )
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = Color(preset.accent.argb),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(5.dp)
+                        .size(14.dp)
+                        .graphicsLayer { alpha = checkAlpha },
+                )
+            }
+            Spacer(modifier = Modifier.height(7.dp))
+            Text(
+                text = preset.label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+            )
+            Text(
+                text = preset.description,
+                style = MaterialTheme.typography.labelSmall,
+                color = scheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/**
+ * The control centre at the top of Settings: what the app is wearing right now, in one glance, and the
+ * theme packs that change all of it together.
+ *
+ * This is deliberately not another settings card. The old screen began with a form row (language) and a
+ * theme mode grid, which made the most visual decision in the app look like a database field. Here the
+ * current theme, accent, text size and density are read as four figures, and the packs sit underneath
+ * them as the one control that changes the whole surface. Every individual control still lives in
+ * [AppearanceCard] below; nothing is removed from it except the duplicated pack row.
+ */
+@Composable
+private fun SettingsHero(
+    state: SettingsUiState,
+    onEdit: ((AppSettings) -> AppSettings) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val activePreset = ThemePreset.matching(state.settings)
+    // The figures name what is painting the screen, in the order [GameCoreTheme] resolves it: Redline
+    // ahead of wallpaper colours, wallpaper colours ahead of the swatch. Showing "Teal" while the app
+    // is red-on-black, or while the accent is coming from the wallpaper, would be the one lie on a
+    // screen built out of readings.
+    val themeName = if (state.settings.redlineSkin) "Redline" else activePreset?.label ?: "Custom"
+    val accentName = when {
+        state.settings.redlineSkin -> "Redline"
+        state.settings.useDynamicColour -> "Wallpaper"
+        state.settings.useCustomAccent -> "Custom"
+        else -> state.settings.accent.label
+    }
+    val density = if (state.settings.compactDensity) "Compact" else "Standard"
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = scheme.primaryContainer.copy(alpha = 0.24f),
+        contentColor = scheme.onSurface,
+        border = BorderStroke(1.dp, scheme.primary.copy(alpha = 0.35f)),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            scheme.primary.copy(alpha = 0.22f),
+                            Color.Transparent,
+                            scheme.secondary.copy(alpha = 0.10f),
+                        ),
+                    ),
+                )
+                .padding(16.dp),
+        ) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(MaterialTheme.shapes.large)
+                            .background(scheme.primary.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Tune,
+                            contentDescription = null,
+                            tint = scheme.primary,
+                            modifier = Modifier.size(26.dp),
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "CONTROL CENTRE",
+                            style = StatLabelStyle,
+                            color = scheme.primary,
+                        )
+                        Text(
+                            text = "Make GameCore yours",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = scheme.onSurface,
+                        )
+                        Text(
+                            text = "The look, the behaviour and the record — all from one place.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    HeroStat(
+                        label = "THEME",
+                        value = themeName,
+                        modifier = Modifier.weight(1f),
+                    )
+                    HeroStat(
+                        label = "ACCENT",
+                        value = accentName,
+                        modifier = Modifier.weight(1f),
+                    )
+                    HeroStat(
+                        label = "TEXT",
+                        value = uiScaleLabel(state.uiScalePercent),
+                        modifier = Modifier.weight(1f),
+                    )
+                    HeroStat(
+                        label = "DENSITY",
+                        value = density,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    text = "THEME PACK",
+                    style = StatLabelStyle,
+                    color = scheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                ThemePresetRow(
+                    active = activePreset,
+                    onSelect = { preset -> onEdit { preset.applyTo(it) } },
+                )
+                if (activePreset == null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Custom appearance. A pack sets the mode and accent together, so the " +
+                            "whole app changes at once.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** One figure in the hero. The value rolls when the theme, accent or scale changes. */
+@Composable
+private fun HeroStat(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    val motion = LocalAnimationsEnabled.current
+    val duration = if (motion) MotionTokens.SHORT_MILLIS else 0
+    Column(modifier = modifier) {
+        Text(
+            text = label,
+            style = StatLabelStyle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        AnimatedContent(
+            targetState = value,
+            transitionSpec = {
+                (
+                    fadeIn(tween(duration)) +
+                        slideInVertically(tween(duration)) { height -> height / 3 }
+                    ).togetherWith(
+                    fadeOut(tween(duration)) +
+                        slideOutVertically(tween(duration)) { height -> -height / 3 },
+                )
+            },
+            label = "heroStat",
+        ) { shown ->
+            Text(
+                text = shown,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** The four destinations a settings screen is opened for most often. */
+private data class SettingsShortcut(
+    val label: String,
+    val description: String,
+    val icon: ImageVector,
+    val destination: Destination,
+)
+
+private val SETTINGS_SHORTCUTS = listOf(
+    SettingsShortcut(
+        label = "Overlay & HUD",
+        description = "The pill, crosshair and everything that draws over a game.",
+        icon = Icons.Filled.Layers,
+        destination = Destination.Overlay,
+    ),
+    SettingsShortcut(
+        label = "Permissions",
+        description = "Overlay access, usage access and the elevated shell.",
+        icon = Icons.Filled.Shield,
+        destination = Destination.Permissions,
+    ),
+    SettingsShortcut(
+        label = "Plugins",
+        description = "Install packages, switch themes and manage every grant.",
+        icon = Icons.Filled.Extension,
+        destination = Destination.Plugins,
+    ),
+    SettingsShortcut(
+        label = "Tools",
+        description = "The instruments and screens that have no tab of their own.",
+        icon = Icons.Filled.Build,
+        destination = Destination.Tools,
+    ),
+)
+
+/**
+ * One shortcut as a grid tile: an icon, a name and the reason to open it.
+ *
+ * It is a [ClickableCard], not a [NavRow], because these four are peers rather than a list of settings
+ * — the same reason Home's tools are a rail. Each tile is a whole destination, so a tap anywhere on it
+ * is the same action and the card carries the same spring press as every other surface.
+ */
+@Composable
+private fun SettingsShortcutTile(
+    shortcut: SettingsShortcut,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ClickableCard(
+        onClick = onClick,
+        modifier = modifier.defaultMinSize(minHeight = 112.dp),
+        contentPadding = 12.dp,
+        fillHeight = true,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = shortcut.icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(17.dp),
+                )
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = shortcut.label,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = shortcut.description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
 private fun AppearanceCard(
     state: SettingsUiState,
     onEdit: ((AppSettings) -> AppSettings) -> Unit,
@@ -300,6 +836,8 @@ private fun AppearanceCard(
     var languageOpen by remember { mutableStateOf(false) }
     val strings = LocalStrings.current
     val custom = state.settings.customAccentArgb
+    val motion = LocalAnimationsEnabled.current
+    val duration = if (motion) MotionTokens.SHORT_MILLIS else 0
 
     // The picker hands back a URI GameCore can read for this call only, which is why the store decodes
     // and re-encodes the image rather than keeping the URI. No `ContentResolver` appears in this file.
@@ -315,7 +853,7 @@ private fun AppearanceCard(
         RowDivider()
         Text(
             text = "THEME",
-            style = MaterialTheme.typography.labelSmall,
+            style = StatLabelStyle,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         ChoiceRow(
@@ -328,7 +866,7 @@ private fun AppearanceCard(
         RowDivider()
         Text(
             text = "ACCENT",
-            style = MaterialTheme.typography.labelSmall,
+            style = StatLabelStyle,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         // The empty ninth swatch is drawn in the surface's own grey: it is a slot, not a colour anybody
@@ -361,7 +899,11 @@ private fun AppearanceCard(
             description = "Mix your own accent. It joins the swatches above as the ninth colour.",
             trailing = customAccentLabel(custom, state.settings.useCustomAccent),
         )
-        if (pickerOpen) {
+        AnimatedVisibility(
+            visible = pickerOpen,
+            enter = fadeIn(tween(duration)) + expandVertically(tween(duration)),
+            exit = fadeOut(tween(duration)) + shrinkVertically(tween(duration)),
+        ) {
             ColourPicker(
                 initialArgb = custom ?: state.settings.accent.argb,
                 // Picking is also choosing: a colour mixed and then not applied would leave the user
@@ -426,7 +968,7 @@ private fun AppearanceCard(
         // wallpaper, meaning different things, is a question a user should never have to stop and ask.
         Text(
             text = "BACKGROUND IMAGE",
-            style = MaterialTheme.typography.labelSmall,
+            style = StatLabelStyle,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (state.settings.wallpaperPath == null) {

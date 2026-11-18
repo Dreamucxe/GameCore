@@ -6,6 +6,7 @@ import com.gamecore.core.model.OverlayStatus
 import com.gamecore.core.model.ProfileChip
 import com.gamecore.core.model.ProfileClaim
 import com.gamecore.core.model.ShizukuState
+import com.gamecore.core.model.ThemePreset
 import com.gamecore.core.model.WatchState
 import com.gamecore.core.model.homeStatuses
 import com.gamecore.core.model.homeSubtitle
@@ -69,6 +70,8 @@ data class HomeUiState(
     /** The §3 compact-density choice, so the gaps between cards tighten with the rest of the app. */
     val isCompact: Boolean = false,
     val redlineSkin: Boolean = false,
+    /** The named look the quick switch is on, or null when settings describe no preset. */
+    val themePreset: ThemePreset? = null,
     /**
      * Whether Home draws GameCore's own live metric tiles.
      *

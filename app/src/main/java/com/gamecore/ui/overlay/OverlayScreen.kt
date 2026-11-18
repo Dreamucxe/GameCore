@@ -1,5 +1,10 @@
 package com.gamecore.ui.overlay
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -55,17 +61,22 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.core.model.ButtonSizePreset
 import com.gamecore.core.model.DockConfig
 import com.gamecore.core.model.FloatingButtonConfig
+import com.gamecore.core.model.FloatingButtonStyle
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.INTERVAL_TENTHS
 import com.gamecore.core.model.OverlayConfig
@@ -84,6 +95,7 @@ import com.gamecore.core.model.pillStyleSummary
 import com.gamecore.core.model.quickAppsSummary
 import com.gamecore.core.model.sliderDescription
 import com.gamecore.core.overlay.Corner
+import com.gamecore.core.overlay.FloatingButtonVisual
 import com.gamecore.core.overlay.MacroCodec
 import com.gamecore.core.overlay.MacroLibrary
 import com.gamecore.core.overlay.OverlayAction
@@ -91,6 +103,7 @@ import com.gamecore.core.overlay.OverlayPalette
 import com.gamecore.core.overlay.PerformancePill
 import com.gamecore.core.overlay.QuickSheetPinEditor
 import com.gamecore.core.overlay.QuickToggle
+import com.gamecore.core.overlay.ThermalDot
 import com.gamecore.core.overlay.actionsPerRow
 import com.gamecore.core.overlay.pinnedCorner
 import com.gamecore.core.overlay.turboWingShape
@@ -116,6 +129,8 @@ import com.gamecore.ui.components.Tone
 import com.gamecore.ui.components.colour
 import com.gamecore.ui.hud.conditionNote
 import com.gamecore.ui.theme.Density
+import com.gamecore.ui.theme.LocalAnimationsEnabled
+import com.gamecore.ui.theme.MotionTokens
 import com.gamecore.ui.theme.Spacing
 import kotlin.math.roundToInt
 
@@ -870,12 +885,19 @@ private fun StatRow(
 // ----------------------------------------------------------------------------- §7's floating button
 
 /**
- * §7's floating button: the toggle and its description, a preview, then Position and Size.
+ * §7's floating button: the toggle and its description, a look, a preview, then Position and Size.
  *
  * The preview is drawn here rather than by reusing `FloatingGameButton`, which needs a drag handler and a
- * live position provider a settings screen has no business handing it. Two circles side by side, because
- * the pair of opacities is the actual decision: the first is the button while the panel is open, the
- * second is what the user will spend the session looking at.
+ * live position provider a settings screen has no business handing it. It *does* reuse
+ * [FloatingButtonVisual], the same composable the overlay window draws, so the preview cannot drift from
+ * the button over a game. Two circles side by side, because the pair of opacities is the actual decision:
+ * the first is the button while the panel is open, the second is what the user will spend the session
+ * looking at.
+ *
+ * The **Style** group is 5.6's three looks. Reactor and Vanguard are the new animated buttons; Classic is
+ * the pre-5.6 disc, kept as a real revert rather than a recolour. The choice is a single preference, so
+ * the live window changes on the next frame without being re-added, and every other setting on this card
+ * is shared by all three.
  *
  * The size and opacity sliders write on release. The switches write on the tap, because there is no
  * intermediate state worth previewing between on and off.
@@ -917,6 +939,20 @@ private fun ButtonCard(
 
                 else -> "Stays put across app switches and comes back after a restart."
             },
+        )
+
+        RowDivider()
+        GroupLabel("STYLE")
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        ButtonStylePicker(
+            selected = button.style,
+            onSelect = { style -> onUpdate { it.copy(style = style) } },
+        )
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Text(
+            text = button.style.description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         RowDivider()
@@ -1022,11 +1058,118 @@ private fun ButtonCard(
 }
 
 /**
+ * The three looks as tappable cards, each showing the actual button rather than an icon standing in for it.
+ *
+ * A custom row rather than [ChoiceRow] because the choice is visual: a text-only chip called "Reactor"
+ * would ask the user to imagine the thing they are choosing. Each card draws [FloatingButtonVisual] at a
+ * fixed preview size, with the selected card's preview springing up a little and its fill and outline
+ * warming. The cards are radio buttons, so TalkBack announces the selected one rather than three
+ * independent buttons.
+ */
+@Composable
+private fun ButtonStylePicker(
+    selected: FloatingButtonStyle,
+    onSelect: (FloatingButtonStyle) -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val motion = LocalAnimationsEnabled.current
+    val duration = if (motion) MotionTokens.SHORT_MILLIS else 0
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        FloatingButtonStyle.entries.forEach { style ->
+            val isSelected = style == selected
+            val fill by animateColorAsState(
+                targetValue = if (isSelected) {
+                    scheme.primary.copy(alpha = 0.12f)
+                } else {
+                    scheme.surfaceVariant.copy(alpha = 0.35f)
+                },
+                animationSpec = tween(durationMillis = duration),
+                label = "buttonStyleFill",
+            )
+            val outline by animateColorAsState(
+                targetValue = if (isSelected) scheme.primary else scheme.outlineVariant,
+                animationSpec = tween(durationMillis = duration),
+                label = "buttonStyleOutline",
+            )
+            val previewScale by animateFloatAsState(
+                targetValue = if (isSelected) 1f else 0.94f,
+                // Reduced motion gets the same size step with no bounce: a spring here would keep
+                // moving after the tap, which is exactly what the setting asks us not to do.
+                animationSpec = if (motion) {
+                    spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMediumLow,
+                    )
+                } else {
+                    tween(durationMillis = 0)
+                },
+                label = "buttonStyleScale",
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(Spacing.md))
+                    .background(fill)
+                    .border(
+                        width = if (isSelected) 1.5.dp else 1.dp,
+                        color = outline,
+                        shape = RoundedCornerShape(Spacing.md),
+                    )
+                    .selectable(
+                        selected = isSelected,
+                        role = Role.RadioButton,
+                        onClick = { onSelect(style) },
+                    )
+                    .padding(vertical = Spacing.sm, horizontal = Spacing.xs),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                FloatingButtonVisual(
+                    style = style,
+                    sizeDp = STYLE_PREVIEW_DP,
+                    accent = if (isSelected) scheme.primary else scheme.onSurfaceVariant,
+                    expanded = false,
+                    thermalDot = ThermalDot.NONE,
+                    // The card itself is the labelled radio button; the visual must not add a second
+                    // "GameCore controls" stop inside it.
+                    describe = false,
+                    modifier = Modifier
+                        .size(STYLE_PREVIEW_DP.dp)
+                        .graphicsLayer {
+                            scaleX = previewScale
+                            scaleY = previewScale
+                        },
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Text(
+                    text = style.label,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                    color = if (isSelected) scheme.primary else scheme.onSurface,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = style.tagline,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
+/** The size of each style card's live preview, in dp. */
+private const val STYLE_PREVIEW_DP = 44
+
+/**
  * The button at the size and both opacities it will actually be drawn with, on a dark plate.
  *
  * Two circles rather than one, because the pair is the decision. The left is the button while the user is
- * looking at it; the right is what it will be for the rest of the session, and a 15% idle setting that
- * looked reasonable as a number on a slider is visibly a ghost here before it is chosen.
+ * looking at it — drawn expanded, so the ring turn and the close glyph are visible — and the right is what
+ * it will be for the rest of the session. A 15% idle setting that looked reasonable as a number on a
+ * slider is visibly a ghost here before it is chosen.
  *
  * Collapsed into one screen-reader stop for the same reason the pill's preview is: two circles and two
  * percentages read out separately are four announcements, none of which says it is a preview. The
@@ -1049,30 +1192,43 @@ private fun ButtonPreview(button: FloatingButtonConfig) {
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            PreviewButton(button = button, percent = button.opacityPercent, caption = "Panel open")
-            PreviewButton(button = button, percent = button.idleOpacityPercent, caption = "In a game")
+            PreviewButton(
+                button = button,
+                percent = button.opacityPercent,
+                caption = "Panel open",
+                expanded = true,
+            )
+            PreviewButton(
+                button = button,
+                percent = button.idleOpacityPercent,
+                caption = "In a game",
+                expanded = false,
+            )
         }
     }
 }
 
 @Composable
-private fun PreviewButton(button: FloatingButtonConfig, percent: Int, caption: String) {
+private fun PreviewButton(
+    button: FloatingButtonConfig,
+    percent: Int,
+    caption: String,
+    expanded: Boolean,
+) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
+        FloatingButtonVisual(
+            style = button.style,
+            sizeDp = button.sizeDp,
+            accent = MaterialTheme.colorScheme.primary,
+            expanded = expanded,
+            thermalDot = ThermalDot.NONE,
+            ringTurn = if (expanded) 96f else 0f,
+            // The row above carries one sentence for both circles.
+            describe = false,
             modifier = Modifier
                 .size(button.sizeDp.dp)
-                .alpha(percent / 100f)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.SportsEsports,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size((button.sizeDp / 2).dp),
-            )
-        }
+                .alpha(percent / 100f),
+        )
         Spacer(modifier = Modifier.height(Spacing.xs))
         Text(
             // The caption is under the circle rather than only in the tint, so a faded button is labelled

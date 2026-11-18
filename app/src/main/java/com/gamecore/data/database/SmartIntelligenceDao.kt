@@ -85,23 +85,35 @@ interface SmartIntelligenceDao {
     suspend fun learningCount(): Int
 
     /**
-     * The last action the user applied for this game before a benchmark started.
+     * Every learning row in a time window for one game context.
      *
-     * This is what lets a comparison be attributed to a real change instead of to whatever happens
-     * to be at the top of the log. `IS` handles the device-only NULL package; the timestamp is the
-     * candidate run's start, so an action applied *after* the capture cannot claim its result.
+     * Attribution no longer asks for "the latest applied row". It reads the whole window and
+     * requires exactly one confirmed, effective change; the window starts at the previous run's
+     * end so an action already present in the baseline cannot be credited with the new result.
      */
     @Query(
-        "SELECT * FROM smart_learning_records WHERE decision = 'APPLIED' " +
-            "AND game_package IS :gamePackage AND created_at >= :afterMillis " +
-            "AND created_at <= :atMillis " +
-            "ORDER BY created_at DESC LIMIT 1",
+        "SELECT * FROM smart_learning_records WHERE game_package IS :gamePackage " +
+            "AND created_at >= :afterMillis AND created_at <= :atMillis " +
+            "ORDER BY created_at ASC",
     )
-    suspend fun latestAppliedBetween(
+    suspend fun learningBetween(
         gamePackage: String?,
         afterMillis: Long,
         atMillis: Long,
-    ): SmartLearningRecordEntity?
+    ): List<SmartLearningRecordEntity>
+
+    /** Rows after a point, across games, used to detect a change made during a capture. */
+    @Query(
+        "SELECT * FROM smart_learning_records WHERE created_at > :afterMillis " +
+            "AND created_at <= :atMillis ORDER BY created_at ASC",
+    )
+    suspend fun learningAfter(
+        afterMillis: Long,
+        atMillis: Long,
+    ): List<SmartLearningRecordEntity>
+
+    @Query("SELECT * FROM smart_learning_records WHERE id = :id LIMIT 1")
+    suspend fun learningRecord(id: Long): SmartLearningRecordEntity?
 
     @Query(
         "SELECT created_at FROM smart_learning_records WHERE decision = 'GENERATED' " +

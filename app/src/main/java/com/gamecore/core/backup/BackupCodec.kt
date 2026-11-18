@@ -362,6 +362,7 @@ object BackupCodec {
         put("x", b.x)
         put("y", b.y)
         put("sizeDp", b.sizeDp)
+        put("style", b.style.name)
         put("opacityPercent", b.opacityPercent)
         put("snapToEdge", b.snapToEdge)
         put("idleOpacityPercent", b.idleOpacityPercent)
@@ -793,6 +794,7 @@ object BackupCodec {
             x = o.optInt("x", d.x),
             y = o.optInt("y", d.y),
             sizeDp = o.optInt("sizeDp", d.sizeDp),
+            style = enumByName(o.optString("style"), d.style),
             opacityPercent = o.optInt("opacityPercent", d.opacityPercent),
             snapToEdge = o.optBoolean("snapToEdge", d.snapToEdge),
             idleOpacityPercent = o.optInt("idleOpacityPercent", d.idleOpacityPercent),

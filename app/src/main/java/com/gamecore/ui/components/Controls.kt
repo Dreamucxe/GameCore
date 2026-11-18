@@ -1,8 +1,12 @@
 package com.gamecore.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -22,21 +27,31 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gamecore.core.common.TextSanitizer
+import com.gamecore.ui.theme.LocalAnimationsEnabled
+import com.gamecore.ui.theme.MotionTokens
 import com.gamecore.ui.theme.StatLabelStyle
 import com.gamecore.ui.theme.StatValueCompactStyle
 import com.gamecore.ui.theme.readableOn
@@ -65,32 +80,51 @@ fun SwitchRow(
     description: String? = null,
     enabled: Boolean = true,
 ) {
+    val scheme = MaterialTheme.colorScheme
+    // The whole row is the switch: a 48 dp-plus target is easier to hit than the 52×32 control alone,
+    // and it gives TalkBack one node that announces the title, the description and the on/off state
+    // together. The Switch itself is drawn with no semantics of its own so the state is not read twice.
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .toggleable(
+                value = checked,
+                enabled = enabled,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            )
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
-                color = if (enabled) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
+                color = if (enabled) scheme.onSurface else scheme.onSurfaceVariant,
             )
             if (description != null) {
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = scheme.onSurfaceVariant,
                 )
             }
         }
         Spacer(modifier = Modifier.width(12.dp))
-        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            enabled = enabled,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = scheme.onPrimary,
+                checkedTrackColor = scheme.primary,
+                checkedBorderColor = scheme.primary,
+                uncheckedThumbColor = scheme.onSurfaceVariant,
+                uncheckedTrackColor = scheme.surfaceVariant,
+                uncheckedBorderColor = scheme.outline,
+            ),
+            modifier = Modifier.clearAndSetSemantics { },
+        )
     }
 }
 
@@ -143,7 +177,7 @@ fun SliderRow(
                 modifier = if (onValueClick != null && enabled) {
                     Modifier
                         .clip(MaterialTheme.shapes.small)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(MaterialTheme.colorScheme.primaryContainer)
                         .clickable(role = Role.Button, onClick = onValueClick)
                         .padding(horizontal = 8.dp, vertical = 2.dp)
                 } else {
@@ -164,6 +198,13 @@ fun SliderRow(
             valueRange = range.first.toFloat()..range.last.toFloat(),
             onValueChangeFinished = onValueChangeFinished,
             enabled = enabled,
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                activeTickColor = Color.Transparent,
+                inactiveTickColor = Color.Transparent,
+            ),
         )
     }
 }
@@ -208,7 +249,7 @@ fun <T> ChoiceRow(
     }
 }
 
-/** One option in a [ChoiceRow]. Filled when selected, outlined when not. */
+/** One option in a [ChoiceRow]. Tinted when selected, outlined when not, with the fill easing across. */
 @Composable
 fun ChoiceChip(
     text: String,
@@ -218,14 +259,31 @@ fun ChoiceChip(
     enabled: Boolean = true,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val motion = LocalAnimationsEnabled.current
+    val duration = if (motion) MotionTokens.SHORT_MILLIS else 0
+    val container by animateColorAsState(
+        targetValue = if (isSelected) scheme.primaryContainer else Color.Transparent,
+        animationSpec = tween(duration),
+        label = "chipFill",
+    )
+    val content by animateColorAsState(
+        targetValue = if (isSelected) scheme.primary else scheme.onSurfaceVariant,
+        animationSpec = tween(duration),
+        label = "chipText",
+    )
+    val outline by animateColorAsState(
+        targetValue = if (isSelected) scheme.primary else scheme.outlineVariant,
+        animationSpec = tween(duration),
+        label = "chipOutline",
+    )
     Surface(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier,
+        modifier = modifier.semantics { this.selected = isSelected },
         shape = MaterialTheme.shapes.small,
-        color = if (isSelected) scheme.primary else Color.Transparent,
-        contentColor = if (isSelected) scheme.onPrimary else scheme.onSurfaceVariant,
-        border = BorderStroke(1.dp, if (isSelected) scheme.primary else scheme.outline),
+        color = container,
+        contentColor = content,
+        border = BorderStroke(1.dp, outline),
     ) {
         Text(
             text = text,
@@ -233,7 +291,7 @@ fun ChoiceChip(
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 9.dp),
+                .padding(horizontal = 8.dp, vertical = 10.dp),
         )
     }
 }
@@ -341,7 +399,8 @@ private fun StepButton(text: String, enabled: Boolean, onClick: () -> Unit) {
         } else {
             MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         },
-        modifier = Modifier.size(36.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.size(44.dp),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(text = text, style = MaterialTheme.typography.titleLarge)
@@ -380,13 +439,27 @@ fun TextFieldRow(
     keyboardType: KeyboardType = KeyboardType.Text,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val motion = LocalAnimationsEnabled.current
+    val duration = if (motion) MotionTokens.SHORT_MILLIS else 0
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val border by animateColorAsState(
+        targetValue = if (focused) scheme.primary else scheme.outline,
+        animationSpec = tween(duration),
+        label = "fieldBorder",
+    )
+    val labelColour by animateColorAsState(
+        targetValue = if (focused) scheme.primary else scheme.onSurfaceVariant,
+        animationSpec = tween(duration),
+        label = "fieldLabel",
+    )
     Column(modifier = modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Text(text = label.uppercase(), style = StatLabelStyle, color = scheme.onSurfaceVariant)
+        Text(text = label.uppercase(), style = StatLabelStyle, color = labelColour)
         Spacer(modifier = Modifier.height(6.dp))
         Surface(
             shape = MaterialTheme.shapes.medium,
             color = scheme.surfaceVariant,
-            border = BorderStroke(1.dp, scheme.outline),
+            border = BorderStroke(if (focused) 1.5.dp else 1.dp, border),
             modifier = Modifier.fillMaxWidth(),
         ) {
             BasicTextField(
@@ -396,6 +469,7 @@ fun TextFieldRow(
                 cursorBrush = SolidColor(scheme.primary),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                interactionSource = interaction,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 12.dp),
@@ -422,15 +496,20 @@ fun TextFieldRow(
     }
 }
 
-/** A hairline between rows inside a card. Thin, and the same thin everywhere. */
+/** A hairline between rows inside a card. Fades at the edges so it reads as a divider, not a border. */
 @Composable
 fun RowDivider(modifier: Modifier = Modifier) {
+    val outline = MaterialTheme.colorScheme.outlineVariant
     Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
             .height(1.dp)
-            .background(MaterialTheme.colorScheme.outlineVariant),
+            .background(
+                Brush.horizontalGradient(
+                    listOf(Color.Transparent, outline, outline, Color.Transparent),
+                ),
+            ),
     )
 }
 

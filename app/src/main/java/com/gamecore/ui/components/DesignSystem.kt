@@ -1,6 +1,13 @@
 package com.gamecore.ui.components
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,14 +19,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -30,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gamecore.core.model.ProfileChip
 import com.gamecore.core.model.ProfileChipKind
+import com.gamecore.ui.theme.LocalAnimationsEnabled
 import com.gamecore.ui.theme.StatusColor
 import com.gamecore.ui.theme.colour
 
@@ -119,10 +132,30 @@ fun ToolTile(
 ) {
     val scheme = MaterialTheme.colorScheme
     val contentTint = if (enabled) scheme.onSurface else scheme.onSurfaceVariant
+    // The same spring press the cards use. A tool tile is a destination, so it should dip under the
+    // thumb exactly as a game tile or a metric tile does; without it the grid feels like a web page.
+    val motion = LocalAnimationsEnabled.current
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed && motion) 0.975f else 1f,
+        animationSpec = if (motion) {
+            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
+        } else {
+            snap()
+        },
+        label = "toolPress",
+    )
     Surface(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.defaultMinSize(minHeight = 96.dp),
+        interactionSource = interaction,
+        modifier = modifier
+            .defaultMinSize(minHeight = 96.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
         shape = MaterialTheme.shapes.large,
         color = scheme.surface,
         contentColor = contentTint,
@@ -133,13 +166,27 @@ fun ToolTile(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (enabled) scheme.primary else scheme.onSurfaceVariant,
-                modifier = Modifier.size(26.dp),
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(
+                        if (enabled) {
+                            scheme.primary.copy(alpha = 0.12f)
+                        } else {
+                            scheme.surfaceVariant
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (enabled) scheme.primary else scheme.onSurfaceVariant,
+                    modifier = Modifier.size(23.dp),
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = label,
                 style = MaterialTheme.typography.titleSmall,
@@ -182,9 +229,10 @@ fun StatusChip(text: String, status: StatusColor, icon: ImageVector? = null) {
         shape = MaterialTheme.shapes.small,
         color = colour.copy(alpha = 0.14f),
         contentColor = colour,
+        border = androidx.compose.foundation.BorderStroke(1.dp, colour.copy(alpha = 0.30f)),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (icon != null) {

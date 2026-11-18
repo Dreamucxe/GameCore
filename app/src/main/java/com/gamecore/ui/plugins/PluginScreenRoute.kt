@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gamecore.ui.components.EmptyState
+import com.gamecore.ui.components.ScreenHeader
 import com.gamecore.ui.plugins.render.PluginNodeTree
 import com.gamecore.ui.theme.Spacing
 
@@ -88,30 +89,10 @@ fun PluginScreenRoute(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    val icon = available?.screen?.icon?.let { pluginScreenIcon(it) }
-                    if (icon != null) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .padding(end = Spacing.sm)
-                                .size(22.dp),
-                        )
-                    }
-                    Text(
-                        text = available?.screen?.title ?: "Plugin screen",
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            ScreenHeader(
+                title = available?.screen?.title ?: "Plugin screen",
+                icon = available?.screen?.icon?.let { pluginScreenIcon(it) },
+                onBack = onBack,
             )
         },
     ) { innerPadding ->

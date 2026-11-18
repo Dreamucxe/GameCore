@@ -925,6 +925,48 @@ internal object GameCoreMigrations {
         }
     }
 
+    /**
+     * **Version 24** adds the tested-action snapshot to benchmark rows.
+     *
+     * Nine nullable columns, all null for every row written before this version. Null is the
+     * honest value: those runs were captured without an immutable action reference, and guessing
+     * one from the learning log at read time is exactly the bug this schema change removes. The
+     * columns are copied from the confirmed application event rather than joined, so clearing the
+     * learning history does not silently rewrite what an old benchmark says it tested.
+     */
+    val MIGRATION_23_24 = object : Migration(23, 24) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "ALTER TABLE `smart_benchmarks` ADD COLUMN `tested_action_record_id` INTEGER",
+            )
+            db.execSQL(
+                "ALTER TABLE `smart_benchmarks` ADD COLUMN `tested_action_key` TEXT",
+            )
+            db.execSQL(
+                "ALTER TABLE `smart_benchmarks` ADD COLUMN `tested_action_title` TEXT",
+            )
+            db.execSQL(
+                "ALTER TABLE `smart_benchmarks` ADD COLUMN `tested_action_game_package` TEXT",
+            )
+            db.execSQL(
+                "ALTER TABLE `smart_benchmarks` ADD COLUMN `tested_action_goal` TEXT",
+            )
+            db.execSQL(
+                "ALTER TABLE `smart_benchmarks` ADD COLUMN `tested_action_applied_at` INTEGER",
+            )
+            db.execSQL(
+                "ALTER TABLE `smart_benchmarks` ADD COLUMN `tested_action_metrics` TEXT",
+            )
+            db.execSQL(
+                "ALTER TABLE `smart_benchmarks` ADD COLUMN `tested_action_target` TEXT",
+            )
+            db.execSQL(
+                "ALTER TABLE `smart_benchmarks` " +
+                    "ADD COLUMN `tested_action_effect_confirmed_at` INTEGER",
+            )
+        }
+    }
+
     /** Every migration, in order, for [androidx.room.RoomDatabase.Builder.addMigrations]. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
@@ -949,5 +991,6 @@ internal object GameCoreMigrations {
         MIGRATION_20_21,
         MIGRATION_21_22,
         MIGRATION_22_23,
+        MIGRATION_23_24,
     )
 }

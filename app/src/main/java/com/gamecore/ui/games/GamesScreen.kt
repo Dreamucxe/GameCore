@@ -2,12 +2,16 @@ package com.gamecore.ui.games
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,7 +29,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -47,9 +50,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -81,6 +86,7 @@ import com.gamecore.ui.components.ScreenBottomPadding
 import com.gamecore.ui.components.ScreenHeader
 import com.gamecore.ui.components.ScreenPadding
 import com.gamecore.ui.components.SectionCard
+import com.gamecore.ui.components.SectionLabel
 import com.gamecore.ui.components.StatusChip
 import com.gamecore.ui.components.SwitchRow
 import com.gamecore.ui.components.Tone
@@ -170,6 +176,59 @@ fun GamesScreen(
             }
         }
 
+        // The library leads. A user opening Games is looking for a game, not for a diagnostic, so the
+        // profiles are a two-column grid of covers directly under the header and detection — which is
+        // reference material about *how* they apply — sits underneath them. The grid is built from
+        // rows of two rather than a LazyVerticalGrid because the screen already scrolls vertically;
+        // nesting a second vertical scroller would give the list two scroll positions.
+        if (state.isEmpty) {
+            item {
+                EmptyState(
+                    icon = Icons.Filled.SportsEsports,
+                    title = "No games yet",
+                    message = "A profile is what GameCore does when one game starts: a refresh rate, the " +
+                        "overlays you want, a session recording. Add the games you play.",
+                    actionLabel = "Add a game",
+                    onAction = { onOpenProfile(Destination.NEW_PROFILE) },
+                )
+            }
+        } else if (state.profiles.isNotEmpty()) {
+            item {
+                SectionLabel(
+                    text = "Library",
+                    subtitle = Formatters.count(state.profiles.size, "profile") + " saved on this device.",
+                    modifier = padded,
+                )
+            }
+            items(state.profiles.chunked(2), key = { chunk -> chunk.first().packageName }) { chunk ->
+                Row(
+                    modifier = padded
+                        // Rows fade and slide into their new place when a profile is added, removed
+                        // or re-sorted, so the library never snaps between two arrangements.
+                        .animateItem()
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Max),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    chunk.forEach { row ->
+                        ProfileCard(
+                            row = row,
+                            isBusy = state.busyPackage == row.packageName,
+                            anyBusy = state.busyPackage != null,
+                            onEdit = { onOpenProfile(row.packageName) },
+                            onSetEnabled = { viewModel.setEnabled(row.packageName, it) },
+                            onPlay = { viewModel.play(row.packageName) },
+                            onApply = { viewModel.applyNow(row.packageName) },
+                            onExport = { viewModel.exportProfile(row.packageName) },
+                            onDelete = { pendingDelete = row },
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                        )
+                    }
+                    if (chunk.size == 1) Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+
         item {
             DetectionCard(
                 state = state,
@@ -194,34 +253,6 @@ fun GamesScreen(
                     onClick = { onNavigate(Destination.Emulators) },
                 )
             }
-        }
-
-        if (state.isEmpty) {
-            item {
-                EmptyState(
-                    icon = Icons.Filled.SportsEsports,
-                    title = "No games yet",
-                    message = "A profile is what GameCore does when one game starts: a refresh rate, the " +
-                        "overlays you want, a session recording. Add the games you play.",
-                    actionLabel = "Add a game",
-                    onAction = { onOpenProfile(Destination.NEW_PROFILE) },
-                )
-            }
-        }
-
-        items(state.profiles, key = { it.packageName }) { row ->
-            ProfileCard(
-                row = row,
-                isBusy = state.busyPackage == row.packageName,
-                anyBusy = state.busyPackage != null,
-                onEdit = { onOpenProfile(row.packageName) },
-                onSetEnabled = { viewModel.setEnabled(row.packageName, it) },
-                onPlay = { viewModel.play(row.packageName) },
-                onApply = { viewModel.applyNow(row.packageName) },
-                onExport = { viewModel.exportProfile(row.packageName) },
-                onDelete = { pendingDelete = row },
-                modifier = padded,
-            )
         }
 
         if (state.profiles.isNotEmpty()) {
@@ -651,14 +682,20 @@ private val ApplyResult.tone: Tone
 private const val MAX_PACKAGE_INPUT = 255
 
 /**
- * One profile: its icon, what it will do as chips, whether it is on, and what the user can do to it.
+ * One profile as a library tile: the game's own icon, its state word, its effects, and the controls.
  *
- * Buttons rather than a tappable card. A card that is itself a click target *and* contains a switch and
- * several actions gives a screen reader overlapping targets and gives a thumb an ambiguous one.
+ * The tile is not one big click target. Its *identity half* is — the icon, name and package open the
+ * editor — while the switch and the action row are siblings outside that clickable area, so a screen
+ * reader never meets overlapping targets and a thumb never has to guess whether a tap edits or toggles.
+ * That is the same rule the old full-width row followed; only the shape changed.
  *
  * A disabled or uninstalled profile is drawn dimmed — but the dimming is applied only to the informational
- * half (icon, name, chips) and never to the controls, so the card stays visibly interactive, and the state
+ * half (icon, name, chips) and never to the controls, so the tile stays visibly interactive, and the state
  * is always spelled out in a [StatusChip] word beside it because §10 forbids conveying state by alpha alone.
+ *
+ * The chips are capped at [GRID_CHIPS_SHOWN] (two rows of two) because a grid cell is half a screen wide;
+ * the "+N more" is a sighted-only convenience, and the whole row is collapsed into one screen-reader stop
+ * that reads the *full* effect list, so no effect is hidden from someone who cannot see the chips.
  */
 @Composable
 private fun ProfileCard(
@@ -674,45 +711,88 @@ private fun ProfileCard(
     modifier: Modifier = Modifier,
 ) {
     // "Playing" and "On" need no dimming; "Off" and "Not installed" do. Dimming the identity half only —
-    // the controls stay at full opacity so the card never looks inert.
+    // the controls stay at full opacity so the tile never looks inert.
     val dimmed = row.state == GameCardState.OFF || row.state == GameCardState.NOT_INSTALLED
     val identityAlpha = if (dimmed) DIMMED_ALPHA else 1f
 
-    PlainCard(modifier = modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            GameIcon(
-                packageName = row.packageName,
-                label = row.label,
-                modifier = Modifier.alpha(identityAlpha),
-            )
-            Spacer(modifier = Modifier.width(Spacing.md))
+    PlainCard(modifier = modifier, contentPadding = 12.dp, fillHeight = true) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.medium)
+                .clickable(onClick = onEdit)
+                .padding(2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(MaterialTheme.shapes.large)
+                    .background(
+                        if (dimmed) {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                GameIcon(
+                    packageName = row.packageName,
+                    label = row.label,
+                    size = 42.dp,
+                    modifier = Modifier.alpha(identityAlpha),
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = row.label,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.alpha(identityAlpha),
                 )
                 Text(
                     text = row.packageName,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.alpha(identityAlpha),
                 )
             }
-            Spacer(modifier = Modifier.width(Spacing.sm))
-            if (row.isPinned) {
-                StatusChip(text = "Pinned", tone = Tone.Accent)
-                Spacer(modifier = Modifier.width(Spacing.sm))
-            }
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = Spacing.sm),
+        ) {
             StateChip(row.state)
-            Spacer(modifier = Modifier.width(Spacing.sm))
-            // Uninstalled: the switch cannot change what an absent game does, so it is disabled — but the
-            // state chip and the note below say why, and Edit and Delete stay available.
+            if (row.isPinned) {
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "Pinned",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+
+        // A switch on its own line, not beside the state chip: half a screen is not wide enough for
+        // "Not installed" and a switch to share a row without clipping one of them. The word beside it
+        // means the control is not left to colour alone, and the switch stays the only toggle target.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = Spacing.xs),
+        ) {
+            Text(
+                text = if (row.isEnabled) "Profile on" else "Profile off",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
             Switch(
                 checked = row.isEnabled,
                 onCheckedChange = onSetEnabled,
@@ -720,12 +800,10 @@ private fun ProfileCard(
             )
         }
 
-        // The chips, capped, with the remainder spoken as a plain "+N more" rather than a chip that
-        // pretends to be an effect. The whole row is collapsed into one screen-reader stop that reads the
-        // *full* effect list (via chipsSentence), so the visible cap never hides an effect from someone who
-        // cannot see the chips — the "+N more" is a sighted-only convenience, not a place data hides.
         val chips = shownChips(row.chips)
         if (chips.shown.isNotEmpty()) {
+            val visible = chips.shown.take(GRID_CHIPS_SHOWN)
+            val hidden = chips.overflow + (chips.shown.size - visible.size)
             val sentence = chipsSentence(row.chips)
             Spacer(modifier = Modifier.height(Spacing.sm))
             Column(
@@ -739,11 +817,11 @@ private fun ProfileCard(
                         },
                     ),
             ) {
-                ProfileChipRow(chips = chips.shown)
-                if (chips.overflow > 0) {
+                ProfileChipRow(chips = visible, perRow = 2)
+                if (hidden > 0) {
                     Spacer(modifier = Modifier.height(Spacing.xs))
                     Text(
-                        text = "+${chips.overflow} more",
+                        text = "+$hidden more",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -757,44 +835,61 @@ private fun ProfileCard(
             Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
                 text = note,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
             )
         }
 
         if (!row.isInstalled) {
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            NoteBanner(
-                text = "This game is not installed at the moment. The profile is kept, and will start " +
-                    "working again if you reinstall it.",
-                tone = Tone.Muted,
-                icon = Icons.Filled.VisibilityOff,
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Text(
+                text = "Not installed. The profile is kept and will work again if you reinstall it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Tone.Warning.colour(),
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
             )
         }
 
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        ActionRow {
+        // Weighted, so every tile in a row puts its controls on the same baseline even when one has
+        // more chips or a longer claim note than the other.
+        Spacer(modifier = Modifier.weight(1f))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             IconButton(onClick = onPlay, enabled = row.isInstalled && !anyBusy) {
                 Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = "Start ${row.label}")
             }
-            TextButton(onClick = onEdit) { Text("Edit") }
-            TextButton(onClick = onApply, enabled = row.isInstalled && !anyBusy) {
-                if (isBusy) {
-                    CircularProgressIndicator(modifier = Modifier.size(15.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(Spacing.sm))
-                }
-                Text(if (isBusy) "Applying" else "Apply now")
+            if (isBusy) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .semantics { contentDescription = "Applying ${row.label}" },
+                    strokeWidth = 2.dp,
+                )
             }
             Spacer(modifier = Modifier.weight(1f))
             ProfileOverflowMenu(
                 label = row.label,
                 enabled = !anyBusy,
+                isBusy = isBusy,
+                canApply = row.isInstalled,
+                onApply = onApply,
+                onEdit = onEdit,
                 onExport = onExport,
                 onDelete = onDelete,
             )
         }
     }
 }
+
+/** How many effect chips a half-width library tile shows before it summarises the rest. */
+private const val GRID_CHIPS_SHOWN = 4
 
 /** The card's state word, tinted but never colour-alone — the text is always the signal. */
 @Composable
@@ -809,18 +904,24 @@ private fun StateChip(state: GameCardState) {
 }
 
 /**
- * The per-profile overflow, holding Export / Share and Delete.
+ * The per-profile overflow, holding Edit, Apply now, Export / Share and Delete.
  *
- * Delete lives behind a menu and a confirm dialog rather than as a button on the row: it is the one
- * irreversible action on the card, and a destructive button sitting a thumb-width from Play and Apply is
- * how it gets pressed by accident. Export / Share sits above it — a rarely-used, non-destructive action
- * that does not earn a permanent button either. The menu keeps its own open state locally; nothing about
- * which card's menu is showing needs to survive a recomposition of the list.
+ * A half-width tile has room for one primary action (Play) and one menu. Everything else moves in here:
+ * Apply is a rare manual override, Export is rare and non-destructive, and Delete is the one irreversible
+ * action on the tile — a destructive button sitting a thumb-width from Play is how it gets pressed by
+ * accident, so it keeps its confirm dialog and its place at the bottom of the menu.
+ *
+ * The menu keeps its own open state locally; nothing about which tile's menu is showing needs to survive a
+ * recomposition of the list.
  */
 @Composable
 private fun ProfileOverflowMenu(
     label: String,
     enabled: Boolean,
+    isBusy: Boolean,
+    canApply: Boolean,
+    onApply: () -> Unit,
+    onEdit: () -> Unit,
     onExport: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -829,6 +930,21 @@ private fun ProfileOverflowMenu(
         Icon(imageVector = Icons.Filled.MoreVert, contentDescription = "More options for $label")
     }
     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenuItem(
+            text = { Text("Edit profile") },
+            onClick = {
+                expanded = false
+                onEdit()
+            },
+        )
+        DropdownMenuItem(
+            text = { Text(if (isBusy) "Applying…" else "Apply now") },
+            enabled = canApply && !isBusy,
+            onClick = {
+                expanded = false
+                onApply()
+            },
+        )
         DropdownMenuItem(
             text = { Text("Export / Share") },
             onClick = {

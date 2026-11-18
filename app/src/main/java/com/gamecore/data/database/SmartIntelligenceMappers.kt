@@ -8,6 +8,8 @@ import com.gamecore.core.model.LearningDecision
 import com.gamecore.core.model.LearningOutcome
 import com.gamecore.core.model.LearningRecord
 import com.gamecore.core.model.OptimizationGoal
+import com.gamecore.core.model.TestedAction
+import com.gamecore.core.model.TestedActionTarget
 
 /**
  * Entity ↔ model conversion for the Smart Intelligence tables.
@@ -62,6 +64,15 @@ internal object SmartIntelligenceMappers {
             unavailable = summary.unavailable.joinToString("\n"),
             fpsWindows = windows.joinToString(","),
             baselineRunId = run.baselineRunId,
+            testedActionRecordId = run.testedAction?.appliedRecordId,
+            testedActionKey = run.testedAction?.actionKey,
+            testedActionTitle = run.testedAction?.title,
+            testedActionGamePackage = run.testedAction?.gamePackage,
+            testedActionGoal = run.testedAction?.goal?.name,
+            testedActionAppliedAtMillis = run.testedAction?.appliedAtMillis,
+            testedActionMetrics = run.testedAction?.metricNames?.joinToString(METRIC_SEPARATOR),
+            testedActionTarget = run.testedAction?.target?.name,
+            testedActionEffectConfirmedAtMillis = run.testedAction?.effectConfirmedAtMillis,
         )
     }
 
@@ -109,13 +120,52 @@ internal object SmartIntelligenceMappers {
                 .filter { it.isNotEmpty() },
         ),
         baselineRunId = entity.baselineRunId,
+        testedAction = testedAction(entity),
     )
+
+    /**
+     * Rebuilds the snapshot only when every field is present.
+     *
+     * A row written before schema 24 has all nulls and reads as unattributed. A row with only some
+     * of the columns set is treated the same way: a partial identity is not an identity.
+     */
+    private fun testedAction(entity: SmartBenchmarkEntity): TestedAction? {
+        val recordId = entity.testedActionRecordId ?: return null
+        val actionKey = entity.testedActionKey ?: return null
+        val title = entity.testedActionTitle ?: return null
+        val goalName = entity.testedActionGoal ?: return null
+        val appliedAt = entity.testedActionAppliedAtMillis ?: return null
+        val metrics = entity.testedActionMetrics
+            ?.split(METRIC_SEPARATOR)
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?.takeIf { it.isNotEmpty() }
+            ?: return null
+        val target = entity.testedActionTarget
+            ?.let { name -> TestedActionTarget.entries.firstOrNull { it.name == name } }
+            ?: return null
+        val confirmedAt = entity.testedActionEffectConfirmedAtMillis ?: return null
+        val goal = OptimizationGoal.entries.firstOrNull { it.name == goalName } ?: return null
+        return TestedAction(
+            appliedRecordId = recordId,
+            actionKey = actionKey,
+            title = title,
+            gamePackage = entity.testedActionGamePackage,
+            goal = goal,
+            appliedAtMillis = appliedAt,
+            metricNames = metrics,
+            target = target,
+            effectConfirmedAtMillis = confirmedAt,
+        )
+    }
 
     /** The per-window FPS sample set. Empty when frame timing was unavailable. */
     fun windows(entity: SmartBenchmarkEntity): List<Float> =
         entity.fpsWindows.split(',')
             .mapNotNull { it.trim().toFloatOrNull() }
             .filter { it > 0f && it.isFinite() }
+
+    private const val METRIC_SEPARATOR = "|"
 
     // -------------------------------------------------------------------------------- learning
 

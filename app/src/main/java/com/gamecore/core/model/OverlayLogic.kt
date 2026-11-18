@@ -215,7 +215,7 @@ fun pillStyleSummary(config: OverlayConfig): String {
  * game — and a summary that named only the first would describe the state the button is almost never in.
  */
 fun buttonSizeSummary(config: FloatingButtonConfig): String =
-    "${config.sizeDp} dp · ${config.opacityPercent}% here, fading to " +
+    "${config.style.label} · ${config.sizeDp} dp · ${config.opacityPercent}% here, fading to " +
         "${config.idleOpacityPercent}% once a game has focus"
 
 /**

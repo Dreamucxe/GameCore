@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.gamecore.ui.components.ScreenHeader
 import com.gamecore.ui.theme.Spacing
 
 /**
@@ -100,21 +101,7 @@ fun ConfigEditorScreen(
     val hasDocument = !isLoading && error == null
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = fileName,
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
+            ScreenHeader(title = fileName, onBack = onBack)
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {

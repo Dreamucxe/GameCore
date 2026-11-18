@@ -1,16 +1,15 @@
 package com.gamecore.core.overlay
 
 import android.view.MotionEvent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.SportsEsports
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,15 +24,15 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalViewConfiguration
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.gamecore.core.model.FloatingButtonConfig
+import com.gamecore.core.model.FloatingButtonStyle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -57,6 +56,11 @@ import kotlinx.coroutines.launch
  *  touches, animated rather than stepped. The point is that an opaque control parked over a game is a
  *  distraction the user did not ask for, and a control that has vanished entirely cannot be found again —
  *  so it fades to still-visible rather than to nothing, and [FloatingButtonConfig] floors the setting.
+ *
+ *  **It wears one of three looks.** [FloatingButtonConfig.style] chooses the visual; the gesture code
+ *  above is shared by all three. Reactor and Vanguard add a press dip, a one-shot shockwave/sweep when a
+ *  surface opens, a quarter-turn of the ring, and a charge arc during the long press; Classic draws the
+ *  pre-5.6 disc and deliberately none of those, so the revert option is a true revert.
  *
  * `pointerInteropFilter` is opted into deliberately. It is the only way to see `rawX`/`rawY`, which is
  * the coordinate space a window drag has to happen in, and the alternative — a wrapper `View` with an
@@ -107,6 +111,10 @@ fun FloatingGameButton(
     var longPressJob by remember { mutableStateOf<Job?>(null) }
     var longPressFired by remember { mutableStateOf(false) }
 
+    // The long-press charge animation. Kept as a job rather than only as an Animatable so a lift that
+    // lands before the launch has run cannot leave a charge animating on its own.
+    var chargeJob by remember { mutableStateOf<Job?>(null) }
+
     // Bumped by every touch. `LaunchedEffect` keyed on it restarts the idle countdown, which is both
     // simpler and more correct than cancelling a timer by hand — a gesture that ends while the previous
     // countdown is still pending cannot leave two of them running.
@@ -121,6 +129,10 @@ fun FloatingGameButton(
     // The event time of the last completed tap, for the optional double-tap. Only read when onDoubleTap is
     // non-null; a single-tap-only button never consults it.
     var lastTapTime by remember { mutableLongStateOf(0L) }
+
+    // True between ACTION_DOWN and the finger lifting. It drives the press dip, and it is separate from
+    // `gesture` because a touch that has not moved yet is neither a tap nor a drag — only a press.
+    var pressed by remember { mutableStateOf(false) }
 
     LaunchedEffect(interactions, isExpanded) {
         if (isExpanded) {
@@ -143,21 +155,90 @@ fun FloatingGameButton(
         label = "floatingButtonAlpha",
     )
 
+    // 5.6's interaction motion. Classic is deliberately left at 1f: the revert option has to look and
+    // behave exactly like the button it replaces, and the old one did not dip or spring.
+    val scale by animateFloatAsState(
+        targetValue = when {
+            config.style == FloatingButtonStyle.CLASSIC -> 1f
+            gesture.isDrag(slopPx) -> 1.07f
+            pressed -> 0.90f
+            isExpanded -> 1.03f
+            else -> 1f
+        },
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "floatingButtonScale",
+    )
+
+    // The Reactor ring turns a quarter turn when the panel opens. A tween rather than a spring because
+    // the ring has to land on the same angle every time; a bounce would leave the segments uneven.
+    val ringTurn by animateFloatAsState(
+        targetValue = if (isExpanded) 96f else 0f,
+        animationSpec = tween(durationMillis = RING_TURN_MILLIS),
+        label = "floatingButtonRingTurn",
+    )
+
+    // One-shot effects, both parked at their end state so a button nobody is touching draws no moving
+    // parts. `burst` runs when a surface opens; `charge` runs while the layout-picker long press is held.
+    val burst = remember { Animatable(1f) }
+    val charge = remember { Animatable(0f) }
+    LaunchedEffect(isExpanded) {
+        if (!isExpanded) return@LaunchedEffect
+        burst.snapTo(0f)
+        burst.animateTo(1f, tween(durationMillis = BURST_MILLIS))
+    }
+
+    // Cancel the charge and put the arc back to empty. The stop() is what prevents a late frame from
+    // repainting a charge the finger has already abandoned; the snap is launched because this is called
+    // from the pointer callback, which is not a suspend context.
+    fun resetCharge() {
+        chargeJob?.cancel()
+        chargeJob = null
+        if (charge.value == 0f) return
+        // snapTo cancels any in-flight animation and writes the end value in one suspend call.
+        scope.launch { charge.snapTo(0f) }
+    }
+
     Box(
         modifier = modifier
             .size(config.sizeDp.dp)
             .alpha(alpha)
-            .background(OverlayPalette.Plate, CircleShape)
-            .border(BORDER_DP.dp, accent.copy(alpha = BORDER_ALPHA), CircleShape)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .pointerInteropFilter { event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         interactions++
+                        pressed = true
                         hasBuzzed = false
                         longPressFired = false
                         longPressJob?.cancel()
                         val origin = positionProvider()
                         gesture = gesture.began(event.rawX, event.rawY, origin.x, origin.y)
+                        if (onLongPress != null && config.style != FloatingButtonStyle.CLASSIC) {
+                            // The arc fills over the platform's own long-press timeout, so the gesture
+                            // announces itself before the picker opens instead of surprising the user.
+                            // The short delay keeps it off a quick tap: only a press that is becoming a
+                            // hold ever draws the arc.
+                            chargeJob?.cancel()
+                            chargeJob = scope.launch {
+                                charge.snapTo(0f)
+                                delay(CHARGE_DELAY_MILLIS)
+                                charge.animateTo(
+                                    targetValue = 1f,
+                                    animationSpec = tween(
+                                        durationMillis = (longPressMillis - CHARGE_DELAY_MILLIS)
+                                            .toInt()
+                                            .coerceAtLeast(1),
+                                        easing = LinearEasing,
+                                    ),
+                                )
+                            }
+                        }
                         if (onLongPress != null) {
                             longPressJob = scope.launch {
                                 delay(longPressMillis)
@@ -184,6 +265,7 @@ fun FloatingGameButton(
                         if (moved.isDrag(slopPx)) {
                             longPressJob?.cancel()
                             longPressJob = null
+                            resetCharge()
                             if (config.hapticFeedback && !hasBuzzed) {
                                 hasBuzzed = true
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -195,8 +277,10 @@ fun FloatingGameButton(
 
                     MotionEvent.ACTION_UP -> {
                         interactions++
+                        pressed = false
                         longPressJob?.cancel()
                         longPressJob = null
+                        resetCharge()
                         val ended = gesture.movedTo(event.rawX, event.rawY)
                         gesture = ended.ended()
                         if (ended.isTap(slopPx)) {
@@ -229,8 +313,10 @@ fun FloatingGameButton(
                     }
 
                     MotionEvent.ACTION_CANCEL -> {
+                        pressed = false
                         longPressJob?.cancel()
                         longPressJob = null
+                        resetCharge()
                         // A cancel means the gesture was taken away mid-drag — a notification arriving,
                         // the window being reparented. The button is left where it currently is and the
                         // position is committed, because leaving it un-persisted would move it back on
@@ -246,33 +332,17 @@ fun FloatingGameButton(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = Icons.Rounded.SportsEsports,
-            contentDescription = "GameCore controls",
-            tint = accent,
-            modifier = Modifier.size((config.sizeDp * ICON_FRACTION).dp),
+        FloatingButtonVisual(
+            style = config.style,
+            sizeDp = config.sizeDp,
+            accent = accent,
+            expanded = isExpanded,
+            thermalDot = thermalDot,
+            burst = burst.value,
+            charge = charge.value,
+            ringTurn = ringTurn,
+            modifier = Modifier.fillMaxSize(),
         )
-        if (thermalDot != ThermalDot.NONE) {
-            val dotColour = if (thermalDot == ThermalDot.CRITICAL) OverlayPalette.Danger else OverlayPalette.Warning
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    // A ring in the plate colour around the dot so it reads against both the icon and a
-                    // bright game behind a translucent button.
-                    .size((config.sizeDp * DOT_RING_FRACTION).dp)
-                    .background(OverlayPalette.Plate, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size((config.sizeDp * DOT_FRACTION).dp)
-                        .background(dotColour, CircleShape)
-                        // The state is not conveyed by colour alone — the word is in the pill and panel
-                        // (spec §2, §6) — but the dot still names itself for a screen reader.
-                        .semantics { contentDescription = thermalDot.word },
-                )
-            }
-        }
     }
 }
 
@@ -281,16 +351,12 @@ private const val IDLE_AFTER_MILLIS = 3_000L
 
 private const val FADE_MILLIS = 400
 
-private const val BORDER_DP = 1.5f
+/** The Reactor ring's turn when a surface opens, and the shockwave/sweep that follows it. */
+private const val RING_TURN_MILLIS = 320
+private const val BURST_MILLIS = 460
 
-private const val BORDER_ALPHA = 0.55f
-
-/** The glyph inside the circle, as a fraction of the button's diameter. */
-private const val ICON_FRACTION = 0.52f
-
-/** The thermal dot and the plate-coloured ring around it, as fractions of the button's diameter. */
-private const val DOT_FRACTION = 0.22f
-private const val DOT_RING_FRACTION = 0.34f
+/** How long a press must last before the charge arc appears, so a quick tap never flashes it. */
+private const val CHARGE_DELAY_MILLIS = 120L
 
 /**
  * How close two taps must be to count as a double tap, in milliseconds. Android's own
