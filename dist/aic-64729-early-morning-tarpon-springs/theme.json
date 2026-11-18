@@ -1,0 +1,28 @@
+{
+  "name": "Early Morning, Tarpon Springs",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#785838",
+  "onPrimary": "#F8F8F6",
+  "background": "#2E251D",
+  "surface": "#463E37",
+  "onSurface": "#F8F8F6",
+  "accent": "#587888",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#587888",
+    "tertiary": "#785838",
+    "surfaceVariant": "#463E37",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#67605A",
+    "error": "#785838",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

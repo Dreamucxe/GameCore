@@ -1,0 +1,28 @@
+{
+  "name": "Another way to make use of the new petticoats th",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#C8C8B8",
+  "onPrimary": "#0C0C0E",
+  "background": "#25251D",
+  "surface": "#3E3E37",
+  "onSurface": "#F8F8F6",
+  "accent": "#181808",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#181808",
+    "tertiary": "#C8C8B8",
+    "surfaceVariant": "#3E3E37",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#60605A",
+    "error": "#C8C8B8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Noah Smith",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#583818",
+  "onPrimary": "#F8F8F6",
+  "background": "#0C0C04",
+  "surface": "#282821",
+  "onSurface": "#F8F8F6",
+  "accent": "#B8A898",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "mono",
+  "roles": {
+    "secondary": "#B8A898",
+    "tertiary": "#583818",
+    "surfaceVariant": "#282821",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#4E4E48",
+    "error": "#583818",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  }
+}

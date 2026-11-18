@@ -1,0 +1,28 @@
+{
+  "name": "Card Table",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#C8C8C8",
+  "onPrimary": "#0C0C0E",
+  "background": "#F5F5F5",
+  "surface": "#7B7B7B",
+  "onSurface": "#0F0F11",
+  "accent": "#E8E8E8",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "jetbrains-mono",
+  "roles": {
+    "secondary": "#E8E8E8",
+    "tertiary": "#C8C8C8",
+    "surfaceVariant": "#E3E3E3",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#B5B5B5",
+    "error": "#C8C8C8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

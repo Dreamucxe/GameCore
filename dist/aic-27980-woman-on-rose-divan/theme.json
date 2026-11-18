@@ -1,0 +1,28 @@
+{
+  "name": "Woman on Rose Divan",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#B88878",
+  "onPrimary": "#0C0C0E",
+  "background": "#2E1D1D",
+  "surface": "#463737",
+  "onSurface": "#F8F8F6",
+  "accent": "#583838",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#583838",
+    "tertiary": "#B88878",
+    "surfaceVariant": "#463737",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#675A5A",
+    "error": "#B88878",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

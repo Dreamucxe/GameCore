@@ -1,0 +1,40 @@
+{
+  "name": "Floating World",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#E84A2A",
+  "onPrimary": "#FFFFFF",
+  "background": "#F8F0E0",
+  "surface": "#FFF8E8",
+  "onSurface": "#2A1A0A",
+  "accent": "#C03020",
+  "cornerRadiusDp": 8,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#D0B890",
+    "tertiary": "#E84A2A",
+    "surfaceVariant": "#F0E0C8",
+    "onSurfaceVariant": "#2A1A0A",
+    "outline": "#D8C0A0",
+    "error": "#E84A2A",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

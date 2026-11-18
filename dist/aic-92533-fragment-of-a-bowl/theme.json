@@ -1,0 +1,28 @@
+{
+  "name": "Fragment of a Bowl",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#C8C8A8",
+  "onPrimary": "#0C0C0E",
+  "background": "#362E1D",
+  "surface": "#4D4637",
+  "onSurface": "#F8F8F6",
+  "accent": "#484828",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#484828",
+    "tertiary": "#C8C8A8",
+    "surfaceVariant": "#4D4637",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#6C675A",
+    "error": "#C8C8A8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

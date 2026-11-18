@@ -1,0 +1,40 @@
+{
+  "name": "Saints and Worshippers in Adoration",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#281808",
+  "onPrimary": "#F8F8F6",
+  "background": "#040404",
+  "surface": "#212121",
+  "onSurface": "#F8F8F6",
+  "accent": "#080808",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#080808",
+    "tertiary": "#281808",
+    "surfaceVariant": "#181817",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#484848",
+    "error": "#281808",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

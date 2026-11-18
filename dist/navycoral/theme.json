@@ -1,0 +1,40 @@
+{
+  "name": "Navy Coral",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FF6B5B",
+  "onPrimary": "#0A0A12",
+  "background": "#0A0A12",
+  "surface": "#141420",
+  "onSurface": "#F4EDE0",
+  "accent": "#FF2BD6",
+  "cornerRadiusDp": 18,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#F4EDE0",
+    "tertiary": "#FF6B5B",
+    "surfaceVariant": "#1E1E2E",
+    "onSurfaceVariant": "#F4EDE0",
+    "outline": "#3A3A4A",
+    "error": "#FF6B5B",
+    "onError": "#0A0A12"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.3,
+      "transparency": 0.2,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Table",
+  "schema": 2,
+  "dark": false,
+  "amoled": false,
+  "primary": "#989888",
+  "onPrimary": "#0C0C0E",
+  "background": "#F5F5F5",
+  "surface": "#FCFCFC",
+  "onSurface": "#0F0F11",
+  "accent": "#E8E8E8",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#E8E8E8",
+    "tertiary": "#989888",
+    "surfaceVariant": "#D9D9DA",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#B5B5B5",
+    "error": "#989888",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

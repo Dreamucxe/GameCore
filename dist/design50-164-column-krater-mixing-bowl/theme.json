@@ -1,0 +1,40 @@
+{
+  "name": "Column-Krater (Mixing Bowl)",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#E8E8E8",
+  "onPrimary": "#0C0C0E",
+  "background": "#F5F5F5",
+  "surface": "#7B7B7B",
+  "onSurface": "#0F0F11",
+  "accent": "#181808",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#181808",
+    "tertiary": "#E8E8E8",
+    "surfaceVariant": "#E3E3E3",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#B5B5B5",
+    "error": "#E8E8E8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

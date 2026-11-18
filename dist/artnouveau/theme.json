@@ -1,0 +1,40 @@
+{
+  "name": "Whiplash Curve",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#8A6A3A",
+  "onPrimary": "#FFFFFF",
+  "background": "#F5F0E0",
+  "surface": "#FAF5E8",
+  "onSurface": "#2A2010",
+  "accent": "#6A4A2A",
+  "cornerRadiusDp": 24,
+  "uiScale": 1.0,
+  "font": "cursive",
+  "roles": {
+    "secondary": "#C8B080",
+    "tertiary": "#8A6A3A",
+    "surfaceVariant": "#F0E8D8",
+    "onSurfaceVariant": "#2A2010",
+    "outline": "#D8C8A8",
+    "error": "#8A6A3A",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "light"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

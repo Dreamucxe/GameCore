@@ -1,0 +1,25 @@
+{
+  "format": "gamecore.plugin",
+  "id": "com.dreamucxe.gamecore.aic.art79973",
+  "name": "Another way to make use of the new petticoats that have…",
+  "version": 1,
+  "versionName": "1.0.0",
+  "api": 4,
+  "minHostVersion": 60,
+  "developer": "Dream · AIC Open Access",
+  "description": "Palette extracted from the public-domain work “Another way to make use of the new petticoats that have lately become fashionable, plate 294 from Actualités” by Honoré-Victorin Daumier (1856), Art Institute of Chicago artwork 79973. Adapted for high-contrast GameCore 5.1 UI.",
+  "permissions": [
+    {
+      "id": "change_ui"
+    },
+    {
+      "id": "change_icon"
+    }
+  ],
+  "declares": [
+    "theme",
+    "screens",
+    "icon"
+  ],
+  "changelog": "1.0.0 — source-backed palette; ≥7:1 body text and ≥4.5:1 controls."
+}

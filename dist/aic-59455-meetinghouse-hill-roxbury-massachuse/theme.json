@@ -1,0 +1,28 @@
+{
+  "name": "Meetinghouse Hill, Roxbury, Massachusetts",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#78A8B8",
+  "onPrimary": "#0C0C0E",
+  "background": "#0C1D1D",
+  "surface": "#283737",
+  "onSurface": "#F8F8F6",
+  "accent": "#183838",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "comic-neue",
+  "roles": {
+    "secondary": "#183838",
+    "tertiary": "#78A8B8",
+    "surfaceVariant": "#283737",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#4E5A5A",
+    "error": "#78A8B8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

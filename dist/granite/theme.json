@@ -1,0 +1,40 @@
+{
+  "name": "Bedrock",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#A0A0A0",
+  "onPrimary": "#1A1A1A",
+  "background": "#1A1A1A",
+  "surface": "#222222",
+  "onSurface": "#D0D0D0",
+  "accent": "#606060",
+  "cornerRadiusDp": 4,
+  "uiScale": 1.0,
+  "font": "rubik",
+  "roles": {
+    "secondary": "#D0D0D0",
+    "tertiary": "#A0A0A0",
+    "surfaceVariant": "#2A2A2A",
+    "onSurfaceVariant": "#D0D0D0",
+    "outline": "#4A4A4A",
+    "error": "#A0A0A0",
+    "onError": "#1A1A1A"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

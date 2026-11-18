@@ -1,0 +1,28 @@
+{
+  "name": "Chair",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#B8B8B8",
+  "onPrimary": "#0C0C0E",
+  "background": "#0C0C0C",
+  "surface": "#282828",
+  "onSurface": "#F8F8F6",
+  "accent": "#D8D8D8",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "jetbrains-mono",
+  "roles": {
+    "secondary": "#D8D8D8",
+    "tertiary": "#B8B8B8",
+    "surfaceVariant": "#1F1F1F",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#4E4E4E",
+    "error": "#B8B8B8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "Hadal Zone",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#00FFFF",
+  "onPrimary": "#000510",
+  "background": "#000510",
+  "surface": "#000A1A",
+  "onSurface": "#A8D0E8",
+  "accent": "#0088AA",
+  "cornerRadiusDp": 0,
+  "uiScale": 1.0,
+  "font": "mono",
+  "roles": {
+    "secondary": "#A8D0E8",
+    "tertiary": "#00FFFF",
+    "surfaceVariant": "#001020",
+    "onSurfaceVariant": "#A8D0E8",
+    "outline": "#002A4A",
+    "error": "#00FFFF",
+    "onError": "#000510"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}
