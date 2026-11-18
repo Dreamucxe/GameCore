@@ -1,0 +1,40 @@
+{
+  "name": "Oneiric",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#B880F0",
+  "onPrimary": "#0A0A1A",
+  "background": "#0A0A1A",
+  "surface": "#12122A",
+  "onSurface": "#E0D0F0",
+  "accent": "#9060C0",
+  "cornerRadiusDp": 24,
+  "uiScale": 1.0,
+  "font": "cursive",
+  "roles": {
+    "secondary": "#E0D0F0",
+    "tertiary": "#B880F0",
+    "surfaceVariant": "#1A1A3A",
+    "onSurfaceVariant": "#E0D0F0",
+    "outline": "#4A3A5A",
+    "error": "#B880F0",
+    "onError": "#0A0A1A"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "light"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

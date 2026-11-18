@@ -1,0 +1,40 @@
+{
+  "name": "Phoenix",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FF6600",
+  "onPrimary": "#1A0000",
+  "background": "#1A0000",
+  "surface": "#2A0A0A",
+  "onSurface": "#FFE0A0",
+  "accent": "#CC4400",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#FFE0A0",
+    "tertiary": "#FF6600",
+    "surfaceVariant": "#3A1010",
+    "onSurfaceVariant": "#FFE0A0",
+    "outline": "#6A2A2A",
+    "error": "#FF6600",
+    "onError": "#1A0000"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

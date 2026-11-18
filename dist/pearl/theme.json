@@ -1,0 +1,40 @@
+{
+  "name": "Nacre",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#D8B8D8",
+  "onPrimary": "#2A2A3A",
+  "background": "#F8F0F8",
+  "surface": "#FFFFFF",
+  "onSurface": "#2A2A3A",
+  "accent": "#C0A0C0",
+  "cornerRadiusDp": 28,
+  "uiScale": 1.0,
+  "font": "comic-neue",
+  "roles": {
+    "secondary": "#E8D8E8",
+    "tertiary": "#D8B8D8",
+    "surfaceVariant": "#F0E8F0",
+    "onSurfaceVariant": "#2A2A3A",
+    "outline": "#D8C8D8",
+    "error": "#D8B8D8",
+    "onError": "#2A2A3A"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "light"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}
