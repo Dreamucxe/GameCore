@@ -1,0 +1,40 @@
+{
+  "name": "Festival of Lights",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FFB300",
+  "onPrimary": "#1A0A00",
+  "background": "#1A0A00",
+  "surface": "#2D1500",
+  "onSurface": "#FFE082",
+  "accent": "#FF6F00",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#FFE082",
+    "tertiary": "#FFB300",
+    "surfaceVariant": "#3D2000",
+    "onSurfaceVariant": "#FFE082",
+    "outline": "#6B4A00",
+    "error": "#FFB300",
+    "onError": "#1A0A00"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

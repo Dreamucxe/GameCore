@@ -1,0 +1,40 @@
+{
+  "name": "Memphis Design",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#FF3366",
+  "onPrimary": "#FFFFFF",
+  "background": "#F0F0F0",
+  "surface": "#FFFFFF",
+  "onSurface": "#1A1A1A",
+  "accent": "#00CC99",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "press-start-2p",
+  "roles": {
+    "secondary": "#FFCC00",
+    "tertiary": "#FF3366",
+    "surfaceVariant": "#E8E8E8",
+    "onSurfaceVariant": "#1A1A1A",
+    "outline": "#CCCCCC",
+    "error": "#FF3366",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

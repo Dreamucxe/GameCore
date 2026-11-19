@@ -1,0 +1,40 @@
+{
+  "name": "Static",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FF3333",
+  "onPrimary": "#0A0A0A",
+  "background": "#0A0A0A",
+  "surface": "#121212",
+  "onSurface": "#D0D0D0",
+  "accent": "#888888",
+  "cornerRadiusDp": 0,
+  "uiScale": 1.0,
+  "font": "mono",
+  "roles": {
+    "secondary": "#D0D0D0",
+    "tertiary": "#FF3333",
+    "surfaceVariant": "#1A1A1A",
+    "onSurfaceVariant": "#D0D0D0",
+    "outline": "#4A4A4A",
+    "error": "#FF3333",
+    "onError": "#0A0A0A"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

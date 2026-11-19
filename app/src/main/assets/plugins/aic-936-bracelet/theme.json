@@ -1,0 +1,28 @@
+{
+  "name": "Bracelet",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#486828",
+  "onPrimary": "#F8F8F6",
+  "background": "#1D1D0C",
+  "surface": "#373728",
+  "onSurface": "#F8F8F6",
+  "accent": "#C8C8C8",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#C8C8C8",
+    "tertiary": "#486828",
+    "surfaceVariant": "#373728",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#5A5A4E",
+    "error": "#486828",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "All Hallows",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FF6600",
+  "onPrimary": "#0D0500",
+  "background": "#0D0500",
+  "surface": "#1A0A00",
+  "onSurface": "#FFB800",
+  "accent": "#8B0000",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "press-start-2p",
+  "roles": {
+    "secondary": "#FFB800",
+    "tertiary": "#FF6600",
+    "surfaceVariant": "#2D1000",
+    "onSurfaceVariant": "#FFB800",
+    "outline": "#5C2D00",
+    "error": "#FF6600",
+    "onError": "#0D0500"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

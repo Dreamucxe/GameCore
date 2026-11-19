@@ -1,0 +1,28 @@
+{
+  "name": "Ring with a Scarab Bezel",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#B88848",
+  "onPrimary": "#0C0C0E",
+  "background": "#25251D",
+  "surface": "#3E3E37",
+  "onSurface": "#F8F8F6",
+  "accent": "#E8C878",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#E8C878",
+    "tertiary": "#B88848",
+    "surfaceVariant": "#3E3E37",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#60605A",
+    "error": "#B88848",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

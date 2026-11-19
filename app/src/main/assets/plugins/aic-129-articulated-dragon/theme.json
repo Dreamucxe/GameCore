@@ -1,0 +1,28 @@
+{
+  "name": "Articulated Dragon",
+  "schema": 2,
+  "dark": false,
+  "amoled": false,
+  "primary": "#584848",
+  "onPrimary": "#F8F8F6",
+  "background": "#EFEFEF",
+  "surface": "#F9F9F9",
+  "onSurface": "#0F0F11",
+  "accent": "#181818",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#181818",
+    "tertiary": "#584848",
+    "surfaceVariant": "#D4D4D4",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#B0B0B1",
+    "error": "#584848",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

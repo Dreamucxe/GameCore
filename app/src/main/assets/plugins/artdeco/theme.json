@@ -1,0 +1,40 @@
+{
+  "name": "Gatsby Era",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FFD700",
+  "onPrimary": "#0A0A0A",
+  "background": "#0A0A0A",
+  "surface": "#121212",
+  "onSurface": "#FFD700",
+  "accent": "#B8860B",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#FFD700",
+    "tertiary": "#FFD700",
+    "surfaceVariant": "#1A1A1A",
+    "onSurfaceVariant": "#FFD700",
+    "outline": "#4A4A4A",
+    "error": "#FFD700",
+    "onError": "#0A0A0A"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

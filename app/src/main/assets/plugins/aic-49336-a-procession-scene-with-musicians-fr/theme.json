@@ -1,0 +1,28 @@
+{
+  "name": "A Procession Scene with Musicians, from a copy o",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#B89878",
+  "onPrimary": "#0C0C0E",
+  "background": "#47362E",
+  "surface": "#5C4D46",
+  "onSurface": "#F8F8F6",
+  "accent": "#F8F8D8",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#F8F8D8",
+    "tertiary": "#B89878",
+    "surfaceVariant": "#5C4D46",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#796C66",
+    "error": "#B89878",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

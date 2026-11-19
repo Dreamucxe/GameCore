@@ -1,11 +1,19 @@
 package com.gamecore.core.plugin
 
+import com.gamecore.core.common.TextSanitizer
 import com.gamecore.core.plugin.content.AutomationEngine
 import com.gamecore.core.plugin.content.AutomationRule
 import com.gamecore.core.plugin.content.RulesCodec
+import com.gamecore.core.plugin.dashboard.PluginDashboardCodec
+import com.gamecore.core.plugin.icon.PluginIconCodec
 import com.gamecore.core.plugin.overlay.PluginOverlayCodec
+import com.gamecore.core.plugin.settings.PluginSettingsCodec
 import com.gamecore.core.plugin.theme.PluginThemeCodec
+import com.gamecore.core.plugin.theme.glassIntensityScale
+import com.gamecore.core.plugin.ui.PluginScreensCodec
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -101,5 +109,126 @@ class BundledPluginsTest {
         // The launch rule fires with no conditions.
         val launch = r.rules.first { it.trigger == AutomationRule.Trigger.GAME_LAUNCHED }
         assertTrue(engine.evaluate(launch, AutomationRule.Trigger.GAME_LAUNCHED, emptyMap()).isNotEmpty())
+    }
+
+    /**
+     * The 5.7 gate: every bundled pack is a package the loader would accept.
+     *
+     * The registry's bundled reader returns null for a declared section it cannot find and null for a
+     * manifest it cannot parse, and a null plugin simply does not appear — there is no error the user
+     * could act on. That failure mode is exactly what makes this test necessary when the library goes
+     * from 23 hand-written packs to 268: a typo or a missing directory in one of them would ship as a
+     * silently missing theme, not a build failure.
+     *
+     * It mirrors the loader's own rules rather than calling it: `PluginRegistryImpl` needs an Android
+     * `AssetManager`, and the point is to check the files on disk before an APK exists.
+     */
+    @Test
+    fun `every bundled plugin is a package the loader would accept`() {
+        val directories = assets.listFiles()
+            ?.filter { it.isDirectory }
+            ?.sortedBy { it.name }
+            .orEmpty()
+        assertTrue("no bundled plugins found at ${assets.absolutePath}", directories.size >= 268)
+
+        val ids = mutableSetOf<String>()
+        var themes = 0
+        for (directory in directories) {
+            val where = directory.name
+            val manifestFile = File(directory, "manifest.json")
+            assertTrue("$where has no manifest.json", manifestFile.isFile)
+            val parsed = PluginManifestCodec.decode(manifestFile.readText())
+            assertTrue("$where manifest rejected: $parsed", parsed is PluginManifestCodec.Result.Parsed)
+            val manifest = (parsed as PluginManifestCodec.Result.Parsed).manifest
+            assertNotNull("$where has an invalid package id", TextSanitizer.validatePackageName(manifest.id))
+            assertTrue("duplicate bundled plugin id ${manifest.id}", ids.add(manifest.id))
+
+            for (section in manifest.declares) {
+                val files = sectionFiles(directory, section)
+                assertTrue("$where declares ${section.id} but has no ${section.id} file", files.isNotEmpty())
+                when (section) {
+                    PluginSection.THEME -> {
+                        themes++
+                        val theme = PluginThemeCodec.decode(files.first().readText())
+                        assertTrue("$where theme rejected: $theme", theme is PluginThemeCodec.Result.Parsed)
+                        val setting = (theme as PluginThemeCodec.Result.Parsed).theme.glass?.intensitySetting
+                        if (setting != null) {
+                            val schema = PluginSettingsCodec.decode(
+                                sectionFiles(directory, PluginSection.SETTINGS).firstOrNull()?.readText(),
+                            )
+                            assertTrue(
+                                "$where names glass setting \"$setting\" but its settings do not parse",
+                                schema is PluginSettingsCodec.Result.Parsed,
+                            )
+                            val def = (schema as PluginSettingsCodec.Result.Parsed).schema.byId(setting)
+                            assertNotNull("$where names glass setting \"$setting\" which it does not declare", def)
+                            assertNotNull(
+                                "$where glass setting \"$setting\" is not a 0..1 numeric control",
+                                def!!.glassIntensityScale(),
+                            )
+                        }
+                    }
+                    PluginSection.SCREENS -> files.forEach {
+                        assertTrue(
+                            "$where screens rejected in ${it.name}: ${PluginScreensCodec.decode(it.readText())}",
+                            PluginScreensCodec.decode(it.readText()) is PluginScreensCodec.Result.Parsed,
+                        )
+                    }
+                    PluginSection.RULES -> files.forEach {
+                        assertTrue(
+                            "$where rules rejected in ${it.name}: ${RulesCodec.decode(it.readText())}",
+                            RulesCodec.decode(it.readText()) is RulesCodec.Result.Parsed,
+                        )
+                    }
+                    PluginSection.WIDGETS -> files.forEach {
+                        assertTrue(
+                            "$where widget rejected in ${it.name}: ${PluginDashboardCodec.decode(it.readText())}",
+                            PluginDashboardCodec.decode(it.readText()) is PluginDashboardCodec.Result.Parsed,
+                        )
+                    }
+                    PluginSection.SETTINGS -> files.forEach {
+                        assertTrue(
+                            "$where settings rejected: ${PluginSettingsCodec.decode(it.readText())}",
+                            PluginSettingsCodec.decode(it.readText()) is PluginSettingsCodec.Result.Parsed,
+                        )
+                    }
+                    PluginSection.ICON -> files.forEach {
+                        assertTrue(
+                            "$where icon rejected: ${PluginIconCodec.decode(it.readText())}",
+                            PluginIconCodec.decode(it.readText()) is PluginIconCodec.Result.Parsed,
+                        )
+                    }
+                    PluginSection.PILL -> files.forEach {
+                        assertTrue(
+                            "$where pill rejected: ${PluginOverlayCodec.decode(it.readText())}",
+                            PluginOverlayCodec.decode(it.readText()) is PluginOverlayCodec.Result.Parsed,
+                        )
+                    }
+                    // No bundled pack declares these; a future one must add its codec to this gate
+                    // rather than slip past it.
+                    else -> assertNull("$where declares unhandled section ${section.id}", section)
+                }
+            }
+        }
+        assertTrue("the bundled library should carry the full theme collection, found $themes", themes >= 254)
+    }
+
+    /**
+     * The two layouts the loader accepts, resolved the same way [sectionFiles] does it here.
+     *
+     * A directory wins when it exists; the flat `<section>.json` is the fallback that keeps every pack
+     * written before 5.7 loading unchanged.
+     */
+    private fun sectionFiles(directory: File, section: PluginSection): List<File> {
+        val prefix = section.entryPrefix
+        val nested = File(directory, prefix.trimEnd('/'))
+        val inDirectory = nested.listFiles()
+            ?.filter { it.isFile && it.name.endsWith(".json") }
+            ?.sortedBy { it.name }
+            .orEmpty()
+        if (inDirectory.isNotEmpty()) return inDirectory
+        val flatName = if (prefix.endsWith("/")) prefix.trimEnd('/') + ".json" else prefix
+        val flat = File(directory, flatName)
+        return if (flat.isFile) listOf(flat) else emptyList()
     }
 }

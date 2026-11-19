@@ -1,0 +1,28 @@
+{
+  "name": "Self-Portrait",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#885838",
+  "onPrimary": "#F8F8F6",
+  "background": "#150C04",
+  "surface": "#302821",
+  "onSurface": "#F8F8F6",
+  "accent": "#281808",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#281808",
+    "tertiary": "#885838",
+    "surfaceVariant": "#302821",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#554E48",
+    "error": "#885838",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

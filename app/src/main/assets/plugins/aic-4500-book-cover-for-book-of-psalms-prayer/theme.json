@@ -1,0 +1,28 @@
+{
+  "name": "Book Cover for Book of Psalms, Prayers, and Hymn",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#786838",
+  "onPrimary": "#F8F8F6",
+  "background": "#040C0C",
+  "surface": "#212828",
+  "onSurface": "#F8F8F6",
+  "accent": "#081818",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#081818",
+    "tertiary": "#786838",
+    "surfaceVariant": "#212828",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#484E4E",
+    "error": "#786838",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "Teapot with Symbols of England, Ireland, and Sco",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#686868",
+  "onPrimary": "#F8F8F6",
+  "background": "#242424",
+  "surface": "#3D3D3D",
+  "onSurface": "#F8F8F6",
+  "accent": "#888888",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#888888",
+    "tertiary": "#686868",
+    "surfaceVariant": "#353535",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#5F5F5F",
+    "error": "#686868",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

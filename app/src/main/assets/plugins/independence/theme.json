@@ -1,0 +1,40 @@
+{
+  "name": "Stars & Stripes",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FF0000",
+  "onPrimary": "#FFFFFF",
+  "background": "#0A0A2A",
+  "surface": "#12123A",
+  "onSurface": "#FFFFFF",
+  "accent": "#002868",
+  "cornerRadiusDp": 0,
+  "uiScale": 1.0,
+  "font": "press-start-2p",
+  "roles": {
+    "secondary": "#FFFFFF",
+    "tertiary": "#FF0000",
+    "surfaceVariant": "#1A1A4A",
+    "onSurfaceVariant": "#FFFFFF",
+    "outline": "#3A3A6A",
+    "error": "#FF0000",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

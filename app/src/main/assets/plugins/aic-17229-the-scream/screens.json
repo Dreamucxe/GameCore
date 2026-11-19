@@ -1,0 +1,457 @@
+{
+  "format": "gamecore.plugin.screens",
+  "version": 1,
+  "screens": [
+    {
+      "id": "source-palette",
+      "title": "Source Palette",
+      "icon": "insights",
+      "content": {
+        "type": "column",
+        "children": [
+          {
+            "type": "row",
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "icon": "insights",
+                  "color": "#5A5A5A",
+                  "size": 16
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "PUBLIC-DOMAIN SOURCE",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#5A5A5A"
+                }
+              }
+            ],
+            "props": {
+              "gap": 8,
+              "align": "center"
+            }
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#373737",
+              "padding": 18,
+              "gap": 8
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "The Scream",
+                  "size": 26,
+                  "bold": true,
+                  "color": "#F8F8F6",
+                  "maxLines": 4
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Edvard Munch · 1895",
+                  "size": 13,
+                  "color": "#F8F8F6",
+                  "maxLines": 3
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "lithograph · Post-Impressionism",
+                  "size": 11,
+                  "color": "#5A5A5A",
+                  "maxLines": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#373737",
+              "padding": 16,
+              "gap": 9
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "EXTRACTED FROM THE IMAGE",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#E8D8D8",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 1",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#E8D8D8",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#989888",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 2",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#989888",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#383838",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 3",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#F8F8F6"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#383838",
+                          "size": 9,
+                          "color": "#F8F8F6"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "props": {
+                  "gap": 7,
+                  "align": "stretch"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#B8B8A8",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 4",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#B8B8A8",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#787868",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 5",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#787868",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#685858",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 6",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#F8F8F6"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#685858",
+                          "size": 9,
+                          "color": "#F8F8F6"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "props": {
+                  "gap": 7,
+                  "align": "stretch"
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#E8D8D8",
+              "padding": 16,
+              "gap": 7
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "PRIMARY",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#0C0C0E"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "#E8D8D8 — selected from the source palette, not invented.",
+                  "size": 14,
+                  "bold": true,
+                  "color": "#0C0C0E",
+                  "maxLines": 3
+                }
+              }
+            ]
+          }
+        ],
+        "props": {
+          "padding": 16,
+          "gap": 14
+        }
+      }
+    },
+    {
+      "id": "provenance",
+      "title": "Provenance",
+      "icon": "info",
+      "content": {
+        "type": "column",
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "text": "PROVENANCE",
+              "size": 10,
+              "bold": true,
+              "color": "#5A5A5A"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "text": "A theme with receipts.",
+              "size": 25,
+              "bold": true,
+              "color": "#F8F8F6",
+              "maxLines": 2
+            }
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#373737",
+              "padding": 16,
+              "gap": 7
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "WORK",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "The Scream",
+                  "size": 18,
+                  "bold": true,
+                  "color": "#F8F8F6",
+                  "maxLines": 4
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Artist: Edvard Munch",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 3
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Date: 1895",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 2
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Collection: Art Institute of Chicago · Artwork 17229",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#373737",
+              "padding": 16,
+              "gap": 7
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "ACCESSIBILITY ADAPTATION",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Background and surface preserve the source hue but are toned for ≥7:1 body-text contrast. Primary controls meet ≥4.5:1.",
+                  "size": 13,
+                  "color": "#F8F8F6",
+                  "maxLines": 5
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#E8D8D8",
+              "padding": 14,
+              "gap": 6
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "SOURCE",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#0C0C0E"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "https://www.artic.edu/artworks/17229",
+                  "size": 11,
+                  "color": "#0C0C0E",
+                  "maxLines": 4
+                }
+              }
+            ]
+          }
+        ],
+        "props": {
+          "padding": 16,
+          "gap": 14
+        }
+      }
+    }
+  ]
+}

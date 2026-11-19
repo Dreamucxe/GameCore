@@ -1,0 +1,28 @@
+{
+  "name": "Side Chair",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#D8D8D8",
+  "onPrimary": "#0C0C0E",
+  "background": "#EDEDED",
+  "surface": "#7B7B7B",
+  "onSurface": "#0F0F11",
+  "accent": "#B8B8B8",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "jetbrains-mono",
+  "roles": {
+    "secondary": "#B8B8B8",
+    "tertiary": "#D8D8D8",
+    "surfaceVariant": "#DBDBDB",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#AFAFAF",
+    "error": "#D8D8D8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

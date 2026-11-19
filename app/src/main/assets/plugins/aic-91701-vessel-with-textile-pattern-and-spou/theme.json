@@ -1,0 +1,28 @@
+{
+  "name": "Vessel with Textile Pattern and Spout Modeled as",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#784838",
+  "onPrimary": "#F8F8F6",
+  "background": "#0C0C0C",
+  "surface": "#282828",
+  "onSurface": "#F8F8F6",
+  "accent": "#D8D8D8",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#D8D8D8",
+    "tertiary": "#784838",
+    "surfaceVariant": "#282828",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#4E4E4E",
+    "error": "#784838",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

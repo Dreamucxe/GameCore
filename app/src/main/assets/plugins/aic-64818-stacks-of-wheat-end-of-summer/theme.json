@@ -1,0 +1,28 @@
+{
+  "name": "Stacks of Wheat (End of Summer)",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#B8A888",
+  "onPrimary": "#0C0C0E",
+  "background": "#3E362E",
+  "surface": "#544D46",
+  "onSurface": "#F8F8F6",
+  "accent": "#786858",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#786858",
+    "tertiary": "#B8A888",
+    "surfaceVariant": "#544D46",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#726C66",
+    "error": "#B8A888",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

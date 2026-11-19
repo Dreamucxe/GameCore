@@ -1,0 +1,746 @@
+{
+  "format": "gamecore.plugin.screens",
+  "version": 1,
+  "screens": [
+    {
+      "id": "source-palette",
+      "title": "Source Palette",
+      "icon": "insights",
+      "content": {
+        "type": "column",
+        "children": [
+          {
+            "type": "row",
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "icon": "insights",
+                  "color": "#545A59",
+                  "size": 16
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "DESIGN OBJECT SOURCE",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#545A59"
+                }
+              }
+            ],
+            "props": {
+              "gap": 8,
+              "align": "center"
+            }
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#2F3636",
+              "padding": 18,
+              "gap": 8
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "Ambassadeurs: Aristide Bruant",
+                  "size": 26,
+                  "bold": true,
+                  "color": "#F8F8F6",
+                  "maxLines": 4
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Henri de Toulouse-Lautrec · 1892",
+                  "size": 13,
+                  "color": "#F8F8F6",
+                  "maxLines": 3
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "poster · Unspecified style",
+                  "size": 11,
+                  "color": "#545A59",
+                  "maxLines": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#262E2D",
+              "padding": 16,
+              "gap": 9
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "EXTRACTED FROM ARTWORK",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#283838",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 1",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#F8F8F6"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#283838",
+                          "size": 9,
+                          "color": "#F8F8F6"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#D8A878",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 2",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#D8A878",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#D86848",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 3",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#D86848",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "props": {
+                  "gap": 7,
+                  "align": "stretch"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#D89848",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 4",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#D89848",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#D8B898",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 5",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#D8B898",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#585848",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 6",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#F8F8F6"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#585848",
+                          "size": 9,
+                          "color": "#F8F8F6"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "props": {
+                  "gap": 7,
+                  "align": "stretch"
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#283838",
+              "padding": 16,
+              "gap": 7
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "ACTIVE VARIANT: DEEP",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Background #141C1C · Surface #2F3636 · Primary #283838 · Secondary #D8A878",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 3
+                }
+              }
+            ]
+          }
+        ],
+        "props": {
+          "padding": 16,
+          "gap": 14
+        }
+      }
+    },
+    {
+      "id": "variants",
+      "title": "Palette Variants",
+      "icon": "extension",
+      "content": {
+        "type": "column",
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "text": "4 SEMANTIC PALETTES FROM ONE SOURCE",
+              "size": 10,
+              "bold": true,
+              "color": "#545A59"
+            }
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#262E2D",
+              "padding": 12,
+              "gap": 6
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "VARIANT 1: Deep",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#141C1C",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#2F3636",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#283838",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#D8A878",
+                      "size": 24
+                    }
+                  }
+                ],
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#262E2D",
+              "padding": 12,
+              "gap": 6
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "VARIANT 2: Accent",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#564330",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#695948",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#D8A878",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#D86848",
+                      "size": 24
+                    }
+                  }
+                ],
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#262E2D",
+              "padding": 12,
+              "gap": 6
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "VARIANT 3: Muted",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#121919",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#2E3434",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#D86848",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#283838",
+                      "size": 24
+                    }
+                  }
+                ],
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#262E2D",
+              "padding": 12,
+              "gap": 6
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "VARIANT 4: Subtle",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#141C1C",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#2F3636",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#D89848",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#283838",
+                      "size": 24
+                    }
+                  }
+                ],
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              }
+            ]
+          }
+        ],
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "id": "provenance",
+      "title": "Provenance",
+      "icon": "info",
+      "content": {
+        "type": "column",
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "text": "PROVENANCE",
+              "size": 10,
+              "bold": true,
+              "color": "#545A59"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "text": "A theme with receipts — colors from a real museum object",
+              "size": 22,
+              "bold": true,
+              "color": "#F8F8F6",
+              "maxLines": 2
+            }
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#262E2D",
+              "padding": 16,
+              "gap": 7
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "WORK",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Ambassadeurs: Aristide Bruant",
+                  "size": 18,
+                  "bold": true,
+                  "color": "#F8F8F6",
+                  "maxLines": 4
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Artist / Maker: Henri de Toulouse-Lautrec",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 3
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Date: 1892",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 2
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Classification: poster",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 2
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Style / Period: Unspecified style",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 2
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Department: Prints and Drawings",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 2
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Collection: Art Institute of Chicago · Artwork 63620",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#2F3636",
+              "padding": 16,
+              "gap": 7
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "ACCESSIBILITY",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "All variants meet ≥4.5:1 body text and ≥4.5:1 control contrast. Surface variant meets ≥3:1. Source colors adapted only for legibility.",
+                  "size": 13,
+                  "color": "#F8F8F6",
+                  "maxLines": 5
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#283838",
+              "padding": 14,
+              "gap": 6
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "SOURCE",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "https://www.artic.edu/artworks/63620",
+                  "size": 11,
+                  "color": "#F8F8F6",
+                  "maxLines": 4
+                }
+              }
+            ]
+          }
+        ],
+        "props": {
+          "padding": 16,
+          "gap": 14
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "onPrimary": "#0A0A12",
+  "uiScale": 1,
+  "onSurface": "#E6F1FF",
+  "surface": "#12121F",
+  "background": "#0A0A12",
+  "name": "Cyberpunk GameCore",
+  "dark": true,
+  "cornerRadiusDp": 2,
+  "accent": "#FF2BD6",
+  "primary": "#00F0FF",
+  "font": "mono"
+}

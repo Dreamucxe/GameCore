@@ -1,0 +1,40 @@
+{
+  "name": "Egyptian Scarlet",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#EB2F33",
+  "onPrimary": "#030D12",
+  "background": "#030D12",
+  "surface": "#0A1A22",
+  "onSurface": "#639CC5",
+  "accent": "#FF8A00",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "system",
+  "roles": {
+    "secondary": "#639CC5",
+    "tertiary": "#EB2F33",
+    "surfaceVariant": "#0E1E28",
+    "onSurfaceVariant": "#639CC5",
+    "outline": "#2A3E4A",
+    "error": "#EB2F33",
+    "onError": "#030D12"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.3,
+      "transparency": 0.2,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

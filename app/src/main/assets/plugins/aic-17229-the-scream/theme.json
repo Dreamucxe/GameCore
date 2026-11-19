@@ -1,0 +1,28 @@
+{
+  "name": "The Scream",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#E8D8D8",
+  "onPrimary": "#0C0C0E",
+  "background": "#1D1D1D",
+  "surface": "#373737",
+  "onSurface": "#F8F8F6",
+  "accent": "#685858",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#685858",
+    "tertiary": "#E8D8D8",
+    "surfaceVariant": "#373737",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#5A5A5A",
+    "error": "#E8D8D8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

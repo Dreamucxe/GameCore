@@ -1,0 +1,40 @@
+{
+  "name": "Cosmic Lighthouse",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FFEB3B",
+  "onPrimary": "#050010",
+  "background": "#050010",
+  "surface": "#0A001A",
+  "onSurface": "#FFEB3B",
+  "accent": "#CCB800",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "orbitron",
+  "roles": {
+    "secondary": "#FFEB3B",
+    "tertiary": "#FFEB3B",
+    "surfaceVariant": "#100020",
+    "onSurfaceVariant": "#FFEB3B",
+    "outline": "#3A2A4A",
+    "error": "#FFEB3B",
+    "onError": "#050010"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

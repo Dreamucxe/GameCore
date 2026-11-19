@@ -1,0 +1,25 @@
+{
+  "onPrimary": "#FFFFFF",
+  "schema": 4,
+  "onSurface": "#FFFFFF",
+  "surface": "#1C1C1E",
+  "accent": "#5E5CE6",
+  "uiScale": 1,
+  "effects": {"glass": {
+    "intensity": 0.7,
+    "spring": "snappy",
+    "blurRadiusDp": 16,
+    "gloss": 0.55,
+    "transparency": 0.62,
+    "intensitySetting": "glass_intensity",
+    "sheenPeriodMs": 9000,
+    "sheen": true,
+    "hardwareReactive": false
+  }},
+  "background": "#000000",
+  "name": "Liquid Glass GameCore",
+  "dark": true,
+  "cornerRadiusDp": 20,
+  "primary": "#0A6FE0",
+  "font": "rounded"
+}

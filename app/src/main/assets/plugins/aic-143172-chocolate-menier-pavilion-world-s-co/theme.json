@@ -1,0 +1,28 @@
+{
+  "name": "Chocolate-Menier Pavilion, World's Columbian Exp",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#C8D8C8",
+  "onPrimary": "#0C0C0E",
+  "background": "#4F4F3E",
+  "surface": "#555549",
+  "onSurface": "#F8F8F6",
+  "accent": "#787858",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "inter",
+  "roles": {
+    "secondary": "#787858",
+    "tertiary": "#C8D8C8",
+    "surfaceVariant": "#636354",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#7E7E72",
+    "error": "#C8D8C8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

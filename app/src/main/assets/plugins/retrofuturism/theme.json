@@ -1,0 +1,24 @@
+{
+  "onPrimary": "#FFFFFF",
+  "schema": 2,
+  "onSurface": "#2A2118",
+  "typography": {"weight": "medium"},
+  "surface": "#FFF6E8",
+  "roles": {
+    "secondary": "#B4703A",
+    "outline": "#C9B79C",
+    "onError": "#FFFFFF",
+    "onSurfaceVariant": "#6B5A46",
+    "tertiary": "#7A9C3D",
+    "error": "#A83226",
+    "surfaceVariant": "#E8DCC8"
+  },
+  "accent": "#C43F27",
+  "uiScale": 1,
+  "background": "#F2E7D5",
+  "name": "Retro Futurism GameCore",
+  "dark": false,
+  "cornerRadiusDp": 10,
+  "primary": "#0E7C74",
+  "font": "serif"
+}

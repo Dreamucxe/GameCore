@@ -1,0 +1,40 @@
+{
+  "name": "Blue Hour",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#6495ED",
+  "onPrimary": "#0A0A1A",
+  "background": "#0A0A1A",
+  "surface": "#12122A",
+  "onSurface": "#A8B8D0",
+  "accent": "#4A70B0",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "cursive",
+  "roles": {
+    "secondary": "#A8B8D0",
+    "tertiary": "#6495ED",
+    "surfaceVariant": "#1A1A3A",
+    "onSurfaceVariant": "#A8B8D0",
+    "outline": "#3A4A6A",
+    "error": "#6495ED",
+    "onError": "#0A0A1A"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "light"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "theme",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Cyberpunk GameCore",
+  "description": "Dark neon cyberpunk theme \u2014 cyan and magenta on near-black.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.cyberpunk",
+  "api": 1,
+  "versionName": "1.1.0",
+  "version": 2
+}

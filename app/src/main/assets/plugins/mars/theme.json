@@ -1,0 +1,40 @@
+{
+  "name": "Red Planet",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#E86C00",
+  "onPrimary": "#2D1008",
+  "background": "#2D1008",
+  "surface": "#3D1810",
+  "onSurface": "#F5D8C0",
+  "accent": "#B85000",
+  "cornerRadiusDp": 4,
+  "uiScale": 1.0,
+  "font": "press-start-2p",
+  "roles": {
+    "secondary": "#F5D8C0",
+    "tertiary": "#E86C00",
+    "surfaceVariant": "#4A2010",
+    "onSurfaceVariant": "#F5D8C0",
+    "outline": "#6A3A1A",
+    "error": "#E86C00",
+    "onError": "#2D1008"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

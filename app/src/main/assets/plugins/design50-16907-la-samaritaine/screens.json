@@ -1,0 +1,746 @@
+{
+  "format": "gamecore.plugin.screens",
+  "version": 1,
+  "screens": [
+    {
+      "id": "source-palette",
+      "title": "Source Palette",
+      "icon": "insights",
+      "content": {
+        "type": "column",
+        "children": [
+          {
+            "type": "row",
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "icon": "insights",
+                  "color": "#827C70",
+                  "size": 16
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "DESIGN OBJECT SOURCE",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#827C70"
+                }
+              }
+            ],
+            "props": {
+              "gap": 8,
+              "align": "center"
+            }
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#686152",
+              "padding": 18,
+              "gap": 8
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "La Samaritaine",
+                  "size": 26,
+                  "bold": true,
+                  "color": "#F8F8F6",
+                  "maxLines": 4
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Alphonse Marie Mucha · 1897",
+                  "size": 13,
+                  "color": "#F8F8F6",
+                  "maxLines": 3
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "poster · Unspecified style",
+                  "size": 11,
+                  "color": "#827C70",
+                  "maxLines": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#615A4B",
+              "padding": 16,
+              "gap": 9
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "EXTRACTED FROM ARTWORK",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#E8D8B8",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 1",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#E8D8B8",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#F8F8D8",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 2",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#F8F8D8",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#C8B898",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 3",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#C8B898",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "props": {
+                  "gap": 7,
+                  "align": "stretch"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#A89878",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 4",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#A89878",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#988858",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 5",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#988858",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#E8C898",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 6",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#E8C898",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "props": {
+                  "gap": 7,
+                  "align": "stretch"
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#E8D8B8",
+              "padding": 16,
+              "gap": 7
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "ACTIVE VARIANT: DEEP",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#0C0C0E"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Background #544C3C · Surface #686152 · Primary #E8D8B8 · Secondary #F8F8D8",
+                  "size": 12,
+                  "color": "#0C0C0E",
+                  "maxLines": 3
+                }
+              }
+            ]
+          }
+        ],
+        "props": {
+          "padding": 16,
+          "gap": 14
+        }
+      }
+    },
+    {
+      "id": "variants",
+      "title": "Palette Variants",
+      "icon": "extension",
+      "content": {
+        "type": "column",
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "text": "4 SEMANTIC PALETTES FROM ONE SOURCE",
+              "size": 10,
+              "bold": true,
+              "color": "#827C70"
+            }
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#615A4B",
+              "padding": 12,
+              "gap": 6
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "VARIANT 1: Deep",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#544C3C",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#686152",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#E8D8B8",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#F8F8D8",
+                      "size": 24
+                    }
+                  }
+                ],
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#615A4B",
+              "padding": 12,
+              "gap": 6
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "VARIANT 2: Accent",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#636356",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#737368",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#F8F8D8",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#C8B898",
+                      "size": 24
+                    }
+                  }
+                ],
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#615A4B",
+              "padding": 12,
+              "gap": 6
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "VARIANT 3: Muted",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#686153",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#777266",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#C8B898",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#E8D8B8",
+                      "size": 24
+                    }
+                  }
+                ],
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#615A4B",
+              "padding": 12,
+              "gap": 6
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "VARIANT 4: Subtle",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#544C3C",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#686152",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#A89878",
+                      "size": 24
+                    }
+                  },
+                  {
+                    "type": "image",
+                    "props": {
+                      "icon": "block",
+                      "color": "#E8D8B8",
+                      "size": 24
+                    }
+                  }
+                ],
+                "props": {
+                  "gap": 6,
+                  "align": "center"
+                }
+              }
+            ]
+          }
+        ],
+        "props": {
+          "padding": 16,
+          "gap": 12
+        }
+      }
+    },
+    {
+      "id": "provenance",
+      "title": "Provenance",
+      "icon": "info",
+      "content": {
+        "type": "column",
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "text": "PROVENANCE",
+              "size": 10,
+              "bold": true,
+              "color": "#827C70"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "text": "A theme with receipts — colors from a real museum object",
+              "size": 22,
+              "bold": true,
+              "color": "#F8F8F6",
+              "maxLines": 2
+            }
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#615A4B",
+              "padding": 16,
+              "gap": 7
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "WORK",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "La Samaritaine",
+                  "size": 18,
+                  "bold": true,
+                  "color": "#F8F8F6",
+                  "maxLines": 4
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Artist / Maker: Alphonse Marie Mucha",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 3
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Date: 1897",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 2
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Classification: poster",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 2
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Style / Period: Unspecified style",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 2
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Department: Prints and Drawings",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 2
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Collection: Art Institute of Chicago · Artwork 16907",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#686152",
+              "padding": 16,
+              "gap": 7
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "ACCESSIBILITY",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "All variants meet ≥4.5:1 body text and ≥4.5:1 control contrast. Surface variant meets ≥3:1. Source colors adapted only for legibility.",
+                  "size": 13,
+                  "color": "#F8F8F6",
+                  "maxLines": 5
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#E8D8B8",
+              "padding": 14,
+              "gap": 6
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "SOURCE",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#0C0C0E"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "https://www.artic.edu/artworks/16907",
+                  "size": 11,
+                  "color": "#0C0C0E",
+                  "maxLines": 4
+                }
+              }
+            ]
+          }
+        ],
+        "props": {
+          "padding": 16,
+          "gap": 14
+        }
+      }
+    }
+  ]
+}

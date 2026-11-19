@@ -1,0 +1,40 @@
+{
+  "name": "Neon Nights",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FF006E",
+  "onPrimary": "#FFFFFF",
+  "background": "#0D0221",
+  "surface": "#1A0A3A",
+  "onSurface": "#FDFF00",
+  "accent": "#8338EC",
+  "cornerRadiusDp": 4,
+  "uiScale": 1.0,
+  "font": "press-start-2p",
+  "roles": {
+    "secondary": "#FDFF00",
+    "tertiary": "#FF006E",
+    "surfaceVariant": "#2A1A5A",
+    "onSurfaceVariant": "#FDFF00",
+    "outline": "#5A3A8A",
+    "error": "#FF006E",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

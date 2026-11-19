@@ -1,0 +1,28 @@
+{
+  "name": "La revue blanche",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#C8A878",
+  "onPrimary": "#0C0C0E",
+  "background": "#152525",
+  "surface": "#303E3E",
+  "onSurface": "#F8F8F6",
+  "accent": "#284848",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "inter",
+  "roles": {
+    "secondary": "#284848",
+    "tertiary": "#C8A878",
+    "surfaceVariant": "#303E3E",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#556060",
+    "error": "#C8A878",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

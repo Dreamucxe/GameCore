@@ -1,0 +1,40 @@
+{
+  "name": "Border",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#D8C8A8",
+  "onPrimary": "#0C0C0E",
+  "background": "#1C1414",
+  "surface": "#362F2F",
+  "onSurface": "#F8F8F6",
+  "accent": "#382828",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#382828",
+    "tertiary": "#D8C8A8",
+    "surfaceVariant": "#2E2626",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#5A5453",
+    "error": "#D8C8A8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

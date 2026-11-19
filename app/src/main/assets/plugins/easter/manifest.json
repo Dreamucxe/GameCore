@@ -1,0 +1,25 @@
+{
+  "format": "gamecore.plugin",
+  "id": "com.dreamucxe.gamecore.easter",
+  "name": "Spring Dawn",
+  "version": 1,
+  "versionName": "1.0.0",
+  "api": 4,
+  "minHostVersion": 60,
+  "developer": "Dream",
+  "description": "UI theme: Spring Dawn. Neutral bg/surface, #BA68C8 as primary action. GameCore 5.1+.",
+  "permissions": [
+    {
+      "id": "change_ui"
+    },
+    {
+      "id": "change_icon"
+    }
+  ],
+  "declares": [
+    "theme",
+    "screens",
+    "icon"
+  ],
+  "changelog": "1.0.0 — unique theme, proper contrast, semantic colors."
+}

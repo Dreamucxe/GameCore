@@ -1,0 +1,28 @@
+{
+  "name": "Decorated Initial \"G\" in Pink with Curling Leave",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#483818",
+  "onPrimary": "#F8F8F6",
+  "background": "#15150C",
+  "surface": "#303028",
+  "onSurface": "#F8F8F6",
+  "accent": "#C8C8B8",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#C8C8B8",
+    "tertiary": "#483818",
+    "surfaceVariant": "#303028",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#55554E",
+    "error": "#483818",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

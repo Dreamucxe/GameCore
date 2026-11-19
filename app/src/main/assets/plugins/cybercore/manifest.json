@@ -1,0 +1,20 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "theme",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Cybercore GameCore",
+  "description": "Y2K blue-screen theme \u2014 CRT navy, screen-blue glow, mono type, square corners.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.cybercore",
+  "api": 2,
+  "versionName": "1.1.0",
+  "version": 2
+}

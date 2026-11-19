@@ -307,6 +307,16 @@ object SearchIndex {
             category = SearchCategory.PLUGINS,
         ))
         add(SearchEntry(
+            title = "Theme Library",
+            description = "Every theme bundled with GameCore, previewed in its own palette and applied from one grid.",
+            keywords = listOf(
+                "theme", "themes", "library", "appearance", "look", "palette", "colour", "color",
+                "preview", "font", "dark", "light", "skin",
+            ),
+            route = Destination.ThemeLibrary.route,
+            category = SearchCategory.PLUGINS,
+        ))
+        add(SearchEntry(
             title = "Plugin Automation History",
             description = "Your automation history shown by a plugin that holds the automation_history read scope.",
             keywords = listOf("automation", "history", "plugin", "scope", "grant"),

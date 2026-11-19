@@ -1,0 +1,40 @@
+{
+  "name": "Fragment",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#E8D8C8",
+  "onPrimary": "#0C0C0E",
+  "background": "#443C24",
+  "surface": "#5A533D",
+  "onSurface": "#F8F8F6",
+  "accent": "#988868",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#988868",
+    "tertiary": "#E8D8C8",
+    "surfaceVariant": "#524B35",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#76715F",
+    "error": "#E8D8C8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

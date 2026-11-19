@@ -1,0 +1,40 @@
+{
+  "name": "Storm Chaser",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FFFF00",
+  "onPrimary": "#0D0D1A",
+  "background": "#0D0D1A",
+  "surface": "#1A1A2A",
+  "onSurface": "#FFFFE0",
+  "accent": "#CCCC00",
+  "cornerRadiusDp": 0,
+  "uiScale": 1.0,
+  "font": "orbitron",
+  "roles": {
+    "secondary": "#FFFFE0",
+    "tertiary": "#FFFF00",
+    "surfaceVariant": "#22223A",
+    "onSurfaceVariant": "#FFFFE0",
+    "outline": "#4A4A6A",
+    "error": "#FFFF00",
+    "onError": "#0D0D1A"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

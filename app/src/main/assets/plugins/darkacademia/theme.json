@@ -1,0 +1,40 @@
+{
+  "name": "Library Shadows",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#C9B896",
+  "onPrimary": "#1A1612",
+  "background": "#1A1612",
+  "surface": "#241E18",
+  "onSurface": "#E8E0D0",
+  "accent": "#8B7355",
+  "cornerRadiusDp": 4,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#E8E0D0",
+    "tertiary": "#C9B896",
+    "surfaceVariant": "#2E261E",
+    "onSurfaceVariant": "#E8E0D0",
+    "outline": "#5A4E3E",
+    "error": "#C9B896",
+    "onError": "#1A1612"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

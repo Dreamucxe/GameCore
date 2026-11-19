@@ -1,0 +1,42 @@
+{
+  "name": "Aristide Bruant",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#C8A868",
+  "onPrimary": "#0C0C0E",
+  "background": "#0C140C",
+  "surface": "#282F28",
+  "onSurface": "#F8F8F6",
+  "accent": "#182818",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#182818",
+    "tertiary": "#C8A868",
+    "surfaceVariant": "#1F261F",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#4E544E",
+    "error": "#C8A868",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glitch": {
+      "intensity": 0.25,
+      "slices": 3,
+      "sliceOffsetDp": 12,
+      "ghostOffsetDp": 3,
+      "fractureLines": true,
+      "noise": true,
+      "microJitter": true,
+      "hardwareReactive": true,
+      "burstMinMs": 200,
+      "burstMaxMs": 1200
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "Permafrost",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#4682B4",
+  "onPrimary": "#FFFFFF",
+  "background": "#F5F8FA",
+  "surface": "#FFFFFF",
+  "onSurface": "#2A3A4A",
+  "accent": "#5A9BD4",
+  "cornerRadiusDp": 8,
+  "uiScale": 1.0,
+  "font": "rubik",
+  "roles": {
+    "secondary": "#B8C8D8",
+    "tertiary": "#4682B4",
+    "surfaceVariant": "#EBEEF2",
+    "onSurfaceVariant": "#2A3A4A",
+    "outline": "#C8D8E8",
+    "error": "#4682B4",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "light"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

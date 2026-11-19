@@ -1,0 +1,40 @@
+{
+  "name": "Lost Wax",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#CD7F32",
+  "onPrimary": "#181208",
+  "background": "#181208",
+  "surface": "#201A10",
+  "onSurface": "#E8D0A0",
+  "accent": "#A06020",
+  "cornerRadiusDp": 8,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#E8D0A0",
+    "tertiary": "#CD7F32",
+    "surfaceVariant": "#282018",
+    "onSurfaceVariant": "#E8D0A0",
+    "outline": "#5A4A2A",
+    "error": "#CD7F32",
+    "onError": "#181208"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

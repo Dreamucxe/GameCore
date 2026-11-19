@@ -126,6 +126,16 @@ adb install -r GameCore.apk
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
 
+## What's new in 5.7
+
+<p><strong>The whole theme collection is now in the app, and it has a library.</strong> Settings › Look &amp; feel opens a Theme Library: all 254 bundled themes in one searchable grid, each card drawn in its own palette, corner radius and typeface before you apply it. Search by theme, plugin, developer or font, filter to Dark, Light or the active theme, and reset to GameCore's own colours at any time. Applying a theme from a plugin that is off or has never been granted Change the look asks first and names exactly what it will change; the plugin's other grants are kept.</p>
+
+<p><strong>268 plugin packs ship inside GameCore,</strong> 254 of them themes, as readable JSON assets instead of a separate download. Every pack is checked against the same codecs a sideloaded package goes through, and the build fails if any bundled manifest, theme, screen, rule, widget or setting would be silently dropped by the loader.</p>
+
+<p><strong>Profiles can be shared from the editor.</strong> The profile screen now has the same Share action as the Games list, exporting the saved profile with every custom crosshair and colour preset it references. A profile with unsaved edits asks you to save first, so the file that travels is the profile on the card rather than a draft.</p>
+
+<p><strong>More room for large text.</strong> Settings' summary figures wrap to two by two on narrow screens and at large font scales, and the Theme Library's grid drops to two columns when the text needs the space. New controls keep spoken labels, 48 dp touch targets and a selected state TalkBack can announce.</p>
+
 ## What's new in 5.1
 
 <p><strong>Performance Intelligence is local, measured and explicit.</strong> GameCore now builds a device report from readings this phone actually exposes, weighs recommendations against one of four user-selected goals, and names every piece of evidence and trade-off. Six benchmark capture profiles observe a workload that is already running; they never start a synthetic game or fill in missing FPS. Stored runs can be compared only under compatible conditions, with practical and statistical thresholds before any improvement or regression is claimed.</p>

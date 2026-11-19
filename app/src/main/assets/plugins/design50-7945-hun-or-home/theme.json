@@ -1,0 +1,42 @@
+{
+  "name": "Hun or Home?",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#D8C8C8",
+  "onPrimary": "#0C0C0E",
+  "background": "#3C343C",
+  "surface": "#534C52",
+  "onSurface": "#F8F8F6",
+  "accent": "#988898",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "inter",
+  "roles": {
+    "secondary": "#988898",
+    "tertiary": "#D8C8C8",
+    "surfaceVariant": "#4B444B",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#716B70",
+    "error": "#D8C8C8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  },
+  "effects": {
+    "glitch": {
+      "intensity": 0.25,
+      "slices": 3,
+      "sliceOffsetDp": 12,
+      "ghostOffsetDp": 3,
+      "fractureLines": true,
+      "noise": true,
+      "microJitter": true,
+      "hardwareReactive": true,
+      "burstMinMs": 200,
+      "burstMaxMs": 1200
+    }
+  }
+}

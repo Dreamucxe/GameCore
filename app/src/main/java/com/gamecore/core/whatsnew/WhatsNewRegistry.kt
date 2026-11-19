@@ -35,6 +35,43 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 66,
+            versionName = "5.7",
+            date = "2026-11-18",
+            features = listOf(
+                FeatureNote(
+                    "A library of every theme",
+                    "Settings › Look & feel now opens a Theme Library: all 254 bundled themes in one " +
+                        "searchable grid, each card drawn in its own palette, corner radius and typeface " +
+                        "before you apply it. Search by theme, plugin, developer or font, filter to Dark, " +
+                        "Light or the active theme, and return to GameCore's own colours at any time. " +
+                        "Applying a theme from a plugin that is off or has never been granted Change the " +
+                        "look asks first and names exactly what it will change.",
+                ),
+                FeatureNote(
+                    "The whole theme collection, in the box",
+                    "GameCore now ships 268 plugin packs, 254 of them themes, as readable files in the " +
+                        "app instead of a download you have to find. Everything the library shows is " +
+                        "installed and available offline, and every pack is checked by the same loader a " +
+                        "sideloaded plugin goes through before the build is allowed to ship.",
+                ),
+                FeatureNote(
+                    "Share a profile",
+                    "The profile editor has the same Share action as the Games list. It exports the saved " +
+                        "profile with every custom crosshair and colour preset it uses, and hands the file " +
+                        "to any app that accepts JSON. A profile with unsaved edits asks you to save first, " +
+                        "so what travels is what is on the card.",
+                ),
+                FeatureNote(
+                    "More room for large text",
+                    "The Settings summary figures now wrap to two by two on narrow screens and at large " +
+                        "font scales, and the Theme Library's grid drops to two columns when the text needs " +
+                        "the space. Every new control keeps a spoken label, a 48 dp touch target and a " +
+                        "selected state TalkBack can announce.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 65,
             versionName = "5.6",
             date = "2026-11-18",

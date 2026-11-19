@@ -1,0 +1,28 @@
+{
+  "name": "Zodiaque (\"La Plume\")",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#C88828",
+  "onPrimary": "#0C0C0E",
+  "background": "#3E2515",
+  "surface": "#543E30",
+  "onSurface": "#F8F8F6",
+  "accent": "#E8E8D8",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "inter",
+  "roles": {
+    "secondary": "#E8E8D8",
+    "tertiary": "#C88828",
+    "surfaceVariant": "#543E30",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#726054",
+    "error": "#C88828",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  }
+}

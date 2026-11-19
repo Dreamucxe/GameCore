@@ -1,0 +1,28 @@
+{
+  "name": "Bust of a Youth (Saint John the Baptist)",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#888888",
+  "onPrimary": "#0C0C0E",
+  "background": "#040404",
+  "surface": "#212121",
+  "onSurface": "#F8F8F6",
+  "accent": "#E8E8D8",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#E8E8D8",
+    "tertiary": "#888888",
+    "surfaceVariant": "#212121",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#484848",
+    "error": "#888888",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

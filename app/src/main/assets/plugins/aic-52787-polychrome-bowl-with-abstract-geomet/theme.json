@@ -1,0 +1,28 @@
+{
+  "name": "Polychrome Bowl with Abstract Geometric Motifs",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#D87848",
+  "onPrimary": "#0C0C0E",
+  "background": "#36251D",
+  "surface": "#4D3E37",
+  "onSurface": "#F8F8F6",
+  "accent": "#B85828",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "mono",
+  "roles": {
+    "secondary": "#B85828",
+    "tertiary": "#D87848",
+    "surfaceVariant": "#4D3E37",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#6C605A",
+    "error": "#D87848",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  }
+}

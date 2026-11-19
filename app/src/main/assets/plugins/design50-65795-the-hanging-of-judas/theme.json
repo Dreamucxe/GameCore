@@ -1,0 +1,40 @@
+{
+  "name": "The Hanging of Judas",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#E8E8E8",
+  "onPrimary": "#0C0C0E",
+  "background": "#0C0C0C",
+  "surface": "#282828",
+  "onSurface": "#F8F8F6",
+  "accent": "#686858",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#686858",
+    "tertiary": "#E8E8E8",
+    "surfaceVariant": "#1F1F1F",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#4E4E4E",
+    "error": "#E8E8E8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

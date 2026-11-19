@@ -1,0 +1,20 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "theme",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "Robot Core GameCore",
+  "description": "Porcelain-and-chrome light theme \u2014 instrument teal, warm accent, engineered edges.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.robotcore",
+  "api": 2,
+  "versionName": "1.1.0",
+  "version": 2
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Francesco de' Medici",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#883818",
+  "onPrimary": "#F8F8F6",
+  "background": "#040404",
+  "surface": "#212121",
+  "onSurface": "#F8F8F6",
+  "accent": "#B89888",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#B89888",
+    "tertiary": "#883818",
+    "surfaceVariant": "#212121",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#484848",
+    "error": "#883818",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

@@ -1,0 +1,457 @@
+{
+  "format": "gamecore.plugin.screens",
+  "version": 1,
+  "screens": [
+    {
+      "id": "source-palette",
+      "title": "Source Palette",
+      "icon": "insights",
+      "content": {
+        "type": "column",
+        "children": [
+          {
+            "type": "row",
+            "children": [
+              {
+                "type": "image",
+                "props": {
+                  "icon": "insights",
+                  "color": "#484848",
+                  "size": 16
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "PUBLIC-DOMAIN SOURCE",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#484848"
+                }
+              }
+            ],
+            "props": {
+              "gap": 8,
+              "align": "center"
+            }
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#212121",
+              "padding": 18,
+              "gap": 8
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "Cauldron",
+                  "size": 26,
+                  "bold": true,
+                  "color": "#F8F8F6",
+                  "maxLines": 4
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "China · Western Zhou dynasty (1046–771 BC ), early 9th century BC",
+                  "size": 13,
+                  "color": "#F8F8F6",
+                  "maxLines": 3
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "vessel · Chinese (culture or style)",
+                  "size": 11,
+                  "color": "#484848",
+                  "maxLines": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#212121",
+              "padding": 16,
+              "gap": 9
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "EXTRACTED FROM THE IMAGE",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#686868",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 1",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#F8F8F6"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#686868",
+                          "size": 9,
+                          "color": "#F8F8F6"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#080808",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 2",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#F8F8F6"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#080808",
+                          "size": 9,
+                          "color": "#F8F8F6"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#888888",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 3",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#888888",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "props": {
+                  "gap": 7,
+                  "align": "stretch"
+                }
+              },
+              {
+                "type": "row",
+                "children": [
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#484848",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 4",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#F8F8F6"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#484848",
+                          "size": 9,
+                          "color": "#F8F8F6"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#988868",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 5",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#0C0C0E"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#988868",
+                          "size": 9,
+                          "color": "#0C0C0E"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "props": {
+                      "color": "#282828",
+                      "padding": 10,
+                      "gap": 3
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "SOURCE 6",
+                          "size": 9,
+                          "bold": true,
+                          "color": "#F8F8F6"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "props": {
+                          "text": "#282828",
+                          "size": 9,
+                          "color": "#F8F8F6"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "props": {
+                  "gap": 7,
+                  "align": "stretch"
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#988868",
+              "padding": 16,
+              "gap": 7
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "PRIMARY",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#0C0C0E"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "#988868 — selected from the source palette, not invented.",
+                  "size": 14,
+                  "bold": true,
+                  "color": "#0C0C0E",
+                  "maxLines": 3
+                }
+              }
+            ]
+          }
+        ],
+        "props": {
+          "padding": 16,
+          "gap": 14
+        }
+      }
+    },
+    {
+      "id": "provenance",
+      "title": "Provenance",
+      "icon": "info",
+      "content": {
+        "type": "column",
+        "children": [
+          {
+            "type": "text",
+            "props": {
+              "text": "PROVENANCE",
+              "size": 10,
+              "bold": true,
+              "color": "#484848"
+            }
+          },
+          {
+            "type": "text",
+            "props": {
+              "text": "A theme with receipts.",
+              "size": 25,
+              "bold": true,
+              "color": "#F8F8F6",
+              "maxLines": 2
+            }
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#212121",
+              "padding": 16,
+              "gap": 7
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "WORK",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Cauldron",
+                  "size": 18,
+                  "bold": true,
+                  "color": "#F8F8F6",
+                  "maxLines": 4
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Artist: China",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 3
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Date: Western Zhou dynasty (1046–771 BC ), early 9th century BC",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 2
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Collection: Art Institute of Chicago · Artwork 185963",
+                  "size": 12,
+                  "color": "#F8F8F6",
+                  "maxLines": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#212121",
+              "padding": 16,
+              "gap": 7
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "ACCESSIBILITY ADAPTATION",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#F8F8F6"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "Background and surface preserve the source hue but are toned for ≥7:1 body-text contrast. Primary controls meet ≥4.5:1.",
+                  "size": 13,
+                  "color": "#F8F8F6",
+                  "maxLines": 5
+                }
+              }
+            ]
+          },
+          {
+            "type": "card",
+            "props": {
+              "color": "#988868",
+              "padding": 14,
+              "gap": 6
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "text": "SOURCE",
+                  "size": 10,
+                  "bold": true,
+                  "color": "#0C0C0E"
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "text": "https://www.artic.edu/artworks/185963",
+                  "size": 11,
+                  "color": "#0C0C0E",
+                  "maxLines": 4
+                }
+              }
+            ]
+          }
+        ],
+        "props": {
+          "padding": 16,
+          "gap": 14
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "name": "Event Horizon",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FFFFFF",
+  "onPrimary": "#000000",
+  "background": "#000000",
+  "surface": "#050505",
+  "onSurface": "#FFFFFF",
+  "accent": "#333333",
+  "cornerRadiusDp": 0,
+  "uiScale": 1.0,
+  "font": "mono",
+  "roles": {
+    "secondary": "#FFFFFF",
+    "tertiary": "#FFFFFF",
+    "surfaceVariant": "#0A0A0A",
+    "onSurfaceVariant": "#FFFFFF",
+    "outline": "#222222",
+    "error": "#FFFFFF",
+    "onError": "#000000"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

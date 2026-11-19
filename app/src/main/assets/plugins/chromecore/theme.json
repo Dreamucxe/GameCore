@@ -1,0 +1,25 @@
+{
+  "onPrimary": "#05070A",
+  "schema": 2,
+  "onSurface": "#EDF3F8",
+  "typography": {"weight": "light"},
+  "surface": "#0D0D10",
+  "roles": {
+    "secondary": "#4D8BFF",
+    "outline": "#3A4250",
+    "onError": "#120404",
+    "onSurfaceVariant": "#9AA6B6",
+    "tertiary": "#D34A3A",
+    "error": "#FF6B5E",
+    "surfaceVariant": "#16181D"
+  },
+  "accent": "#4D8BFF",
+  "uiScale": 1,
+  "amoled": true,
+  "background": "#000000",
+  "name": "Chromecore GameCore",
+  "dark": true,
+  "cornerRadiusDp": 28,
+  "primary": "#C9D6E8",
+  "font": "system"
+}

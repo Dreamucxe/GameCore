@@ -1,0 +1,25 @@
+{
+  "format": "gamecore.plugin",
+  "id": "com.dreamucxe.gamecore.design50.obj594",
+  "name": "Ring with a Scarab Bezel",
+  "version": 2,
+  "versionName": "1.1.0",
+  "api": 4,
+  "minHostVersion": 60,
+  "developer": "Dream · AIC Open Access",
+  "description": "Palette extracted from “Ring with a Scarab Bezel” by Ancient Egyptian (Second Intermediate Period, Dynasty 15 (about 1650–1550 BCE)), Art Institute of Chicago artwork 594. 3–5 semantic variants, glass/glitch effects.",
+  "permissions": [
+    {
+      "id": "change_ui"
+    },
+    {
+      "id": "change_icon"
+    }
+  ],
+  "declares": [
+    "theme",
+    "screens",
+    "icon"
+  ],
+  "changelog": "1.1.0 — source-backed design object palette; 3–5 variants; glass or glitch."
+}

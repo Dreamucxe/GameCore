@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -134,6 +135,15 @@ fun ProfileEditorScreen(
         if (state.isDirty && state.confirmOnDiscard) askingToDiscard = true else onBack()
     }
 
+    // A written export stages a one-shot share intent; fire it once and let the ViewModel clear it,
+    // telling it back whether anything on the device actually accepted the file. Same contract as the
+    // Games screen's per-card share, because it is the same transfer underneath.
+    LaunchedEffect(state.share?.id) {
+        state.share?.let { request ->
+            viewModel.shareHandled(shared = context.startIntentSafely(request.intent))
+        }
+    }
+
     LaunchedEffect(state.isFinished) { if (state.isFinished) onBack() }
 
     BackHandler(enabled = state.isPickerOpen || state.isDirty) {
@@ -165,15 +175,36 @@ fun ProfileEditorScreen(
                 subtitle = profile?.packageName,
                 onBack = leave,
                 action = {
-                    TextButton(onClick = viewModel::save, enabled = state.canSave && state.isDirty) {
-                        if (state.isSaving) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(15.dp),
-                                strokeWidth = 2.dp,
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Only a saved profile has anything to share. A new draft hides the action
+                        // rather than showing a control that can only refuse; a saved profile with
+                        // unsaved edits keeps it enabled and explains what travels.
+                        if (!state.isNew) {
+                            IconButton(onClick = viewModel::share, enabled = state.canShare) {
+                                if (state.isSharing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(17.dp),
+                                        strokeWidth = 2.dp,
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Filled.Share,
+                                        contentDescription = "Share profile",
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            }
                         }
-                        Text("Save")
+                        TextButton(onClick = viewModel::save, enabled = state.canSave && state.isDirty) {
+                            if (state.isSaving) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(15.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+                            Text("Save")
+                        }
                     }
                 },
             )

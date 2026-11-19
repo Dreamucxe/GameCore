@@ -393,6 +393,19 @@ sealed interface Destination {
     }
 
     /**
+     * Every theme bundled with GameCore, previewed and applied from one grid.
+     *
+     * A sibling of [Plugins] rather than a tab inside it: the manager answers "what is installed and
+     * what may it do", and this answers "what could the app look like". Both write through the same
+     * registry theme selection, so this is a lens over the plugin system, not a second appearance
+     * store. Reached from Settings' Appearance card and from Search; not in [external], for the same
+     * reason [Plugins] is not — applying a theme is a deliberate choice made inside the app.
+     */
+    data object ThemeLibrary : Destination {
+        override val route = "theme-library"
+    }
+
+    /**
      * The Glass Control Center: the material a schema-4 theme asked for, and the one slider that
      * decides how much of it the app wears.
      *

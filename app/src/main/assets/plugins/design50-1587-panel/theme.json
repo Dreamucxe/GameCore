@@ -1,0 +1,40 @@
+{
+  "name": "Panel",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#883818",
+  "onPrimary": "#F8F8F6",
+  "background": "#040404",
+  "surface": "#212121",
+  "onSurface": "#F8F8F6",
+  "accent": "#D8C898",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#D8C898",
+    "tertiary": "#883818",
+    "surfaceVariant": "#181817",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#484848",
+    "error": "#883818",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

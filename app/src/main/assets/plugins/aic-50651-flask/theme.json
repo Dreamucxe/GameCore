@@ -1,0 +1,28 @@
+{
+  "name": "Flask",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#D8D8D8",
+  "onPrimary": "#0C0C0E",
+  "background": "#364F47",
+  "surface": "#465953",
+  "onSurface": "#F8F8F6",
+  "accent": "#284848",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#284848",
+    "tertiary": "#D8D8D8",
+    "surfaceVariant": "#4D635C",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#6C7E78",
+    "error": "#D8D8D8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

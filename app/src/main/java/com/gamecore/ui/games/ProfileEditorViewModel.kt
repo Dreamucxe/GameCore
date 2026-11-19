@@ -26,6 +26,8 @@ import com.gamecore.data.repository.ColorPresetRepository
 import com.gamecore.data.repository.CrosshairRepository
 import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.data.repository.HudLayoutRepository
+import com.gamecore.data.repository.ProfileExportResult
+import com.gamecore.data.repository.ProfileTransfer
 import com.gamecore.data.repository.SessionRepository
 import com.gamecore.domain.cpu.CpuAffinityController
 import com.gamecore.domain.display.DisplaySizeController
@@ -79,7 +81,11 @@ class ProfileEditorViewModel @Inject constructor(
     private val shizuku: ShizukuManager,
     private val pointTaps: PointTapController,
     private val metrics: MetricsReader,
+    private val transfer: ProfileTransfer,
 ) : ViewModel() {
+
+    /** Bumped per share request, so sharing the same profile twice is still a fresh one-shot to fire. */
+    private var shareCounter = 0
 
     /** The package this editor was opened for, or [Destination.NEW_PROFILE] for a new one. */
     private val argument: String =
@@ -556,6 +562,81 @@ class ProfileEditorViewModel @Inject constructor(
         }
     }
 
+    // ------------------------------------------------------------------------------------- share (§5)
+
+    /**
+     * Writes the **saved** profile to a shareable file and stages the one-shot share intent.
+     *
+     * The saved copy, not the draft, and the difference is the whole reason this refuses rather than
+     * saves. Sharing is a transfer of a thing the user has; a profile with unsaved edits is a thing they
+     * are still deciding about, and quietly writing it here would turn Share into a second, unexplained
+     * Save. So a dirty draft is refused with a sentence that says to save first, and a profile that has
+     * never been saved has nothing to share at all.
+     *
+     * The export itself is [ProfileTransfer]'s, the same one the Games screen uses: one profile with
+     * every preset it references embedded, written under `files/exports`, offered through a `content://`
+     * URI whose read grant lasts for this launch only. Nothing about that path is duplicated here.
+     */
+    fun share() {
+        val current = editing.value
+        val profile = current.profile ?: return
+        if (current.isSharing) return
+        if (current.isNew) {
+            editing.value = current.copy(message = "Save this profile before sharing it.")
+            return
+        }
+        if (current.isDirty) {
+            editing.value = current.copy(message = "Save your changes before sharing this profile.")
+            return
+        }
+        editing.value = current.copy(isSharing = true)
+        viewModelScope.launch {
+            when (val result = transfer.export(listOf(profile))) {
+                is ProfileExportResult.Written -> {
+                    val intent = result.uri?.let(::shareIntent)
+                    editing.value = editing.value.copy(
+                        isSharing = false,
+                        share = intent?.let { ProfileShareRequest(++shareCounter, it) },
+                        message = if (intent == null) {
+                            "Saved ${result.fileName}, but this device would not share it."
+                        } else {
+                            null
+                        },
+                    )
+                }
+                ProfileExportResult.Empty ->
+                    editing.value = editing.value.copy(
+                        isSharing = false,
+                        message = "There was nothing to export.",
+                    )
+                is ProfileExportResult.Failed ->
+                    editing.value = editing.value.copy(
+                        isSharing = false,
+                        message = "That profile could not be exported. Storage may be full.",
+                    )
+            }
+        }
+    }
+
+    /** The share sheet intent for a written export, built here so the URI stays out of the composable. */
+    private fun shareIntent(uri: android.net.Uri): Intent =
+        Intent(Intent.ACTION_SEND)
+            .setType(SHARE_MIME)
+            .putExtra(Intent.EXTRA_STREAM, uri)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+    /** Consumes the one-shot share, and says so when nothing on the device would accept the file. */
+    fun shareHandled(shared: Boolean) {
+        editing.value = editing.value.copy(
+            share = null,
+            message = if (shared) {
+                editing.value.message
+            } else {
+                "No app on this device can accept that file."
+            },
+        )
+    }
+
     /**
      * Starts the game being configured, leaving the editor where it is.
      *
@@ -655,6 +736,9 @@ class ProfileEditorViewModel @Inject constructor(
         /** Says the form was filled from history and, like every other unsaved edit, is not yet applied. */
         const val SUGGESTION_NOTE = "Suggested from this game's recorded sessions. Nothing is applied " +
             "until you save it — change anything you like first, or leave the screen to discard it."
+
+        /** The one type a profile export is: the same JSON document the Games screen shares. */
+        const val SHARE_MIME = "application/json"
     }
 }
 

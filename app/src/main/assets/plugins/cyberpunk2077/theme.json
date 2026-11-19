@@ -1,0 +1,40 @@
+{
+  "name": "Night City",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#00FFFF",
+  "onPrimary": "#0A0A0F",
+  "background": "#0A0A0F",
+  "surface": "#12121A",
+  "onSurface": "#FF00FF",
+  "accent": "#FF007F",
+  "cornerRadiusDp": 0,
+  "uiScale": 1.0,
+  "font": "orbitron",
+  "roles": {
+    "secondary": "#FF00FF",
+    "tertiary": "#00FFFF",
+    "surfaceVariant": "#1A1A22",
+    "onSurfaceVariant": "#FF00FF",
+    "outline": "#3A3A44",
+    "error": "#00FFFF",
+    "onError": "#0A0A0F"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

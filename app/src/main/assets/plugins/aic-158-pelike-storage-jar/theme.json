@@ -1,0 +1,28 @@
+{
+  "name": "Pelike (Storage Jar)",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#985838",
+  "onPrimary": "#F8F8F6",
+  "background": "#040404",
+  "surface": "#212121",
+  "onSurface": "#F8F8F6",
+  "accent": "#C8C8C8",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#C8C8C8",
+    "tertiary": "#985838",
+    "surfaceVariant": "#212121",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#484848",
+    "error": "#985838",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

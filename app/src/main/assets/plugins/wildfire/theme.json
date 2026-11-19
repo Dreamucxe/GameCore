@@ -1,0 +1,40 @@
+{
+  "name": "Controlled Burn",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FF8800",
+  "onPrimary": "#1A0A00",
+  "background": "#1A0A00",
+  "surface": "#2D1000",
+  "onSurface": "#FFE8A0",
+  "accent": "#CC6600",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "press-start-2p",
+  "roles": {
+    "secondary": "#FFE8A0",
+    "tertiary": "#FF8800",
+    "surfaceVariant": "#3D1800",
+    "onSurfaceVariant": "#FFE8A0",
+    "outline": "#6A3A00",
+    "error": "#FF8800",
+    "onError": "#1A0A00"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

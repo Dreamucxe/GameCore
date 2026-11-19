@@ -1,0 +1,40 @@
+{
+  "name": "Magma Chamber",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FF4500",
+  "onPrimary": "#1A0500",
+  "background": "#1A0500",
+  "surface": "#2D0A00",
+  "onSurface": "#FFD8A8",
+  "accent": "#CC3300",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "press-start-2p",
+  "roles": {
+    "secondary": "#FFD8A8",
+    "tertiary": "#FF4500",
+    "surfaceVariant": "#3D1000",
+    "onSurfaceVariant": "#FFD8A8",
+    "outline": "#6A2A00",
+    "error": "#FF4500",
+    "onError": "#1A0500"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

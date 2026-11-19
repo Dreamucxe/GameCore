@@ -1,0 +1,28 @@
+{
+  "name": "Stirrup Spout Vessel with Textile-like Pattern o",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#884818",
+  "onPrimary": "#F8F8F6",
+  "background": "#1D1D1D",
+  "surface": "#373737",
+  "onSurface": "#F8F8F6",
+  "accent": "#D8D8D8",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#D8D8D8",
+    "tertiary": "#884818",
+    "surfaceVariant": "#373737",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#5A5A5A",
+    "error": "#884818",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

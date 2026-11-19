@@ -1,0 +1,28 @@
+{
+  "name": "The Festival",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#581818",
+  "onPrimary": "#F8F8F6",
+  "background": "#0C0C0C",
+  "surface": "#282828",
+  "onSurface": "#F8F8F6",
+  "accent": "#C8B898",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "comic-neue",
+  "roles": {
+    "secondary": "#C8B898",
+    "tertiary": "#581818",
+    "surfaceVariant": "#282828",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#4E4E4E",
+    "error": "#581818",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

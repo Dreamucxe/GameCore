@@ -1,0 +1,28 @@
+{
+  "name": "Stamnos (Mixing Jar)",
+  "schema": 2,
+  "dark": false,
+  "amoled": false,
+  "primary": "#C87838",
+  "onPrimary": "#0C0C0E",
+  "background": "#F5F5F5",
+  "surface": "#FCFCFC",
+  "onSurface": "#0F0F11",
+  "accent": "#382828",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "comic-neue",
+  "roles": {
+    "secondary": "#382828",
+    "tertiary": "#C87838",
+    "surfaceVariant": "#D9D9DA",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#B5B5B5",
+    "error": "#C87838",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

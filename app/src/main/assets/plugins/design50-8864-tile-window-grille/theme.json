@@ -1,0 +1,28 @@
+{
+  "name": "Tile Window Grille",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#C8C8C8",
+  "onPrimary": "#0C0C0E",
+  "background": "#242C34",
+  "surface": "#3D444B",
+  "onSurface": "#F8F8F6",
+  "accent": "#F8F8F8",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#F8F8F8",
+    "tertiary": "#C8C8C8",
+    "surfaceVariant": "#353C44",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#5F656A",
+    "error": "#C8C8C8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

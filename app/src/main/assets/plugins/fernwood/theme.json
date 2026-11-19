@@ -1,0 +1,40 @@
+{
+  "name": "Fernwood",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#8B5CF6",
+  "onPrimary": "#0F1A0F",
+  "background": "#0F1A0F",
+  "surface": "#1A2A1A",
+  "onSurface": "#E8DCC4",
+  "accent": "#8B5CF6",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#E8DCC4",
+    "tertiary": "#8B5CF6",
+    "surfaceVariant": "#1E2D1E",
+    "onSurfaceVariant": "#E8DCC4",
+    "outline": "#3A4A3A",
+    "error": "#8B5CF6",
+    "onError": "#0F1A0F"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.3,
+      "transparency": 0.2,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

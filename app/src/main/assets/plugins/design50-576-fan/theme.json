@@ -1,0 +1,40 @@
+{
+  "name": "Fan",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#081818",
+  "onPrimary": "#F8F8F6",
+  "background": "#040C0C",
+  "surface": "#212828",
+  "onSurface": "#F8F8F6",
+  "accent": "#B8B8A8",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#B8B8A8",
+    "tertiary": "#081818",
+    "surfaceVariant": "#181F1F",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#484E4E",
+    "error": "#081818",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

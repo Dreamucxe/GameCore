@@ -26,10 +26,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -98,6 +100,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -257,6 +260,7 @@ fun SettingsScreen(
                 onEdit = viewModel::update,
                 onImportWallpaper = viewModel::importWallpaper,
                 onClearWallpaper = viewModel::clearWallpaper,
+                onNavigate = onNavigate,
                 modifier = padded,
             )
         }
@@ -638,27 +642,31 @@ private fun SettingsHero(
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    HeroStat(
-                        label = "THEME",
-                        value = themeName,
-                        modifier = Modifier.weight(1f),
-                    )
-                    HeroStat(
-                        label = "ACCENT",
-                        value = accentName,
-                        modifier = Modifier.weight(1f),
-                    )
-                    HeroStat(
-                        label = "TEXT",
-                        value = uiScaleLabel(state.uiScalePercent),
-                        modifier = Modifier.weight(1f),
-                    )
-                    HeroStat(
-                        label = "DENSITY",
-                        value = density,
-                        modifier = Modifier.weight(1f),
-                    )
+                // Four figures across a phone, two by two when the screen is narrow or the user has
+                // asked for large text. Each figure is a label and a one-line value, so a quarter of a
+                // 320 dp card is where "Standard" starts ellipsising into a word nobody can read.
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val twoRows = maxWidth < 360.dp || LocalDensity.current.fontScale >= 1.3f
+                    val stats: @Composable RowScope.() -> Unit = {
+                        HeroStat("THEME", themeName, Modifier.weight(1f))
+                        HeroStat("ACCENT", accentName, Modifier.weight(1f))
+                        HeroStat("TEXT", uiScaleLabel(state.uiScalePercent), Modifier.weight(1f))
+                        HeroStat("DENSITY", density, Modifier.weight(1f))
+                    }
+                    if (twoRows) {
+                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                                HeroStat("THEME", themeName, Modifier.weight(1f))
+                                HeroStat("ACCENT", accentName, Modifier.weight(1f))
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                                HeroStat("TEXT", uiScaleLabel(state.uiScalePercent), Modifier.weight(1f))
+                                HeroStat("DENSITY", density, Modifier.weight(1f))
+                            }
+                        }
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) { stats() }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -830,6 +838,7 @@ private fun AppearanceCard(
     onEdit: ((AppSettings) -> AppSettings) -> Unit,
     onImportWallpaper: (Uri) -> Unit,
     onClearWallpaper: () -> Unit,
+    onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var pickerOpen by remember { mutableStateOf(false) }
@@ -855,6 +864,18 @@ private fun AppearanceCard(
             text = "THEME",
             style = StatLabelStyle,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // The library first, because it is the way most people will pick a theme: a grid of palettes
+        // they can see beats three words ("Light", "Dark", "System") they have to imagine. The choice
+        // row underneath still works exactly as before and is what the library replaces the selection
+        // through, so the two controls cannot disagree about which theme is in force.
+        NavRow(
+            title = "Theme Library",
+            onClick = { onNavigate(Destination.ThemeLibrary) },
+            description = "Every theme bundled with GameCore, drawn in its own palette before you apply " +
+                "it. Search by name, plugin, developer or font, and switch back to the house theme at " +
+                "any time.",
+            icon = Icons.Filled.GridView,
         )
         ChoiceRow(
             options = ThemeChoice.entries.toList(),

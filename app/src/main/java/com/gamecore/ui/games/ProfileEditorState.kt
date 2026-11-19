@@ -123,6 +123,16 @@ data class ProfileEditorUiState(
      */
     val pendingInstantReplayEnable: Boolean = false,
     val isSaving: Boolean = false,
+    /** True while the §5 export is being written, so a double tap cannot start two files. */
+    val isSharing: Boolean = false,
+    /**
+     * A written export waiting to be handed to the share sheet exactly once.
+     *
+     * The same one-shot shape the Games screen uses: [id] makes a repeat share a fresh effect even when
+     * the intent is identical, and the screen clears it through [ProfileEditorViewModel.shareHandled]
+     * once Android has accepted or refused it. The intent itself never reaches the profile fields.
+     */
+    val share: ProfileShareRequest? = null,
     /**
      * A launch the §C4 network check flagged, waiting on the user's answer.
      *
@@ -157,6 +167,17 @@ data class ProfileEditorUiState(
     val energyEstimate: EnergyEstimate? = null,
 ) {
     val canSave: Boolean get() = profile != null && !isSaving
+
+    /**
+     * Whether Share is offered at all.
+     *
+     * A profile that has never been saved has nothing to export: the draft in front of the user is not
+     * a thing the Games screen could find, and exporting it would send a file whose contents no screen
+     * in this app agrees exist. Unsaved *edits* to a saved profile are a different case — the button
+     * stays enabled and the action explains that the saved copy is what travels, because disabling it
+     * with no reason is the dead control §32 forbids.
+     */
+    val canShare: Boolean get() = profile != null && !isNew && !isSharing
 
     /** True when this profile's game is not on the device — worth saying, not worth blocking. */
     val isMissingGame: Boolean get() = isLoaded && profile != null && !isGameInstalled

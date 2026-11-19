@@ -1,0 +1,40 @@
+{
+  "name": "Ocean Moon",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#0096C7",
+  "onPrimary": "#FFFFFF",
+  "background": "#E8F0F8",
+  "surface": "#FFFFFF",
+  "onSurface": "#1A3A4A",
+  "accent": "#0077B6",
+  "cornerRadiusDp": 24,
+  "uiScale": 1.0,
+  "font": "inter",
+  "roles": {
+    "secondary": "#A8D0E0",
+    "tertiary": "#0096C7",
+    "surfaceVariant": "#F0F5F8",
+    "onSurfaceVariant": "#1A3A4A",
+    "outline": "#B8D0E0",
+    "error": "#0096C7",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "light"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "Priest and Boy",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#C8C8A8",
+  "onPrimary": "#0C0C0E",
+  "background": "#2C2C24",
+  "surface": "#44443D",
+  "onSurface": "#F8F8F6",
+  "accent": "#585848",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#585848",
+    "tertiary": "#C8C8A8",
+    "surfaceVariant": "#3C3C35",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#65655F",
+    "error": "#C8C8A8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glitch": {
+      "intensity": 0.25,
+      "slices": 3,
+      "sliceOffsetDp": 12,
+      "ghostOffsetDp": 3,
+      "fractureLines": true,
+      "noise": true,
+      "microJitter": true,
+      "hardwareReactive": true,
+      "burstMinMs": 200,
+      "burstMaxMs": 1200
+    }
+  }
+}

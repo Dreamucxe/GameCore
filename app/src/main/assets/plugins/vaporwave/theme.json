@@ -1,0 +1,40 @@
+{
+  "name": "Vaporwave Sunset",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#00F3FF",
+  "onPrimary": "#1A0033",
+  "background": "#1A0033",
+  "surface": "#2D004D",
+  "onSurface": "#FF71CE",
+  "accent": "#BC13FE",
+  "cornerRadiusDp": 0,
+  "uiScale": 1.0,
+  "font": "orbitron",
+  "roles": {
+    "secondary": "#FF71CE",
+    "tertiary": "#00F3FF",
+    "surfaceVariant": "#3A0060",
+    "onSurfaceVariant": "#FF71CE",
+    "outline": "#6A0090",
+    "error": "#00F3FF",
+    "onError": "#1A0033"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

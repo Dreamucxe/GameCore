@@ -1,0 +1,40 @@
+{
+  "name": "Emerald Isle",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#00C853",
+  "onPrimary": "#061A06",
+  "background": "#061A06",
+  "surface": "#0C2D0C",
+  "onSurface": "#D4F5D4",
+  "accent": "#2E7D32",
+  "cornerRadiusDp": 8,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#D4F5D4",
+    "tertiary": "#00C853",
+    "surfaceVariant": "#103A10",
+    "onSurfaceVariant": "#D4F5D4",
+    "outline": "#2A5A2A",
+    "error": "#00C853",
+    "onError": "#061A06"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

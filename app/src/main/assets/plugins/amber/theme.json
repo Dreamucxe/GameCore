@@ -1,0 +1,40 @@
+{
+  "name": "Fossil Resin",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#FFB800",
+  "onPrimary": "#3A2A0A",
+  "background": "#FFF8E0",
+  "surface": "#FFFCE8",
+  "onSurface": "#3A2A0A",
+  "accent": "#E8A000",
+  "cornerRadiusDp": 24,
+  "uiScale": 1.0,
+  "font": "cursive",
+  "roles": {
+    "secondary": "#E8D0A0",
+    "tertiary": "#FFB800",
+    "surfaceVariant": "#FFF0D0",
+    "onSurfaceVariant": "#3A2A0A",
+    "outline": "#E0C880",
+    "error": "#FFB800",
+    "onError": "#3A2A0A"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "light"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Autumn: Harvesting Rice (Aki: inekari no zu), No",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#B89828",
+  "onPrimary": "#0C0C0E",
+  "background": "#473E2E",
+  "surface": "#5C5446",
+  "onSurface": "#F8F8F6",
+  "accent": "#E8E8D8",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#E8E8D8",
+    "tertiary": "#B89828",
+    "surfaceVariant": "#5C5446",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#797266",
+    "error": "#B89828",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

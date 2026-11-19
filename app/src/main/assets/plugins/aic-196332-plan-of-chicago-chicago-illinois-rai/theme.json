@@ -1,0 +1,28 @@
+{
+  "name": "Plan of Chicago, Chicago, Illinois, Railroad Cir",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#D8C8A8",
+  "onPrimary": "#0C0C0E",
+  "background": "#572E1D",
+  "surface": "#6A4637",
+  "onSurface": "#F8F8F6",
+  "accent": "#A85838",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "inter",
+  "roles": {
+    "secondary": "#A85838",
+    "tertiary": "#D8C8A8",
+    "surfaceVariant": "#6A4637",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#84675A",
+    "error": "#D8C8A8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

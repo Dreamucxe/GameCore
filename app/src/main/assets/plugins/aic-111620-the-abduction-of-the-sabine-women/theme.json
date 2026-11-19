@@ -1,0 +1,28 @@
+{
+  "name": "The Abduction of the Sabine Women",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#584828",
+  "onPrimary": "#F8F8F6",
+  "background": "#0C0C04",
+  "surface": "#282821",
+  "onSurface": "#F8F8F6",
+  "accent": "#B89878",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#B89878",
+    "tertiary": "#584828",
+    "surfaceVariant": "#282821",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#4E4E48",
+    "error": "#584828",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

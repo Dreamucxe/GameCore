@@ -1,0 +1,40 @@
+{
+  "name": "Active Galactic Nucleus",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#00FFFF",
+  "onPrimary": "#050010",
+  "background": "#050010",
+  "surface": "#0A001A",
+  "onSurface": "#FFFFFF",
+  "accent": "#00AAAA",
+  "cornerRadiusDp": 4,
+  "uiScale": 1.0,
+  "font": "orbitron",
+  "roles": {
+    "secondary": "#FFFFFF",
+    "tertiary": "#00FFFF",
+    "surfaceVariant": "#0E002A",
+    "onSurfaceVariant": "#FFFFFF",
+    "outline": "#2A004A",
+    "error": "#00FFFF",
+    "onError": "#050010"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "bold"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

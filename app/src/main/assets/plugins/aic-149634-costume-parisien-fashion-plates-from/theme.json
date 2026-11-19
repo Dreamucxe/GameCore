@@ -1,0 +1,28 @@
+{
+  "name": "\"Costume Parisien\" Fashion Plates from Journal d",
+  "schema": 2,
+  "dark": false,
+  "amoled": false,
+  "primary": "#E8A878",
+  "onPrimary": "#0C0C0E",
+  "background": "#FCF5E8",
+  "surface": "#FEFCF7",
+  "onSurface": "#0F0F11",
+  "accent": "#685848",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#685848",
+    "tertiary": "#E8A878",
+    "surfaceVariant": "#E0D9CE",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#BAB5AC",
+    "error": "#E8A878",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

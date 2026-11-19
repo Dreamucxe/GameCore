@@ -1,0 +1,28 @@
+{
+  "name": "Little Plant in Moss, plate one from Flower Stud",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#E8E8D8",
+  "onPrimary": "#0C0C0E",
+  "background": "#25251D",
+  "surface": "#3E3E37",
+  "onSurface": "#F8F8F6",
+  "accent": "#484838",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#484838",
+    "tertiary": "#E8E8D8",
+    "surfaceVariant": "#3E3E37",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#60605A",
+    "error": "#E8E8D8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

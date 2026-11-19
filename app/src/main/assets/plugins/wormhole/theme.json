@@ -1,0 +1,40 @@
+{
+  "name": "Einstein-Rosen",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#FF00FF",
+  "onPrimary": "#0A001A",
+  "background": "#0A001A",
+  "surface": "#12002A",
+  "onSurface": "#FFB8FF",
+  "accent": "#CC00CC",
+  "cornerRadiusDp": 24,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#FFB8FF",
+    "tertiary": "#FF00FF",
+    "surfaceVariant": "#1A003A",
+    "onSurfaceVariant": "#FFB8FF",
+    "outline": "#4A005A",
+    "error": "#FF00FF",
+    "onError": "#0A001A"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

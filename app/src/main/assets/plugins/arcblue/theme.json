@@ -1,0 +1,40 @@
+{
+  "name": "Arc Blue",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#004AFD",
+  "onPrimary": "#FFFFFF",
+  "background": "#FAF9FC",
+  "surface": "#FFFFFF",
+  "onSurface": "#1A1A2E",
+  "accent": "#004AFD",
+  "cornerRadiusDp": 24,
+  "uiScale": 1.0,
+  "font": "inter",
+  "roles": {
+    "secondary": "#A5467C",
+    "tertiary": "#004AFD",
+    "surfaceVariant": "#F5F0F5",
+    "onSurfaceVariant": "#1A1A2E",
+    "outline": "#E0D5E0",
+    "error": "#004AFD",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.4,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

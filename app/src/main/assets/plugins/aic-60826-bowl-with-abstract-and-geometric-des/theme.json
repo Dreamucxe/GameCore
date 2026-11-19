@@ -1,0 +1,28 @@
+{
+  "name": "Bowl with Abstract and Geometric Designs",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#C89848",
+  "onPrimary": "#0C0C0E",
+  "background": "#36251D",
+  "surface": "#4D3E37",
+  "onSurface": "#F8F8F6",
+  "accent": "#A87838",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "mono",
+  "roles": {
+    "secondary": "#A87838",
+    "tertiary": "#C89848",
+    "surfaceVariant": "#4D3E37",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#6C605A",
+    "error": "#C89848",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  }
+}

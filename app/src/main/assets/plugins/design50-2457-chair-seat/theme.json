@@ -1,0 +1,40 @@
+{
+  "name": "Chair Seat",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#E8E8D8",
+  "onPrimary": "#0C0C0E",
+  "background": "#0C0C0C",
+  "surface": "#282828",
+  "onSurface": "#F8F8F6",
+  "accent": "#181818",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#181818",
+    "tertiary": "#E8E8D8",
+    "surfaceVariant": "#1F1F1F",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#4E4E4E",
+    "error": "#E8E8D8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

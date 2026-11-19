@@ -1,0 +1,25 @@
+{
+  "format": "gamecore.plugin",
+  "id": "com.dreamucxe.gamecore.design50.obj618",
+  "name": "\"The Arts\" Ewer and Basin",
+  "version": 2,
+  "versionName": "1.1.0",
+  "api": 4,
+  "minHostVersion": 60,
+  "developer": "Dream · AIC Open Access",
+  "description": "Palette extracted from “\"The Arts\" Ewer and Basin” by Jules-Paul Brateau (1887/89), Art Institute of Chicago artwork 618. 3–5 semantic variants, glass/glitch effects.",
+  "permissions": [
+    {
+      "id": "change_ui"
+    },
+    {
+      "id": "change_icon"
+    }
+  ],
+  "declares": [
+    "theme",
+    "screens",
+    "icon"
+  ],
+  "changelog": "1.1.0 — source-backed design object palette; 3–5 variants; glass or glitch."
+}

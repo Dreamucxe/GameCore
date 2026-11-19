@@ -1,0 +1,28 @@
+{
+  "name": "Moulin Rouge, La Goulue",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#E8A838",
+  "onPrimary": "#0C0C0E",
+  "background": "#1D1D1D",
+  "surface": "#373737",
+  "onSurface": "#F8F8F6",
+  "accent": "#D8B888",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "inter",
+  "roles": {
+    "secondary": "#D8B888",
+    "tertiary": "#E8A838",
+    "surfaceVariant": "#373737",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#5A5A5A",
+    "error": "#E8A838",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  }
+}

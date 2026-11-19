@@ -1,0 +1,40 @@
+{
+  "name": "Midnight Lime",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#C6F432",
+  "onPrimary": "#000000",
+  "background": "#000000",
+  "surface": "#121212",
+  "onSurface": "#FFFFFF",
+  "accent": "#5E5CE6",
+  "cornerRadiusDp": 4,
+  "uiScale": 1.0,
+  "font": "mono",
+  "roles": {
+    "secondary": "#FFFFFF",
+    "tertiary": "#C6F432",
+    "surfaceVariant": "#1E1E1E",
+    "onSurfaceVariant": "#FFFFFF",
+    "outline": "#444444",
+    "error": "#C6F432",
+    "onError": "#000000"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.3,
+      "transparency": 0.2,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

@@ -143,6 +143,7 @@ import com.gamecore.ui.sessions.SessionReportScreen
 import com.gamecore.ui.sessions.SessionsScreen
 import com.gamecore.ui.settings.NeverCloseScreen
 import com.gamecore.ui.settings.SettingsScreen
+import com.gamecore.ui.themelibrary.ThemeLibraryScreen
 import com.gamecore.ui.setup.SetupHealthScreen
 import com.gamecore.ui.setup.SetupWizardScreen
 import com.gamecore.ui.shizuku.ShizukuScreen
@@ -866,6 +867,18 @@ private fun GameCoreNav(
                     onBack = back,
                     onOpenPlugin = { id -> navController.push(Destination.PluginDetail.routeFor(id)) },
                     safetyTheme = houseTheme,
+                )
+            }
+        }
+
+        // The Theme Library. House-themed like every safety surface: a broken theme must never be
+        // able to make the screen that fixes it unreadable, and the previews draw their own nested
+        // MaterialTheme rather than asking this screen to wear each one.
+        composable(Destination.ThemeLibrary.route) {
+            houseTheme {
+                ThemeLibraryScreen(
+                    onBack = back,
+                    onOpenPlugins = { navController.push(Destination.Plugins.route) },
                 )
             }
         }

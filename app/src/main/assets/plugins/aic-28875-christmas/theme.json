@@ -1,0 +1,28 @@
+{
+  "name": "Christmas",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#D8D8C8",
+  "onPrimary": "#0C0C0E",
+  "background": "#1D1D15",
+  "surface": "#373730",
+  "onSurface": "#F8F8F6",
+  "accent": "#281818",
+  "cornerRadiusDp": 6,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#281818",
+    "tertiary": "#D8D8C8",
+    "surfaceVariant": "#373730",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#5A5A54",
+    "error": "#D8D8C8",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

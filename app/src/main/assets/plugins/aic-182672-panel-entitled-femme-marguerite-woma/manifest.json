@@ -1,0 +1,25 @@
+{
+  "format": "gamecore.plugin",
+  "id": "com.dreamucxe.gamecore.aic.art182672",
+  "name": "Panel Entitled \"Femme à marguerite\" (Woman with Daisy)",
+  "version": 1,
+  "versionName": "1.0.0",
+  "api": 4,
+  "minHostVersion": 60,
+  "developer": "Dream · AIC Open Access",
+  "description": "Palette extracted from the public-domain work “Panel Entitled \"Femme à marguerite\" (Woman with Daisy)” by Alphonse Marie Mucha (c. 1898/1900), Art Institute of Chicago artwork 182672. Adapted for high-contrast GameCore 5.1 UI.",
+  "permissions": [
+    {
+      "id": "change_ui"
+    },
+    {
+      "id": "change_icon"
+    }
+  ],
+  "declares": [
+    "theme",
+    "screens",
+    "icon"
+  ],
+  "changelog": "1.0.0 — source-backed palette; ≥7:1 body text and ≥4.5:1 controls."
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Studies of Pierre Renoir; His Mother, Aline Char",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#B8A848",
+  "onPrimary": "#0C0C0E",
+  "background": "#4F5736",
+  "surface": "#525740",
+  "onSurface": "#F8F8F6",
+  "accent": "#E8E8B8",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#E8E8B8",
+    "tertiary": "#B8A848",
+    "surfaceVariant": "#636A4D",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#7E846C",
+    "error": "#B8A848",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

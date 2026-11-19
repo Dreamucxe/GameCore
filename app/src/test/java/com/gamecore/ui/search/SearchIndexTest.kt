@@ -60,6 +60,7 @@ class SearchIndexTest {
             Destination.NetworkStability.route,
             Destination.Graphics.route,
             Destination.ThemeEngine.route,
+            Destination.ThemeLibrary.route,
             Destination.Overlay.route,
             Destination.Plugins.route,
             Destination.BackupRestore.route,

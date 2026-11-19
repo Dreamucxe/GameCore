@@ -1,0 +1,40 @@
+{
+  "name": "Kepler-452b",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#00D4FF",
+  "onPrimary": "#081020",
+  "background": "#081020",
+  "surface": "#101A30",
+  "onSurface": "#E0E8FF",
+  "accent": "#0099CC",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "orbitron",
+  "roles": {
+    "secondary": "#E0E8FF",
+    "tertiary": "#00D4FF",
+    "surfaceVariant": "#182040",
+    "onSurfaceVariant": "#E0E8FF",
+    "outline": "#304060",
+    "error": "#00D4FF",
+    "onError": "#081020"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

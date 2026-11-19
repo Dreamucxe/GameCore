@@ -1,0 +1,40 @@
+{
+  "name": "Kodachrome",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#C88040",
+  "onPrimary": "#FFFFFF",
+  "background": "#FAF0E0",
+  "surface": "#FFF8E8",
+  "onSurface": "#2A2010",
+  "accent": "#A06030",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "cinzel",
+  "roles": {
+    "secondary": "#D8B890",
+    "tertiary": "#C88040",
+    "surfaceVariant": "#F5E8D8",
+    "onSurfaceVariant": "#2A2010",
+    "outline": "#E0D0B8",
+    "error": "#C88040",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

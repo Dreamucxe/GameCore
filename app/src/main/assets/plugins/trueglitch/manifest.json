@@ -1,0 +1,20 @@
+{
+  "minHostVersion": 37,
+  "declares": [
+    "theme",
+    "icon"
+  ],
+  "permissions": [
+    {"id": "change_ui"},
+    {"id": "change_icon"}
+  ],
+  "format": "gamecore.plugin",
+  "name": "True Glitch",
+  "description": "Structural corruption theme \u2014 the HUD tears into displaced bands, text and panels alike.",
+  "changelog": "Initial release.",
+  "developer": "Dream",
+  "id": "com.dreamucxe.gamecore.trueglitch",
+  "api": 3,
+  "versionName": "1.1.0",
+  "version": 2
+}

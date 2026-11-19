@@ -1,0 +1,40 @@
+{
+  "name": "Gene Splice",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#00FF7F",
+  "onPrimary": "#0A1A0A",
+  "background": "#0A1A0A",
+  "surface": "#102810",
+  "onSurface": "#B8FFB8",
+  "accent": "#00B85C",
+  "cornerRadiusDp": 2,
+  "uiScale": 1.0,
+  "font": "mono",
+  "roles": {
+    "secondary": "#B8FFB8",
+    "tertiary": "#00FF7F",
+    "surfaceVariant": "#183018",
+    "onSurfaceVariant": "#B8FFB8",
+    "outline": "#2A5A2A",
+    "error": "#00FF7F",
+    "onError": "#0A1A0A"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

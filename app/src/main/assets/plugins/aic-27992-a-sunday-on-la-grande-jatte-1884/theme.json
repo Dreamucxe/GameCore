@@ -1,0 +1,28 @@
+{
+  "name": "A Sunday on La Grande Jatte — 1884",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#989868",
+  "onPrimary": "#0C0C0E",
+  "background": "#252E25",
+  "surface": "#3E463E",
+  "onSurface": "#F8F8F6",
+  "accent": "#8898A8",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#8898A8",
+    "tertiary": "#989868",
+    "surfaceVariant": "#3E463E",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#606760",
+    "error": "#989868",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

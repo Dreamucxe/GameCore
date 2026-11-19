@@ -349,8 +349,9 @@ class PluginRegistryImpl @Inject constructor(
 
         val entries = mutableListOf(PluginPackageLoader.MANIFEST_ENTRY to manifestBytes)
         for (section in manifest.declares) {
-            val name = bundledEntryName(section)
-            entries += name to (readAsset("$base/$name") ?: return null)
+            val sectionEntries = bundledSectionEntries(base, section)
+            if (sectionEntries.isEmpty()) return null
+            entries += sectionEntries
         }
         return PluginRecord(
             manifest = manifest,
@@ -362,7 +363,37 @@ class PluginRegistryImpl @Inject constructor(
     }
 
     /**
-     * Where a bundled plugin's section file lives.
+     * Every asset that makes up one bundled section, as `path to bytes`, sorted by path.
+     *
+     * Two layouts are accepted, because both are already shipped and neither is worth a migration:
+     *
+     *  - **One flat file.** A section whose package prefix is a directory (`screens/`) is normally
+     *    carried as `screens.json` beside the manifest. That is how every bundled pack before 5.7
+     *    lays its `screens` and `rules` out, and it stays the simplest thing to read in a text editor.
+     *  - **A real directory.** `widgets/` holds one file per widget because [PluginDashboardCodec]
+     *    parses one widget per file, and the multi-widget packs need every one of them. A directory
+     *    is used when it exists; the flat fallback is only consulted when it does not.
+     *
+     * Sorting is part of the contract: [digestOf] hashes these paths' bytes in order, and a digest
+     * that changed with the asset manager's listing order would make one build look like two.
+     */
+    private fun bundledSectionEntries(base: String, section: PluginSection): List<Pair<String, ByteArray>> {
+        val directory = section.entryPrefix.trimEnd('/')
+        val names = runCatching { context.assets.list("$base/$directory") }.getOrNull()
+            ?.filter { it.endsWith(".json") }
+            ?.sorted()
+            .orEmpty()
+        if (names.isNotEmpty()) {
+            return names.mapNotNull { name ->
+                readAsset("$base/$directory/$name")?.let { "$directory/$name" to it }
+            }
+        }
+        val flat = bundledEntryName(section)
+        return listOfNotNull(readAsset("$base/$flat")?.let { flat to it })
+    }
+
+    /**
+     * Where a single-file bundled section lives.
      *
      * A bundled plugin is loose files inside the APK rather than a zip, so a section whose package
      * prefix is a directory (`rules/`) is carried as one file named for the section (`rules.json`).
@@ -969,6 +1000,22 @@ class PluginRegistryImpl @Inject constructor(
     }
 
     /**
+     * One plugin's offered theme, read without going through [cachedTheme].
+     *
+     * Deliberately not [sectionsOf] with one field taken: the library asks this for every installed
+     * plugin, and the other four sections are disk reads the grid never draws. It also does not use
+     * the one-slot [themeCache], because a library pass would evict the active theme on every card
+     * and make the next [publish] re-read it — the screen holds what it parsed, so a second parse is
+     * not a cost worth paying for a cache that would then be wrong. The record is taken under the
+     * lock and parsed outside it for the same reason [sectionsOf] is.
+     */
+    override suspend fun themeOf(pluginId: String): PluginTheme? = withContext(io) {
+        val record = lock.withLock { records[pluginId] } ?: return@withContext null
+        if (PluginSection.THEME !in record.manifest.declares) return@withContext null
+        readTheme(record)
+    }
+
+    /**
      * Reads one of a plugin's own settings through the typed surface, under its live runtime state.
      *
      * The schema is the caller's — the ViewModel parsed it from [sectionsOf] and passes it back — so no
@@ -1499,7 +1546,7 @@ class PluginRegistryImpl @Inject constructor(
         runCatching {
             when (val source = record.source) {
                 is PluginSource.Asset ->
-                    listOfNotNull(readAsset("${source.base}/${bundledEntryName(section)}"))
+                    bundledSectionEntries(source.base, section).map { it.second }
                 is PluginSource.Package -> {
                     val loaded = loadPackage(source.file)
                     if (loaded == null) emptyList() else loaded.pathsUnder(section).mapNotNull { loaded.entry(it) }

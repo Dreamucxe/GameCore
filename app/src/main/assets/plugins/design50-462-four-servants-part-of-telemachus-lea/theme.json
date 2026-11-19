@@ -1,0 +1,40 @@
+{
+  "name": "Four Servants, part of Telemachus Leading Theocl",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#888858",
+  "onPrimary": "#0C0C0E",
+  "background": "#3C3424",
+  "surface": "#534C3D",
+  "onSurface": "#F8F8F6",
+  "accent": "#F8F8F8",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#F8F8F8",
+    "tertiary": "#888858",
+    "surfaceVariant": "#4B4435",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#716B5F",
+    "error": "#888858",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.35,
+      "transparency": 0.25,
+      "gloss": 0.35,
+      "blurRadiusDp": 12,
+      "sheen": true,
+      "sheenPeriodMs": 7000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

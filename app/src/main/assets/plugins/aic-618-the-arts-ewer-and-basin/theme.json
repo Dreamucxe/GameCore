@@ -1,0 +1,28 @@
+{
+  "name": "\"The Arts\" Ewer and Basin",
+  "schema": 2,
+  "dark": false,
+  "amoled": false,
+  "primary": "#483838",
+  "onPrimary": "#F8F8F6",
+  "background": "#FCFCFC",
+  "surface": "#FEFEFE",
+  "onSurface": "#0F0F11",
+  "accent": "#F8F8F8",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#F8F8F8",
+    "tertiary": "#483838",
+    "surfaceVariant": "#E0E0E0",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#BABABA",
+    "error": "#483838",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

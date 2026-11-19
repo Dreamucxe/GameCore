@@ -74,6 +74,7 @@ GameCore
 │   └── Game report → graphs / timeline / card / receipt
 └── Settings
     ├── Appearance / app icon / text / accessibility / behavior
+    ├── Theme Library → search / Dark / Light / Active / apply / reset
     ├── Overlays / games / detection / monitoring / network / recording
     ├── Access and tools
     │   ├── Setup health / Permissions / Shizuku
@@ -403,6 +404,7 @@ A `.gcplugin` is a bounded data archive interpreted by GameCore. It is not an AP
 
 - **Turn all plugins off** denies every plugin action while preserving individual choices.
 - **Theme** is a single-choice card: turning a plugin's theme on turns the previous theme off, while that plugin stays installed and running. A plugin's ordinary enable switch is separate — it controls whether the plugin runs at all, not whether it supplies the app's look.
+- **Theme Library** (Settings → Look & feel) is the browsing surface over the same selection: all 254 bundled themes in a searchable, filterable grid, each previewed in its own palette, corners and typeface. Applying a theme whose plugin is off or ungranted asks first, grants only Change the look, and keeps the plugin's other grants; **Reset** returns to GameCore's own theme.
 - **Use GameCore’s own theme** always restores the built-in appearance.
 - **Groups** filter the installed list. Theme, dashboard, Pill, automation, screen and icon groups come from what each package declares; permission groups come from what it requests; custom groups are yours. A plugin may belong to any number at once, and its detail page lists every group it is in.
 - Search covers name, id, developer, description, and version.
@@ -432,7 +434,7 @@ They cannot run scripts, native code, a WebView, arbitrary network access, arbit
 
 ### Core appearance
 
-Settings includes language selection, Follow system/Dark/Light/AMOLED themes, eight accents plus a custom color, Android 12+ dynamic color, compact density, built-in Home-stat visibility, a 3D/original Home-stat design switch, Redline skin, a background image and readability scrim, app icon choice, in-app font scale, animation policy, and haptics.
+Settings includes language selection, Follow system/Dark/Light/AMOLED themes, eight accents plus a custom color, Android 12+ dynamic color, compact density, built-in Home-stat visibility, a 3D/original Home-stat design switch, Redline skin, a background image and readability scrim, app icon choice, in-app font scale, animation policy, and haptics. **Theme Library** adds a searchable grid of the 254 bundled plugin themes, previewed in their own palettes and applied through the same single-choice registry selection.
 
 Accessibility settings include Aim Lab target palettes, a left-handed Aim Lab layout, and larger touch targets. These do not silently change text scale or unrelated spacing.
 
@@ -475,7 +477,7 @@ It cannot reach a game’s private sandbox, executable code, or another package�
 
 | Settings card | Main controls |
 | --- | --- |
-| **Appearance** | Language, theme, accent, dynamic color, density, Home stats, Redline skin, background image. |
+| **Appearance** | Language, theme, Theme Library, accent, dynamic color, density, Home stats, Redline skin, background image. |
 | **App icon** | Select a bundled launcher icon. |
 | **Display & text** | In-app font scale and text-size presets. |
 | **Accessibility** | Aim Lab target palette, handedness, larger touch targets. |
@@ -519,7 +521,7 @@ Restore previews counts and device differences before writing. Merge is the non-
 ### Other exports
 
 - Settings can export game session history as CSV. Missing cells remain empty.
-- Games can export/import individual profiles and resolve collisions.
+- Games can export/import individual profiles and resolve collisions. The profile editor shares the **saved** profile through the same export path; a profile with unsaved edits asks you to save first, and a never-saved draft hides Share.
 - Session cards/receipts and captures go through the Android share sheet.
 - Plugin Studio saves through the system file picker.
 

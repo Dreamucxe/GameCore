@@ -438,6 +438,22 @@ interface PluginRegistry {
     suspend fun sectionsOf(pluginId: String): PluginSections?
 
     /**
+     * One installed plugin's theme, or null when it has none.
+     *
+     * A narrower door than [sectionsOf], and it exists because the Theme Library asks the question
+     * for *every* installed plugin at once. `sectionsOf` parses the theme, the rules, the settings,
+     * the screens and the overlay module; calling it 268 times to paint a grid of 254 previews would
+     * read and parse hundreds of files that the grid never draws. This reads the one section and
+     * nothing else.
+     *
+     * It is not a permission check. A theme here is what the package *offers*, which is what a
+     * library has to show before the user can decide to grant it. Whether it may be applied is
+     * [activeTheme]'s question, answered through the plugin's own grant and enabled state.
+     */
+    suspend fun themeOf(pluginId: String): PluginTheme? =
+        sectionsOf(pluginId)?.theme
+
+    /**
      * Reads one of [pluginId]'s own settings, named [id], decoded against the caller's [schema].
      *
      * The ViewModel holds the parsed [PluginSettingsSchema] (it got it from [sectionsOf]) and passes it

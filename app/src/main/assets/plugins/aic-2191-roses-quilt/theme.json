@@ -1,0 +1,28 @@
+{
+  "name": "Roses Quilt",
+  "schema": 2,
+  "dark": false,
+  "amoled": false,
+  "primary": "#383838",
+  "onPrimary": "#F8F8F6",
+  "background": "#EFEFEF",
+  "surface": "#F9F9F9",
+  "onSurface": "#0F0F11",
+  "accent": "#F8F8F8",
+  "cornerRadiusDp": 16,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#F8F8F8",
+    "tertiary": "#383838",
+    "surfaceVariant": "#D4D4D4",
+    "onSurfaceVariant": "#0F0F11",
+    "outline": "#B0B0B1",
+    "error": "#383838",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

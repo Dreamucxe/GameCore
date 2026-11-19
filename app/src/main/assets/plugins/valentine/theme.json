@@ -1,0 +1,40 @@
+{
+  "name": "Rose Quartz",
+  "schema": 4,
+  "dark": false,
+  "amoled": false,
+  "primary": "#E91E63",
+  "onPrimary": "#FFFFFF",
+  "background": "#FFF0F5",
+  "surface": "#FFFFFF",
+  "onSurface": "#4A1A2A",
+  "accent": "#C2185B",
+  "cornerRadiusDp": 24,
+  "uiScale": 1.0,
+  "font": "comic-neue",
+  "roles": {
+    "secondary": "#F8BBD9",
+    "tertiary": "#E91E63",
+    "surfaceVariant": "#FFF5F8",
+    "onSurfaceVariant": "#4A1A2A",
+    "outline": "#F0C8D8",
+    "error": "#E91E63",
+    "onError": "#FFFFFF"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.15,
+      "transparency": 0.1,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

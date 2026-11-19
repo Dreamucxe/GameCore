@@ -1,0 +1,25 @@
+{
+  "format": "gamecore.plugin",
+  "id": "com.dreamucxe.gamecore.aic.art149634",
+  "name": "\"Costume Parisien\" Fashion Plates from Journal des Dame…",
+  "version": 1,
+  "versionName": "1.0.0",
+  "api": 4,
+  "minHostVersion": 60,
+  "developer": "Dream · AIC Open Access",
+  "description": "Palette extracted from the public-domain work “\"Costume Parisien\" Fashion Plates from Journal des Dames et Des Modes and Costume Parisien (The Journal of Ladies and Fashion)” by Paris, France (1804 and 1806), Art Institute of Chicago artwork 149634. Adapted for high-contrast GameCore 5.1 UI.",
+  "permissions": [
+    {
+      "id": "change_ui"
+    },
+    {
+      "id": "change_icon"
+    }
+  ],
+  "declares": [
+    "theme",
+    "screens",
+    "icon"
+  ],
+  "changelog": "1.0.0 — source-backed palette; ≥7:1 body text and ≥4.5:1 controls."
+}

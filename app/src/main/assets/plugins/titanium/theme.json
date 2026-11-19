@@ -1,0 +1,40 @@
+{
+  "name": "Aerospace Grade",
+  "schema": 4,
+  "dark": true,
+  "amoled": true,
+  "primary": "#A0A0B0",
+  "onPrimary": "#0E0E10",
+  "background": "#0E0E10",
+  "surface": "#161618",
+  "onSurface": "#C0C0C8",
+  "accent": "#505060",
+  "cornerRadiusDp": 4,
+  "uiScale": 1.0,
+  "font": "orbitron",
+  "roles": {
+    "secondary": "#C0C0C8",
+    "tertiary": "#A0A0B0",
+    "surfaceVariant": "#1E1E20",
+    "onSurfaceVariant": "#C0C0C8",
+    "outline": "#3A3A40",
+    "error": "#A0A0B0",
+    "onError": "#0E0E10"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "medium"
+  },
+  "effects": {
+    "glass": {
+      "intensity": 0.25,
+      "transparency": 0.15,
+      "gloss": 0.2,
+      "blurRadiusDp": 8,
+      "sheen": true,
+      "sheenPeriodMs": 8000,
+      "spring": "snappy",
+      "hardwareReactive": false
+    }
+  }
+}

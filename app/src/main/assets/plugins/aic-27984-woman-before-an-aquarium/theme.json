@@ -1,0 +1,28 @@
+{
+  "name": "Woman before an Aquarium",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#482818",
+  "onPrimary": "#F8F8F6",
+  "background": "#25150C",
+  "surface": "#3E3028",
+  "onSurface": "#F8F8F6",
+  "accent": "#987878",
+  "cornerRadiusDp": 12,
+  "uiScale": 1.0,
+  "font": "rounded",
+  "roles": {
+    "secondary": "#987878",
+    "tertiary": "#482818",
+    "surfaceVariant": "#3E3028",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#60554E",
+    "error": "#482818",
+    "onError": "#F8F8F6"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}

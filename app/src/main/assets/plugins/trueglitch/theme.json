@@ -1,0 +1,35 @@
+{
+  "onPrimary": "#000A0C",
+  "schema": 3,
+  "onSurface": "#E8FBFF",
+  "surface": "#0A0A0C",
+  "roles": {
+    "secondary": "#FF0055",
+    "outline": "#2A2F33",
+    "onError": "#0A0000",
+    "onSurfaceVariant": "#9FB3B8",
+    "tertiary": "#7A00FF",
+    "error": "#FF1744",
+    "surfaceVariant": "#141418"
+  },
+  "accent": "#FF0055",
+  "uiScale": 1,
+  "effects": {"glitch": {
+    "intensity": 0.85,
+    "slices": 3,
+    "microJitter": true,
+    "fractureLines": true,
+    "noise": true,
+    "ghostOffsetDp": 6,
+    "burstMaxMs": 800,
+    "sliceOffsetDp": 24,
+    "hardwareReactive": true,
+    "burstMinMs": 150
+  }},
+  "background": "#050505",
+  "name": "True Glitch",
+  "dark": true,
+  "cornerRadiusDp": 2,
+  "primary": "#00F0FF",
+  "font": "mono"
+}

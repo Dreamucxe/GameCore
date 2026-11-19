@@ -1,0 +1,28 @@
+{
+  "name": "The Poet's Garden",
+  "schema": 2,
+  "dark": true,
+  "amoled": false,
+  "primary": "#989848",
+  "onPrimary": "#0C0C0E",
+  "background": "#151515",
+  "surface": "#303030",
+  "onSurface": "#F8F8F6",
+  "accent": "#786828",
+  "cornerRadiusDp": 20,
+  "uiScale": 1.0,
+  "font": "serif",
+  "roles": {
+    "secondary": "#786828",
+    "tertiary": "#989848",
+    "surfaceVariant": "#303030",
+    "onSurfaceVariant": "#F8F8F6",
+    "outline": "#555554",
+    "error": "#989848",
+    "onError": "#0C0C0E"
+  },
+  "typography": {
+    "scale": 1.0,
+    "weight": "normal"
+  }
+}
