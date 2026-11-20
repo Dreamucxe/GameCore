@@ -126,6 +126,16 @@ adb install -r GameCore.apk
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
 
+## What's new in 5.8
+
+<p><strong>Trust the numbers.</strong> Benchmark comparisons now weight each frame window by the real number of frames it contained, so the A/B verdict is computed from the same frame-weighted average the table displays. A run with a charger connected is never compared against one on battery; the result says INCONCLUSIVE and names the power difference.</p>
+
+<p><strong>Frame timing stops double-counting.</strong> The probe refuses a window that contains fewer than ten new frames rather than aggregating the same ring-buffer frames again, and the live session monitor and a benchmark capture each keep an independent cursor. One can no longer consume or reset the other's frames.</p>
+
+<p><strong>Advice cites the run that measured it.</strong> Thermal, battery, memory and affinity rules read the latest run of the profile that exercises their metric instead of whichever profile ran most recently. Learning history is grouped by game and goal, so an outcome measured on one game no longer moves confidence for another.</p>
+
+<p><strong>Comparisons check before they start.</strong> An FPS comparison profile verifies that the selected game exposes real frame timing, shows a banner with the result, and disables Start with the reason when it cannot measure. A capture keeps the screen awake, and leaving the screen asks before cancelling a run. Animation-scale advice also reads the current scales during the scan and treats an already-zero device as nothing to apply.</p>
+
 ## What's new in 5.7
 
 <p><strong>The whole theme collection is now in the app, and it has a library.</strong> Settings › Look &amp; feel opens a Theme Library: all 254 bundled themes in one searchable grid, each card drawn in its own palette, corner radius and typeface before you apply it. Search by theme, plugin, developer or font, filter to Dark, Light or the active theme, and reset to GameCore's own colours at any time. Applying a theme from a plugin that is off or has never been granted Change the look asks first and names exactly what it will change; the plugin's other grants are kept.</p>

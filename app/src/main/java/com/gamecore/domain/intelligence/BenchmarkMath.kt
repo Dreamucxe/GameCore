@@ -82,9 +82,10 @@ object BenchmarkMath {
         if (refresh.isEmpty()) unavailable += "The display refresh rate was not readable."
         if (battery.size < 2) {
             unavailable += "Battery level was not captured at both ends of the run."
-        } else if (charging) {
-            unavailable += "A charger was connected, so a battery drain rate is not quoted."
-        } else if (duration < MIN_BATTERY_MILLIS) {
+        }
+        if (charging) {
+            unavailable += BenchmarkSummary.CHARGING_NOTICE
+        } else if (battery.size >= 2 && duration < MIN_BATTERY_MILLIS) {
             unavailable += "Battery drain needs at least five minutes to be a rate rather than quantisation."
         }
 
@@ -155,14 +156,22 @@ object BenchmarkMath {
      * Compares two real captures of the same game under the same profile.
      *
      * [baselineWindows] and [candidateWindows] are the per-window average FPS values from the two
-     * runs, in capture order. They are the samples the t-test sees. A run whose summary has an
-     * average but no windows cannot be compared, because the average alone has no variance.
+     * runs, in capture order. [baselineWindowFrames] and [candidateWindowFrames] are the real frame
+     * counts behind each window when the rows carry them; they weight the t-test so a window with
+     * 120 frames counts more than one with 10. The reported delta always uses the summary's
+     * frame-weighted average, which is the figure the comparison table shows, so the verdict and
+     * the table cannot disagree.
+     *
+     * A run whose summary has an average but no windows cannot be compared, because the average
+     * alone has no variance.
      */
     fun compare(
         baseline: BenchmarkRun,
         baselineWindows: List<Float>,
         candidate: BenchmarkRun,
         candidateWindows: List<Float>,
+        baselineWindowFrames: List<Int>? = null,
+        candidateWindowFrames: List<Int>? = null,
     ): BenchmarkComparison {
         val conditions = mutableListOf<String>()
         if (baseline.gamePackage != candidate.gamePackage) {
@@ -214,6 +223,32 @@ object BenchmarkMath {
             }
         }
 
+        // Power is a condition, not a metric: a run on a charger can hold higher clocks than the
+        // same run on battery. If only one side was plugged in, the two are not the same test.
+        val baselineCharging = baseline.summary.chargedDuringRun
+        val candidateCharging = candidate.summary.chargedDuringRun
+        if (baselineCharging != candidateCharging) {
+            conditions += if (baselineCharging) {
+                "Power: a charger was connected during the baseline run"
+            } else {
+                "Power: a charger was connected during the candidate run"
+            }
+            return BenchmarkComparison(
+                verdict = ComparisonVerdict.INCONCLUSIVE,
+                deltas = deltas(baseline, candidate),
+                confidencePercent = null,
+                explanation = "One run had a charger connected and the other did not. Power state " +
+                    "changes the clocks the device is willing to hold, so the two runs are not the " +
+                    "same test. Run both on battery or both on the charger.",
+                conditions = conditions,
+                baselineRunId = baseline.id,
+                candidateRunId = candidate.id,
+            )
+        }
+        if (baselineCharging) {
+            conditions += "Power: a charger was connected during both runs"
+        }
+
         val baselineFps = baseline.summary.averageFps
         val candidateFps = candidate.summary.averageFps
         if (baselineFps == null || candidateFps == null) {
@@ -241,16 +276,25 @@ object BenchmarkMath {
             )
         }
 
-        val baselineMean = mean(baselineWindows) ?: baselineFps
-        val candidateMean = mean(candidateWindows) ?: candidateFps
-        val delta = candidateMean - baselineMean
+        val baselineWeights = usableWeights(baselineWindows, baselineWindowFrames)
+        val candidateWeights = usableWeights(candidateWindows, candidateWindowFrames)
+        val delta = candidateFps - baselineFps
         val practicalFloor = maxOf(
-            baselineMean * MIN_MEANINGFUL_FPS_FRACTION,
+            baselineFps * MIN_MEANINGFUL_FPS_FRACTION,
             MIN_MEANINGFUL_FPS,
         )
-        val test = welch(baselineWindows.map { it.toDouble() }, candidateWindows.map { it.toDouble() })
+        val test = welchWeighted(
+            baseline = baselineWindows.map { it.toDouble() },
+            baselineWeights = baselineWeights?.map { it.toDouble() },
+            candidate = candidateWindows.map { it.toDouble() },
+            candidateWeights = candidateWeights?.map { it.toDouble() },
+        )
         val confidence = test?.let { Math.round((1.0 - it.pValue) * 100.0).toInt().coerceIn(0, 99) }
         conditions += "${baselineWindows.size} vs ${candidateWindows.size} frame windows"
+        if (baselineWeights != null && candidateWeights != null) {
+            conditions += "Frame-weighted average: ${baselineWeights.sum()} vs " +
+                "${candidateWeights.sum()} real frames"
+        }
 
         if (test == null || confidence == null) {
             return BenchmarkComparison(
@@ -270,7 +314,7 @@ object BenchmarkMath {
                 verdict = ComparisonVerdict.NEUTRAL,
                 deltas = deltas(baseline, candidate),
                 confidencePercent = confidence,
-                explanation = "Average FPS moved by ${formatDelta(delta)} fps, below the " +
+                explanation = "Frame-weighted average FPS moved by ${formatDelta(delta)} fps, below the " +
                     "${formatDelta(practicalFloor)} fps threshold treated as meaningful at this rate.",
                 conditions = conditions,
                 baselineRunId = baseline.id,
@@ -283,9 +327,9 @@ object BenchmarkMath {
                 verdict = ComparisonVerdict.INCONCLUSIVE,
                 deltas = deltas(baseline, candidate),
                 confidencePercent = confidence,
-                explanation = "Average FPS moved by ${formatDelta(delta)} fps, but the difference is " +
-                    "only $confidence% likely to be real. Another run is needed before this is called " +
-                    "an improvement or a regression.",
+                explanation = "Frame-weighted average FPS moved by ${formatDelta(delta)} fps, but the " +
+                    "difference is only $confidence% likely to be real. Another run is needed before " +
+                    "this is called an improvement or a regression.",
                 conditions = conditions,
                 baselineRunId = baseline.id,
                 candidateRunId = candidate.id,
@@ -297,7 +341,7 @@ object BenchmarkMath {
             verdict = if (improved) ComparisonVerdict.IMPROVED else ComparisonVerdict.REGRESSED,
             deltas = deltas(baseline, candidate),
             confidencePercent = confidence,
-            explanation = "Average FPS ${if (improved) "rose" else "fell"} by " +
+            explanation = "Frame-weighted average FPS ${if (improved) "rose" else "fell"} by " +
                 "${formatDelta(abs(delta))} fps with $confidence% confidence across " +
                 "${baselineWindows.size + candidateWindows.size} real frame windows.",
             conditions = conditions,
@@ -376,6 +420,75 @@ object BenchmarkMath {
         val degreesOfFreedom: Double,
         val pValue: Double,
     )
+
+    /** Weights are usable only when there is one positive frame count per window. */
+    private fun usableWeights(windows: List<Float>, frames: List<Int>?): List<Int>? =
+        frames?.takeIf { it.size == windows.size && it.all { count -> count > 0 } }
+
+    private data class WeightedMoments(
+        val mean: Double,
+        val variance: Double,
+        val effectiveCount: Double,
+    )
+
+    /**
+     * The weighted mean, variance and effective sample size for one side of a test.
+     *
+     * Frame counts are reliability weights: a 120-frame window is more informative than a
+     * 10-frame one, but it is still one observation, so the effective count is
+     * `(Σw)² / Σw²` rather than the raw frame total. With equal weights this reduces exactly
+     * to the ordinary sample mean, variance and count.
+     */
+    private fun weightedMoments(values: List<Double>, weights: List<Double>?): WeightedMoments? {
+        if (values.size < 2) return null
+        val w = if (weights != null && weights.size == values.size && weights.all { it > 0.0 }) {
+            weights
+        } else {
+            List(values.size) { 1.0 }
+        }
+        val sumW = w.sum()
+        if (sumW <= 0.0) return null
+        val mean = values.indices.sumOf { values[it] * w[it] } / sumW
+        val sumW2 = w.sumOf { it * it }
+        val denominator = sumW - sumW2 / sumW
+        if (denominator <= 0.0) return null
+        val variance = values.indices.sumOf {
+            w[it] * (values[it] - mean) * (values[it] - mean)
+        } / denominator
+        val effectiveCount = sumW * sumW / sumW2
+        if (!variance.isFinite() || !effectiveCount.isFinite() || effectiveCount <= 1.0) return null
+        return WeightedMoments(mean, variance, effectiveCount)
+    }
+
+    /**
+     * Welch's t-test with optional frame-count weights.
+     *
+     * The same unequal-variance statistic as [welch], but each side's variance is divided by
+     * its effective count instead of its raw window count. Null when a side has fewer than
+     * two windows, no spread, or no usable effective count.
+     */
+    private fun welchWeighted(
+        baseline: List<Double>,
+        baselineWeights: List<Double>?,
+        candidate: List<Double>,
+        candidateWeights: List<Double>?,
+    ): WelchResult? {
+        val a = weightedMoments(baseline, baselineWeights) ?: return null
+        val b = weightedMoments(candidate, candidateWeights) ?: return null
+        if (a.variance <= 0.0 && b.variance <= 0.0) return null
+        val seSquared = a.variance / a.effectiveCount + b.variance / b.effectiveCount
+        if (seSquared <= 0.0) return null
+        val t = (b.mean - a.mean) / sqrt(seSquared)
+        val numerator = seSquared * seSquared
+        val denominator = (a.variance / a.effectiveCount).let { it * it } / (a.effectiveCount - 1) +
+            (b.variance / b.effectiveCount).let { it * it } / (b.effectiveCount - 1)
+        if (denominator <= 0.0) return null
+        val df = numerator / denominator
+        if (!df.isFinite() || df <= 0.0) return null
+        val p = twoSidedStudentP(t, df)
+        if (!p.isFinite()) return null
+        return WelchResult(t = t, degreesOfFreedom = df, pValue = p.coerceIn(0.0, 1.0))
+    }
 
     /**
      * Welch's unequal-variance t-test.

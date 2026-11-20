@@ -1,5 +1,6 @@
 package com.gamecore.domain.intelligence
 
+import com.gamecore.core.model.BenchmarkProfile
 import com.gamecore.core.model.BenchmarkRun
 import com.gamecore.core.model.CapabilityStatus
 import com.gamecore.core.model.CpuAffinityPreset
@@ -90,8 +91,25 @@ object RecommendationEngine {
         gameLabel: String? = null,
         profile: GameProfile? = null,
         sessions: List<GameSession> = emptyList(),
+        /**
+         * Latest run per profile for the selected game. A rule reads only the profile that
+         * exercised the metric it is about; a newer battery run therefore cannot raise the
+         * confidence of thermal or memory advice. When this is empty, [benchmark] is the
+         * single-run fallback used by callers that already chose a run.
+         */
+        benchmarks: Map<BenchmarkProfile, BenchmarkRun> = emptyMap(),
     ): List<SmartRecommendation> {
-        val facts = Facts(scan, goal, benchmark, learning, gamePackage, gameLabel, profile, sessions)
+        val facts = Facts(
+            scan = scan,
+            goal = goal,
+            benchmark = benchmark,
+            benchmarks = benchmarks,
+            learning = learning,
+            gamePackage = gamePackage,
+            gameLabel = gameLabel,
+            profile = profile,
+            sessions = sessions,
+        )
         return buildList {
             refresh(facts)?.let(::add)
             thermal(facts)?.let(::add)
@@ -113,12 +131,53 @@ object RecommendationEngine {
         val scan: DeviceScan,
         val goal: OptimizationGoal,
         val benchmark: BenchmarkRun?,
+        val benchmarks: Map<BenchmarkProfile, BenchmarkRun>,
         val learning: Map<String, LearningSummary>,
         val gamePackage: String?,
         val gameLabel: String?,
         val profile: GameProfile?,
         val sessions: List<GameSession>,
-    )
+    ) {
+        /**
+         * The latest run of the first supplied profile that has one.
+         *
+         * The fallback keeps the single-run callers (tests, older call sites) working without
+         * letting a repository that has profile-keyed runs fall back to an unrelated profile.
+         */
+        fun benchmarkFor(vararg profiles: BenchmarkProfile): BenchmarkRun? =
+            profiles.firstNotNullOfOrNull { benchmarks[it] } ?: benchmark
+
+        val refreshBenchmark: BenchmarkRun?
+            get() = benchmarkFor(
+                BenchmarkProfile.FULL_GAMING,
+                BenchmarkProfile.OPTIMIZATION_COMPARISON,
+                BenchmarkProfile.THERMAL_STABILITY,
+            )
+
+        val thermalBenchmark: BenchmarkRun?
+            get() = benchmarkFor(
+                BenchmarkProfile.THERMAL_STABILITY,
+                BenchmarkProfile.FULL_GAMING,
+            )
+
+        val batteryBenchmark: BenchmarkRun?
+            get() = benchmarkFor(BenchmarkProfile.BATTERY_EFFICIENCY)
+
+        val memoryBenchmark: BenchmarkRun?
+            get() = benchmarkFor(BenchmarkProfile.MEMORY_PRESSURE)
+
+        val performanceBenchmark: BenchmarkRun?
+            get() = benchmarkFor(
+                BenchmarkProfile.FULL_GAMING,
+                BenchmarkProfile.OPTIMIZATION_COMPARISON,
+            )
+
+        val affinityBenchmark: BenchmarkRun?
+            get() = benchmarkFor(
+                BenchmarkProfile.FULL_GAMING,
+                BenchmarkProfile.OPTIMIZATION_COMPARISON,
+            )
+    }
 
     // --------------------------------------------------------------------------------- refresh rate
 
@@ -155,18 +214,18 @@ object RecommendationEngine {
             action = RecommendationAction.PIN_LOWEST_REFRESH_RATE
             confidence = 68
             if (hot) confidence += 6
-            val drain = facts.benchmark?.summary?.batteryDrainPerHour
+            val drain = facts.refreshBenchmark?.summary?.batteryDrainPerHour
             if (drain != null && drain >= HIGH_DRAIN_PERCENT_PER_HOUR) confidence += 4
-            val temp = facts.benchmark?.summary?.averageTemperatureDeciCelsius
+            val temp = facts.refreshBenchmark?.summary?.averageTemperatureDeciCelsius
             if (temp != null && temp >= WARM_TEMPERATURE_DECI) confidence += 4
         } else if (wantsHigher && !hot) {
             if (current != null && current >= peak - 0.5f) return null
             targetRate = peak
             action = RecommendationAction.PIN_PEAK_REFRESH_RATE
             confidence = 64
-            val measuredRefresh = facts.benchmark?.summary?.averageRefreshRateHz
+            val measuredRefresh = facts.refreshBenchmark?.summary?.averageRefreshRateHz
             if (measuredRefresh != null && measuredRefresh < peak - 1f) confidence += 8
-            if (facts.benchmark != null) confidence += 3
+            if (facts.refreshBenchmark != null) confidence += 3
             if (facts.sessions.any { (it.averageRefreshRate ?: peak) < peak - 1f }) confidence += 4
         } else {
             return null
@@ -182,7 +241,7 @@ object RecommendationEngine {
                 "draw while a game runs. Holding the lowest rate is the measurable saving available " +
                 "here."
         } else {
-            val measured = facts.benchmark?.summary?.averageRefreshRateHz
+            val measured = facts.refreshBenchmark?.summary?.averageRefreshRateHz
             if (measured != null && measured < peak - 1f) {
                 "The panel advertises up to $proposedText but the benchmark averaged " +
                     "${formatHz(measured)}, so the platform was choosing a lower mode during play. " +
@@ -209,7 +268,7 @@ object RecommendationEngine {
                     "${mechanism.label}: ${mechanism.explanation}",
                 ),
             )
-            facts.benchmark?.let { run ->
+            facts.refreshBenchmark?.let { run ->
                 add(
                     RecommendationEvidence(
                         "Benchmark",
@@ -321,7 +380,7 @@ object RecommendationEngine {
         }
 
         val classification = scan.thermalClass
-        val benchmarkTemp = facts.benchmark?.summary?.averageTemperatureDeciCelsius
+        val benchmarkTemp = facts.thermalBenchmark?.summary?.averageTemperatureDeciCelsius
         val temperature = scan.cpuTemperatureDeciCelsius ?: scan.batteryTemperatureDeciCelsius
         val thermalEvidenceExists = temperature != null ||
             statusSupported ||
@@ -414,7 +473,7 @@ object RecommendationEngine {
                             temperatureSuffix(scan),
                     ),
                 )
-                val peakTemperature = facts.benchmark?.summary?.peakTemperatureDeciCelsius
+                val peakTemperature = facts.thermalBenchmark?.summary?.peakTemperatureDeciCelsius
                 benchmarkTemp?.let {
                     add(
                         RecommendationEvidence(
@@ -460,7 +519,7 @@ object RecommendationEngine {
         if (!status.isUsable) return null
 
         val level = scan.batteryLevelPercent
-        val drain = facts.benchmark?.summary?.batteryDrainPerHour
+        val drain = facts.batteryBenchmark?.summary?.batteryDrainPerHour
         val historicalDrain = facts.sessions.mapNotNull { it.drain()?.percentPerHour }
         val averageHistoricalDrain = historicalDrain.takeIf { it.isNotEmpty() }
             ?.average()?.toFloat()
@@ -477,7 +536,7 @@ object RecommendationEngine {
             measuredHighDrain -> 76
             recurringHighDrain -> 72
             else -> 60
-        } + if (facts.benchmark != null) 3 else 0
+        } + if (facts.batteryBenchmark != null) 3 else 0
 
         return finalize(
             facts = facts,
@@ -582,7 +641,7 @@ object RecommendationEngine {
         }
         val lowNow = scan.lowMemory ||
             (availableFraction != null && availableFraction < LOW_AVAILABLE_RAM_FRACTION)
-        val peak = facts.benchmark?.summary?.peakMemoryPercent
+        val peak = facts.memoryBenchmark?.summary?.peakMemoryPercent
         val measuredPressure = peak != null && peak >= HIGH_MEMORY_PERCENT
         val pressuredSessions = facts.sessions.filter {
             (it.peakMemoryPercent ?: 0f) >= HIGH_MEMORY_PERCENT
@@ -666,7 +725,7 @@ object RecommendationEngine {
 
         val classification = scan.thermalClass
         val hot = classification.level.severity >= ThermalClass.WARM.severity
-        val summary = facts.benchmark?.summary
+        val summary = facts.affinityBenchmark?.summary
         val jank = summary?.jankPercent
         val variation = summary?.frameVariationPercent
         val unstablePacing = (jank != null && jank >= HIGH_JANK_PERCENT) ||
@@ -681,7 +740,7 @@ object RecommendationEngine {
         var confidence = 48
         if (hot) confidence += 6
         if (unstablePacing) confidence += 6
-        if (facts.benchmark != null) confidence += 3
+        if (facts.affinityBenchmark != null) confidence += 3
 
         return finalize(
             facts = facts,
@@ -739,13 +798,25 @@ object RecommendationEngine {
         val status = facts.scan.capabilities.animationScaleControl
         if (!status.isUsable) return null
 
+        // All three already at zero: there is nothing to change, so offering it would ask the user
+        // to apply a no-op and let the history call that "applied". A rescan reads the scales again,
+        // which is what keeps the card from returning after it was acted on.
+        val scales = facts.scan.animationScales
+        if (scales.allOff) return null
+
+        val current = if (scales.allReadable) {
+            "Window ${formatScale(scales.window)}, transition ${formatScale(scales.transition)}, " +
+                "animator ${formatScale(scales.animator)}"
+        } else {
+            "Not all three animation scales could be read on this device"
+        }
+
         var confidence = 55
-        if (facts.benchmark != null) confidence += 3
 
         return finalize(
             facts = facts,
             action = RecommendationAction.DISABLE_ANIMATIONS,
-            current = "GameCore has not changed the animation scales",
+            current = current,
             proposed = "Set the three window animation scales to zero",
             reason = "The capability probe confirmed the three animation scales are writable here. " +
                 "Setting them to zero removes window transition frames outside the game, which is a " +
@@ -758,6 +829,7 @@ object RecommendationEngine {
             requiresTesting = false,
             evidence = listOf(
                 RecommendationEvidence("Animation scale control", status.label),
+                RecommendationEvidence("Current scales", current),
                 RecommendationEvidence(
                     "Scope",
                     "Settings.Global.ANIMATOR_DURATION_SCALE, TRANSITION_ANIMATION_SCALE, " +
@@ -765,6 +837,13 @@ object RecommendationEngine {
                 ),
             ),
         )
+    }
+
+    /** A scale as the user would read it in Developer options: off, or a multiple of normal. */
+    private fun formatScale(value: Float?): String = when {
+        value == null -> "unreadable"
+        value == 0f -> "off"
+        else -> String.format(Locale.US, "%.1f×", value)
     }
 
     // -------------------------------------------------------------------------------------- output
@@ -788,7 +867,9 @@ object RecommendationEngine {
     ): SmartRecommendation? {
         if (!compatibility.isUsable) return null
 
-        val learning = facts.learning[action.key]
+        val learning = facts.learning[
+            LearningEngine.contextKey(action.key, facts.gamePackage, facts.goal)
+        ]
         val confidence = (baseConfidence + (learning?.confidenceAdjustment ?: 0))
             .coerceIn(0, MAX_CONFIDENCE)
         val blocked = learning?.blocked == true

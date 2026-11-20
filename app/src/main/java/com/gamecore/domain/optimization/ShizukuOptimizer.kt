@@ -1,6 +1,9 @@
 package com.gamecore.domain.optimization
 
 import com.gamecore.core.common.AccessLevel
+import com.gamecore.core.common.Observed
+import com.gamecore.core.common.RestrictionReason
+import com.gamecore.core.model.AnimationScales
 import com.gamecore.core.model.CapabilityStatus
 import com.gamecore.core.model.OptimizationAction
 import com.gamecore.core.model.OptimizationResult
@@ -165,15 +168,50 @@ class ShizukuOptimizer @Inject constructor(
      * succeeded would be exactly the overclaim §24 forbids. [worst] picks the outcome to report, and
      * the count in the applied message says how many keys were involved so the number is not a
      * mystery.
+     *
+     * When all three already read zero there is nothing to write. Returning [OptimizationResult.Skipped]
+     * keeps the history honest: the user asked for a change that was already in place, not one that
+     * this press applied.
      */
     private suspend fun disableAnimations(): OptimizationResult {
         val action = OptimizationAction.DISABLE_ANIMATIONS
+        if (animationScales().allOff) {
+            return OptimizationResult.Skipped(
+                action = action,
+                reason = "Window animations are already off; nothing was written.",
+            )
+        }
         val outcomes = ANIMATION_SCALES.map { settings.write(it, ANIMATION_OFF) }
         return worst(outcomes).toResult(
             action = action,
             appliedDetail = "Window animations are off (${outcomes.size} scales set to zero).",
         )
     }
+
+    /**
+     * The three animation scales as the device currently holds them.
+     *
+     * Reads the same keys [disableAnimations] writes. An unset key is the platform default of 1.0,
+     * not zero, and a key that could not be read stays null so no caller can claim animations are
+     * already off from an unknown.
+     */
+    suspend fun animationScales(): AnimationScales = AnimationScales(
+        window = animationScale(WritableSetting.WINDOW_ANIMATION_SCALE),
+        transition = animationScale(WritableSetting.TRANSITION_ANIMATION_SCALE),
+        animator = animationScale(WritableSetting.ANIMATOR_DURATION_SCALE),
+    )
+
+    private suspend fun animationScale(setting: WritableSetting): Float? =
+        when (val observed = settings.read(setting)) {
+            is Observed.Value -> observed.value.toFloatOrNull()
+            is Observed.Restricted ->
+                if (observed.reason == RestrictionReason.NOT_PRESENT_ON_DEVICE) {
+                    setting.restoreDefault.toFloatOrNull()
+                } else {
+                    null
+                }
+            is Observed.Failed -> null
+        }
 
     private suspend fun batterySaver(on: Boolean): OptimizationResult {
         val action = if (on) {

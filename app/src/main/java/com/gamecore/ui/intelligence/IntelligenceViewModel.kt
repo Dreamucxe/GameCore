@@ -8,6 +8,7 @@ import com.gamecore.core.model.BenchmarkProgress
 import com.gamecore.core.model.BenchmarkRun
 import com.gamecore.core.model.DeviceIntelligenceReport
 import com.gamecore.core.model.DeviceScan
+import com.gamecore.core.model.FrameRateCapability
 import com.gamecore.core.model.InstalledApp
 import com.gamecore.core.model.IntelligenceAnalysisFrequency
 import com.gamecore.core.model.GameSession
@@ -22,6 +23,7 @@ import com.gamecore.core.model.SmartProfileField
 import com.gamecore.core.model.SmartRecommendation
 import com.gamecore.core.model.TestedActionResolution
 import com.gamecore.core.system.InstalledAppLister
+import com.gamecore.core.system.FrameRateProbe
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.GameProfileRepository
 import com.gamecore.data.repository.SessionRepository
@@ -63,6 +65,9 @@ data class IntelligenceUiState(
     val learning: Map<String, LearningSummary> = emptyMap(),
     val learningRecords: List<LearningRecord> = emptyList(),
     val benchmarkProfile: BenchmarkProfile = BenchmarkProfile.QUICK,
+    /** Whether the selected game exposes real frame timing, checked before a comparison starts. */
+    val frameRatePreflight: FrameRateCapability? = null,
+    val isPreflighting: Boolean = false,
     /** What a capture started now would be attributed to, or why it would not be. */
     val testedActionPreview: TestedActionResolution? = null,
     val progress: BenchmarkProgress? = null,
@@ -104,6 +109,7 @@ class IntelligenceViewModel @Inject constructor(
     private val apps: InstalledAppLister,
     private val preferences: SecurePreferenceStore,
     private val sessions: SessionRepository,
+    private val frameRateProbe: FrameRateProbe,
 ) : ViewModel() {
 
     private val mutableState = MutableStateFlow(IntelligenceUiState())
@@ -111,6 +117,7 @@ class IntelligenceViewModel @Inject constructor(
 
     private var benchmarkJob: Job? = null
     private var previewJob: Job? = null
+    private var preflightJob: Job? = null
     private var sessionSnapshot: List<GameSession> = emptyList()
 
     init {
@@ -375,11 +382,47 @@ class IntelligenceViewModel @Inject constructor(
             )
         }
         refreshRecommendations()
+        refreshFrameRatePreflight()
     }
 
     fun selectBenchmarkProfile(profile: BenchmarkProfile) {
         mutableState.update { it.copy(benchmarkProfile = profile) }
         refreshTestedActionPreview()
+        refreshFrameRatePreflight()
+    }
+
+    /**
+     * Checks the selected game's frame timing before a profile that needs it can start.
+     *
+     * The check is a real `gfxinfo` dump, the same one the capture will use, so the answer is
+     * about this game rather than about the device in general. A comparison profile started
+     * without it would spend its full duration and store no FPS, which is exactly the
+     * inconclusive run this preflight exists to prevent.
+     */
+    private fun refreshFrameRatePreflight() {
+        preflightJob?.cancel()
+        val current = mutableState.value
+        val packageName = current.selectedPackage
+        if (packageName == null || !current.benchmarkProfile.needsFrameRate) {
+            mutableState.update {
+                it.copy(frameRatePreflight = null, isPreflighting = false)
+            }
+            return
+        }
+        preflightJob = viewModelScope.launch {
+            mutableState.update { it.copy(isPreflighting = true, frameRatePreflight = null) }
+            val capability = frameRateProbe.capabilityFor(packageName)
+            mutableState.update { state ->
+                // A different game or profile may have been selected while the dump ran.
+                if (state.selectedPackage == packageName &&
+                    state.benchmarkProfile.needsFrameRate
+                ) {
+                    state.copy(frameRatePreflight = capability, isPreflighting = false)
+                } else {
+                    state
+                }
+            }
+        }
     }
 
     // ---------------------------------------------------------------------------------- benchmarks
@@ -395,6 +438,22 @@ class IntelligenceViewModel @Inject constructor(
         if (mutableState.value.isCapturing) return
         val current = mutableState.value
         val profile = current.benchmarkProfile
+        if (profile.needsFrameRate) {
+            val preflight = current.frameRatePreflight
+            if (preflight !is FrameRateCapability.GameFrameStats) {
+                mutableState.update {
+                    it.copy(
+                        message = when {
+                            preflight != null -> preflight.explanation
+                            current.selectedPackage == null ->
+                                "Select a game first. ${profile.label} needs measurable game frame timing."
+                            else -> "Frame timing for this game is still being checked. Try again in a moment."
+                        },
+                    )
+                }
+                return
+            }
+        }
         benchmarkJob = viewModelScope.launch {
             mutableState.update {
                 it.copy(
@@ -566,6 +625,15 @@ class IntelligenceViewModel @Inject constructor(
      */
     fun applyRecommendation(recommendation: SmartRecommendation) {
         if (mutableState.value.busyKey != null) return
+        if (mutableState.value.isCapturing) {
+            mutableState.update {
+                it.copy(
+                    message = "A capture is running. Applying advice now would contaminate the " +
+                        "run, so wait for it to finish.",
+                )
+            }
+            return
+        }
         viewModelScope.launch {
             mutableState.update { it.copy(busyKey = recommendation.key, message = null) }
             try {
@@ -758,6 +826,15 @@ class IntelligenceViewModel @Inject constructor(
      * cannot raise or lower confidence. The recommendation stays available on the next scan.
      */
     fun dismissRecommendation(recommendation: SmartRecommendation) {
+        if (mutableState.value.isCapturing) {
+            mutableState.update {
+                it.copy(
+                    message = "A capture is running. Dismissing advice now would change the " +
+                        "context mid-run, so wait for it to finish.",
+                )
+            }
+            return
+        }
         viewModelScope.launch {
             if (mutableState.value.learningEnabled) {
                 repository.recordDecision(

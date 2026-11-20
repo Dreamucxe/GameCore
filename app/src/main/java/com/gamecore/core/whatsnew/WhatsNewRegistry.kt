@@ -35,6 +35,41 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 67,
+            versionName = "5.8",
+            date = "2026-11-20",
+            features = listOf(
+                FeatureNote(
+                    "A verdict that matches the number on screen",
+                    "Benchmark comparisons now weight each measurement window by the frames it " +
+                        "actually contained, so the A/B verdict and the average FPS shown beside it " +
+                        "come from the same statistic. A run on the charger is no longer compared " +
+                        "with one on battery: the comparison says INCONCLUSIVE and names the reason.",
+                ),
+                FeatureNote(
+                    "No recycled frames",
+                    "The frame probe now refuses a window with too few new frames instead of " +
+                        "counting the ring buffer again, and live session monitoring keeps its own " +
+                        "frame cursor. A benchmark capture and the session monitor can no longer " +
+                        "consume each other's frames or reset each other's position.",
+                ),
+                FeatureNote(
+                    "Evidence from the run that measured it",
+                    "Thermal, battery, memory and affinity advice now read the latest run of the " +
+                        "profile that exercises that metric, not whichever profile ran last. " +
+                        "Learning history is kept per game and per goal, so an outcome measured on " +
+                        "one game does not change confidence for another.",
+                ),
+                FeatureNote(
+                    "A comparison cannot start blind",
+                    "Before an FPS comparison profile starts, GameCore checks that the selected game " +
+                        "exposes real frame timing and disables Start with the reason when it does " +
+                        "not. During a capture the screen stays awake, and leaving asks for " +
+                        "confirmation before the run is cancelled.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 66,
             versionName = "5.7",
             date = "2026-11-18",

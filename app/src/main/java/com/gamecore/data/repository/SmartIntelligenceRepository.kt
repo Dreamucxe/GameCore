@@ -166,7 +166,11 @@ class SmartIntelligenceRepository @Inject constructor(
                 testedAction = resolution.testedAction,
             )
             val id = dao.insertBenchmark(
-                SmartIntelligenceMappers.toEntity(run, capture.fpsWindows),
+                SmartIntelligenceMappers.toEntity(
+                    run = run,
+                    windows = capture.fpsWindows,
+                    windowFrames = capture.fpsWindowFrames,
+                ),
             )
             run.copy(id = id)
         } finally {
@@ -231,6 +235,8 @@ class SmartIntelligenceRepository @Inject constructor(
             baselineWindows = SmartIntelligenceMappers.windows(baselineRow),
             candidate = SmartIntelligenceMappers.toModel(candidateRow),
             candidateWindows = SmartIntelligenceMappers.windows(candidateRow),
+            baselineWindowFrames = SmartIntelligenceMappers.windowFrames(baselineRow),
+            candidateWindowFrames = SmartIntelligenceMappers.windowFrames(candidateRow),
         )
     }
 
@@ -244,6 +250,8 @@ class SmartIntelligenceRepository @Inject constructor(
             baselineWindows = SmartIntelligenceMappers.windows(baseline),
             candidate = SmartIntelligenceMappers.toModel(candidate),
             candidateWindows = SmartIntelligenceMappers.windows(candidate),
+            baselineWindowFrames = SmartIntelligenceMappers.windowFrames(baseline),
+            candidateWindowFrames = SmartIntelligenceMappers.windowFrames(candidate),
         )
     }
 
@@ -273,6 +281,8 @@ class SmartIntelligenceRepository @Inject constructor(
                 baselineWindows = SmartIntelligenceMappers.windows(baselineRow),
                 candidate = candidate,
                 candidateWindows = SmartIntelligenceMappers.windows(candidateRow),
+                baselineWindowFrames = SmartIntelligenceMappers.windowFrames(baselineRow),
+                candidateWindowFrames = SmartIntelligenceMappers.windowFrames(candidateRow),
             )
             // Re-inspecting a stored run is allowed; inserting its evidence twice is not. The query
             // is by the run id, not by metric values, so two genuinely different runs with the same
@@ -523,7 +533,12 @@ class SmartIntelligenceRepository @Inject constructor(
         gameLabel: String? = null,
         learningEnabled: Boolean = true,
     ): List<SmartRecommendation> = withContext(io) {
-        val benchmark = dao.latestBenchmark(gamePackage)?.let(SmartIntelligenceMappers::toModel)
+        // One query per profile that a rule actually reads. Taking the latest run of any profile
+        // would let a newer battery run supply thermal or memory evidence it never measured.
+        val benchmarks = RELEVANT_BENCHMARK_PROFILES.mapNotNull { profile ->
+            dao.latestBenchmarkFor(gamePackage, profile.name)
+                ?.let(SmartIntelligenceMappers::toModel)
+        }.associateBy { it.profile }
         val profile = gamePackage?.let { profiles.profileFor(it) }
         val history = sessions.snapshot()
             .asSequence()
@@ -540,7 +555,7 @@ class SmartIntelligenceRepository @Inject constructor(
         RecommendationEngine.recommend(
             scan = scan,
             goal = goal,
-            benchmark = benchmark,
+            benchmarks = benchmarks,
             learning = learning,
             gamePackage = gamePackage,
             gameLabel = gameLabel,
@@ -553,5 +568,18 @@ class SmartIntelligenceRepository @Inject constructor(
         const val DEFAULT_LIMIT = 50
         const val GENERATION_DEDUP_MILLIS = 6L * 60L * 60L * 1_000L
         const val MAX_SESSION_EVIDENCE = 20
+
+        /**
+         * Profiles whose measurements can support a rule. Quick check is a glance rather than a
+         * profile-specific test, so it is never used as evidence for thermal, battery or memory
+         * advice even when it is the newest run.
+         */
+        val RELEVANT_BENCHMARK_PROFILES = listOf(
+            BenchmarkProfile.FULL_GAMING,
+            BenchmarkProfile.THERMAL_STABILITY,
+            BenchmarkProfile.BATTERY_EFFICIENCY,
+            BenchmarkProfile.MEMORY_PRESSURE,
+            BenchmarkProfile.OPTIMIZATION_COMPARISON,
+        )
     }
 }

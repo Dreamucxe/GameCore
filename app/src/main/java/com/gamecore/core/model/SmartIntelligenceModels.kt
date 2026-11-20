@@ -230,6 +230,14 @@ data class DeviceScan(
     val platformThermalStatus: ThermalStatus?,
     val capabilities: DeviceCapabilities,
     val unavailableReadings: List<String>,
+    /**
+     * The three animation scales at the moment of the scan.
+     *
+     * Read on every scan rather than cached with [capabilities]: applying the recommendation
+     * changes them, and a rescan that reused a five-minute-old snapshot would offer the same
+     * no-op again. [AnimationScales.UNKNOWN] when the keys could not be read.
+     */
+    val animationScales: AnimationScales = AnimationScales.UNKNOWN,
 ) {
     val ramUsedPercent: Float
         get() = if (totalRamBytes <= 0L) {
@@ -402,7 +410,21 @@ data class BenchmarkSummary(
 ) {
     val hasFrameRate: Boolean get() = averageFps != null
 
+    /**
+     * True when a charger was connected during the capture.
+     *
+     * The notice is part of [unavailable] because a charging run cannot quote a drain rate,
+     * and it is persisted with the summary. Two runs under different power conditions are
+     * not the same test, so the comparison reads this rather than guessing from battery
+     * levels.
+     */
+    val chargedDuringRun: Boolean
+        get() = unavailable.any { it == CHARGING_NOTICE }
+
     companion object {
+        const val CHARGING_NOTICE =
+            "A charger was connected, so a battery drain rate is not quoted."
+
         val EMPTY = BenchmarkSummary(
             sampleCount = 0,
             durationMillis = 0L,
@@ -694,6 +716,10 @@ data class LearningSummary(
     val confidenceAdjustment: Int,
     val blocked: Boolean,
     val explanation: String,
+    /** The game this summary belongs to, or null for device-wide history. */
+    val gamePackage: String? = null,
+    /** The goal this summary belongs to, or null when history predates context keys. */
+    val goal: OptimizationGoal? = null,
 )
 
 /** Progress reported while a benchmark capture runs. */

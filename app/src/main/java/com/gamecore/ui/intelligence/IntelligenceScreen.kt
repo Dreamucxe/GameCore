@@ -1,5 +1,7 @@
 package com.gamecore.ui.intelligence
 
+import android.view.WindowManager
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +41,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -60,6 +64,7 @@ import com.gamecore.core.model.ComparisonVerdict
 import com.gamecore.core.model.DeviceFinding
 import com.gamecore.core.model.DeviceIntelligenceReport
 import com.gamecore.core.model.FindingKind
+import com.gamecore.core.model.FrameRateCapability
 import com.gamecore.core.model.GameSession
 import com.gamecore.core.model.IntelligenceAnalysisFrequency
 import com.gamecore.core.model.LearningDecision
@@ -88,6 +93,7 @@ import com.gamecore.ui.components.SectionGap
 import com.gamecore.ui.components.StatusChip
 import com.gamecore.ui.components.SwitchRow
 import com.gamecore.ui.components.Tone
+import com.gamecore.ui.components.findActivity
 import java.util.Locale
 
 /**
@@ -109,12 +115,46 @@ fun IntelligenceScreen(
     var clearBenchmarks by remember { mutableStateOf(false) }
     var clearLearning by remember { mutableStateOf(false) }
     var clearAll by remember { mutableStateOf(false) }
+    var confirmLeaveCapture by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+
+    // A capture can run for twenty minutes. Keeping the screen awake is the difference between a
+    // recorded run and a device that sleeps through it; the flag is removed as soon as the capture
+    // ends or this screen leaves composition.
+    DisposableEffect(state.isCapturing) {
+        if (state.isCapturing) {
+            activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            if (state.isCapturing) {
+                activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
+    }
+
+    BackHandler(enabled = state.isCapturing) { confirmLeaveCapture = true }
 
     LaunchedEffect(state.editorRequest) {
         state.editorRequest?.let { packageName ->
             viewModel.consumeEditorRequest()
             onOpenProfile(packageName)
         }
+    }
+
+    if (confirmLeaveCapture) {
+        ConfirmDialog(
+            title = "Stop this capture?",
+            message = "The run is still recording. Leaving now cancels it and nothing is saved.",
+            confirmLabel = "Stop and leave",
+            onConfirm = {
+                confirmLeaveCapture = false
+                viewModel.stopBenchmark()
+                onBack()
+            },
+            onDismiss = { confirmLeaveCapture = false },
+            isDestructive = true,
+        )
     }
 
     if (clearBenchmarks) {
@@ -171,7 +211,9 @@ fun IntelligenceScreen(
             ScreenHeader(
                 title = "Performance Intelligence",
                 subtitle = "Offline evidence from this device",
-                onBack = onBack,
+                onBack = {
+                    if (state.isCapturing) confirmLeaveCapture = true else onBack()
+                },
                 action = {
                     IconButton(onClick = viewModel::refresh, enabled = !state.isScanning) {
                         if (state.isScanning) {
@@ -230,6 +272,7 @@ fun IntelligenceScreen(
                 RecommendationsCard(
                     recommendations = state.recommendations,
                     busyKey = state.busyKey,
+                    isCapturing = state.isCapturing,
                     onApply = viewModel::applyRecommendation,
                     onDismiss = viewModel::dismissRecommendation,
                     modifier = padded,
@@ -689,13 +732,20 @@ private fun CapabilityCard(report: DeviceIntelligenceReport, modifier: Modifier 
             if (capabilities.thermalStatusSupported) Tone.Good else Tone.Muted,
         )
         KeyValueRow(
-            "Game FPS source",
-            if (capabilities.frameRate.canMeasureGame) "Available for selected package" else "Unavailable",
+            "Frame timing (device probe)",
+            if (capabilities.frameRate.canMeasureGame) "Probe readable" else "Unavailable",
             if (capabilities.frameRate.canMeasureGame) Tone.Good else Tone.Muted,
         )
         if (!capabilities.frameRate.canMeasureGame) {
             Text(
                 capabilities.frameRate.explanation,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            Text(
+                "This probe is device-wide. The benchmark centre checks the selected game before " +
+                    "a comparison profile starts.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -782,6 +832,7 @@ private fun FindingRow(finding: DeviceFinding) {
 private fun RecommendationsCard(
     recommendations: List<SmartRecommendation>,
     busyKey: String?,
+    isCapturing: Boolean,
     onApply: (SmartRecommendation) -> Unit,
     onDismiss: (SmartRecommendation) -> Unit,
     modifier: Modifier = Modifier,
@@ -793,6 +844,14 @@ private fun RecommendationsCard(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (isCapturing) {
+            NoteBanner(
+                text = "A capture is running. Applying or dismissing advice is paused so the " +
+                    "recorded run measures one unchanged device state.",
+                tone = Tone.Warning,
+                icon = Icons.Filled.Info,
+            )
+        }
         if (recommendations.isEmpty()) {
             EmptyState(
                 icon = Icons.Filled.CheckCircle,
@@ -806,6 +865,7 @@ private fun RecommendationsCard(
                     recommendation = recommendation,
                     busy = busyKey == recommendation.key,
                     anyBusy = busyKey != null,
+                    isCapturing = isCapturing,
                     onApply = { onApply(recommendation) },
                     onDismiss = { onDismiss(recommendation) },
                 )
@@ -819,6 +879,7 @@ private fun RecommendationCard(
     recommendation: SmartRecommendation,
     busy: Boolean,
     anyBusy: Boolean,
+    isCapturing: Boolean,
     onApply: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -864,7 +925,7 @@ private fun RecommendationCard(
         ActionRow {
             Button(
                 onClick = onApply,
-                enabled = !anyBusy && recommendation.classification.isUsable,
+                enabled = !anyBusy && !isCapturing && recommendation.classification.isUsable,
                 modifier = Modifier.weight(1f),
             ) {
                 if (busy) {
@@ -873,7 +934,7 @@ private fun RecommendationCard(
                 }
                 Text(actionLabel(recommendation))
             }
-            TextButton(onClick = onDismiss, enabled = !anyBusy) { Text("Dismiss") }
+            TextButton(onClick = onDismiss, enabled = !anyBusy && !isCapturing) { Text("Dismiss") }
         }
     }
 }
@@ -904,6 +965,36 @@ private fun BenchmarkCentre(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         KeyValueRow("Capture length", formatDuration(state.benchmarkProfile.defaultDurationMillis))
+        if (state.benchmarkProfile.needsFrameRate) {
+            val preflight = state.frameRatePreflight
+            when {
+                preflight == null && state.isPreflighting -> NoteBanner(
+                    text = "Checking whether ${state.selectedLabel ?: "this game"} exposes real " +
+                        "frame timing…",
+                    tone = Tone.Muted,
+                )
+                preflight == null && state.selectedPackage == null -> NoteBanner(
+                    text = "This profile needs a selected game with measurable frame timing. " +
+                        "Choose a game above first.",
+                    tone = Tone.Warning,
+                )
+                preflight == null -> NoteBanner(
+                    text = "This profile needs measurable game frame timing, and the check has " +
+                        "not finished yet.",
+                    tone = Tone.Muted,
+                )
+                preflight.canMeasureGame -> NoteBanner(
+                    text = "Real frame timing is available for " +
+                        "${state.selectedLabel ?: state.selectedPackage}. This comparison can use " +
+                        "measured FPS.",
+                    tone = Tone.Good,
+                )
+                else -> NoteBanner(
+                    text = "This profile cannot start: ${preflight.explanation}",
+                    tone = Tone.Warning,
+                )
+            }
+        }
         state.testedActionPreview?.let { preview ->
             val tested = preview.testedAction
             if (tested != null) {
@@ -950,7 +1041,13 @@ private fun BenchmarkCentre(
                 Text("Stop without saving")
             }
         } else {
-            Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+            val canStart = !state.benchmarkProfile.needsFrameRate ||
+                state.frameRatePreflight?.canMeasureGame == true
+            Button(
+                onClick = onStart,
+                enabled = canStart,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 Icon(Icons.Filled.PlayArrow, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("Start real capture")
@@ -1258,6 +1355,17 @@ private fun LearningCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    val context = listOfNotNull(
+                        summary.gamePackage?.let { "Game: $it" },
+                        summary.goal?.let { "Goal: ${it.label}" },
+                    ).joinToString(" · ")
+                    if (context.isNotEmpty()) {
+                        Text(
+                            context,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
             SectionGap(8)

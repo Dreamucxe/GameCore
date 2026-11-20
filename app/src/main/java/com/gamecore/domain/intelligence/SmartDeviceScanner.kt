@@ -12,6 +12,7 @@ import com.gamecore.core.system.GpuClockReader
 import com.gamecore.core.system.MetricsReader
 import com.gamecore.core.system.ProcFsReader
 import com.gamecore.domain.optimization.DeviceCapabilityChecker
+import com.gamecore.domain.optimization.OptimizationManager
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -39,6 +40,7 @@ class SmartDeviceScanner @Inject constructor(
     private val displayReader: DisplayReader,
     private val capabilities: DeviceCapabilityChecker,
     private val gpuClockReader: GpuClockReader,
+    private val optimizations: OptimizationManager,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) {
 
@@ -50,6 +52,7 @@ class SmartDeviceScanner @Inject constructor(
         val thermal = metrics.readThermal()
         val storage = metrics.readStorage()
         val gpuClock = gpuClockReader.read()
+        val animationScales = optimizations.animationScales()
 
         val coreCount = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
         val frequencies = procFs.readCoreFrequencies(coreCount).valueOrNull.orEmpty()
@@ -128,6 +131,7 @@ class SmartDeviceScanner @Inject constructor(
             platformThermalStatus = thermal.status.valueOrNull,
             capabilities = caps,
             unavailableReadings = unavailable,
+            animationScales = animationScales,
         )
     }
 

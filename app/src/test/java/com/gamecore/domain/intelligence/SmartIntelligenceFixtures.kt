@@ -1,5 +1,6 @@
 package com.gamecore.domain.intelligence
 
+import com.gamecore.core.model.AnimationScales
 import com.gamecore.core.model.BenchmarkProfile
 import com.gamecore.core.model.BenchmarkRun
 import com.gamecore.core.model.BenchmarkSummary
@@ -19,6 +20,7 @@ internal fun deviceScan(
     batteryTemperatureDeciCelsius: Int? = 320,
     platformThermalStatus: ThermalStatus? = null,
     batteryPowerSave: Boolean = false,
+    animationScales: AnimationScales = AnimationScales.UNKNOWN,
     capabilities: DeviceCapabilities = DeviceCapabilities.UNKNOWN.copy(
         refreshRateMechanism = RefreshRateMechanism.SYSTEM_SETTINGS,
         supportedRefreshRates = supportedRefreshRates,
@@ -62,6 +64,7 @@ internal fun deviceScan(
     platformThermalStatus = platformThermalStatus,
     capabilities = capabilities,
     unavailableReadings = emptyList(),
+    animationScales = animationScales,
 )
 
 internal fun benchmarkRun(

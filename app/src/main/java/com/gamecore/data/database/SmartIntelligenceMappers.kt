@@ -23,7 +23,11 @@ internal object SmartIntelligenceMappers {
 
     // ------------------------------------------------------------------------------ benchmarks
 
-    fun toEntity(run: BenchmarkRun, windows: List<Float>): SmartBenchmarkEntity {
+    fun toEntity(
+        run: BenchmarkRun,
+        windows: List<Float>,
+        windowFrames: List<Int>? = null,
+    ): SmartBenchmarkEntity {
         val summary = run.summary
         return SmartBenchmarkEntity(
             id = run.id,
@@ -62,7 +66,7 @@ internal object SmartIntelligenceMappers {
             refreshRateSource = summary.refreshRateSource,
             fpsSource = summary.fpsSource,
             unavailable = summary.unavailable.joinToString("\n"),
-            fpsWindows = windows.joinToString(","),
+            fpsWindows = encodeWindows(windows, windowFrames),
             baselineRunId = run.baselineRunId,
             testedActionRecordId = run.testedAction?.appliedRecordId,
             testedActionKey = run.testedAction?.actionKey,
@@ -161,9 +165,50 @@ internal object SmartIntelligenceMappers {
 
     /** The per-window FPS sample set. Empty when frame timing was unavailable. */
     fun windows(entity: SmartBenchmarkEntity): List<Float> =
-        entity.fpsWindows.split(',')
-            .mapNotNull { it.trim().toFloatOrNull() }
-            .filter { it > 0f && it.isFinite() }
+        parseWindows(entity.fpsWindows).map { it.first }
+
+    /**
+     * The real frame count behind each entry in [windows], when the row carries them.
+     *
+     * Rows written before weights were stored, or rows where any window lacks a count, return
+     * null rather than a fabricated 1 per window: an unknown weight is not evidence that every
+     * window had the same number of frames. The comparison then falls back to the summary's
+     * frame-weighted average for its delta and an unweighted t-test.
+     */
+    fun windowFrames(entity: SmartBenchmarkEntity): List<Int>? {
+        val parsed = parseWindows(entity.fpsWindows)
+        if (parsed.isEmpty() || parsed.any { it.second == null }) return null
+        return parsed.map { it.second!! }
+    }
+
+    /**
+     * `fps:frames` per window when every count is known, otherwise the legacy plain `fps` list.
+     *
+     * The column is unchanged; only the token shape is extended. This build reads both shapes,
+     * so rows captured before weights existed keep working.
+     */
+    private fun encodeWindows(windows: List<Float>, windowFrames: List<Int>?): String =
+        if (windowFrames != null &&
+            windowFrames.size == windows.size &&
+            windowFrames.all { it > 0 }
+        ) {
+            windows.indices.joinToString(",") { index -> "${windows[index]}:${windowFrames[index]}" }
+        } else {
+            windows.joinToString(",")
+        }
+
+    private fun parseWindows(raw: String): List<Pair<Float, Int?>> =
+        raw.split(',')
+            .mapNotNull { token ->
+                val trimmed = token.trim()
+                if (trimmed.isEmpty()) return@mapNotNull null
+                val parts = trimmed.split(':')
+                val fps = parts[0].toFloatOrNull()
+                    ?.takeIf { it > 0f && it.isFinite() }
+                    ?: return@mapNotNull null
+                val frames = parts.getOrNull(1)?.toIntOrNull()?.takeIf { it > 0 }
+                fps to frames
+            }
 
     private const val METRIC_SEPARATOR = "|"
 

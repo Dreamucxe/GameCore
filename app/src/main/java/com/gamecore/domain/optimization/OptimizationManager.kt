@@ -2,6 +2,7 @@ package com.gamecore.domain.optimization
 
 import com.gamecore.core.common.Observed
 import com.gamecore.core.common.map
+import com.gamecore.core.model.AnimationScales
 import com.gamecore.core.model.CapabilityStatus
 import com.gamecore.core.model.ChangeOrigin
 import com.gamecore.core.model.OptimizationAction
@@ -85,6 +86,15 @@ class OptimizationManager @Inject constructor(
      * cached view for the screens that render a whole list at once.
      */
     suspend fun statusFor(action: OptimizationAction): CapabilityStatus = best(action).status
+
+    /**
+     * The three animation scales as the device currently holds them.
+     *
+     * The elevated tier owns the animation action, but these are ordinary settings-provider reads
+     * and work without Shizuku. Exposed here so the device scan can record the values without
+     * reaching into a tier.
+     */
+    suspend fun animationScales(): AnimationScales = elevated.animationScales()
 
     /**
      * The same for every action, as one map.

@@ -59,7 +59,15 @@ class FrameRateProbe @Inject constructor(
      * round trip, done when the user opens the performance screen or a session starts,
      * not per tick.
      */
-    suspend fun capabilityFor(packageName: String?): FrameRateCapability = withContext(io) {
+    suspend fun capabilityFor(
+        packageName: String?,
+        /**
+         * When supplied, the same dump is used to start that consumer's frame cursor at the
+         * newest frame already in the buffer. The consumer's first [sample] then contains only
+         * frames drawn after this call, instead of the seconds of play that preceded it.
+         */
+        primeConsumer: String? = null,
+    ): FrameRateCapability = withContext(io) {
         if (packageName.isNullOrBlank()) {
             return@withContext FrameRateCapability.Unavailable(
                 FrameRateCapability.NO_GAME_SELECTED,
@@ -79,8 +87,17 @@ class FrameRateProbe @Inject constructor(
                 "Android's rendering profiler could not be read for this game on this device.",
             )
         }
-        when (DumpsysParsers.parseFrameStats(result.stdout)) {
-            is Observed.Value -> FrameRateCapability.GameFrameStats(packageName)
+        when (val parsed = DumpsysParsers.parseFrameStats(result.stdout)) {
+            is Observed.Value -> {
+                if (primeConsumer != null) {
+                    parsed.value.maxOfOrNull { it.intendedVsyncNanos }?.let { newest ->
+                        synchronized(cursors) {
+                            cursors[cursorKey(primeConsumer, packageName)] = newest
+                        }
+                    }
+                }
+                FrameRateCapability.GameFrameStats(packageName)
+            }
             // The empty-section case, which is the normal outcome for a native renderer.
             else -> FrameRateCapability.Unavailable(FrameRateCapability.NATIVE_RENDERER)
         }
@@ -108,12 +125,17 @@ class FrameRateProbe @Inject constructor(
      * caller cannot accidentally render "0 fps" for a game the platform is silent about.
      *
      * The dump is a *ring buffer* — `gfxinfo` keeps roughly the last 120 frames and
-     * `framestats` prints what is in it — so consecutive calls overlap. That is why
-     * [lastFrameSeenNanos] is tracked: only frames newer than the last window are
-     * aggregated, which turns overlapping dumps into a non-overlapping series and stops
-     * the same slow frame being counted as jank in five successive readings.
+     * `framestats` prints what is in it — so consecutive calls overlap. Each [consumer]
+     * keeps its own cursor: only frames newer than that consumer's previous window are
+     * aggregated, and the cursor advances only when a window was actually produced. A
+     * sample with fewer than [MIN_FRESH_FRAMES] unseen frames returns null instead of
+     * re-aggregating frames that another window already counted. Two consumers therefore
+     * see two independent, non-overlapping series over the same dumps.
      */
-    suspend fun sample(packageName: String): FrameRateSample? = withContext(io) {
+    suspend fun sample(
+        packageName: String,
+        consumer: String = DEFAULT_CONSUMER,
+    ): FrameRateSample? = withContext(io) {
         val command = ShellCommand.frameStats(packageName) ?: return@withContext null
         val result = shell.execute(command)
         if (!result.isSuccess) return@withContext null
@@ -121,19 +143,36 @@ class FrameRateProbe @Inject constructor(
         val frames = DumpsysParsers.parseFrameStats(result.stdout).valueOrNull
             ?: return@withContext null
 
+        val key = cursorKey(consumer, packageName)
+        val lastFrameSeenNanos = synchronized(cursors) { cursors[key] ?: 0L }
         val fresh = frames.filter { it.intendedVsyncNanos > lastFrameSeenNanos }
-        val window = if (fresh.size >= MIN_FRESH_FRAMES) fresh else frames
-        lastFrameSeenNanos = frames.lastOrNull()?.intendedVsyncNanos ?: lastFrameSeenNanos
+        if (fresh.size < MIN_FRESH_FRAMES) return@withContext null
 
-        aggregate(window)
+        val sample = aggregate(fresh) ?: return@withContext null
+        val newest = fresh.maxOf { it.intendedVsyncNanos }
+        synchronized(cursors) { cursors[key] = newest }
+        sample
     }
 
-    /** Forgets the frame cursor, so the next [sample] takes the whole buffer. */
-    fun reset() {
-        lastFrameSeenNanos = 0L
+    /**
+     * Forgets one consumer's frame cursor, so its next [sample] starts from a clean buffer.
+     *
+     * Cursors are keyed by consumer and package, so this never discards another consumer's
+     * progress. [capabilityFor] with `primeConsumer` is the normal way to start a capture:
+     * it consumes the capability dump into the cursor and keeps pre-capture frames out of
+     * the first window.
+     */
+    fun reset(consumer: String = DEFAULT_CONSUMER) {
+        synchronized(cursors) {
+            val prefix = "$consumer|"
+            cursors.keys.removeAll { it.startsWith(prefix) }
+        }
     }
 
-    private var lastFrameSeenNanos: Long = 0L
+    private val cursors = HashMap<String, Long>()
+
+    private fun cursorKey(consumer: String, packageName: String): String =
+        "$consumer|$packageName"
 
     // ------------------------------------------------------------------ aggregation
 
@@ -209,21 +248,31 @@ class FrameRateProbe @Inject constructor(
         return if (fps.isFinite() && fps > 0f) fps else null
     }
 
-    private companion object {
-        const val NANOS_PER_SECOND = 1_000_000_000f
+    companion object {
+        /** The consumer key used when a caller does not name one. */
+        const val DEFAULT_CONSUMER = "default"
+
+        /** The live session monitor's cursor. */
+        const val SESSION_CONSUMER = "session"
+
+        /** A benchmark capture's cursor. */
+        const val BENCHMARK_CONSUMER = "benchmark"
+
+        private const val NANOS_PER_SECOND = 1_000_000_000f
 
         /** A gap longer than this is a pause, not a frame interval. */
-        const val MAX_INTERVAL_NANOS = 1_000_000_000L
+        private const val MAX_INTERVAL_NANOS = 1_000_000_000L
 
         /**
          * Below this many unseen frames the ring buffer had not turned over enough to
-         * measure from the new frames alone, so the whole buffer is used again rather
-         * than reporting a rate from three frames.
+         * measure from the new frames alone. The window is refused rather than padded
+         * with frames an earlier window already counted, because overlapping windows are
+         * not independent evidence.
          */
-        const val MIN_FRESH_FRAMES = 10
+        private const val MIN_FRESH_FRAMES = 10
 
-        const val P95_PERCENT = 95f
-        const val P99_PERCENT = 99f
+        private const val P95_PERCENT = 95f
+        private const val P99_PERCENT = 99f
     }
 }
 

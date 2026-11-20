@@ -2,6 +2,7 @@ package com.gamecore.domain.intelligence
 
 import com.gamecore.core.model.BenchmarkPoint
 import com.gamecore.core.model.BenchmarkProfile
+import com.gamecore.core.model.BenchmarkSummary
 import com.gamecore.core.model.ComparisonVerdict
 import com.gamecore.core.model.FrameRateSample
 import org.junit.Assert.assertEquals
@@ -59,6 +60,48 @@ class BenchmarkMathTest {
         assertEquals(ComparisonVerdict.INCONCLUSIVE, result.verdict)
         assertNull(result.confidencePercent)
         assertTrue(result.explanation.contains("not measured"))
+    }
+
+    @Test
+    fun `verdict delta uses the frame-weighted average the table shows`() {
+        // The window means are 54 and 70, but the summaries say 60 and 61. A verdict built from
+        // unweighted window means would call this a 16 fps improvement; the displayed weighted
+        // average moved by 1 fps, below the practical floor, so the honest answer is neutral.
+        val baseline = benchmarkRun(1L, 60f)
+        val candidate = benchmarkRun(2L, 61f)
+
+        val result = BenchmarkMath.compare(
+            baseline = baseline,
+            baselineWindows = listOf(50f, 50f, 50f, 50f, 70f),
+            candidate = candidate,
+            candidateWindows = listOf(70f, 70f, 70f, 70f, 70f),
+            baselineWindowFrames = listOf(10, 10, 10, 10, 10),
+            candidateWindowFrames = listOf(10, 10, 10, 10, 10),
+        )
+
+        assertEquals(ComparisonVerdict.NEUTRAL, result.verdict)
+        val fps = result.deltas.first { it.label == "Average FPS" }
+        assertEquals(1f, fps.delta, 0.001f)
+    }
+
+    @Test
+    fun `comparison refuses when only one run was on a charger`() {
+        val baseline = benchmarkRun(1L, 60f).copy(
+            summary = benchmarkRun(1L, 60f).summary.copy(
+                unavailable = listOf(BenchmarkSummary.CHARGING_NOTICE),
+            ),
+        )
+        val candidate = benchmarkRun(2L, 60f)
+
+        val result = BenchmarkMath.compare(
+            baseline,
+            listOf(60f, 60f, 60f),
+            candidate,
+            listOf(60f, 60f, 60f),
+        )
+
+        assertEquals(ComparisonVerdict.INCONCLUSIVE, result.verdict)
+        assertTrue(result.explanation.contains("charger"))
     }
 
     private fun point(

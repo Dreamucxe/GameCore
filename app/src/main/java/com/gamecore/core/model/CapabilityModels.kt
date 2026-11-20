@@ -37,6 +37,28 @@ enum class CapabilityStatus(val label: String, val isUsable: Boolean) {
 }
 
 /**
+ * The three Developer-options animation scales, as the device currently holds them.
+ *
+ * A null scale is one that could not be read, and it is never treated as zero: "animations are
+ * already off" is a claim that needs all three readings. A key the user has never changed reads as
+ * the platform's default of 1.0 rather than as unknown, so an untouched device is distinguishable
+ * from an unreadable one.
+ */
+data class AnimationScales(
+    val window: Float?,
+    val transition: Float?,
+    val animator: Float?,
+) {
+    val allReadable: Boolean get() = window != null && transition != null && animator != null
+
+    val allOff: Boolean get() = window == 0f && transition == 0f && animator == 0f
+
+    companion object {
+        val UNKNOWN = AnimationScales(window = null, transition = null, animator = null)
+    }
+}
+
+/**
  * What this device will actually let GameCore do, established once and then cached.
  *
  * Every field is the answer to a question some screen asks, and none of them is a guess: each is

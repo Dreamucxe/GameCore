@@ -51,14 +51,17 @@ class SmartBenchmarkRunner @Inject constructor(
         val capability = if (gamePackage.isNullOrBlank()) {
             FrameRateCapability.Unavailable(FrameRateCapability.NO_GAME_SELECTED)
         } else {
-            frameRate.capabilityFor(gamePackage)
+            frameRate.capabilityFor(
+                gamePackage,
+                primeConsumer = FrameRateProbe.BENCHMARK_CONSUMER,
+            )
         }
-        frameRate.reset()
 
         val startedAtMillis = System.currentTimeMillis()
         val startedAtElapsed = SystemClock.elapsedRealtime()
         val points = ArrayList<BenchmarkPoint>()
         val windows = ArrayList<Float>()
+        val windowFrames = ArrayList<Int>()
 
         while (isActive) {
             val elapsed = (SystemClock.elapsedRealtime() - startedAtElapsed).coerceAtMost(duration)
@@ -68,7 +71,10 @@ class SmartBenchmarkRunner @Inject constructor(
                 frameTimingAvailable = capability.canMeasureGame,
             )
             points += point
-            point.frameRate?.takeIf { it.isReliable }?.let { windows += it.averageFps }
+            point.frameRate?.takeIf { it.isReliable }?.let { frame ->
+                windows += frame.averageFps
+                windowFrames += frame.frameCount
+            }
             onProgress(
                 BenchmarkProgress(
                     profile = profile,
@@ -85,6 +91,7 @@ class SmartBenchmarkRunner @Inject constructor(
         BenchmarkCapture(
             points = points,
             fpsWindows = windows,
+            fpsWindowFrames = windowFrames,
             startedAtMillis = startedAtMillis,
             endedAtMillis = System.currentTimeMillis(),
         )
@@ -102,7 +109,7 @@ class SmartBenchmarkRunner @Inject constructor(
         val display = displayReader.read()
         val gpu = gpuReader.read()
         val frame = if (frameTimingAvailable && gamePackage != null) {
-            frameRate.sample(gamePackage)
+            frameRate.sample(gamePackage, FrameRateProbe.BENCHMARK_CONSUMER)
         } else {
             null
         }
@@ -151,6 +158,12 @@ class SmartBenchmarkRunner @Inject constructor(
 data class BenchmarkCapture(
     val points: List<BenchmarkPoint>,
     val fpsWindows: List<Float>,
+    /**
+     * Real frames behind each entry in [fpsWindows], in the same order. The comparison
+     * weights windows by these counts, so a 120-frame window counts more than a 10-frame
+     * one and the verdict agrees with the frame-weighted average the summary shows.
+     */
+    val fpsWindowFrames: List<Int> = emptyList(),
     val startedAtMillis: Long,
     val endedAtMillis: Long,
 )

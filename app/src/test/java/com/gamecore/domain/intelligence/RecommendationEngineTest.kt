@@ -1,5 +1,7 @@
 package com.gamecore.domain.intelligence
 
+import com.gamecore.core.model.AnimationScales
+import com.gamecore.core.model.CapabilityStatus
 import com.gamecore.core.model.DeviceCapabilities
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.LearningDecision
@@ -321,6 +323,57 @@ class RecommendationEngineTest {
         assertEquals(ThermalClass.HOT, thermal.targetThermalStatusFloor)
         assertEquals(60f, thermal.targetThermalFloorRateHz!!, 0.001f)
         assertTrue(thermal.proposed.contains("Android reports throttling"))
+    }
+
+    @Test
+    fun `animation advice is withheld when every scale already reads zero`() {
+        val result = RecommendationEngine.recommend(
+            scan = deviceScan(
+                animationScales = AnimationScales(0f, 0f, 0f),
+                capabilities = capabilities().copy(
+                    animationScaleControl = CapabilityStatus.AVAILABLE,
+                ),
+            ),
+            goal = OptimizationGoal.MAXIMUM_PERFORMANCE,
+        )
+
+        assertFalse(result.any { it.action == RecommendationAction.DISABLE_ANIMATIONS })
+    }
+
+    @Test
+    fun `animation advice reports the scales it actually read`() {
+        val result = RecommendationEngine.recommend(
+            scan = deviceScan(
+                animationScales = AnimationScales(1f, 0.5f, 0f),
+                capabilities = capabilities().copy(
+                    animationScaleControl = CapabilityStatus.AVAILABLE,
+                ),
+            ),
+            goal = OptimizationGoal.MAXIMUM_PERFORMANCE,
+        )
+        val animation = result.first { it.action == RecommendationAction.DISABLE_ANIMATIONS }
+
+        assertTrue(animation.current.contains("1.0×"))
+        assertTrue(animation.current.contains("0.5×"))
+        assertTrue(animation.current.contains("off"))
+        assertTrue(animation.evidence.any { it.source == "Current scales" })
+    }
+
+    @Test
+    fun `unreadable scales are named rather than claimed unchanged`() {
+        val result = RecommendationEngine.recommend(
+            scan = deviceScan(
+                animationScales = AnimationScales(window = null, transition = 1f, animator = 1f),
+                capabilities = capabilities().copy(
+                    animationScaleControl = CapabilityStatus.AVAILABLE,
+                ),
+            ),
+            goal = OptimizationGoal.MAXIMUM_PERFORMANCE,
+        )
+        val animation = result.first { it.action == RecommendationAction.DISABLE_ANIMATIONS }
+
+        assertTrue(animation.current.contains("could be read", ignoreCase = true))
+        assertFalse(animation.current.contains("GameCore has not changed"))
     }
 
     private fun capabilities(

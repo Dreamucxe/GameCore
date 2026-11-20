@@ -79,6 +79,37 @@ class LearningEngineTest {
         assertTrue(summary.explanation.contains("not recommended"))
     }
 
+    @Test
+    fun `learning history is separated by game and goal`() {
+        val summaries = LearningEngine.summarizeAll(
+            listOf(
+                record(LearningDecision.TESTED, LearningOutcome.REGRESSED),
+                record(LearningDecision.TESTED, LearningOutcome.IMPROVED)
+                    .copy(gamePackage = "other.pkg"),
+                record(LearningDecision.TESTED, LearningOutcome.REGRESSED)
+                    .copy(goal = OptimizationGoal.BATTERY_EFFICIENCY),
+            ),
+        )
+
+        assertEquals(3, summaries.size)
+        val onGame = summaries.getValue(
+            LearningEngine.contextKey(ACTION, "game.pkg", OptimizationGoal.STABLE_FPS),
+        )
+        val otherGame = summaries.getValue(
+            LearningEngine.contextKey(ACTION, "other.pkg", OptimizationGoal.STABLE_FPS),
+        )
+        val otherGoal = summaries.getValue(
+            LearningEngine.contextKey(ACTION, "game.pkg", OptimizationGoal.BATTERY_EFFICIENCY),
+        )
+
+        assertEquals(1, onGame.testedCount)
+        assertTrue(onGame.confidenceAdjustment < 0)
+        assertEquals(1, otherGame.testedCount)
+        assertTrue(otherGame.confidenceAdjustment > 0)
+        assertEquals(1, otherGoal.testedCount)
+        assertTrue(otherGoal.confidenceAdjustment < 0)
+    }
+
     private fun record(decision: LearningDecision, outcome: LearningOutcome) = LearningRecord(
         actionKey = ACTION,
         gamePackage = "game.pkg",

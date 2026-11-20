@@ -4,6 +4,7 @@ import com.gamecore.core.model.LearningDecision
 import com.gamecore.core.model.LearningOutcome
 import com.gamecore.core.model.LearningRecord
 import com.gamecore.core.model.LearningSummary
+import com.gamecore.core.model.OptimizationGoal
 
 /**
  * Turns locally recorded outcomes into a confidence adjustment, and nothing else.
@@ -44,23 +45,56 @@ object LearningEngine {
      */
     const val BLOCK_MARGIN = 2
 
-    /** Summarizes every action that has at least one recorded event. */
+    /** Summarizes every action context that has at least one recorded event. */
     fun summarizeAll(records: List<LearningRecord>): Map<String, LearningSummary> =
-        records.groupBy { it.actionKey }
-            .mapValues { (actionKey, forAction) -> summarize(forAction, actionKey) }
+        records.groupBy { contextKey(it.actionKey, it.gamePackage, it.goal) }
+            .mapValues { (_, forAction) ->
+                val first = forAction.first()
+                summarizeContext(
+                    records = forAction,
+                    actionKey = first.actionKey,
+                    gamePackage = first.gamePackage,
+                    goal = first.goal,
+                )
+            }
             .filterValues {
                 it.generatedCount + it.appliedCount + it.attemptedCount +
                     it.testedCount + it.ignoredCount > 0
             }
 
     /**
+     * The key a summary is stored and looked up under.
+     *
+     * An outcome measured on one game must not lower confidence for another game, and a
+     * regression under one goal must not block the same action under a different goal. The
+     * device-wide context is the one with a null package. `*` is used only as a readable
+     * separator-safe marker; neither a package name nor an enum name can contain it.
+     */
+    fun contextKey(actionKey: String, gamePackage: String?, goal: OptimizationGoal?): String =
+        "$actionKey|${gamePackage ?: "*"}|${goal?.name ?: "*"}"
+
+    /**
      * Summarizes one action's history.
      *
      * [actionKey] is passed separately so a caller can summarize an action with no records at all
-     * and get an honest zero summary rather than a missing entry.
+     * and get an honest zero summary rather than a missing entry. The context fields are left
+     * null here because this entry point does not filter; [summarizeAll] uses the context-aware
+     * path so records from different games and goals are never mixed.
      */
-    fun summarize(records: List<LearningRecord>, actionKey: String): LearningSummary {
-        val mine = records.filter { it.actionKey == actionKey }
+    fun summarize(records: List<LearningRecord>, actionKey: String): LearningSummary =
+        summarizeContext(records, actionKey, gamePackage = null, goal = null)
+
+    private fun summarizeContext(
+        records: List<LearningRecord>,
+        actionKey: String,
+        gamePackage: String?,
+        goal: OptimizationGoal?,
+    ): LearningSummary {
+        val mine = records.filter {
+            it.actionKey == actionKey &&
+                it.gamePackage == gamePackage &&
+                (goal == null || it.goal == goal)
+        }
         val generated = mine.count { it.decision == LearningDecision.GENERATED }
         val applied = mine.count { it.decision == LearningDecision.APPLIED }
         // A failed attempt and a write that could not be read back are both non-applications.
@@ -112,6 +146,8 @@ object LearningEngine {
                 unknown = unknown,
                 blocked = blocked,
             ),
+            gamePackage = gamePackage,
+            goal = goal,
         )
     }
 

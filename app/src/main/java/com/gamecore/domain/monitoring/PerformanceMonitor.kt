@@ -159,8 +159,11 @@ class PerformanceMonitor @Inject constructor(
     suspend fun watch(packageName: String?) {
         if (watched == packageName) return
         watched = packageName
-        frameRateProbe.reset()
-        capabilityState.value = frameRateProbe.capabilityFor(packageName)
+        frameRateProbe.reset(FrameRateProbe.SESSION_CONSUMER)
+        capabilityState.value = frameRateProbe.capabilityFor(
+            packageName,
+            primeConsumer = FrameRateProbe.SESSION_CONSUMER,
+        )
     }
 
     /**
@@ -274,7 +277,7 @@ class PerformanceMonitor @Inject constructor(
                 Observed.notPresent(capability.explanation)
             }
         }
-        val sample = frameRateProbe.sample(target)
+        val sample = frameRateProbe.sample(target, FrameRateProbe.SESSION_CONSUMER)
             ?: return Observed.Failed("This game's frame timing came back empty.")
         return if (!sample.isReliable) {
             Observed.awaitingSample("Not enough frames in the window to state a rate yet.")
