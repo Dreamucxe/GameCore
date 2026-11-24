@@ -253,15 +253,18 @@ class PluginRegistryImpl @Inject constructor(
     /**
      * Rescans both sources and republishes.
      *
-     * Bundled is scanned first and wins a duplicate id, so a sideloaded package cannot shadow a
-     * bundled plugin by naming itself after one — [install] refuses that id outright, and this is the
-     * second line for a file that arrived some other way.
+     * A duplicate id is resolved by version first: the newer manifest is the installed plugin, so an
+     * APK update that ships a newer bundled build is not held back by an older package on disk. On a
+     * tie the sideloaded package wins, because it is the copy the user explicitly installed from the
+     * curated index; the bundled asset is the fallback that reappears when that package is removed.
+     * Neither copy can arrive without passing the loader and, for a market install, the index hash.
      */
     private fun reload() {
         val scanned = LinkedHashMap<String, PluginRecord>()
         for (record in readBundled() + readSideloaded()) {
             val id = record.manifest.id
-            if (!scanned.containsKey(id)) scanned[id] = record
+            val current = scanned[id]
+            if (current == null || preferred(current, record) === record) scanned[id] = record
         }
         records = scanned
         if (!groupsLoaded) {
@@ -270,6 +273,22 @@ class PluginRegistryImpl @Inject constructor(
         }
         publish()
         loadedState.value = true
+    }
+
+    /**
+     * Which of two records for the same id is the installed copy.
+     *
+     * Version is the user-visible fact, so it decides first. A tie is not resolved by scan order:
+     * the package file is an explicit install and outranks the asset the APK happens to carry.
+     */
+    private fun preferred(current: PluginRecord, candidate: PluginRecord): PluginRecord {
+        val byVersion = candidate.manifest.version.compareTo(current.manifest.version)
+        return when {
+            byVersion > 0 -> candidate
+            byVersion < 0 -> current
+            candidate.source is PluginSource.Package && current.source !is PluginSource.Package -> candidate
+            else -> current
+        }
     }
 
     /** Recomputes every flow from [records] plus the store. No package is opened except for a theme. */
@@ -540,10 +559,18 @@ class PluginRegistryImpl @Inject constructor(
                 "the plugin id cannot be used as a file name",
             )
 
-        if (records[id]?.origin == PluginOrigin.BUNDLED) {
+        // A bundled plugin may be replaced by a package the user installs from the curated index.
+        // The bundled asset stays in the APK and wins again if that package is removed, but while the
+        // package exists it is the installed copy — the same rule [reload] applies. Refuse a package
+        // older than the bundled copy instead of writing bytes that the next scan would ignore.
+        val bundled = records[id]
+        if (bundled != null &&
+            bundled.origin == PluginOrigin.BUNDLED &&
+            bundled.manifest.version > manifest.version
+        ) {
             return InstallOutcome.Rejected(
                 PluginPackageLoader.Reason.DUPLICATE_ENTRY,
-                "a bundled plugin already uses this id",
+                "the bundled copy (${bundled.manifest.versionName}) is newer than this package",
             )
         }
 
@@ -862,6 +889,47 @@ class PluginRegistryImpl @Inject constructor(
             groupsState.value = current.toMutableList().also {
                 it[index] = group.copy(pluginIds = updated)
             }
+            persistGroups()
+            true
+        }
+    }
+
+    override suspend fun setGroupGame(
+        groupId: String,
+        gamePackage: String?,
+        gameLabel: String?,
+    ): Boolean = withContext(io) {
+        lock.withLock {
+            val current = groupsState.value
+            val index = current.indexOfFirst { it.id == groupId && !it.automatic }
+            if (index < 0) return@withLock false
+
+            val group = current[index]
+            if (gamePackage == null) {
+                if (group.gamePackage == null) return@withLock true
+                groupsState.value = current.toMutableList().also {
+                    it[index] = group.copy(gamePackage = null, gameLabel = null)
+                }
+                persistGroups()
+                return@withLock true
+            }
+
+            val clean = TextSanitizer.validatePackageName(gamePackage) ?: return@withLock false
+            val label = TextSanitizer.sanitizeName(gameLabel, GAME_LABEL_LENGTH).trim()
+                .ifEmpty { clean }
+
+            // One set per game. Moving the binding is one write so a reader can never see two groups
+            // claiming the same package, which would make "which set applies?" depend on list order.
+            val updated = current.mapIndexed { i, value ->
+                when {
+                    i == index -> value.copy(gamePackage = clean, gameLabel = label)
+                    !value.automatic && value.gamePackage == clean ->
+                        value.copy(gamePackage = null, gameLabel = null)
+                    else -> value
+                }
+            }
+            if (updated == current) return@withLock true
+            groupsState.value = updated
             persistGroups()
             true
         }
@@ -1617,6 +1685,9 @@ class PluginRegistryImpl @Inject constructor(
 
         /** A suspension detail is one line under a list row, not a paragraph. */
         const val MAX_DETAIL_LENGTH = 120
+
+        /** A game label under a set name, not the profile's full description. */
+        const val GAME_LABEL_LENGTH = 60
 
         /** Across the whole `rules/` section, not per file. */
         const val MAX_RULES_PER_PLUGIN = 32

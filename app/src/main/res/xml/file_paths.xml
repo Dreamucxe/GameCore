@@ -37,4 +37,10 @@
     <files-path
         name="controller-profiles"
         path="controller-profiles/" />
+    <files-path
+        name="logs"
+        path="logs/" />
+    <files-path
+        name="log-exports"
+        path="exports/logs/" />
 </paths>

@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.gamecore.core.plugin.ApiResult
 import com.gamecore.core.plugin.DataScope
 import com.gamecore.core.plugin.InstalledPlugin
+import com.gamecore.core.plugin.PluginAuditLog
 import com.gamecore.core.plugin.PluginGrant
 import com.gamecore.core.plugin.PluginGroup
+import com.gamecore.core.plugin.PluginHealth
 import com.gamecore.core.plugin.PluginGrouping
 import com.gamecore.core.plugin.PluginInstallPlan
 import com.gamecore.core.plugin.PluginPermission
@@ -53,6 +55,7 @@ import javax.inject.Inject
 @HiltViewModel
 class PluginDetailViewModel @Inject constructor(
     private val registry: PluginRegistry,
+    private val audit: PluginAuditLog,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -181,6 +184,11 @@ class PluginDetailViewModel @Inject constructor(
             isThemeSource = isThemeSource,
             killSwitchOn = killSwitchOn,
             groups = groups,
+            health = PluginHealth.assess(
+                plugin = plugin,
+                audit = audit.recent(plugin.id),
+                killSwitchOn = killSwitchOn,
+            ),
             hasAutomationHistoryAccess = DataScope.AUTOMATION_HISTORY in registry.grantedScopesFor(pluginId),
             message = noteForStoredGrant(previous, plugin.grant) ?: previous.message,
         )

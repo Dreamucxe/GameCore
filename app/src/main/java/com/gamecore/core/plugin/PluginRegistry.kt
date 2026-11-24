@@ -124,7 +124,13 @@ data class PluginPreviewState(
     val sizeBytes: Long,
     /** The copy currently installed under this id, or null for a fresh install. */
     val replaces: InstalledPlugin? = null,
-    /** True when the id belongs to a plugin bundled inside the APK, which a file cannot replace. */
+    /**
+     * True when the id belongs to a plugin bundled inside the APK.
+     *
+     * A file picker preview is refused for it: an unverified package must not shadow the copy GameCore
+     * signed into its own APK. Discover is the exception, because its package is pinned by the curated
+     * index hash before the loader sees it.
+     */
     val replacingBundled: Boolean = false,
 ) {
     val id: String get() = plan.id
@@ -373,6 +379,19 @@ interface PluginRegistry {
      * plugins. Returns true when the membership changed, false for an unknown group or plugin.
      */
     suspend fun setGroupMember(groupId: String, pluginId: String, member: Boolean): Boolean = false
+
+    /**
+     * Binds a custom group to a game, or clears the binding with a null [gamePackage].
+     *
+     * A game has at most one set: binding it again moves the binding off whichever group held it, in
+     * the same write. [gameLabel] is a readable copy of the profile's label so a set survives the
+     * profile being deleted; it is sanitised before storage and never used for identity.
+     */
+    suspend fun setGroupGame(
+        groupId: String,
+        gamePackage: String?,
+        gameLabel: String? = null,
+    ): Boolean = false
 
     /**
      * Applies a scheduler-owned theme without touching the user's manual selection.

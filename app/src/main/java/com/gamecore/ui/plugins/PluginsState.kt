@@ -6,6 +6,8 @@ import com.gamecore.core.plugin.Compatibility
 import com.gamecore.core.plugin.InstallOutcome
 import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.PluginGroup
+import com.gamecore.core.plugin.PluginHealth
+import com.gamecore.core.plugin.PluginHealthSummary
 import com.gamecore.core.plugin.PluginOrigin
 import com.gamecore.core.plugin.PluginPackageLoader
 import com.gamecore.core.plugin.PluginPermission
@@ -107,6 +109,15 @@ data class PluginRow(
     val themePrimaryArgb: Int? = null,
     val themeAccentArgb: Int? = null,
     val themeSurfaceArgb: Int? = null,
+)
+
+/**
+ * A game a set can be bound to. A projection of a profile, not a plugin fact: the label is the
+ * profile's sanitised display name and the package is its identity.
+ */
+data class PluginGameOption(
+    val packageName: String,
+    val label: String,
 )
 
 /**
@@ -213,6 +224,16 @@ data class PluginsUiState(
     val pluginSectionFont: PluginSectionFont = PluginSectionFont.THEME,
     /** The plugin section's additional text-only scale, as a percentage. */
     val pluginSectionFontScalePercent: Int = 100,
+    /**
+     * The whole-list health reading. Derived from registry state and the in-memory audit ring, never
+     * from a backend. Recomputed when the registry emits and when [PluginsViewModel.refreshHealth]
+     * asks, so opening the manager after a plugin has been misbehaving shows the current run.
+     */
+    val health: PluginHealthSummary = PluginHealthSummary(),
+    /** Every installed plugin's verdict, keyed by id, for the row badges and the detail screen. */
+    val healthByPlugin: Map<String, PluginHealth> = emptyMap(),
+    /** Installed games a set can be bound to, from the user's profiles. */
+    val games: List<PluginGameOption> = emptyList(),
 ) {
     val hasPlugins: Boolean get() = rows.isNotEmpty()
 
@@ -562,8 +583,9 @@ internal fun previewSummary(preview: PluginPreviewState): String {
         builder.append("\n\nNothing is installed under this id yet.")
     }
     if (preview.replacingBundled) {
-        builder.append("\n\nThat id belongs to a plugin bundled inside GameCore, so this package cannot " +
-            "replace it.")
+        builder.append("\n\nThat id belongs to a plugin bundled inside GameCore. A picked file cannot " +
+            "replace it; updates for bundled plugins come from Discover, where the curated index pins " +
+            "the package hash.")
     }
     if (!preview.plan.compatibility.isRunnable) {
         builder.append("\n\n").append(preview.plan.compatibility.reason)

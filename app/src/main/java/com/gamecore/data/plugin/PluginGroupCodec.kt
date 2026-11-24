@@ -1,5 +1,6 @@
 package com.gamecore.data.plugin
 
+import com.gamecore.core.common.TextSanitizer
 import com.gamecore.core.plugin.PluginGroup
 import com.gamecore.core.plugin.PluginGrouping
 import org.json.JSONArray
@@ -34,6 +35,8 @@ internal object PluginGroupCodec {
     private const val KEY_ID = "id"
     private const val KEY_NAME = "name"
     private const val KEY_PLUGIN_IDS = "pluginIds"
+    private const val KEY_GAME_PACKAGE = "gamePackage"
+    private const val KEY_GAME_LABEL = "gameLabel"
 
     /** A plugin id is a package name; the manifest codec's cap is the same 128 characters. */
     private const val MAX_PLUGIN_ID_LENGTH = 128
@@ -60,12 +63,16 @@ internal object PluginGroupCodec {
                     .distinct()
                     .take(PluginGrouping.MAX_MEMBERS)
                     .forEach { members.put(it) }
-                array.put(
-                    JSONObject()
-                        .put(KEY_ID, group.id)
-                        .put(KEY_NAME, name)
-                        .put(KEY_PLUGIN_IDS, members),
-                )
+                val encoded = JSONObject()
+                    .put(KEY_ID, group.id)
+                    .put(KEY_NAME, name)
+                    .put(KEY_PLUGIN_IDS, members)
+                val game = group.gamePackage?.let(TextSanitizer::validatePackageName)
+                if (game != null) {
+                    encoded.put(KEY_GAME_PACKAGE, game)
+                    encoded.put(KEY_GAME_LABEL, PluginGrouping.normaliseName(group.gameLabel) ?: game)
+                }
+                array.put(encoded)
             }
         JSONObject().put(KEY_GROUPS, array).toString()
     }.getOrDefault(EMPTY)
@@ -88,6 +95,8 @@ internal object PluginGroupCodec {
 
         val array = root.optJSONArray(KEY_GROUPS) ?: return emptyList()
         val seen = HashSet<String>()
+        /** One set per game. A hand-edited duplicate keeps the first and leaves the second unbound. */
+        val boundGames = HashSet<String>()
         val result = ArrayList<PluginGroup>()
 
         for (i in 0 until array.length()) {
@@ -109,11 +118,19 @@ internal object PluginGroupCodec {
                 }
             }
 
+            val gamePackage = TextSanitizer.validatePackageName(objectValue.optString(KEY_GAME_PACKAGE))
+                ?.takeIf(boundGames::add)
+            val gameLabel = gamePackage?.let {
+                PluginGrouping.normaliseName(objectValue.optString(KEY_GAME_LABEL)) ?: it
+            }
+
             result += PluginGroup(
                 id = id,
                 name = name,
                 pluginIds = pluginIds,
                 automatic = false,
+                gamePackage = gamePackage,
+                gameLabel = gameLabel,
             )
         }
 

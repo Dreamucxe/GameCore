@@ -28,11 +28,20 @@ import com.gamecore.core.model.HudWidget
 import com.gamecore.core.model.IntelligenceAnalysisFrequency
 import com.gamecore.core.model.OptimizationGoal
 import com.gamecore.core.model.OverlayConfig
+import com.gamecore.core.model.StartupAnimationStyle
 import com.gamecore.core.model.PanelLayoutStyle
 import com.gamecore.core.model.PillDisplayMode
 import com.gamecore.core.model.PluginSectionFont
 import com.gamecore.core.model.ThemeChoice
 import com.gamecore.core.model.TurboGaugeChoice
+import com.gamecore.core.model.WheelAccent
+import com.gamecore.core.model.WheelButtonConfig
+import com.gamecore.core.model.WheelButtonIcon
+import com.gamecore.core.model.WheelButtonStyle
+import com.gamecore.core.model.WheelConfig
+import com.gamecore.core.model.WheelProfile
+import com.gamecore.core.model.WheelResponseCurve
+import com.gamecore.core.model.WheelVisualStyle
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -84,6 +93,7 @@ class BackupCodecTest {
             pluginSectionFont = PluginSectionFont.MINECRAFT,
             pluginSectionFontScalePercent = 125,
             animations = AnimationsMode.OFF,
+            startupAnimation = StartupAnimationStyle.PULSE,
             hapticsEnabled = false,
             latencyHost = "8.8.8.8",
             showResolutionOverrideNotice = false,
@@ -156,6 +166,41 @@ class BackupCodecTest {
             landscapeXFraction = 0.8f,
             landscapeYFraction = 0.35f,
         )
+        val wheelProfile = WheelProfile(
+            id = "precision",
+            name = "Precision",
+            sensitivity = 2.5f,
+            xSensitivity = 1.2f,
+            ySensitivity = 0.8f,
+            radiusPx = 240,
+            deadzonePx = 6,
+            diameterDp = 144,
+            opacity = 0.65f,
+            smoothing = 0.2f,
+            invertY = true,
+            curve = WheelResponseCurve.PROGRESSIVE,
+            style = WheelVisualStyle.NEON,
+            accent = WheelAccent.VIOLET,
+        )
+        val wheel = WheelConfig(
+            profiles = listOf(WheelProfile.DEFAULT, wheelProfile),
+            activeProfileId = wheelProfile.id,
+            button = WheelButtonConfig(
+                visible = true,
+                xFraction = 0.85f,
+                yFraction = 0.3f,
+                sizeDp = 64,
+                opacity = 0.75f,
+                style = WheelButtonStyle.RING,
+                icon = WheelButtonIcon.BOLT,
+                accent = WheelAccent.AMBER,
+                snapToEdge = false,
+            ),
+            bindings = mapOf("com.example.game" to wheelProfile.id),
+            autoSwitch = true,
+            precisionMultiplier = 0.4f,
+            turboMultiplier = 1.75f,
+        )
         val colour = ColorCorrection(
             redGain = 20,
             greenGain = -10,
@@ -193,7 +238,7 @@ class BackupCodecTest {
         val decoded = restored(
             BackupCodec.encode(
                 settings, overlay, button, dock, colour, listOf(layout),
-                emptyList(), emptyList(), macros, profiles,
+                emptyList(), emptyList(), macros, profiles, wheel = wheel,
             ),
         )
 
@@ -201,6 +246,7 @@ class BackupCodecTest {
         assertEquals(overlay.normalised(), decoded.overlay)
         assertEquals(button.normalised(), decoded.button)
         assertEquals(dock.normalised(), decoded.dock)
+        assertEquals(wheel.normalised(), decoded.wheel)
         assertEquals(colour.normalised(), decoded.colour)
         assertEquals(listOf(layout), decoded.layouts)
         assertEquals(1, decoded.macros!!.length())

@@ -4,6 +4,7 @@ import android.app.Application
 import com.gamecore.core.common.ApplicationScope
 import com.gamecore.core.common.CrashLog
 import com.gamecore.core.common.NotificationChannels
+import com.gamecore.core.diagnostics.LogStore
 import com.gamecore.core.shizuku.ShizukuShell
 import com.gamecore.data.repository.BackupManager
 import com.gamecore.domain.display.DisplayOverrideRecovery
@@ -34,6 +35,14 @@ class GameCoreApplication : Application() {
      */
     @Inject
     lateinit var shizukuShell: ShizukuShell
+
+    /**
+     * Constructed before the crash handler is installed, so a crash during the rest of startup has a
+     * history row as well as the Downloads copy. It holds only a directory and a flag; nothing here
+     * touches disk until the first record is written.
+     */
+    @Inject
+    lateinit var logStore: LogStore
 
     /**
      * Lazy so the graph behind it — repositories, preferences, the database handle — is resolved on the
@@ -70,7 +79,7 @@ class GameCoreApplication : Application() {
         // First, so a crash anywhere below is written down. A release build has no reachable logcat on a
         // phone without adb, and an unexplained "it just closes" is otherwise undiagnosable from the
         // outside.
-        CrashLog.install(this)
+        CrashLog.install(this, logStore)
 
         // Channels have to exist before any notification is posted, and a foreground service can be
         // started by the system restarting us before any Activity has run. Creating an existing channel

@@ -11,6 +11,9 @@ import com.gamecore.core.model.SessionKind
 import com.gamecore.core.model.SessionOrder
 import com.gamecore.core.model.SessionSort
 import com.gamecore.core.model.SessionStatistics
+import com.gamecore.core.model.SessionTrendMetric
+import com.gamecore.core.model.SessionTrendRange
+import com.gamecore.core.model.SessionTrendReport
 import com.gamecore.core.model.StopReason
 import com.gamecore.core.model.ThermalClass
 import com.gamecore.core.model.ThermalClassifier
@@ -29,6 +32,8 @@ import com.gamecore.ui.components.Readout
 import com.gamecore.ui.components.Tone
 import com.gamecore.ui.components.readoutOf
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -69,6 +74,13 @@ class SessionsViewModel @Inject constructor(
         val filterPackage: String? = null,
         val statistics: SessionStatistics = SessionStatistics.EMPTY,
         val isLoading: Boolean = true,
+        val trends: SessionTrendReport? = null,
+        val trendsLoading: Boolean = true,
+        val trendsError: String? = null,
+        val trendRange: SessionTrendRange = SessionTrendRange.WEEK,
+        val trendPackage: String? = null,
+        val trendMetric: SessionTrendMetric = SessionTrendMetric.FRAME_RATE,
+        val trendShowTable: Boolean = false,
         val pendingDelete: SessionRow? = null,
         val pendingClear: Boolean = false,
         val message: String? = null,
@@ -85,6 +97,15 @@ class SessionsViewModel @Inject constructor(
     private data class Entry(val row: SessionRow, val order: SessionOrder)
 
     private val local = MutableStateFlow(LocalState())
+
+    /**
+     * The in-flight trend read.
+     *
+     * Changing range or game cancels the previous read instead of letting it land late and overwrite the
+     * report for the selection the user just made. The reports are small but not instant: they are two
+     * aggregate queries over an encrypted database.
+     */
+    private var trendJob: Job? = null
 
     val state: StateFlow<SessionsUiState> = combine(
         repository.sessions,
@@ -109,6 +130,13 @@ class SessionsViewModel @Inject constructor(
         SessionsUiState(
             rows = shown.map { it.row },
             statistics = statisticRowsOf(own.statistics),
+            trends = own.trends,
+            trendsLoading = own.trendsLoading,
+            trendsError = own.trendsError,
+            trendRange = own.trendRange,
+            trendPackage = own.trendPackage,
+            trendMetric = own.trendMetric,
+            trendShowTable = own.trendShowTable,
             sort = own.sort,
             kinds = kindChips(gameCount = sessions.size, aimLabCount = runs.size),
             kind = own.kind,
@@ -134,6 +162,7 @@ class SessionsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { reloadStatistics() }
+        reloadTrends()
     }
 
     /**
@@ -145,11 +174,92 @@ class SessionsViewModel @Inject constructor(
      */
     fun onResume() {
         viewModelScope.launch { reloadStatistics() }
+        reloadTrends()
     }
 
     private suspend fun reloadStatistics() {
         val statistics = repository.statistics()
         local.value = local.value.copy(statistics = statistics, isLoading = false)
+    }
+
+    /**
+     * Re-reads the bounded trend report for the current range and game.
+     *
+     * The selection is captured before the coroutine starts. If the user taps another range while the
+     * query is running, the job is cancelled and a second read starts; the guard after the query is a
+     * second line of defence for a result that was already on its way back.
+     */
+    private fun reloadTrends() {
+        val selection = local.value
+        trendJob?.cancel()
+        local.value = selection.copy(
+            trendsLoading = selection.trends == null,
+            trendsError = null,
+        )
+        trendJob = viewModelScope.launch {
+            try {
+                val report = repository.trends(selection.trendRange, selection.trendPackage)
+                val current = local.value
+                if (current.trendRange == selection.trendRange &&
+                    current.trendPackage == selection.trendPackage
+                ) {
+                    local.value = current.copy(
+                        trends = report,
+                        trendsLoading = false,
+                        trendsError = null,
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                val current = local.value
+                if (current.trendRange == selection.trendRange &&
+                    current.trendPackage == selection.trendPackage
+                ) {
+                    local.value = current.copy(
+                        trendsLoading = false,
+                        trendsError = TRENDS_ERROR,
+                    )
+                }
+            }
+        }
+    }
+
+    fun refreshTrends() {
+        reloadTrends()
+    }
+
+    fun setTrendRange(range: SessionTrendRange) {
+        if (range == local.value.trendRange) return
+        local.value = local.value.copy(
+            trendRange = range,
+            trends = null,
+            trendsLoading = true,
+            trendsError = null,
+        )
+        reloadTrends()
+    }
+
+    /** Null means every game. Null is offered as "All games" in the selector, so there is a way back. */
+    fun setTrendPackage(packageName: String?) {
+        if (packageName == local.value.trendPackage) return
+        local.value = local.value.copy(
+            trendPackage = packageName,
+            trends = null,
+            trendsLoading = true,
+            trendsError = null,
+        )
+        reloadTrends()
+    }
+
+    /** Chart metric selection is a view of the same report, so it never needs a database read. */
+    fun setTrendMetric(metric: SessionTrendMetric) {
+        local.value = local.value.copy(trendMetric = metric)
+    }
+
+    /** Chart/table is a presentation choice; the numbers are identical in both. */
+    fun setTrendTable(showTable: Boolean) {
+        local.value = local.value.copy(trendShowTable = showTable)
     }
 
     fun setSort(sort: SessionSort) {
@@ -211,7 +321,14 @@ class SessionsViewModel @Inject constructor(
         viewModelScope.launch {
             repository.delete(id)
             reloadStatistics()
-            local.value = local.value.copy(pendingDelete = null, message = DELETED_MESSAGE)
+            local.value = local.value.copy(
+                pendingDelete = null,
+                message = DELETED_MESSAGE,
+                trends = null,
+                trendsLoading = true,
+                trendsError = null,
+            )
+            reloadTrends()
         }
     }
 
@@ -235,7 +352,14 @@ class SessionsViewModel @Inject constructor(
         viewModelScope.launch {
             repository.clearHistory()
             reloadStatistics()
-            local.value = local.value.copy(pendingClear = false, message = CLEARED_MESSAGE)
+            local.value = local.value.copy(
+                pendingClear = false,
+                message = CLEARED_MESSAGE,
+                trends = null,
+                trendsLoading = true,
+                trendsError = null,
+            )
+            reloadTrends()
         }
     }
 
@@ -249,6 +373,7 @@ class SessionsViewModel @Inject constructor(
         coordinator.stopCurrent(StopReason.STOPPED_BY_USER)
         local.value = local.value.copy(message = STOPPED_MESSAGE)
         viewModelScope.launch { reloadStatistics() }
+        reloadTrends()
     }
 
     fun dismissMessage() {
@@ -481,5 +606,7 @@ class SessionsViewModel @Inject constructor(
         const val DELETED_MESSAGE = "Session deleted."
         const val CLEARED_MESSAGE = "Game session history cleared."
         const val STOPPED_MESSAGE = "Recording stopped. What was measured has been kept."
+        const val TRENDS_ERROR =
+            "Session trends could not be read. Your history is still on this device; try again."
     }
 }

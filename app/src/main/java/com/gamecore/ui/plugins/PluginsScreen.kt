@@ -75,6 +75,9 @@ import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.PluginSectionFont
 import com.gamecore.core.plugin.PluginGroup
 import com.gamecore.core.plugin.PluginGrouping
+import com.gamecore.core.plugin.PluginHealth
+import com.gamecore.core.plugin.PluginHealthSummary
+import com.gamecore.core.plugin.PluginHealthTone
 import com.gamecore.core.plugin.RiskTier
 import com.gamecore.ui.components.ChoiceChip
 import com.gamecore.ui.components.ChoiceRow
@@ -234,6 +237,7 @@ private const val QUARANTINED_GENERIC =
 fun PluginsScreen(
     onBack: () -> Unit,
     onOpenPlugin: (String) -> Unit,
+    onOpenDiscover: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PluginsViewModel = hiltViewModel(),
     /**
@@ -303,6 +307,18 @@ fun PluginsScreen(
             }
         }
 
+        item {
+            PluginHealthCard(
+                summary = state.health,
+                problems = state.healthByPlugin.values
+                    .filter { it.state.isProblem }
+                    .sortedWith(compareBy({ it.state.ordinal }, { it.name.lowercase() })),
+                onOpenPlugin = onOpenPlugin,
+                onRefresh = viewModel::refreshHealth,
+                modifier = padded,
+            )
+        }
+
         if (state.themeRows.isNotEmpty()) {
             item {
                 ThemeSelectionCard(
@@ -348,6 +364,7 @@ fun PluginsScreen(
                 isPreviewing = state.isPreviewing,
                 onPick = { picker.launch(PLUGIN_MIME_TYPES) },
                 onCreate = { creating = true },
+                onDiscover = onOpenDiscover,
                 modifier = padded,
             )
         }
@@ -370,6 +387,19 @@ fun PluginsScreen(
                     onDeleteGroup = { deletingGroup = it },
                     visibleCount = visibleRows.size,
                     totalCount = state.rows.size,
+                    modifier = padded,
+                )
+            }
+        }
+
+        // After the group controls, because a set is a custom group with a game attached: the place
+        // that creates the group is directly above the place that binds it.
+        if (state.games.isNotEmpty() || state.groups.any { it.isGameSet }) {
+            item {
+                PluginGameSetsCard(
+                    games = state.games,
+                    groups = state.groups,
+                    onBind = viewModel::bindGameSet,
                     modifier = padded,
                 )
             }
@@ -905,6 +935,329 @@ private fun PluginAppearanceCard(
 }
 
 /**
+ * The manager's whole-list health reading.
+ *
+ * Problems are listed before the explanation, because the card exists to answer "is anything wrong?"
+ * and the counts alone cannot say which plugin. A healthy list still shows the counts, so the card
+ * does not disappear the moment it has nothing to warn about — a summary that only appears when
+ * something is broken teaches users to read its absence as "not loaded yet".
+ */
+@Composable
+private fun PluginHealthCard(
+    summary: PluginHealthSummary,
+    problems: List<PluginHealth>,
+    onOpenPlugin: (String) -> Unit,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    PlainCard(modifier = modifier.fillMaxWidth(), contentPadding = 12.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = if (summary.problemCount > 0) Icons.Filled.Warning else Icons.Filled.Shield,
+                contentDescription = null,
+                tint = if (summary.problemCount > 0) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Plugin health",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = summary.headline,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = onRefresh) { Text("Refresh") }
+        }
+
+        val counts = buildList {
+            if (summary.healthy > 0) add("${summary.healthy} healthy")
+            if (summary.attention > 0) add("${summary.attention} attention")
+            if (summary.stopped > 0) add("${summary.stopped} stopped")
+            if (summary.quarantined > 0) add("${summary.quarantined} quarantined")
+            if (summary.unsupported > 0) add("${summary.unsupported} unsupported")
+            if (summary.paused > 0) add("${summary.paused} paused")
+            if (summary.off > 0) add("${summary.off} off")
+        }
+        if (counts.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = counts.joinToString(" · "),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (problems.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            problems.take(4).forEach { health ->
+                RowDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenPlugin(health.pluginId) }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = health.name,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = health.summary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    StatusChip(text = health.state.label, tone = toneOf(health.state.tone))
+                }
+            }
+            if (problems.size > 4) {
+                Text(
+                    text = "${problems.size - 4} more need attention in the list below.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "From the registry's state and the calls the permission gate recorded since " +
+                "GameCore started. A plugin you switched off is not counted as a fault.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private fun toneOf(tone: PluginHealthTone): Tone = when (tone) {
+    PluginHealthTone.GOOD -> Tone.Good
+    PluginHealthTone.WARNING -> Tone.Warning
+    PluginHealthTone.DANGER -> Tone.Danger
+    PluginHealthTone.MUTED -> Tone.Muted
+}
+
+/**
+ * Binds an existing custom group to a game.
+ *
+ * The card is game-centric: a user thinks "when I launch this game, I want these plugins on", not
+ * "this group should be attached to some game". The group is still the container, so membership is
+ * edited in the one place membership already lives, and binding never rewrites the set.
+ */
+@Composable
+private fun PluginGameSetsCard(
+    games: List<PluginGameOption>,
+    groups: List<PluginGroup>,
+    onBind: (String?, String, String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val custom = groups.filterNot { it.automatic }
+    var bindingGame by remember { mutableStateOf<PluginGameOption?>(null) }
+    val orphaned = groups.filter { group ->
+        group.isGameSet && games.none { it.packageName == group.gamePackage }
+    }
+
+    PlainCard(modifier = modifier.fillMaxWidth(), contentPadding = 12.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Folder,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Plugin sets per game",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = "Switch a group on when a game starts",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+        if (custom.isEmpty()) {
+            Text(
+                text = "Create a custom group under Groups above, add plugins to it, then come back " +
+                    "here to bind it to a game.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            games.forEach { game ->
+                val bound = groups.firstOrNull { it.isGameSet && it.gamePackage == game.packageName }
+                GameSetRow(
+                    gameLabel = game.label,
+                    bound = bound,
+                    onChoose = { bindingGame = game },
+                    onClear = if (bound != null) {
+                        { onBind(null, game.packageName, game.label) }
+                    } else {
+                        null
+                    },
+                )
+            }
+            orphaned.forEach { group ->
+                GameSetRow(
+                    gameLabel = group.gameLabel ?: group.gamePackage.orEmpty(),
+                    bound = group,
+                    orphaned = true,
+                    onChoose = null,
+                    onClear = {
+                        group.gamePackage?.let { onBind(null, it, group.gameLabel ?: it) }
+                    },
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "A set only switches on plugins whose permissions are already granted. It never " +
+                    "grants, never releases a quarantine and never overrides a suspension.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+
+    bindingGame?.let { game ->
+        GameSetDialog(
+            game = game,
+            groups = custom,
+            boundGroupId = groups.firstOrNull {
+                it.isGameSet && it.gamePackage == game.packageName
+            }?.id,
+            onChoose = { groupId ->
+                onBind(groupId, game.packageName, game.label)
+                bindingGame = null
+            },
+            onDismiss = { bindingGame = null },
+        )
+    }
+}
+
+@Composable
+private fun GameSetRow(
+    gameLabel: String,
+    bound: PluginGroup?,
+    onChoose: (() -> Unit)?,
+    onClear: (() -> Unit)?,
+    orphaned: Boolean = false,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = gameLabel,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = when {
+                    orphaned -> "Profile no longer exists — unbind this set"
+                    bound == null -> "No set"
+                    else -> "${bound.name} · ${bound.pluginIds.size} " +
+                        (if (bound.pluginIds.size == 1) "plugin" else "plugins")
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        onChoose?.let { choose ->
+            TextButton(onClick = choose) { Text(if (bound == null) "Bind" else "Change") }
+        }
+        if (bound != null && onClear != null) {
+            TextButton(onClick = onClear) { Text("No set") }
+        }
+    }
+}
+
+@Composable
+private fun GameSetDialog(
+    game: PluginGameOption,
+    groups: List<PluginGroup>,
+    boundGroupId: String?,
+    onChoose: (String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Set for ${game.label}") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "The set is a custom group. Pick a group to switch its plugins on when " +
+                        "${game.label} starts; membership is edited on each plugin's screen.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    onClick = { onChoose(null) },
+                    enabled = boundGroupId != null,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = if (boundGroupId == null) {
+                            "No set (current)"
+                        } else {
+                            "No set"
+                        },
+                    )
+                }
+                groups.forEach { group ->
+                    TextButton(
+                        onClick = { onChoose(group.id) },
+                        enabled = group.pluginIds.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = buildString {
+                                append(group.name)
+                                append(" · ")
+                                append(group.pluginIds.size)
+                                if (group.id == boundGroupId) append(" · current")
+                                if (group.pluginIds.isEmpty()) append(" · empty")
+                            },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.large,
+    )
+}
+
+/**
  * The two ways a plugin arrives, in one card: install a file, or build one here.
  *
  * The standalone Plugin Maker app exists for people who want to design a package on a phone with no
@@ -922,6 +1275,7 @@ private fun GetPluginsCard(
     isPreviewing: Boolean,
     onPick: () -> Unit,
     onCreate: () -> Unit,
+    onDiscover: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showDetails by rememberSaveable { mutableStateOf(false) }
@@ -965,6 +1319,15 @@ private fun GetPluginsCard(
             ) {
                 Text("Plugin Studio")
             }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = onDiscover,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Discover plugins")
         }
         if (isPreviewing) {
             Spacer(modifier = Modifier.height(8.dp))

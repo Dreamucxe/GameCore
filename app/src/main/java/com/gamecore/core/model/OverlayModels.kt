@@ -580,10 +580,20 @@ data class OverlayStatus(
     val pillVisible: Boolean = false,
     val crosshairVisible: Boolean = false,
     val hudVisible: Boolean = false,
+    /**
+     * The High Sensitivity Wheel's floating handle (§Wheel). Its own flag rather than a mode of
+     * [buttonVisible]: the two are separate windows with separate persisted configs, and a dashboard that
+     * could not tell them apart would report GameCore's control panel button while the wheel handle was
+     * the thing on screen.
+     */
+    val wheelButtonVisible: Boolean = false,
+    /** The wheel itself — the touchable stick of the new feature, not the older feel-only guide. */
+    val wheelStickVisible: Boolean = false,
     val hasPermission: Boolean = false,
 ) {
     val anythingVisible: Boolean
-        get() = buttonVisible || pillVisible || crosshairVisible || hudVisible
+        get() = buttonVisible || pillVisible || crosshairVisible || hudVisible ||
+            wheelButtonVisible || wheelStickVisible
 
     val summary: String
         get() = when {
@@ -595,6 +605,8 @@ data class OverlayStatus(
                 "Stats".takeIf { pillVisible },
                 "Crosshair".takeIf { crosshairVisible },
                 "HUD".takeIf { hudVisible },
+                "Wheel handle".takeIf { wheelButtonVisible },
+                "Wheel".takeIf { wheelStickVisible },
             ).joinToString(", ")
         }
 
@@ -649,10 +661,27 @@ data class OverlayRequest(
      * The high-sensitivity wheels guide (§Wheels): a feel-only ring drawn where an on-screen stick sits, in
      * a `FLAG_NOT_TOUCHABLE` window that never intercepts a touch. A sticker on the glass like the crosshair,
      * with no capture and nothing read from the game, so — unlike Scout and the capture filters — it is a
-     * plain persisted overlay [OverlayController.restoreManualState] brings back. The genuine input remap it
-     * pairs with lives inside GameCore's own Aim Lab surface, never in another app.
+     * plain persisted overlay [OverlayController.restoreManualState] brings back. It is retained as an
+     * optional visual aid beside the separate touchable [wheelStick]; this flag itself never injects.
      */
     val wheel: Boolean = false,
+    /**
+     * The High Sensitivity Wheel's floating handle (§Wheel): the emergency switch that arms and disarms
+     * real input injection.
+     *
+     * Deliberately separate from [wheel], which is the older feel-only guide ring. Visibility is
+     * persisted in [com.gamecore.core.model.WheelConfig.button], but whether the wheel is *injecting* is
+     * not: [wheelStick] is runtime-only and is false in every fresh process. The handle may therefore be
+     * up while the wheel is off, which is exactly the point — a button that only exists while injection is
+     * running cannot be used to stop injection after something has gone wrong.
+     */
+    val wheelButton: Boolean = false,
+    /**
+     * The real, touchable High Sensitivity Wheel. Runtime state only, never restored by
+     * [com.gamecore.domain.overlay.OverlayController.restoreManualState] and never written by a game
+     * profile. `WheelController` sets it when the wheel enters positioning, calibration or gaming mode.
+     */
+    val wheelStick: Boolean = false,
     /**
      * The floating dock (§Dock): a small draggable handle that expands into a compact control panel. A plain
      * on/off like [wheel] and carrying no id — its size, opacity and snapped position are all [DockConfig]
@@ -669,7 +698,8 @@ data class OverlayRequest(
     val fromProfile: Boolean = false,
 ) {
     val anythingVisible: Boolean
-        get() = button || pill || crosshair || hud || magnifier || scout || hunt || wheel || dock
+        get() = button || pill || crosshair || hud || magnifier || scout || hunt || wheel || dock ||
+            wheelButton || wheelStick
 
     /**
      * Switches the crosshair on or off, and settles which preset it draws.
@@ -718,6 +748,15 @@ data class OverlayRequest(
      * only moves the flag — the same shape as [withMagnifier], for a sticker-on-glass instead of a loupe.
      */
     fun withWheel(visible: Boolean): OverlayRequest = copy(wheel = visible)
+
+    /** The High Sensitivity Wheel's floating handle on or off. A plain `copy`: its config owns the look. */
+    fun withWheelButton(visible: Boolean): OverlayRequest = copy(wheelButton = visible)
+
+    /**
+     * The High Sensitivity Wheel itself on or off. Runtime-only; a caller must set this from
+     * [com.gamecore.core.wheel.WheelController], never from restored preferences.
+     */
+    fun withWheelStick(visible: Boolean): OverlayRequest = copy(wheelStick = visible)
 
     /**
      * The dock on or off. A plain `copy` for the same reason as [withWheel]: the dock's size, opacity and

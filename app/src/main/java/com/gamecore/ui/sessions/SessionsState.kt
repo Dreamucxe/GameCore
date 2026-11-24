@@ -5,6 +5,9 @@ import com.gamecore.core.model.SessionFilterKind
 import com.gamecore.core.model.SessionKind
 import com.gamecore.core.model.SessionSort
 import com.gamecore.core.model.SessionTile
+import com.gamecore.core.model.SessionTrendMetric
+import com.gamecore.core.model.SessionTrendRange
+import com.gamecore.core.model.SessionTrendReport
 import com.gamecore.core.model.kindLabel
 import com.gamecore.core.model.sessionsSubtitle
 import com.gamecore.ui.components.Readout
@@ -27,6 +30,23 @@ data class SessionsUiState(
     val rows: List<SessionRow> = emptyList(),
     /** The summary across everything recorded, not across the current filter. */
     val statistics: List<Readout> = emptyList(),
+    /**
+     * The Trends section's report for [trendRange] and [trendPackage], or null while the first read is
+     * still running.
+     *
+     * It is deliberately separate from [rows]: the list is a flow over every stored session, while a trend
+     * is a bounded aggregate over one period and two queries. Keeping the report here means the screen
+     * draws the figures the ViewModel computed rather than deriving a second set of deltas in a composable.
+     */
+    val trends: SessionTrendReport? = null,
+    val trendsLoading: Boolean = true,
+    /** Non-null only when the bounded read failed. A stale [trends] report may still be displayed. */
+    val trendsError: String? = null,
+    val trendRange: SessionTrendRange = SessionTrendRange.WEEK,
+    /** Null means every game. A package outside the current range still gets an honest empty report. */
+    val trendPackage: String? = null,
+    val trendMetric: SessionTrendMetric = SessionTrendMetric.FRAME_RATE,
+    val trendShowTable: Boolean = false,
     val sort: SessionSort = SessionSort.NEWEST_FIRST,
     /** §6's All / Games / Aim Lab chips, each carrying its whole-history count. */
     val kinds: List<KindChip> = emptyList(),
@@ -58,6 +78,12 @@ data class SessionsUiState(
 ) {
     /** True when any chip — kind or game — is narrowing the list, which the subtitle has to admit to. */
     val hasFilter: Boolean get() = kind != SessionFilterKind.ALL || filterPackage != null
+
+    /** The selected trend game's name, or "All games" when the section is showing every package. */
+    val trendFilterLabel: String
+        get() = trendPackage?.let { packageName ->
+            games.firstOrNull { it.packageName == packageName }?.label ?: packageName
+        } ?: "All games"
 
     /** What the current selection is called, for the empty state and the subtitle. */
     val filterLabel: String

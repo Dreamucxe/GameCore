@@ -4,6 +4,7 @@ import com.gamecore.core.plugin.PluginGroup
 import com.gamecore.core.plugin.PluginGrouping
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -14,6 +15,10 @@ import org.junit.Test
  * be an automatic group, a malformed entry crashing the manager, a name rendered unsanitised, or a
  * duplicate id producing two chips that filter to different sets. The store around this is a
  * preference entry and needs a device; the document is pure and is tested here.
+ *
+ * The per-game binding is the newest field and the one with the most to lose from a bad decode: a set
+ * that survives a hand-edited package would run on a game the user never bound, so its tests are
+ * grouped at the end and refuse rather than repair.
  */
 class PluginGroupCodecTest {
 
@@ -21,7 +26,16 @@ class PluginGroupCodecTest {
         id: String = "custom.one",
         name: String = "Daily drivers",
         pluginIds: Set<String> = setOf("com.example.a"),
-    ): PluginGroup = PluginGroup(id = id, name = name, pluginIds = pluginIds, automatic = false)
+        game: String? = null,
+        label: String? = null,
+    ): PluginGroup = PluginGroup(
+        id = id,
+        name = name,
+        pluginIds = pluginIds,
+        automatic = false,
+        gamePackage = game,
+        gameLabel = label,
+    )
 
     @Test
     fun `round trips custom groups, their order and overlapping membership`() {
@@ -156,5 +170,89 @@ class PluginGroupCodecTest {
 
         assertEquals(setOf("com.example.not-installed-yet"), decoded.single().pluginIds)
         assertTrue(PluginGrouping.CUSTOM_PREFIX in decoded.single().id)
+    }
+
+    // ------------------------------------------------------------ per-game binding
+
+    @Test
+    fun `a game binding survives a round trip`() {
+        val decoded = PluginGroupCodec.decode(
+            PluginGroupCodec.encode(
+                listOf(
+                    group(
+                        name = "Performance",
+                        pluginIds = setOf("com.example.one"),
+                        game = "com.example.game",
+                        label = "Example Game",
+                    ),
+                ),
+            ),
+        )
+
+        val value = decoded.single()
+        assertEquals("com.example.game", value.gamePackage)
+        assertEquals("Example Game", value.gameLabel)
+        assertEquals(setOf("com.example.one"), value.pluginIds)
+    }
+
+    @Test
+    fun `an older document without a binding still decodes`() {
+        val raw = """{"groups":[{"id":"custom.one","name":"Performance","pluginIds":["a"]}]}"""
+
+        val value = PluginGroupCodec.decode(raw).single()
+
+        assertNull(value.gamePackage)
+        assertNull(value.gameLabel)
+        assertEquals("Performance", value.name)
+    }
+
+    @Test
+    fun `an invalid package does not bind the group`() {
+        val raw = """{"groups":[{"id":"custom.one","name":"Performance",""" +
+            """"pluginIds":["a"],"gamePackage":"not a package","gameLabel":"Bad"}]}"""
+
+        val value = PluginGroupCodec.decode(raw).single()
+
+        assertNull(value.gamePackage)
+        assertNull(value.gameLabel)
+        assertEquals("Performance", value.name)
+    }
+
+    @Test
+    fun `one game cannot be claimed by two stored sets`() {
+        val raw = """{"groups":[""" +
+            """{"id":"custom.one","name":"First","pluginIds":["a"],""" +
+            """"gamePackage":"com.example.game","gameLabel":"Game"},""" +
+            """{"id":"custom.two","name":"Second","pluginIds":["b"],""" +
+            """"gamePackage":"com.example.game","gameLabel":"Game"}]}"""
+
+        val decoded = PluginGroupCodec.decode(raw)
+
+        assertEquals(2, decoded.size)
+        assertEquals("First", decoded.first { it.id == "custom.one" }.name)
+        assertEquals("com.example.game", decoded.first { it.id == "custom.one" }.gamePackage)
+        assertNull(decoded.first { it.id == "custom.two" }.gamePackage)
+    }
+
+    @Test
+    fun `a label without a package is not stored as a phantom binding`() {
+        val raw = """{"groups":[{"id":"custom.one","name":"First","pluginIds":["a"],""" +
+            """"gameLabel":"Game"}]}"""
+
+        val value = PluginGroupCodec.decode(raw).single()
+
+        assertNull(value.gamePackage)
+        assertNull(value.gameLabel)
+    }
+
+    @Test
+    fun `a missing label falls back to the package so the set stays readable`() {
+        val raw = """{"groups":[{"id":"custom.one","name":"First","pluginIds":["a"],""" +
+            """"gamePackage":"com.example.game"}]}"""
+
+        val value = PluginGroupCodec.decode(raw).single()
+
+        assertEquals("com.example.game", value.gamePackage)
+        assertEquals("com.example.game", value.gameLabel)
     }
 }

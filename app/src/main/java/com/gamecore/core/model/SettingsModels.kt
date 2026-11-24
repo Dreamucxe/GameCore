@@ -166,6 +166,22 @@ data class AppSettings(
     val animations: AnimationsMode = AnimationsMode.SYSTEM,
 
     /**
+     * What the full-screen startup mask draws while plugins and the saved theme load.
+     *
+     * The mask is not decoration: the first frames of a launch can show [show3DHomeStats] before the
+     * stored preference arrives, and a plugin theme arrives only after every installed package has been
+     * read. Covering that settle is the point; the style only chooses which of the three compositions
+     * does it. [StartupAnimationStyle.OFF] removes the mask entirely, for a user who would rather see
+     * the app assemble itself than wait behind a cover.
+     *
+     * The global [animations] switch and the platform animator scale still win: with motion off the
+     * chosen composition is drawn static rather than skipped, so the loading cover still does its job.
+     * Stored by enum name, like every other choice here, so a value from a newer build reads as the
+     * default rather than as corruption.
+     */
+    val startupAnimation: StartupAnimationStyle = StartupAnimationStyle.ORBIT,
+
+    /**
      * Global haptics switch (§3). Off means no view performs a haptic, whatever it would otherwise do.
      *
      * A preference, not a capability: it cannot conjure a vibrator the device lacks, and a caller still
@@ -382,7 +398,7 @@ data class AppSettings(
     val wheelGuideRadiusPercent: Int = WHEEL_RADIUS_DEFAULT,
 
     /**
-     * The gain the wheels remap applies inside GameCore's own Aim Lab surface (§Wheels), as a percentage
+     * The legacy gain the Aim Lab wheel exercise applies inside GameCore's own surface (§Wheels), as a percentage
      * where 100 is neutral: a value above 100 makes a given stick displacement turn faster. It never
      * touches another app — the guide overlay is feel-only and the remap is confined to GameCore's training
      * surface. Clamped to [WHEEL_SENSITIVITY_MIN]..[WHEEL_SENSITIVITY_MAX] in [normalised].
@@ -748,6 +764,35 @@ enum class AnimationsMode(val label: String) {
 
     companion object {
         fun fromName(name: String?): AnimationsMode = entries.firstOrNull { it.name == name } ?: SYSTEM
+    }
+}
+
+/**
+ * The composition the full-screen startup mask uses while the app settles.
+ *
+ * All three animated choices share the same brand mark and progress line; they differ only in what
+ * moves around the mark, so switching between them is a change of mood rather than of layout. The
+ * global [AnimationsMode] and the platform animator scale turn the motion off without removing the
+ * mask, because the mask's job — keeping the first Home frame from being a partially-configured one —
+ * is not a motion feature.
+ */
+enum class StartupAnimationStyle(val label: String) {
+    /** Two counter-rotating arcs with a travelling highlight: the default house mark. */
+    ORBIT("Orbit"),
+
+    /** Concentric ripples expanding from the mark, for a calmer, more centred startup. */
+    PULSE("Pulse"),
+
+    /** A still mark and a single sweeping progress line. The quietest animated choice. */
+    MINIMAL("Minimal"),
+
+    /** No mask at all. The app is visible from its first frame, including whatever is still loading. */
+    OFF("Off"),
+    ;
+
+    companion object {
+        fun fromName(name: String?): StartupAnimationStyle =
+            entries.firstOrNull { it.name == name } ?: ORBIT
     }
 }
 

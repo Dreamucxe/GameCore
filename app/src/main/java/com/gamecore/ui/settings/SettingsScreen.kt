@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.Animation
 import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
@@ -69,6 +70,7 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Speed
@@ -116,6 +118,7 @@ import com.gamecore.core.model.AccentChoice
 import com.gamecore.core.model.AnimationsMode
 import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.RecordingQuality
+import com.gamecore.core.model.StartupAnimationStyle
 import com.gamecore.core.model.TextSizePreset
 import com.gamecore.core.model.ThemeChoice
 import com.gamecore.core.model.ThemePreset
@@ -1185,6 +1188,26 @@ private fun BehaviorCard(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         RowDivider()
+        Text(
+            text = "STARTUP",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ChoiceRow(
+            options = StartupAnimationStyle.entries.toList(),
+            selected = state.settings.startupAnimation,
+            onSelect = { style -> onEdit { it.copy(startupAnimation = style) } },
+            label = { it.label },
+            perRow = 4,
+        )
+        Text(
+            text = "A full-screen mark covers the first frames while plugins and the saved theme " +
+                "load, so Home never flashes a half-applied layout. The chosen look turns static " +
+                "when animations are off; Off removes the cover itself.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        RowDivider()
         SwitchRow(
             title = "Haptics",
             checked = state.settings.hapticsEnabled,
@@ -1257,8 +1280,8 @@ private fun OverlaysCard(
         NavRow(
             title = "High-sensitivity Wheels",
             onClick = { onNavigate(Destination.Wheels) },
-            description = "A feel-only guide ring, plus the sensitivity used inside GameCore's own Aim " +
-                "Lab. It cannot change another game's controls.",
+            description = "A real Shizuku-injected virtual joystick with amplified movement, profiles, " +
+                "per-game bindings, calibration and an emergency floating button.",
             icon = Icons.Filled.Speed,
         )
         NavRow(
@@ -1744,6 +1767,25 @@ private fun AccessCard(
             description = "Installed plugins, what each one asked for, and the switch that stops all of " +
                 "them. Plugins are data GameCore reads, not code it runs.",
             icon = Icons.Filled.Extension,
+        )
+        // Directly under Plugins: the index is where new plugins come from, and update detection is
+        // the reason to open it again after the first install.
+        NavRow(
+            title = "Discover plugins",
+            onClick = { onNavigate(Destination.Market) },
+            description = "A curated index of reviewed plugins, with updates for what is installed. " +
+                "Every package is hash-checked before the normal install and consent screen.",
+            icon = Icons.Filled.Search,
+        )
+        // Directly under Plugins because a plugin crash is one of the things the history records,
+        // and because "the app misbehaved" is a question a person asks right after changing what
+        // runs inside it. The switch is on the screen: the history is what gives the switch meaning.
+        NavRow(
+            title = "Logs & crashes",
+            onClick = { onNavigate(Destination.Logs) },
+            description = "GameCore's own crashes, the games it watched, and their session boundaries — " +
+                "copyable, shareable, and kept on this device. Recording can be turned off.",
+            icon = Icons.Filled.BugReport,
         )
         NavRow(
             title = "Dashboard",

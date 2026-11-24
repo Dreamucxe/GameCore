@@ -10,8 +10,10 @@ import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.PluginSectionFont
 import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.InstallOutcome
+import com.gamecore.core.plugin.PluginAuditLog
 import com.gamecore.core.plugin.PluginGroup
 import com.gamecore.core.plugin.PluginGrouping
+import com.gamecore.core.plugin.PluginHealth
 import com.gamecore.core.plugin.PluginOrigin
 import com.gamecore.core.plugin.PluginPackageLoader
 import com.gamecore.core.plugin.PluginPreviewResult
@@ -21,6 +23,7 @@ import com.gamecore.core.plugin.PluginSection
 import com.gamecore.core.plugin.RollbackOutcome
 import com.gamecore.core.plugin.theme.PluginTheme
 import com.gamecore.data.preferences.SecurePreferenceStore
+import com.gamecore.data.repository.GameProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +82,8 @@ import javax.inject.Inject
 class PluginsViewModel @Inject constructor(
     private val registry: PluginRegistry,
     private val preferences: SecurePreferenceStore,
+    private val profiles: GameProfileRepository,
+    private val audit: PluginAuditLog,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -158,6 +163,15 @@ class PluginsViewModel @Inject constructor(
      */
     private val sort = MutableStateFlow(PluginSort.NAME)
 
+    /**
+     * A revision counter for the audit ring, which is a plain in-memory ring rather than a flow.
+     *
+     * Health is a reading of that ring, so a screen opened after a plugin misbehaved must be able to
+     * ask for a fresh reading without pretending the registry changed. Every bump recomputes the map;
+     * the registry's own emissions do the same on a plugin edit.
+     */
+    private val auditRevision = MutableStateFlow(0)
+
     val state: StateFlow<PluginsUiState> = combine(
         fromRegistry,
         transient,
@@ -220,7 +234,19 @@ class PluginsViewModel @Inject constructor(
                     groups = PluginGrouping.all(installed, customGroups),
                 )
             }
-            combine(registrySnapshots, themePreviews) { snapshot, previews ->
+            combine(
+                registrySnapshots,
+                themePreviews,
+                profiles.profiles,
+                auditRevision,
+            ) { snapshot, previews, gameProfiles, _ ->
+                val health = snapshot.installed.associate { plugin ->
+                    plugin.id to PluginHealth.assess(
+                        plugin = plugin,
+                        audit = audit.recent(plugin.id),
+                        killSwitchOn = snapshot.killSwitchOn,
+                    )
+                }
                 PluginsUiState(
                     isLoaded = snapshot.isLoaded,
                     rows = snapshot.installed.map { plugin ->
@@ -232,6 +258,11 @@ class PluginsViewModel @Inject constructor(
                     killSwitchOn = snapshot.killSwitchOn,
                     activeThemeName = snapshot.activeThemeName,
                     groups = snapshot.groups,
+                    health = PluginHealth.summarize(health.values),
+                    healthByPlugin = health,
+                    games = gameProfiles
+                        .map { PluginGameOption(it.packageName, it.label) }
+                        .sortedBy { it.label.lowercase() },
                 )
             }.collect { fromRegistry.value = it }
         }
@@ -247,6 +278,43 @@ class PluginsViewModel @Inject constructor(
      */
     fun refresh() {
         viewModelScope.launch { registry.refresh() }
+        refreshHealth()
+    }
+
+    /** Asks for a fresh reading of the audit ring; no plugin state is changed. */
+    fun refreshHealth() {
+        auditRevision.update { it + 1 }
+    }
+
+    /**
+     * Binds a custom group to a game, or clears the game's binding when [groupId] is null.
+     *
+     * The screen offers a group per game rather than a game per group because the question a user has
+     * is "what should run when I launch this?"; the registry enforces one set per game either way.
+     */
+    fun bindGameSet(groupId: String?, gamePackage: String, gameLabel: String) {
+        viewModelScope.launch {
+            val target = groupId
+                ?: state.value.groups.firstOrNull {
+                    it.isGameSet && it.gamePackage == gamePackage
+                }?.id
+            val ok = if (target == null) {
+                true
+            } else if (groupId == null) {
+                registry.setGroupGame(target, null)
+            } else {
+                registry.setGroupGame(target, gamePackage, gameLabel)
+            }
+            transient.update {
+                it.copy(
+                    message = when {
+                        !ok -> "The game set could not be saved."
+                        groupId == null -> "No set will run when $gameLabel starts."
+                        else -> "This set will run when $gameLabel starts."
+                    },
+                )
+            }
+        }
     }
 
     /**
@@ -853,13 +921,15 @@ class PluginsViewModel @Inject constructor(
                 "may have been moved since you picked it. Nothing was installed."
 
         /**
-         * Why a package whose id belongs to a bundled plugin cannot be installed.
+         * Why a picked package whose id belongs to a bundled plugin cannot be installed.
          *
          * The same sentence the single-file preview uses, so a batch and a single pick cannot give two
-         * different accounts of the same package.
+         * different accounts of the same package. Discover is the supported path for this id because
+         * the curated index pins the package hash.
          */
         const val BUNDLED_ID_NOTE =
-            "That id belongs to a plugin bundled inside GameCore, so this package cannot replace it."
+            "That id belongs to a plugin bundled inside GameCore, so a picked file cannot replace it. " +
+                "Use Discover to update a bundled plugin."
 
         /** A provider's file name is a label, not a sentence: long enough to recognise, short enough to fit. */
         const val MAX_FILE_NAME_LENGTH = 80

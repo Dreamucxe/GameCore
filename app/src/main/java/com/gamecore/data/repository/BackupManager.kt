@@ -102,6 +102,7 @@ class BackupManager @Inject constructor(
             aimLabSessions = aimLabHistory,
             personalRecords = personalRecords,
             device = deviceSnapshot.read(),
+            wheel = preferences.wheel.value,
         )
         when (val written = fileShareStore.writeText(
             subdir = EXPORT_SUBDIR,
@@ -196,6 +197,9 @@ class BackupManager @Inject constructor(
         data.button?.let { restored -> preferences.updateFloatingButton { restored } }
         // Absent for anything written before §3.7.1, and absence leaves the user's own dock alone.
         data.dock?.let { restored -> preferences.updateDock { restored } }
+        // A pre-wheel backup is silent about this section. The durable model deliberately has no runtime
+        // mode, so applying it restores profiles and placement without ever arming input injection.
+        data.wheel?.let { restored -> preferences.updateWheel { restored } }
         data.colour?.let { preferences.setColorCorrection(it) }
         val layoutCount = data.layouts?.let { importLayouts(it, policy) } ?: 0
         val crosshairCount = data.crosshairs?.let { importCrosshairs(it, policy) } ?: 0
@@ -644,7 +648,6 @@ sealed interface BackupImport {
     /** Why a restore could not proceed — one per case the screen turns into a line for the user. */
     enum class Reason { UNREADABLE, EMPTY, MALFORMED, WRONG_FORMAT, UNSUPPORTED_VERSION }
 }
-
 
 
 

@@ -126,6 +126,46 @@ adb install -r GameCore.apk
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
 
+## What's new in 5.12.0
+
+<p><strong>Crash logs you can keep.</strong> Logs &amp; crashes keeps a durable history of GameCore and game crashes, with the stack, build and device attached. Any record can be copied or shared, the history survives a restart, and one switch turns capture off. A game crash is read from Android's crash buffer through Shizuku; without shell access GameCore records the session boundary and says that it could not see the crash rather than inventing one.</p>
+
+<p><strong>Discover plugins, and keep them current.</strong> Discover reads a curated index from GameCore's repository, shows new plugins and updates for what is already installed, and filters by category, update status or search. A package is downloaded only from the curated host and checked against the SHA-256 in the index before the normal package loader and consent screen see it. An update replaces the package, clears its grant and leaves it switched off, so the new version is reviewed before it can run. The plugins that ship inside GameCore can be updated the same way: the downloaded copy is the installed one until it is removed, and the bundled copy returns afterwards.</p>
+
+<p><strong>Plugin health without a score.</strong> The plugin manager reports which plugins are healthy, stopped for this run, quarantined or unsupported, and the plugin screen explains the verdict. The evidence is GameCore's own registry state plus the calls the permission gate recorded since launch: no server, no crowd rating and no number a plugin can inflate. A plugin you switched off, and every plugin while the global switch is on, are reported as choices rather than faults.</p>
+
+<p><strong>A plugin set for each game.</strong> A custom plugin group can be bound to a game and switched on when that game starts. Sets only enable plugins whose permissions are already granted — they never grant a permission, release a quarantine or override a suspension — and the same switches are put back when the game stops. If the process dies mid-session, the next launch restores the leftover switches before a game can be detected.</p>
+
+## What's new in 5.11.1
+
+<p><strong>The game stick under the wheel now responds.</strong> A gaming gesture begins its injected touch at the wheel's centre instead of at the exact point the thumb happened to land. A wheel placed over a game's virtual joystick therefore presses that joystick inside the game's own activation area, while the amplified movement is still measured from the thumb. An off-centre grip no longer turns into a dead joystick.</p>
+
+<p><strong>The wheel can always be moved off the stick.</strong> Position lock now yields to an intentional placement drag: the first drag frame in positioning mode unlocks and moves the wheel in the same gesture. A stale lock can no longer strand the ring on top of the control it was blocking.</p>
+
+<p><strong>Short taps survive, and a failed hand-off lets go.</strong> The first injected DOWN is retried on a measured schedule while the overlay leaves touch mode, and a tap whose finger lifts during that hand-off is completed rather than dropped. If the hand-off cannot succeed within the bounded window, the wheel switches itself off and reports why instead of continuing to consume touches while injecting nothing.</p>
+
+## What's new in 5.11
+
+<p><strong>A real amplified wheel.</strong> The High Sensitivity Wheel processes a bounded virtual joystick into a Shizuku-injected touch stream. Named profiles cover 1×–4× gain, independent horizontal and vertical gain, deadzone, radius, response curve, inversion and optional smoothing, with positioning and calibration modes that do not inject.</p>
+
+<p><strong>The off switch stays within reach.</strong> A draggable floating handle opens quick controls and can stop injection immediately. Its position and appearance persist, but the running mode does not: restarting GameCore always returns the wheel to Disabled. Profiles can be switched manually or assigned to detected games without letting a game binding turn injection on.</p>
+
+<p><strong>Enabling is a deliberate risk decision.</strong> The first attempt to enter gaming mode explains that synthetic input can misfire or conflict with a game's rules or anti-cheat and requires an explicit “Enable at my own risk” choice. During a gaming gesture the wheel temporarily becomes non-touchable so injected events can reach the app underneath, targets the detected game uid on supported Android builds, and cancels every held pointer on shutdown or backend loss. Diagnostics report measured app processing and binder round trips only—not invented end-to-end latency.</p>
+
+## What's new in 5.10.1
+
+<p><strong>Session history now has a time scale.</strong> Sessions › Trends compares the last 7, 30 or 90 local calendar days with the same period immediately before them. Choose one game or All games to see average FPS, average temperature, reliable battery drain and total play time, with each card stating both the movement and whether that direction is better or worse where that judgement is meaningful.</p>
+
+<p><strong>The frame figures stop where the recording stops.</strong> GameCore can rank the best and worst session by its measured average frame rate, but stored sessions do not contain per-frame times. The Trends section therefore explains why 1% lows and frame-time jank are unavailable instead of deriving precise-looking numbers from one window average.</p>
+
+<p><strong>Every chart has a second way to read it.</strong> Daily lines and play-time bars include printed scales, a spoken high/low summary, explicit gaps for missing readings and a table with the same values. Deltas use arrows, amounts and words rather than colour alone. When heat, charging, session length or play frequency changed enough to compete with the comparison, a banner names the changed conditions.</p>
+
+<p><strong>Large histories no longer become intelligence inputs by accident.</strong> Trend queries are bounded at both period edges and grouped by local day and package. Smart Intelligence now reads only the recent or post-baseline sessions its rules can use. This release changes no Room schema, plugin API or permission.</p>
+
+<p><strong>A calmer start.</strong> A full-screen mark now covers the first seconds of a launch while plugins and the saved theme load. Home no longer draws the 3D metric instruments for a frame before the stored card choice arrives, and a plugin-themed install opens on its own colours instead of flashing the house theme first.</p>
+
+<p><strong>A startup look you choose.</strong> Settings › Behavior offers Orbit, Pulse, Minimal or Off. The three looks share the same mark and progress line; Off shows the app immediately. Animations off, or the system's remove-animations switch, leaves the cover in place with its motion stopped.</p>
+
 ## What's new in 5.8
 
 <p><strong>Trust the numbers.</strong> Benchmark comparisons now weight each frame window by the real number of frames it contained, so the A/B verdict is computed from the same frame-weighted average the table displays. A run with a charger connected is never compared against one on battery; the result says INCONCLUSIVE and names the power difference.</p>

@@ -26,12 +26,26 @@ data class PluginGroup(
     val name: String,
     val pluginIds: Set<String> = emptySet(),
     val automatic: Boolean = false,
+    /**
+     * The game this custom group is a set for, as a package name, or null when it is only a lens.
+     *
+     * An optional binding rather than a second kind of group: the user already creates groups and picks
+     * their members, and a "set" is the same object with one more fact attached. Automatic groups can
+     * never be bound — they are derived from installed packages and disappear with them — so the
+     * registry and the codec both refuse a binding on [automatic].
+     */
+    val gamePackage: String? = null,
+    /** The label captured when the binding was made, so a removed profile still has a readable name. */
+    val gameLabel: String? = null,
 ) {
     /** True when [pluginId] is a member. A single place for the membership question. */
     fun contains(pluginId: String): Boolean = pluginId in pluginIds
 
     /** How many installed plugins this group names, after [pluginIds] has been intersected by the caller. */
     val size: Int get() = pluginIds.size
+
+    /** True when this group is a per-game set rather than a general filter. */
+    val isGameSet: Boolean get() = !automatic && !gamePackage.isNullOrBlank()
 }
 
 /**

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -60,6 +61,12 @@ import com.gamecore.core.model.TurboGaugeChoice
 import com.gamecore.core.model.VolumeTriggerBinding
 import com.gamecore.core.model.VolumeTriggerButton
 import com.gamecore.core.model.VolumeTriggerConfig
+import com.gamecore.core.model.WheelButtonConfig
+import com.gamecore.core.model.WheelOperatingMode
+import com.gamecore.core.model.WheelProfile
+import com.gamecore.core.overlay.WheelPowerButton
+import com.gamecore.core.overlay.WheelQuickPanel
+import com.gamecore.core.overlay.WheelStick
 import com.gamecore.core.overlay.ApplyDiff
 import com.gamecore.core.overlay.CrosshairOverlay
 import com.gamecore.core.overlay.DockAction
@@ -146,6 +153,10 @@ import com.gamecore.core.system.RefreshRateController
 import com.gamecore.core.system.ScreenCaptureController
 import com.gamecore.core.system.ScreenRotation
 import com.gamecore.core.system.TorchControls
+import com.gamecore.core.wheel.InjectionBackendStatus
+import com.gamecore.core.wheel.InjectionState
+import com.gamecore.core.wheel.WheelController
+import com.gamecore.core.wheel.WheelRuntimeState
 import com.gamecore.data.preferences.SecurePreferenceStore
 import com.gamecore.data.repository.ColorPresetRepository
 import com.gamecore.data.repository.CrosshairRepository
@@ -168,6 +179,7 @@ import com.gamecore.domain.overlay.QuickApp
 import com.gamecore.domain.overlay.QuickAppLauncher
 import com.gamecore.domain.overlay.QuickLaunchOutcome
 import com.gamecore.ui.capture.CaptureConsentActivity
+import com.gamecore.ui.Destination
 import com.gamecore.ui.components.InstantReplayChip
 import com.gamecore.ui.plugins.render.PluginNodeTree
 import dagger.hilt.android.AndroidEntryPoint
@@ -310,6 +322,15 @@ class GamingOverlayService : GameCoreService() {
      * holds, which is what keeps a plugin from ever needing a line of code in a 4000-line service.
      */
     @Inject lateinit var pluginRegistry: PluginRegistry
+
+    /**
+     * The High Sensitivity Wheel's runtime owner.
+     *
+     * The service draws the wheel and hands it raw pointer samples; the controller owns the mode, the
+     * profile maths and the privileged binder. Injecting it rather than keeping a second copy here is what
+     * makes the floating handle, the settings screen and the overlay agree about whether injection is on.
+     */
+    @Inject lateinit var wheel: WheelController
 
     override val notificationId: Int = NotificationChannels.ID_OVERLAY
 
@@ -640,6 +661,30 @@ class GamingOverlayService : GameCoreService() {
     private var draggingDock = false
 
     /**
+     * True between the wheel handle's first drag frame and the finger lifting.
+     *
+     * The handle's position lives in [com.gamecore.core.model.WheelButtonConfig], and a preference write
+     * landing mid-drag would otherwise reconcile it back to its stored fraction from under the finger. The
+     * wheel itself has its own flag for the same reason: dragging it in positioning mode must not be undone
+     * by a profile edit arriving from the settings screen.
+     */
+    private var draggingWheelButton = false
+    private var draggingWheelStick = false
+
+    /**
+     * The slice of wheel runtime state that changes a window.
+     *
+     * Comparing this rather than the whole [com.gamecore.core.wheel.WheelRuntimeState] is what keeps a
+     * per-sample diagnostics count from reconciling every overlay window at 120 Hz.
+     */
+    private data class WheelSurfaceKey(
+        val mode: WheelOperatingMode,
+        val arming: Boolean,
+        val quickPanelOpen: Boolean,
+        val profile: WheelProfile,
+    )
+
+    /**
      * The gap between the finger and the dock window's top-left, latched on the first frame of a drag and
      * cleared when it ends.
      *
@@ -811,6 +856,11 @@ class GamingOverlayService : GameCoreService() {
         // throws, and a receiver left behind by a dying service is a logged leak.
         screenReceiver?.let { receiver -> runCatching { unregisterReceiver(receiver) } }
         screenReceiver = null
+        // The wheel goes first: this cancels an injected pointer and unbinds the shell-uid helper, so a
+        // service teardown can never leave a finger held down in another app. It also clears the runtime
+        // stick flag, which is what keeps injection off after the next process start.
+        closeWheelQuickPanel()
+        wheel.disengage()
         windows?.hideAll()
         windows = null
         // After the windows, never before: `DESTROYED` disposes every composition, and a composition
@@ -841,6 +891,53 @@ class GamingOverlayService : GameCoreService() {
         // the dock is up, and none of that moves the desired request, so like the button's config it needs
         // its own collector to re-place and redraw the live window.
         lifecycleScope.launch { preferences.dock.collect { reconcile() } }
+        // The wheel's durable config drives its handle, its size and its profile library. A profile edit
+        // made from the settings screen has to resize or re-place the live window, and the handle's
+        // visibility has to follow its own persisted flag.
+        lifecycleScope.launch { preferences.wheel.collect { reconcile() } }
+        lifecycleScope.launch {
+            // Only the facts that change a *window* reach reconcile. The controller republishes runtime
+            // state with fresh diagnostics on every injected sample, and reconciling at pointer rate would
+            // be exactly the UI work the input path must not wait for.
+            wheel.state
+                .map { WheelSurfaceKey(it.mode, it.arming, it.quickPanelOpen, it.effectiveProfile) }
+                .distinctUntilChanged()
+                .collect { reconcile() }
+        }
+        lifecycleScope.launch {
+            // The wheel leaves touch mode for the whole gesture. When its UP arrives before the hand-off
+            // has finished, restoring touchability there would make the retry land on the wheel again.
+            // The controller says when no gesture remains; only then does the ring become touchable.
+            wheel.handoffFinished.collect {
+                if (!wheel.isGestureActive()) {
+                    windows?.setTouchable(OverlaySlot.WHEEL_STICK, true)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            // Screen off is a gesture loss, not a mode change. Release the helper's pointer immediately;
+            // the wheel may stay armed for when the screen comes back, but nothing may remain held down.
+            screenInteractive.collect { interactive ->
+                if (!interactive) {
+                    wheel.releaseAll("The screen turned off.")
+                    windows?.setTouchable(OverlaySlot.WHEEL_STICK, true)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            // Automatic per-game profile selection. The coordinator already resolves the foreground game
+            // for the session and the panel header, so the wheel reads the same fact rather than running
+            // a second detector of its own.
+            coordinator.gaming.collect { game ->
+                if (wheel.setGame(game.playing, game.gameLabel)) {
+                    // setGame cancels any stream before changing the target uid. That cancellation may
+                    // have happened while the stick was in pass-through mode, so make the next gesture
+                    // reachable again. Do not do this for identical state emissions: those can occur
+                    // while a legitimate gesture is still in flight.
+                    windows?.setTouchable(OverlaySlot.WHEEL_STICK, true)
+                }
+            }
+        }
         // The Instant Replay save controls (§3.6) are up exactly while the rolling buffer runs, which is
         // capture state rather than a desired-overlay request — so their show/hide rides the buffer's own
         // running flag. The paused, saving and window flows are read inside the window's content with
@@ -1252,6 +1349,7 @@ class GamingOverlayService : GameCoreService() {
             // explicit close also drops its in-progress state, which hideAll() alone would leave behind to be
             // re-seeded if the service came back up.
             closeTriggerPlacement()
+            closeWheelQuickPanel()
             manager.hideAll()
             stopSelf()
             return
@@ -1301,6 +1399,33 @@ class GamingOverlayService : GameCoreService() {
         } else {
             closeDockPanel()
             manager.hide(OverlaySlot.DOCK)
+        }
+        // The High Sensitivity Wheel's two windows. The handle is a persisted emergency control and is
+        // independent of whether the wheel is armed; the stick is runtime-only and its request is set by
+        // WheelController, which never restores it across a process. The stick is drawn only when there is a
+        // live mode, and its content collects the controller's state for the actual injection readout.
+        if (request.wheelButton) {
+            showWheelButton(preferences.wheel.value.normalised().button)
+        } else {
+            closeWheelQuickPanel()
+            manager.hide(OverlaySlot.WHEEL_BUTTON)
+        }
+        val wheelRuntime = wheel.state.value
+        if (request.wheelStick && wheelRuntime.mode != WheelOperatingMode.DISABLED) {
+            showWheelStick(wheelRuntime)
+        } else {
+            manager.hide(OverlaySlot.WHEEL_STICK)
+        }
+        // The stick is normally touchable, but a gaming gesture turns it off while its fingerprint would
+        // otherwise swallow the events it is injecting. Any mode that is not GAMING must put touchability
+        // back even if no UP arrived (a mode change from the quick panel, or a lost gesture).
+        if (wheelRuntime.mode != WheelOperatingMode.GAMING) {
+            manager.setTouchable(OverlaySlot.WHEEL_STICK, true)
+        }
+        if (request.wheelButton && wheelRuntime.quickPanelOpen) {
+            showWheelQuickPanel()
+        } else {
+            closeWheelQuickPanel()
         }
         // The §3.7.1 trigger mark. The one window here whose show/hide is not read off `request`, because
         // there is no overlay toggle for it and there should not be: it is not a surface the user turns on,
@@ -1414,6 +1539,29 @@ class GamingOverlayService : GameCoreService() {
             manager.move(OverlaySlot.DOCK, placed.x, placed.y)
             lastDockFrame = currentDock
             persistDockPlacement(currentDock, placed)
+        }
+        // The wheel handle stores one fraction rather than a pair per orientation, so a rotation simply
+        // re-resolves it on the new screen; there is nothing to carry across and nothing to write back.
+        val currentWheelButton = wheelButtonFrame()
+        if (currentWheelButton != null && manager.isVisible(OverlaySlot.WHEEL_BUTTON)) {
+            val config = preferences.wheel.value.normalised().button
+            val placed = currentWheelButton.fromFraction(
+                PositionFraction(config.xFraction, config.yFraction),
+                snapToEdge = config.snapToEdge,
+            )
+            manager.move(OverlaySlot.WHEEL_BUTTON, placed.x, placed.y)
+        }
+        // The real wheel stores its centre, so the same re-resolution is a centre calculation rather
+        // than a top-left placement.
+        val currentWheelStick = manager.frameFor(OverlaySlot.WHEEL_STICK)
+        if (currentWheelStick != null && manager.isVisible(OverlaySlot.WHEEL_STICK)) {
+            val profile = wheel.state.value.effectiveProfile.normalised()
+            val left = (profile.xFraction * currentWheelStick.screenWidth -
+                currentWheelStick.windowWidth / 2f).roundToInt()
+            val top = (profile.yFraction * currentWheelStick.screenHeight -
+                currentWheelStick.windowHeight / 2f).roundToInt()
+            val placed = currentWheelStick.clamp(left, top)
+            manager.move(OverlaySlot.WHEEL_STICK, placed.x, placed.y)
         }
     }
 
@@ -1698,6 +1846,393 @@ class GamingOverlayService : GameCoreService() {
             portrait = frame.isPortrait,
             xFraction = fraction.xFraction,
             yFraction = fraction.yFraction,
+        )
+    }
+
+    // ------------------------------------------------------------------------------------ wheel
+
+    /**
+     * Adds the High Sensitivity Wheel's handle, or moves the one that is up.
+     *
+     * The handle is the emergency control the feature is built around: it is restored from
+     * [WheelButtonConfig] on every launch, and it stays on screen whether the wheel is armed or not. A
+     * button that only existed while injection was running could not be used to stop injection after
+     * something went wrong.
+     *
+     * The window is a fixed square of [WheelButtonConfig.sizeDp] and the composable reads its own config
+     * from [SecurePreferenceStore.wheel], so a change of icon, opacity or fade recomposes rather than
+     * re-adds. Its position is a fraction of the usable screen, like the floating button and the dock.
+     */
+    private fun showWheelButton(config: WheelButtonConfig) {
+        val manager = windows ?: return
+        val frame = wheelButtonFrame() ?: return
+        val placement = frame.fromFraction(
+            PositionFraction(config.xFraction, config.yFraction),
+            snapToEdge = config.snapToEdge,
+        )
+        if (manager.isVisible(OverlaySlot.WHEEL_BUTTON)) {
+            // Not while a finger is on it, for the reason every other draggable window here gives: a
+            // preference write landing mid-drag would pull the handle off the finger.
+            if (!draggingWheelButton) manager.move(OverlaySlot.WHEEL_BUTTON, placement.x, placement.y)
+            return
+        }
+        manager.show(
+            slot = OverlaySlot.WHEEL_BUTTON,
+            spec = OverlayWindowSpec(x = placement.x, y = placement.y, touchable = true),
+            host = host,
+        ) {
+            val live by preferences.wheel.collectAsState()
+            // Only the fields this button draws are compared. The controller republishes diagnostics on
+            // every injected sample, and recomposing the emergency switch at pointer rate would put
+            // Compose work on the same main thread the injection path is using.
+            val runtime by remember {
+                wheel.state
+                    .map { WheelButtonSurface(it.mode, it.arming, it.injector.status) }
+                    .distinctUntilChanged()
+            }.collectAsState(
+                initial = wheel.state.value.let {
+                    WheelButtonSurface(it.mode, it.arming, it.injector.status)
+                },
+            )
+            WheelPowerButton(
+                config = live.normalised().button,
+                state = runtime.asRuntimeState(),
+                positionProvider = ::wheelButtonOffset,
+                onTap = { wheel.toggle() },
+                onLongPress = { wheel.toggleQuickPanel() },
+                onDragTo = ::dragWheelButtonTo,
+                onDragFinished = ::finishWheelButtonDrag,
+            )
+        }
+    }
+
+    /** The screen as the wheel handle sees it, estimated before the view has been measured. */
+    private fun wheelButtonFrame(): OverlayFrame? {
+        val manager = windows ?: return null
+        val margin = px(EDGE_MARGIN_DP)
+        manager.frameFor(OverlaySlot.WHEEL_BUTTON, margin)?.let { return it }
+        val size = px(preferences.wheel.value.normalised().button.sizeDp)
+        return manager.frameFor(size, size, margin)
+    }
+
+    /** Where the handle is right now, for a drag that must start from the window's real position. */
+    private fun wheelButtonOffset(): IntOffset {
+        val live = windows?.positionOf(OverlaySlot.WHEEL_BUTTON)
+        if (live != null) return IntOffset(live.x, live.y)
+        val frame = wheelButtonFrame() ?: return IntOffset.Zero
+        val config = preferences.wheel.value.normalised().button
+        val placed = frame.fromFraction(
+            PositionFraction(config.xFraction, config.yFraction),
+            snapToEdge = config.snapToEdge,
+        )
+        return IntOffset(placed.x, placed.y)
+    }
+
+    /** One handle drag frame: clamp and move. Nothing is written until the finger lifts. */
+    private fun dragWheelButtonTo(x: Int, y: Int) {
+        val manager = windows ?: return
+        draggingWheelButton = true
+        // The quick panel hangs off the handle; dragging a stale anchor around is worse than closing it.
+        closeWheelQuickPanel()
+        val clamped = wheelButtonFrame()?.clamp(x, y) ?: return
+        manager.move(OverlaySlot.WHEEL_BUTTON, clamped.x, clamped.y)
+    }
+
+    /** The finger lifted on the handle: clamp once more, then persist the fraction. */
+    private fun finishWheelButtonDrag() {
+        val manager = windows ?: return
+        draggingWheelButton = false
+        val frame = wheelButtonFrame() ?: return
+        val current = manager.positionOf(OverlaySlot.WHEEL_BUTTON) ?: return
+        val config = preferences.wheel.value.normalised().button
+        val placed = frame.place(current.x, current.y, config.snapToEdge)
+        manager.move(OverlaySlot.WHEEL_BUTTON, placed.x, placed.y)
+        val fraction = frame.fractionOf(placed.x, placed.y)
+        wheel.updateConfig { config ->
+            config.copy(
+                button = config.button.copy(
+                    xFraction = fraction.xFraction,
+                    yFraction = fraction.yFraction,
+                ),
+            )
+        }
+    }
+
+    /**
+     * Adds the real wheel, or moves the one that is up.
+     *
+     * A bounded square window, deliberately: a full-screen touchable layer would swallow every tap in the
+     * game, and the wheel has no business being anywhere the user did not put it. The window is shown
+     * only when [WheelController] has a live mode — in GAMING that means the injector has already
+     * reported ready, so there is never a touchable ring that injects nothing.
+     *
+     * A change of diameter re-adds the window because [OverlayWindows.move] cannot resize; everything
+     * else (style, accent, opacity, sensitivity readout) arrives through the collected flows.
+     */
+    private fun showWheelStick(runtime: WheelRuntimeState) {
+        val manager = windows ?: return
+        val profile = runtime.effectiveProfile.normalised()
+        val size = px(profile.diameterDp).coerceAtLeast(1)
+        val measured = manager.frameFor(OverlaySlot.WHEEL_STICK)
+        if (measured != null && (measured.windowWidth != size || measured.windowHeight != size)) {
+            manager.hide(OverlaySlot.WHEEL_STICK)
+        }
+        val frame = manager.frameFor(size, size)
+        if (!frame.isMeasured) return
+        // The profile stores the centre, because that is what the user aims at. The window is placed by
+        // its top-left, because that is what WindowManager stores.
+        val left = (profile.xFraction * frame.screenWidth - size / 2f).roundToInt()
+        val top = (profile.yFraction * frame.screenHeight - size / 2f).roundToInt()
+        val placement = frame.clamp(left, top)
+
+        if (manager.isVisible(OverlaySlot.WHEEL_STICK)) {
+            if (!draggingWheelStick) manager.move(OverlaySlot.WHEEL_STICK, placement.x, placement.y)
+            return
+        }
+        manager.show(
+            slot = OverlaySlot.WHEEL_STICK,
+            spec = OverlayWindowSpec(
+                x = placement.x,
+                y = placement.y,
+                width = size,
+                height = size,
+                touchable = true,
+            ),
+            host = host,
+        ) {
+            // The mode and the profile change rarely; the vector changes at the visual rate. Separating
+            // them keeps a 120 Hz diagnostics publication from rebuilding the wheel canvas on top of the
+            // live-frame redraw that is actually wanted.
+            val surface by remember {
+                wheel.state
+                    .map { WheelSurfaceKey(it.mode, it.arming, it.quickPanelOpen, it.effectiveProfile) }
+                    .distinctUntilChanged()
+            }.collectAsState(initial = wheel.state.value.let {
+                WheelSurfaceKey(it.mode, it.arming, it.quickPanelOpen, it.effectiveProfile)
+            })
+            val vector by wheel.liveFrame.collectAsState()
+            WheelStick(
+                profile = surface.profile,
+                mode = surface.mode,
+                liveFrame = vector,
+                positionProvider = ::wheelStickOffset,
+                onTouch = ::onWheelStickTouch,
+                onDragTo = ::dragWheelStickTo,
+                onDragFinished = ::finishWheelStickDrag,
+                onUnlock = wheel::unlockPosition,
+            )
+        }
+    }
+
+    /**
+     * The wheel stick's touch path, with the overlay hand-off around it.
+     *
+     * In GAMING the window is made `FLAG_NOT_TOUCHABLE` on DOWN, before the controller processes the
+     * gesture. `InputDispatcher` keeps delivering the physical stream to a window it already latched even
+     * after the flag changes, so the thumb stays connected to the wheel while the *injected* events can
+     * reach the game underneath. The controller decides how long to wait for the flag and takes the wheel
+     * down if the hand-off never succeeds. Touchability is restored on UP/CANCEL so the next gesture lands
+     * on the wheel again.
+     *
+     * The injected stream is anchored at the wheel's centre, not the finger. That is what lets a wheel
+     * placed over a game's existing joystick activate that joystick at the point the game expects; an
+     * off-centre thumb no longer starts the game's touch outside its own activation area.
+     *
+     * Failure to apply the flag is a failed start: the wheel is switched off rather than left consuming
+     * touches while injecting nothing.
+     */
+    private fun onWheelStickTouch(
+        action: Int,
+        x: Float,
+        y: Float,
+        eventTime: Long,
+        downTime: Long,
+    ): Boolean {
+        val manager = windows
+        val runtime = wheel.state.value
+        if (action == MotionEvent.ACTION_DOWN && runtime.mode == WheelOperatingMode.GAMING) {
+            if (!runtime.injector.canInject) {
+                wheel.disengage(
+                    "The injector is not ready. The wheel was switched off so the game stays playable.",
+                )
+                return true
+            }
+            if (manager?.setTouchable(OverlaySlot.WHEEL_STICK, false) != true) {
+                wheel.disengage(
+                    "The wheel could not leave touch mode. It was switched off so the game stays playable.",
+                )
+                return true
+            }
+        }
+        val centre = wheelStickCentre()
+        val consumed = wheel.onTouch(
+            action,
+            x,
+            y,
+            eventTime,
+            downTime,
+            originX = centre?.first ?: x,
+            originY = centre?.second ?: y,
+        )
+        if (action == MotionEvent.ACTION_UP ||
+            action == MotionEvent.ACTION_CANCEL ||
+            (action == MotionEvent.ACTION_DOWN && !consumed)
+        ) {
+            // A UP can arrive while the first DOWN is still being handed to the game. Restoring
+            // touchability here would make the hand-off retry land on the wheel itself, so the
+            // controller's completion signal above is what puts the ring back into touch mode.
+            if (!wheel.isGestureActive()) {
+                manager?.setTouchable(OverlaySlot.WHEEL_STICK, true)
+            }
+        }
+        return consumed
+    }
+
+    /** The wheel window's centre in screen pixels, or null before the window has been laid out. */
+    private fun wheelStickCentre(): Pair<Float, Float>? {
+        val manager = windows ?: return null
+        val position = manager.positionOf(OverlaySlot.WHEEL_STICK) ?: return null
+        val frame = manager.frameFor(OverlaySlot.WHEEL_STICK) ?: return null
+        return (position.x + frame.windowWidth / 2f) to (position.y + frame.windowHeight / 2f)
+    }
+
+    /** Where the real wheel is right now, for a positioning drag. */
+    private fun wheelStickOffset(): IntOffset {
+        val live = windows?.positionOf(OverlaySlot.WHEEL_STICK)
+        if (live != null) return IntOffset(live.x, live.y)
+        return IntOffset.Zero
+    }
+
+    /** One positioning drag frame: clamp the wheel to the screen. Nothing is written until release. */
+    private fun dragWheelStickTo(x: Int, y: Int) {
+        val manager = windows ?: return
+        draggingWheelStick = true
+        val frame = manager.frameFor(OverlaySlot.WHEEL_STICK) ?: return
+        val clamped = frame.clamp(x, y)
+        manager.move(OverlaySlot.WHEEL_STICK, clamped.x, clamped.y)
+    }
+
+    /**
+     * The positioning drag ended: persist the wheel centre as a fraction of the screen.
+     *
+     * Unlike the handle and the dock this is a centre, not a top-left — the wheel is a circle under a thumb
+     * and its stored position is where the thumb aims, not where the window happens to begin.
+     */
+    private fun finishWheelStickDrag() {
+        val manager = windows ?: return
+        draggingWheelStick = false
+        val frame = manager.frameFor(OverlaySlot.WHEEL_STICK) ?: return
+        val current = manager.positionOf(OverlaySlot.WHEEL_STICK) ?: return
+        val placed = frame.clamp(current.x, current.y)
+        manager.move(OverlaySlot.WHEEL_STICK, placed.x, placed.y)
+        val centreX = placed.x + frame.windowWidth / 2f
+        val centreY = placed.y + frame.windowHeight / 2f
+        wheel.updatePosition(
+            xFraction = (centreX / frame.screenWidth.coerceAtLeast(1)).coerceIn(0f, 1f),
+            yFraction = (centreY / frame.screenHeight.coerceAtLeast(1)).coerceIn(0f, 1f),
+        )
+    }
+
+    /**
+     * Opens the wheel's quick controls against its handle.
+     *
+     * Placed exactly as the floating button's quick sheet is: hugging the nearer screen edge and growing
+     * down from the handle when there is room, up from it when there is not. The width is fixed and known
+     * before layout, which is what lets x be exact; the height is not, which is why the upward case anchors
+     * the bottom edge instead of estimating one.
+     *
+     * No watch is started: every value the panel draws comes from [WheelController.state] and
+     * [SecurePreferenceStore.wheel], collected inside the window, and the panel has no session clock or
+     * auto-close deadline to poll.
+     */
+    private fun showWheelQuickPanel() {
+        val manager = windows ?: return
+        if (manager.isVisible(OverlaySlot.WHEEL_QUICK_PANEL)) return
+        val width = px(WHEEL_QUICK_PANEL_WIDTH_DP)
+        val margin = px(EDGE_MARGIN_DP)
+        val gap = px(PANEL_GAP_DP)
+        val frame = manager.frameFor(width, 0, margin)
+        val placement = manager.positionOf(OverlaySlot.WHEEL_BUTTON)
+        val handle = manager.frameFor(OverlaySlot.WHEEL_BUTTON)
+        val handleTop = placement?.y ?: 0
+        val handleHeight = handle?.windowHeight ?: 0
+        val handleCentreX = (placement?.x ?: 0) + (handle?.windowWidth ?: 0) / 2
+
+        val onLeft = frame.isMeasured && handleCentreX < frame.screenWidth / 2
+        val x = if (onLeft) margin else maxOf(margin, frame.maxX)
+
+        val roomBelow = frame.screenHeight - (handleTop + handleHeight + gap) - margin
+        val roomAbove = handleTop - gap - margin
+        val below = !frame.isMeasured || roomBelow >= roomAbove
+        val y = if (below) {
+            (handleTop + handleHeight + gap).coerceAtLeast(margin)
+        } else {
+            (frame.screenHeight - (handleTop - gap)).coerceAtLeast(0)
+        }
+
+        val shown = manager.show(
+            slot = OverlaySlot.WHEEL_QUICK_PANEL,
+            spec = OverlayWindowSpec(
+                x = x,
+                y = y,
+                width = width,
+                touchable = true,
+                dismissOnOutsideTouch = true,
+                anchorBottom = !below,
+            ),
+            host = host,
+        ) {
+            val runtime by wheel.state.collectAsState()
+            val config by preferences.wheel.collectAsState()
+            WheelQuickPanel(
+                state = runtime,
+                profiles = config.normalised().profiles,
+                onMode = wheel::setMode,
+                onPower = { wheel.toggle() },
+                onPrecision = wheel::setPrecision,
+                onTurbo = wheel::setTurbo,
+                onLock = { wheel.toggleLock() },
+                onSensitivity = { wheel.nudgeSensitivity(it) },
+                onSelectProfile = wheel::selectProfile,
+                onOpenSettings = {
+                    closeWheelQuickPanel()
+                    openApp(Destination.Wheels.EXTERNAL)
+                },
+                onHideButton = {
+                    closeWheelQuickPanel()
+                    wheel.setButtonVisible(false)
+                },
+                onClose = { closeWheelQuickPanel() },
+            )
+        }
+        // A window the platform refused must not leave the controller believing its panel is open: the
+        // handle would draw as expanded with nothing under it.
+        if (!shown) wheel.closeQuickPanel()
+    }
+
+    /** Takes the quick controls down. Safe to call when they are not up. */
+    private fun closeWheelQuickPanel() {
+        windows?.hide(OverlaySlot.WHEEL_QUICK_PANEL)
+        if (wheel.state.value.quickPanelOpen) wheel.closeQuickPanel()
+    }
+
+    /**
+     * The three fields [WheelPowerButton] actually draws, so diagnostics republishing does not recompose
+     * the emergency switch at pointer rate.
+     */
+    private data class WheelButtonSurface(
+        val mode: WheelOperatingMode,
+        val arming: Boolean,
+        val injector: InjectionBackendStatus,
+    ) {
+        /**
+         * A runtime state with only those fields carried over. The button reads nothing else, and the
+         * remaining defaults are the controller's own defaults rather than invented values.
+         */
+        fun asRuntimeState(): WheelRuntimeState = WheelRuntimeState(
+            mode = mode,
+            arming = arming,
+            injector = InjectionState(status = injector),
         )
     }
 
@@ -2719,6 +3254,8 @@ class GamingOverlayService : GameCoreService() {
             pillVisible = OverlaySlot.PILL in visible,
             crosshairVisible = OverlaySlot.CROSSHAIR in visible,
             hudVisible = OverlaySlot.HUD in visible,
+            wheelButtonVisible = OverlaySlot.WHEEL_BUTTON in visible,
+            wheelStickVisible = OverlaySlot.WHEEL_STICK in visible,
             hasPermission = manager?.canDraw() ?: false,
         )
         if (next == status) return
@@ -4831,6 +5368,14 @@ class GamingOverlayService : GameCoreService() {
          * measure — the same reason [openPanel] uses a fixed width for its own placement.
          */
         const val QUICK_SHEET_WIDTH_DP = 300
+
+        /**
+         * The wheel quick panel's window width, matching [WheelQuickPanel]'s own `PANEL_WIDTH`.
+         *
+         * Like [QUICK_SHEET_WIDTH_DP], fixing it before layout is what lets the opener place the edge
+         * exactly rather than estimating from an unmeasured view.
+         */
+        const val WHEEL_QUICK_PANEL_WIDTH_DP = 286
 
         /**
          * How long after a quick-sheet slider stops moving before its value is written.

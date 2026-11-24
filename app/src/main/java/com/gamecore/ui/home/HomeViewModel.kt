@@ -114,7 +114,30 @@ class HomeViewModel @Inject constructor(
     sessions: SessionRepository,
 ) : ViewModel() {
 
-    private val local = MutableStateFlow(LocalState())
+    /**
+     * The state this screen owns, seeded from the settings that are already on disk.
+     *
+     * [LocalState]'s defaults are the defaults of a fresh install, and the collector below corrects
+     * them as soon as the preference flow emits. That is one frame too late for
+     * [LocalState.show3DHomeStats]: a user who turned the 3D instruments off would see the 3D pair
+     * drawn and then swapped for the 2D cards on every launch. The store seeds its settings flow
+     * synchronously, so reading it here costs the same read the collector would do a moment later and
+     * removes the flash at its source — the startup cover then only has to hide the genuinely slow
+     * plugin load, not a preference that was already known.
+     */
+    private val local = MutableStateFlow(
+        preferences.settings.value.let { settings ->
+            LocalState(
+                isCompact = settings.compactDensity,
+                autoApply = settings.autoApplyProfiles,
+                redlineSkin = settings.redlineSkin,
+                themePreset = ThemePreset.matching(settings),
+                showBuiltInHomeStats = appearanceScheduler.dashboardOverride.value
+                    ?: settings.showBuiltInHomeStats,
+                show3DHomeStats = settings.show3DHomeStats,
+            )
+        },
+    )
 
     // ------------------------------------------------------------------------------- the sparklines
 

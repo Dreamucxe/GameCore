@@ -4,13 +4,13 @@ package com.gamecore.core.plugin.market
  * One entry in the curated marketplace index.
  *
  * The marketplace has no custom backend: it is a single curated JSON file in a GitHub repo,
- * fetched over HTTPS with certificate pinning, listing the plugins GameCore has reviewed.
+ * fetched over HTTPS from one curated host, listing the plugins GameCore has reviewed.
  * Every entry therefore has to carry enough to let the client verify what it downloads
  * *without* trusting the download server — above all [sha256], the hash of the exact
  * `.gcplugin` bytes. The client fetches the package from [downloadUrl], hashes the bytes, and
  * installs only if the hash matches this entry; a man-in-the-middle who somehow served
- * different bytes past the pinning would still fail the hash. The index is the authority, the
- * download is just transport.
+ * different bytes past the host and TLS checks would still fail the hash. The index is the
+ * authority, the download is just transport.
  *
  * Counts ([downloadCount]) come from the index and are shown as-is. Ratings and reviews need
  * a backend GameCore does not have, so this model has no field for them — the UI shows "real

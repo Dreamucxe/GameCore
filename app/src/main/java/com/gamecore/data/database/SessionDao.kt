@@ -204,7 +204,215 @@ interface SessionDao {
         """,
     )
     suspend fun averageDrainPercentPerHour(minMillis: Long): Float?
+
+    // ------------------------------------------------------------------ session trends
+
+    /**
+     * One package's sessions on one local day, bounded by both ends of the period.
+     *
+     * `strftime(..., 'localtime')` groups by the user's calendar day rather than by UTC, which is what
+     * "yesterday" means on the screen. The boundaries themselves are computed in Java time by
+     * [com.gamecore.core.model.SessionTrends.window]; SQLite only names the day, so a daylight-saving
+     * transition does not stretch or shorten a bucket.
+     *
+     * The weighted sums keep the numerator and its weight separate. A package-day row can then be folded
+     * together with another package's row for the same day without averaging two averages and letting a
+     * ten-minute session count as much as a three-hour one.
+     *
+     * The drain case repeats [com.gamecore.core.model.BatteryDrain]'s rules in SQL for the same reason
+     * [averageDrainPercentPerHour] does: a session the model would refuse to quote a rate for must not
+     * enter the trend either. A session whose battery rose is excluded as well — it did not measure
+     * drain, and counting it as `0.0` would drag the average toward a rate nobody observed. The `CASE`
+     * yields NULL for excluded rows, which `SUM` and `COUNT(expression)` skip, so a session with no
+     * measurable rate can still contribute its other measured columns.
+     */
+    @Query(
+        """
+        SELECT strftime('%Y-%m-%d', started_at / 1000, 'unixepoch', 'localtime') AS day,
+               package_name AS packageName,
+               COUNT(*) AS sessionCount,
+               SUM(ended_at - started_at) AS playTimeMillis,
+               SUM(
+                   CASE WHEN avg_frame_rate IS NOT NULL
+                        THEN avg_frame_rate * (ended_at - started_at)
+                   END
+               ) AS frameRateWeightedSum,
+               SUM(
+                   CASE WHEN avg_frame_rate IS NOT NULL
+                        THEN ended_at - started_at
+                   END
+               ) AS frameRateWeightMillis,
+               COUNT(CASE WHEN avg_frame_rate IS NOT NULL THEN 1 END) AS frameRateSessionCount,
+               SUM(
+                   CASE WHEN avg_temperature IS NOT NULL
+                        THEN avg_temperature * (ended_at - started_at)
+                   END
+               ) AS temperatureWeightedSum,
+               SUM(
+                   CASE WHEN avg_temperature IS NOT NULL
+                        THEN ended_at - started_at
+                   END
+               ) AS temperatureWeightMillis,
+               COUNT(CASE WHEN avg_temperature IS NOT NULL THEN 1 END) AS temperatureSessionCount,
+               SUM(
+                   CASE WHEN battery_end IS NOT NULL
+                         AND was_charging = 0
+                         AND battery_start >= battery_end
+                         AND (ended_at - started_at) >= :minDrainMillis
+                        THEN (battery_start - battery_end) * 3600000.0 / (ended_at - started_at)
+                   END
+               ) AS drainRateSum,
+               COUNT(
+                   CASE WHEN battery_end IS NOT NULL
+                         AND was_charging = 0
+                         AND battery_start >= battery_end
+                         AND (ended_at - started_at) >= :minDrainMillis
+                        THEN 1 END
+               ) AS drainSessionCount,
+               SUM(CASE WHEN was_charging = 1 THEN 1 ELSE 0 END) AS chargingSessionCount
+        FROM sessions
+        WHERE ended_at IS NOT NULL
+          AND started_at >= :since
+          AND started_at < :until
+          AND (:packageName IS NULL OR package_name = :packageName)
+        GROUP BY day, package_name
+        ORDER BY day ASC, package_name ASC
+        """,
+    )
+    suspend fun trendAggregates(
+        since: Long,
+        until: Long,
+        packageName: String?,
+        minDrainMillis: Long,
+    ): List<SessionDayAggregate>
+
+    /**
+     * The best average frame rate in the period, or null when no session measured one.
+     *
+     * `avg_frame_rate IS NOT NULL` is the whole honesty rule: a session where the game exposed no frame
+     * timing has no average, and must not win or lose a comparison with a zero. The tie-break prefers the
+     * longer session, because its average rests on more samples.
+     */
+    @Query(
+        """
+        SELECT id AS id,
+               package_name AS packageName,
+               game_label AS gameLabel,
+               started_at AS startedAtMillis,
+               (ended_at - started_at) AS durationMillis,
+               avg_frame_rate AS averageFrameRate
+        FROM sessions
+        WHERE ended_at IS NOT NULL
+          AND started_at >= :since
+          AND started_at < :until
+          AND avg_frame_rate IS NOT NULL
+          AND (:packageName IS NULL OR package_name = :packageName)
+        ORDER BY avg_frame_rate DESC, (ended_at - started_at) DESC, id ASC
+        LIMIT 1
+        """,
+    )
+    suspend fun bestFrameRateSession(
+        since: Long,
+        until: Long,
+        packageName: String?,
+    ): TrendSessionProjection?
+
+    @Query(
+        """
+        SELECT id AS id,
+               package_name AS packageName,
+               game_label AS gameLabel,
+               started_at AS startedAtMillis,
+               (ended_at - started_at) AS durationMillis,
+               avg_frame_rate AS averageFrameRate
+        FROM sessions
+        WHERE ended_at IS NOT NULL
+          AND started_at >= :since
+          AND started_at < :until
+          AND avg_frame_rate IS NOT NULL
+          AND (:packageName IS NULL OR package_name = :packageName)
+        ORDER BY avg_frame_rate ASC, (ended_at - started_at) DESC, id ASC
+        LIMIT 1
+        """,
+    )
+    suspend fun worstFrameRateSession(
+        since: Long,
+        until: Long,
+        packageName: String?,
+    ): TrendSessionProjection?
+
+    // ------------------------------------------------------------ bounded intelligence reads
+
+    /**
+     * The newest finished sessions, at most [limit].
+     *
+     * This is the bounded replacement for the intelligence path's `snapshot()`. The recommendation rules
+     * read at most twenty sessions, so asking SQLite for twenty instead of loading every row the user has
+     * ever recorded changes the answer not at all and changes the cost from history-sized to constant.
+     */
+    @Query(
+        """
+        SELECT * FROM sessions
+        WHERE ended_at IS NOT NULL
+          AND (:packageName IS NULL OR package_name = :packageName)
+        ORDER BY started_at DESC
+        LIMIT :limit
+        """,
+    )
+    suspend fun recentFinished(packageName: String?, limit: Int): List<SessionEntity>
+
+    /**
+     * Sessions that started inside a window, newest first.
+     *
+     * Benchmark attribution only needs sessions after the baseline run, and it can only confirm a profile
+     * change from a session that started after the change was applied. Bounding by `started_at` is
+     * therefore both smaller and more correct than loading all history and filtering in Kotlin. The limit
+     * is a guard against a pathological window, not the primary boundary.
+     */
+    @Query(
+        """
+        SELECT * FROM sessions
+        WHERE started_at >= :since
+          AND started_at <= :until
+          AND (:packageName IS NULL OR package_name = :packageName)
+        ORDER BY started_at DESC
+        LIMIT :limit
+        """,
+    )
+    suspend fun startedBetween(
+        since: Long,
+        until: Long,
+        packageName: String?,
+        limit: Int,
+    ): List<SessionEntity>
 }
+
+/** One row of [SessionDao.trendAggregates]. A projection, not an entity. */
+data class SessionDayAggregate(
+    val day: String,
+    val packageName: String,
+    val sessionCount: Int,
+    val playTimeMillis: Long,
+    val frameRateWeightedSum: Double?,
+    val frameRateWeightMillis: Long?,
+    val frameRateSessionCount: Int,
+    val temperatureWeightedSum: Double?,
+    val temperatureWeightMillis: Long?,
+    val temperatureSessionCount: Int,
+    val drainRateSum: Double?,
+    val drainSessionCount: Int,
+    val chargingSessionCount: Int,
+)
+
+/** One row of [SessionDao.bestFrameRateSession] and [SessionDao.worstFrameRateSession]. */
+data class TrendSessionProjection(
+    val id: Long,
+    val packageName: String,
+    val gameLabel: String,
+    val startedAtMillis: Long,
+    val durationMillis: Long,
+    val averageFrameRate: Float,
+)
 
 /** One row of [SessionDao.mostPlayed]. A projection, not an entity. */
 data class PackagePlaytime(

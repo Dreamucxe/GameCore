@@ -25,10 +25,13 @@ import com.gamecore.core.model.ScreenOrientationLock
 import com.gamecore.core.model.SessionEvent
 import com.gamecore.core.model.SessionEventKind
 import com.gamecore.core.model.SessionSample
+import com.gamecore.core.model.SessionTrendAggregate
+import com.gamecore.core.model.SessionTrendSession
 import com.gamecore.core.model.StopReason
 import com.gamecore.core.model.VolumeTriggerBinding
 import com.gamecore.core.model.VolumeTriggerConfig
 import com.gamecore.core.model.VolumeTriggerPressMode
+import java.time.LocalDate
 
 /**
  * Entity ↔ model conversion, and the one place enum names and user text cross the boundary.
@@ -502,6 +505,41 @@ internal object Mappers {
         thermalStatus = entity.thermalStatus?.takeIf { it.isNotBlank() },
         powerSaver = entity.powerSaver,
         refreshCapped = entity.refreshCapped,
+    )
+
+    /**
+     * One package-day aggregate, or null when SQLite's day string is not an ISO date.
+     *
+     * The query builds the string itself, so this should always parse. Returning null rather than
+     * throwing is the same choice the rest of this file makes for a row from another build: a malformed
+     * day costs that day's point, not the whole Trends screen.
+     */
+    fun toTrendAggregate(row: SessionDayAggregate): SessionTrendAggregate? {
+        val day = runCatching { LocalDate.parse(row.day) }.getOrNull() ?: return null
+        return SessionTrendAggregate(
+            day = day,
+            packageName = row.packageName,
+            sessionCount = row.sessionCount,
+            playTimeMillis = row.playTimeMillis,
+            frameRateWeightedSum = row.frameRateWeightedSum,
+            frameRateWeightMillis = row.frameRateWeightMillis,
+            frameRateSessionCount = row.frameRateSessionCount,
+            temperatureWeightedSum = row.temperatureWeightedSum,
+            temperatureWeightMillis = row.temperatureWeightMillis,
+            temperatureSessionCount = row.temperatureSessionCount,
+            drainRateSum = row.drainRateSum,
+            drainSessionCount = row.drainSessionCount,
+            chargingSessionCount = row.chargingSessionCount,
+        )
+    }
+
+    fun toTrendSession(row: TrendSessionProjection): SessionTrendSession = SessionTrendSession(
+        id = row.id,
+        packageName = row.packageName,
+        gameLabel = row.gameLabel,
+        startedAtMillis = row.startedAtMillis,
+        durationMillis = row.durationMillis,
+        averageFrameRate = row.averageFrameRate,
     )
 
     fun toEntity(sample: SessionSample): SessionSampleEntity = SessionSampleEntity(

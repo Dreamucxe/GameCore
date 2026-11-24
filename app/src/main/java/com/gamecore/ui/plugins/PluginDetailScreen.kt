@@ -47,6 +47,8 @@ import com.gamecore.core.common.TextSanitizer
 import com.gamecore.core.plugin.DataScope
 import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.PluginGroup
+import com.gamecore.core.plugin.PluginHealth
+import com.gamecore.core.plugin.PluginHealthTone
 import com.gamecore.core.plugin.PluginInstallPlan
 import com.gamecore.core.plugin.PluginManifest
 import com.gamecore.core.plugin.PluginPermission
@@ -218,6 +220,10 @@ fun PluginDetailScreen(
                     modifier = padded,
                 )
             }
+        }
+
+        state.health?.let { health ->
+            item { PluginHealthDetailCard(health = health, modifier = padded) }
         }
 
         item {
@@ -915,6 +921,74 @@ private fun ThemeCard(
  * by the next registry read. Custom groups are the many-to-many part of the feature: every switch
  * here is independent, so a plugin can sit in "Daily drivers", "Night mode" and "Testing" at once.
  */
+/**
+ * This plugin's health, beside the switch that decides whether it may run.
+ *
+ * The verdict is deliberately not called a score: there is no rating, no crowd data and no backend.
+ * It is the registry's state plus the calls the host itself recorded this run, and the last line says
+ * so, because a number without a provenance is exactly the kind of trust signal a plugin could game.
+ */
+@Composable
+private fun PluginHealthDetailCard(
+    health: PluginHealth,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(
+        title = "Health",
+        subtitle = health.state.label,
+        icon = Icons.Filled.Shield,
+        modifier = modifier,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StatusChip(text = health.state.label, tone = healthTone(health.state.tone))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = health.summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = health.detail,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (health.hasActivity) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "${health.allowedCalls} allowed · ${health.refusedCalls} refused · " +
+                    "${health.failedCalls} failed · ${health.rateLimitedCalls} rate-limited",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        health.lastActivityLabel?.let { last ->
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Last call: $last",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Measured from registry state and the calls the permission gate recorded since " +
+                "GameCore started. There is no rating and no server-side score.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private fun healthTone(tone: PluginHealthTone): Tone = when (tone) {
+    PluginHealthTone.GOOD -> Tone.Good
+    PluginHealthTone.WARNING -> Tone.Warning
+    PluginHealthTone.DANGER -> Tone.Danger
+    PluginHealthTone.MUTED -> Tone.Muted
+}
+
 @Composable
 private fun PluginGroupsCard(
     groups: List<PluginGroup>,

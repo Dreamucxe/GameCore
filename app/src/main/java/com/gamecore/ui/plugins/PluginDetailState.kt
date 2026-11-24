@@ -3,6 +3,7 @@ package com.gamecore.ui.plugins
 import com.gamecore.core.plugin.InstalledPlugin
 import com.gamecore.core.plugin.PluginGrant
 import com.gamecore.core.plugin.PluginGroup
+import com.gamecore.core.plugin.PluginHealth
 import com.gamecore.core.plugin.PluginInstallPlan
 import com.gamecore.core.plugin.PluginPermission
 import com.gamecore.core.plugin.RiskTier
@@ -86,6 +87,14 @@ data class PluginDetailUiState(
     val settingValues: Map<String, SettingValue> = emptyMap(),
     val message: String? = null,
     val pendingRemoval: Boolean = false,
+    /**
+     * This plugin's health, from the registry state and the calls the host recorded this run.
+     *
+     * Null only when there is no plugin to assess. It is computed on every registry emission rather
+     * than stored, so a switch flip, a suspension or a quarantine updates the card in the same frame
+     * as the rest of the screen.
+     */
+    val health: PluginHealth? = null,
 ) {
     /**
      * Has the user changed something they have not stored?

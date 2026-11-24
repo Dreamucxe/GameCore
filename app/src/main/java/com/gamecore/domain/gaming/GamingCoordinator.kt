@@ -1,6 +1,8 @@
 package com.gamecore.domain.gaming
 
 import android.os.SystemClock
+import com.gamecore.core.diagnostics.GameCrashRecorder
+import com.gamecore.core.plugin.PluginSetApplier
 import com.gamecore.core.model.ChangeOrigin
 import com.gamecore.core.model.ColorPreset
 import com.gamecore.core.model.GameProfile
@@ -161,6 +163,8 @@ class GamingCoordinator @Inject constructor(
     private val networkEvents: NetworkEventRecorder,
     private val capture: ScreenCaptureController,
     private val intelligence: AutomaticIntelligenceAnalyzer,
+    private val gameCrashRecorder: GameCrashRecorder,
+    private val pluginSets: PluginSetApplier,
 ) {
 
     private val state = MutableStateFlow(GamingState.IDLE)
@@ -217,6 +221,12 @@ class GamingCoordinator @Inject constructor(
      */
     suspend fun run(): Unit = coroutineScope {
         val scope = this
+
+        // A previous process can have died between enabling a game's set and restoring it. Clearing
+        // that before detection is what keeps a crash from leaving a set's plugins on indefinitely;
+        // the game, if still running, is announced below and its set is applied again.
+        runCatching { pluginSets.restoreLeftovers() }
+
         detector.events().collect { event ->
             when (event) {
                 is GameEvent.Started -> onStarted(event, scope)
@@ -315,6 +325,16 @@ class GamingCoordinator @Inject constructor(
             gameLabel = label,
             startedAtMillis = event.atMillis,
         )
+
+        // The session boundary is recorded before the profile work, so a crash during apply still has
+        // an opening line in the history. It cannot fail the launch: the log is evidence about the
+        // game, not a prerequisite for running it.
+        runCatching { gameCrashRecorder.onGameStarted(event.packageName, label, event.atMillis) }
+
+        // A bound set is a convenience, not a launch prerequisite. It only switches on plugins whose
+        // permissions are already granted and never touches a suspended or quarantined one; a refusal
+        // is recorded in the log and the game still starts.
+        runCatching { pluginSets.applyForGame(event.packageName) }
 
         // Before the profile, not after. Applying it is a second or two of shell round trips, and the
         // overlay is the only visible sign that GameCore noticed the game at all — a button that arrives
@@ -638,6 +658,25 @@ class GamingCoordinator @Inject constructor(
 
         monitor.watch(null)
         recorder.end(event.reason, event.atMillis)
+
+        // The set's switches go back before the crash read, which can take a second on a device with
+        // shell access. A failure to restore is contained: the same ids are persisted and the next
+        // detection start clears them.
+        runCatching { pluginSets.restore() }
+
+        // Best-effort and bounded: reading the crash buffer needs shell access and can take a second.
+        // A failure here must not keep the device in the profile's settings, so the restore below
+        // still runs whatever this returns.
+        runCatching {
+            gameCrashRecorder.onGameStopped(
+                packageName = event.packageName,
+                label = state.value.gameLabel,
+                startedAtMillis = state.value.startedAtMillis,
+                endedAtMillis = event.atMillis,
+                reason = event.reason.name,
+            )
+        }
+
         val restore = applier.restore()
         monitor.clearHistory()
         state.value = GamingState(lastRestore = restore)

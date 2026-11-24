@@ -5,6 +5,8 @@ import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import com.gamecore.core.diagnostics.LogKind
+import com.gamecore.core.diagnostics.LogStore
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -32,18 +34,39 @@ object CrashLog {
 
     private const val FILE_NAME = "GameCoreCrash.txt"
 
-    /** Installs the handler. Safe to call more than once; the last install wins. */
-    fun install(context: Context) {
+    /**
+     * Installs the handler. Safe to call more than once; the last install wins.
+     *
+     * [store] is optional so a test, or a host that has not assembled the diagnostic graph, can still
+     * get the Downloads copy. When it is present the same crash is also written to the durable Logs
+     * history, which is what the in-app screen reads after the next launch.
+     */
+    fun install(context: Context, store: LogStore? = null) {
         val app = context.applicationContext
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             try {
-                write(app, render(thread, error))
+                val rendered = render(thread, error)
+                store?.append(
+                    store.crashRecord(
+                        kind = LogKind.APP_CRASH,
+                        title = crashTitle(error),
+                        detail = rendered,
+                        packageName = app.packageName,
+                    ),
+                )
+                write(app, rendered)
             } catch (_: Throwable) {
                 // A crash reporter that crashes is worse than none; the original crash still runs.
             }
             previous?.uncaughtException(thread, error)
         }
+    }
+
+    private fun crashTitle(error: Throwable): String {
+        val message = error.message?.trim()?.take(160).orEmpty()
+        val type = error.javaClass.simpleName.ifBlank { "Crash" }
+        return if (message.isEmpty()) type else "$type: $message"
     }
 
     private fun render(thread: Thread, error: Throwable): String = buildString {

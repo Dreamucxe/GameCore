@@ -134,12 +134,15 @@ sealed interface Destination {
     }
 
     /**
-     * High-sensitivity Wheels: the feel-only guide-ring overlay and the sensitivity value the Aim Lab
-     * training surface remaps against. Reached from the Overlays card. It cannot touch another game's
-     * input — the remap lives only inside GameCore's own Aim Lab; see the screen's own copy.
+     * High-sensitivity Wheels: the real injected joystick, its profiles and diagnostics, beside the older
+     * feel-only guide-ring overlay and the sensitivity value the Aim Lab training surface remaps against.
+     * Reached from the Overlays card, and from outside the app by the wheel's own quick panel — the
+     * emergency handle is over a running game and its "full settings" action has nowhere else to go.
      */
     data object Wheels : Destination {
         override val route = "wheels"
+
+        const val EXTERNAL = "wheels"
     }
 
     /**
@@ -382,6 +385,20 @@ sealed interface Destination {
     }
 
     /**
+     * The durable crash and session history: GameCore's own crashes, the games it watched, and the
+     * boundaries between their sessions.
+     *
+     * A leaf reached from Settings. It is not in [external] — a crash log can name installed packages
+     * and window titles, and an intent from another app has no reason to open a screen that lists
+     * them. The record switch lives on the screen itself rather than in Settings because the history
+     * is what gives the switch its meaning; a toggle on a settings list would be a promise with no
+     * visible consequence.
+     */
+    data object Logs : Destination {
+        override val route = "logs"
+    }
+
+    /**
      * The plugin manager: installed plugins, enable/disable, the always-reachable "Reset to
      * default", and the way in to the in-app marketplace. Reached from Settings. Not in
      * [external] — a plugin is installed and managed deliberately from inside the app, and the
@@ -403,6 +420,19 @@ sealed interface Destination {
      */
     data object ThemeLibrary : Destination {
         override val route = "theme-library"
+    }
+
+    /**
+     * Discover: the curated plugin index, with update detection against what is installed.
+     *
+     * Reached from Settings and from the manager's Get plugins card. The screen never installs from
+     * the index directly — a tap downloads, the hash is checked, and the same package loader and
+     * consent screen a sideloaded file uses remain in the path. Not in [external]: discovery is a
+     * deliberate action inside the app, and an untrusted intent should not be able to open a screen
+     * whose buttons fetch and install software.
+     */
+    data object Market : Destination {
+        override val route = "discover"
     }
 
     /**
@@ -773,6 +803,9 @@ sealed interface Destination {
             // The dead-man's switch's notices. The user who taps one is looking at a display they may
             // not be able to read GameCore through, so the tap has to land on the screen that fixes it.
             Recovery.EXTERNAL to Recovery,
+            // The wheel's quick panel over a game. It has room for a few chips, not for profile editing
+            // or injector diagnostics, so its full-settings action names this screen.
+            Wheels.EXTERNAL to Wheels,
         )
 
         /** The destination an intent asked for, or null for anything unrecognised. */

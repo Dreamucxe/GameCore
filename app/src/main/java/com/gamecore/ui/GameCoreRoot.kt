@@ -89,6 +89,7 @@ import com.gamecore.aimlab.ui.tracking.TrackingScreen
 import com.gamecore.aimlab.ui.weapon.WeaponEditorScreen
 import com.gamecore.core.config.LineDiff
 import com.gamecore.core.i18n.ProvideStrings
+import com.gamecore.core.model.StartupAnimationStyle
 import com.gamecore.domain.setup.WizardEntry
 import com.gamecore.themeengine.CalibrationDashboard
 import com.gamecore.ui.backup.BackupRestoreScreen
@@ -134,6 +135,8 @@ import com.gamecore.ui.recovery.RecoveryScreen
 import com.gamecore.ui.plugins.PluginAutomationHistoryRoute
 import com.gamecore.ui.plugins.PluginDetailScreen
 import com.gamecore.ui.plugins.PluginScreenRoute
+import com.gamecore.ui.logs.LogsScreen
+import com.gamecore.ui.market.MarketScreen
 import com.gamecore.ui.plugins.PluginsScreen
 import com.gamecore.ui.quickapps.QuickAppsScreen
 import com.gamecore.ui.scout.ScoutScreen
@@ -147,6 +150,7 @@ import com.gamecore.ui.themelibrary.ThemeLibraryScreen
 import com.gamecore.ui.setup.SetupHealthScreen
 import com.gamecore.ui.setup.SetupWizardScreen
 import com.gamecore.ui.shizuku.ShizukuScreen
+import com.gamecore.ui.startup.StartupMask
 import com.gamecore.ui.storage.GameStorageScreen
 import com.gamecore.ui.theme.GameCoreTheme
 import com.gamecore.ui.theme.GlassBackdrop
@@ -199,6 +203,11 @@ fun GameCoreRoot(
     // registry reads packages off the main thread, so a plugin-themed user sees the house theme settle
     // into theirs. See [RootViewModel.pluginTheme] for why nothing is gated on that arriving.
     val pluginTheme by viewModel.pluginTheme.collectAsStateWithLifecycle()
+    // §5.10.1. The launch cover: visible from the first frame, gone once the registry has read the
+    // installed packages or the bounded wait expires. The style is read from [settings] as well as the
+    // visibility flag so an Off choice draws nothing on the very first frame rather than one frame later.
+    val startupMaskVisible by viewModel.startupMaskVisible.collectAsStateWithLifecycle()
+    val pluginsLoaded by viewModel.pluginsLoaded.collectAsStateWithLifecycle()
 
     // The engine's live colour. Null until the engine has resolved its first vector; passed to the theme
     // unconditionally so the override switch takes effect without rebuilding the shell.
@@ -364,6 +373,24 @@ fun GameCoreRoot(
                             open(Destination.WhatsNew)
                             viewModel.markWhatsNewSeen()
                         },
+                    )
+                }
+
+                // §5.10.1. The startup cover, above even the What's New card: the card is for a settled
+                // app, and one that appeared under a mask would look like a flash of its own. The exit is
+                // a fade so the first real Home frame is revealed rather than cut to; the enter is
+                // zero-length because this is already visible on the first composition.
+                AnimatedVisibility(
+                    visible = startupMaskVisible && settings.startupAnimation != StartupAnimationStyle.OFF,
+                    enter = fadeIn(tween(0)),
+                    exit = fadeOut(
+                        tween(if (LocalAnimationsEnabled.current) STARTUP_MASK_OUT_MILLIS else 0),
+                    ),
+                ) {
+                    StartupMask(
+                        style = settings.startupAnimation,
+                        pluginsLoaded = pluginsLoaded,
+                        onSkip = viewModel::dismissStartupMask,
                     )
                 }
             }
@@ -855,6 +882,14 @@ private fun GameCoreNav(
             DeveloperScreen(onBack = back)
         }
 
+        // House-themed like every safety surface. A crash record is not plugin content, and the screen
+        // that shows a plugin's crash must not be painted by the plugin that caused it.
+        composable(Destination.Logs.route) {
+            houseTheme {
+                LogsScreen(onBack = back)
+            }
+        }
+
         // The plugin manager follows the current theme, because it is part of the app the user is
         // already looking at. The safety card and confirmation dialogs inside it are wrapped back into
         // the house theme by `PluginsScreen` itself: a plugin must not paint the controls that turn it
@@ -866,7 +901,19 @@ private fun GameCoreNav(
                 PluginsScreen(
                     onBack = back,
                     onOpenPlugin = { id -> navController.push(Destination.PluginDetail.routeFor(id)) },
+                    onOpenDiscover = { navController.push(Destination.Market.route) },
                     safetyTheme = houseTheme,
+                )
+            }
+        }
+
+        // Discover. House-themed like every safety surface, for the same reason the manager is: the
+        // screen that installs or updates a plugin must not be painted by that plugin.
+        composable(Destination.Market.route) {
+            houseTheme {
+                MarketScreen(
+                    onBack = back,
+                    onOpenPlugins = { navController.push(Destination.Plugins.route) },
                 )
             }
         }
@@ -1389,6 +1436,12 @@ private const val SCREEN_OUT_MILLIS = 160
 /** The one-shot specular sweep across the dock when the selected tab changes. */
 private const val DOCK_SHEEN_MILLIS = 520
 private const val DOCK_SHEEN_ALPHA = 0.16f
+
+/**
+ * The startup cover's fade-out. Long enough to feel like a reveal, short enough that it never delays
+ * the first tap: the Home content underneath is already composed while this runs.
+ */
+private const val STARTUP_MASK_OUT_MILLIS = 340
 
 /** The gap under the plate, above the navigation bar. `ScreenBottomPadding` is sized to clear both. */
 private val BarMargin = 12.dp

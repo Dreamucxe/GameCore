@@ -122,6 +122,19 @@ sealed class ShellCommand(
     data object Probe : ShellCommand(listOf("id"), "Verify shell access", Effect.READ_ONLY)
 
     /**
+     * The recent system crash buffer, read-only and bounded.
+     *
+     * GameCore cannot see another app's crash without shell authority; this is the smallest read that
+     * answers "did the game I was just watching die?". `-t 300` caps the output, and `-b crash` keeps
+     * ordinary app logs out of the result. Nothing is written, and the text is parsed and discarded.
+     */
+    data object CrashBuffer : ShellCommand(
+        listOf("logcat", "-b", "crash", "-d", "-v", "threadtime", "-t", "300"),
+        "Read the recent crash buffer",
+        Effect.READ_ONLY,
+    )
+
+    /**
      * System-wide CPU counters, through the shell.
      *
      * GameCore reads `/proc/stat` directly first — it is world-readable on most

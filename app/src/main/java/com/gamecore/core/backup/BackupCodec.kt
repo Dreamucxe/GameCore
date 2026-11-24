@@ -27,7 +27,10 @@ import com.gamecore.core.model.PillDisplayMode
 import com.gamecore.core.model.QuickTriggerSettings
 import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.StopReason
+import com.gamecore.core.model.StartupAnimationStyle
 import com.gamecore.core.model.TurboGaugeChoice
+import com.gamecore.core.model.WheelConfig
+import com.gamecore.core.model.WheelConfigCodec
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -144,6 +147,14 @@ object BackupCodec {
          * the dock, and silence is not an instruction to clear it.
          */
         val dock: DockConfig?,
+        /**
+         * High Sensitivity Wheel profiles, game bindings and emergency-button placement.
+         *
+         * Null means the section was absent, as it is for every backup written before the real wheel was
+         * introduced. Runtime mode is intentionally not part of [WheelConfig], so restoring this section
+         * can never arm injection.
+         */
+        val wheel: WheelConfig?,
         val colour: ColorCorrection?,
         val layouts: List<HudLayout>?,
         val crosshairs: List<CrosshairPreset>?,
@@ -200,6 +211,7 @@ object BackupCodec {
         aimLabSessions: List<SessionSummary> = emptyList(),
         personalRecords: List<PersonalRecord> = emptyList(),
         device: DeviceSnapshot? = null,
+        wheel: WheelConfig = WheelConfig.DEFAULT,
     ): String = JSONObject().apply {
         put("format", FORMAT)
         put("version", VERSION)
@@ -210,6 +222,9 @@ object BackupCodec {
                 put("overlay", encodeOverlay(overlay))
                 put("button", encodeButton(button))
                 put("dock", encodeDock(dock))
+                // Reuse the wheel's own total codec rather than duplicate its nested profile schema here.
+                // The durable document carries no running mode, so a restore cannot resume injection.
+                put("wheel", JSONObject(WheelConfigCodec.encode(wheel)))
                 put("colour", encodeColour(colour))
             },
         )
@@ -290,6 +305,7 @@ object BackupCodec {
         put("showBuiltInHomeStats", s.showBuiltInHomeStats)
         put("show3DHomeStats", s.show3DHomeStats)
         put("animations", s.animations.name)
+        put("startupAnimation", s.startupAnimation.name)
         put("hapticsEnabled", s.hapticsEnabled)
         put("allowElevatedReads", s.allowElevatedReads)
         put("autoApplyProfiles", s.autoApplyProfiles)
@@ -641,6 +657,9 @@ object BackupCodec {
             overlay = settings?.optJSONObject("overlay")?.let(::readOverlay),
             button = settings?.optJSONObject("button")?.let(::readButton),
             dock = settings?.optJSONObject("dock")?.let(::readDock),
+            wheel = settings?.optJSONObject("wheel")?.let {
+                WheelConfigCodec.decode(it.toString())
+            },
             colour = settings?.optJSONObject("colour")?.let(::readColour),
             layouts = root.optJSONArray("layouts")?.let(::readLayouts),
             crosshairs = root.optJSONArray("crosshairs")?.let(::readCrosshairs),
@@ -703,6 +722,7 @@ object BackupCodec {
             showBuiltInHomeStats = o.optBoolean("showBuiltInHomeStats", d.showBuiltInHomeStats),
             show3DHomeStats = o.optBoolean("show3DHomeStats", d.show3DHomeStats),
             animations = enumByName(o.optString("animations"), d.animations),
+            startupAnimation = enumByName(o.optString("startupAnimation"), d.startupAnimation),
             hapticsEnabled = o.optBoolean("hapticsEnabled", d.hapticsEnabled),
             allowElevatedReads = o.optBoolean("allowElevatedReads", d.allowElevatedReads),
             autoApplyProfiles = o.optBoolean("autoApplyProfiles", d.autoApplyProfiles),

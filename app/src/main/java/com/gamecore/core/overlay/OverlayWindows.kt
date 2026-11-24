@@ -85,6 +85,32 @@ enum class OverlaySlot {
     WHEEL,
 
     /**
+     * The High Sensitivity Wheel itself: a real touchable joystick, not the feel-only [WHEEL] guide.
+     *
+     * A bounded window (the profile's diameter) rather than full screen, because it is a control under a
+     * thumb, not a layer looked through. It is **touchable while in positioning/calibration**, and it is
+     * touchable in gaming mode only while the injector is ready — the service enforces both by choosing
+     * the window flags when it reconciles. Its own slot so the guide ring and the real wheel can coexist
+     * if a user wants both.
+     */
+    WHEEL_STICK,
+
+    /**
+     * The floating handle that arms and disarms the wheel. The same shape of window as [BUTTON] and
+     * [DOCK] — dragged, tapped and long-pressed — and its own slot for the same reason: all three can be
+     * on screen at once and none may tear down another through a shared [hide].
+     */
+    WHEEL_BUTTON,
+
+    /**
+     * The wheel's quick-controls sheet: tap-target mode, precision, turbo, lock, sensitivity and a route
+     * to the full screen. Anchored to [WHEEL_BUTTON], closes on an outside tap, and never carries the
+     * gesture stream — the wheel's touch path lives in [WHEEL_STICK] and must not be interrupted by a
+     * panel opening.
+     */
+    WHEEL_QUICK_PANEL,
+
+    /**
      * The §Dock handle: a small draggable button the user parks against an edge, the same shape of window as
      * [BUTTON]. Takes touches — it is dragged and tapped, not looked through — and it is the collapsed state
      * of the dock, expanding into [DOCK_PANEL] on a tap. Its own slot so it can sit beside the game button
@@ -397,6 +423,52 @@ class OverlayWindows(
             true
         } catch (gone: IllegalArgumentException) {
             live.remove(slot)
+            false
+        }
+    }
+
+    /**
+     * Turns an already-visible window's touchability on or off without re-adding it.
+     *
+     * This is the High Sensitivity Wheel's pass-through switch. While a wheel gesture is in flight, the
+     * overlay must stop being the topmost touchable window at those coordinates, or the injected events
+     * would be delivered back to GameCore instead of the game. The *physical* gesture is not lost when the
+     * flag changes: `InputDispatcher` keeps delivering a stream to the window it started on as long as that
+     * window still exists, even after the window becomes `FLAG_NOT_TOUCHABLE`. On the UP/CANCEL path the
+     * service turns touchability back on, so the next gesture lands on the wheel again.
+     *
+     * `updateViewLayout` rather than remove-and-add, for [move]'s reason: re-adding a `ComposeView` would
+     * restart composition and drop the very gesture stream whose lifetime this call exists to preserve.
+     *
+     * Returns false when the slot is not showing or the platform rejects the update. The caller must treat
+     * that as "the pass-through did not happen" and keep its own gesture safety rules; it is not an error
+     * that should crash the service.
+     */
+    fun setTouchable(slot: OverlaySlot, touchable: Boolean): Boolean {
+        val manager = windowManager ?: return false
+        val view = live[slot] ?: return false
+        val params = view.layoutParams as? WindowManager.LayoutParams ?: return false
+        val isTouchable = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE == 0
+        if (isTouchable == touchable) return true
+        val previousFlags = params.flags
+        params.flags = if (touchable) {
+            params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        } else {
+            params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        }
+        return try {
+            manager.updateViewLayout(view, params)
+            true
+        } catch (gone: IllegalArgumentException) {
+            live.remove(slot)
+            false
+        } catch (refused: SecurityException) {
+            // The view may still be attached with the old flags. Restore the local LayoutParams too, or
+            // the next call would incorrectly return early as if this rejected update had succeeded.
+            params.flags = previousFlags
+            false
+        } catch (rejected: IllegalStateException) {
+            params.flags = previousFlags
             false
         }
     }

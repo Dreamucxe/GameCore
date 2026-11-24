@@ -68,6 +68,11 @@ class Strings internal constructor(
     val navSessions get() = get("nav.sessions")
     val navSettings get() = get("nav.settings")
 
+    // ------------------------------------------------------------------------------------ startup
+
+    val startupPreparing get() = get("startup.preparing")
+    val startupReady get() = get("startup.ready")
+
     // ------------------------------------------------------------------------------------ language
 
     val languageTitle get() = get("language.title")

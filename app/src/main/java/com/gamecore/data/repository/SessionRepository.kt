@@ -7,6 +7,9 @@ import com.gamecore.core.model.SessionEvent
 import com.gamecore.core.model.SessionSample
 import com.gamecore.core.model.SessionSort
 import com.gamecore.core.model.SessionStatistics
+import com.gamecore.core.model.SessionTrendRange
+import com.gamecore.core.model.SessionTrendReport
+import com.gamecore.core.model.SessionTrends
 import com.gamecore.core.model.StopReason
 import com.gamecore.data.database.Mappers
 import com.gamecore.data.database.SessionDao
@@ -14,6 +17,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -237,6 +241,86 @@ class SessionRepository @Inject constructor(
         )
     }
 
+    // ------------------------------------------------------------------ session trends
+
+    /**
+     * The Trends section's bounded read.
+     *
+     * Two queries, each over one calendar period, plus two `LIMIT 1` session lookups. The previous period
+     * is fetched rather than derived from the current one because the delta needs its own temperatures,
+     * frame rates and drain rates — and because a `WHERE started_at >= :since` with an upper bound lets
+     * SQLite use the index instead of reading the whole history to discard most of it.
+     *
+     * [nowMillis] and [zone] are parameters rather than reads of the system clock inside the query so the
+     * day boundaries are testable. The defaults are what the ViewModel uses on a device.
+     */
+    suspend fun trends(
+        range: SessionTrendRange,
+        packageName: String? = null,
+        nowMillis: Long = System.currentTimeMillis(),
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): SessionTrendReport = withContext(io) {
+        val window = SessionTrends.window(range, nowMillis, zone)
+        val current = dao.trendAggregates(
+            since = window.startMillis,
+            until = window.endMillis,
+            packageName = packageName,
+            minDrainMillis = BatteryDrain.MIN_RELIABLE_MILLIS,
+        ).mapNotNull(Mappers::toTrendAggregate)
+        val previous = dao.trendAggregates(
+            since = window.previousStartMillis,
+            until = window.previousEndMillis,
+            packageName = packageName,
+            minDrainMillis = BatteryDrain.MIN_RELIABLE_MILLIS,
+        ).mapNotNull(Mappers::toTrendAggregate)
+        val best = dao.bestFrameRateSession(
+            since = window.startMillis,
+            until = window.endMillis,
+            packageName = packageName,
+        )?.let(Mappers::toTrendSession)
+        val worst = dao.worstFrameRateSession(
+            since = window.startMillis,
+            until = window.endMillis,
+            packageName = packageName,
+        )?.let(Mappers::toTrendSession)
+        SessionTrends.build(
+            range = range,
+            window = window,
+            currentRows = current,
+            previousRows = previous,
+            best = best,
+            worst = worst,
+        )
+    }
+
+    // ------------------------------------------------------------ bounded intelligence reads
+
+    /**
+     * The newest finished sessions, at most [limit].
+     *
+     * The recommendation rules only read [limit] rows; this asks SQLite for exactly those instead of
+     * loading the user's entire history and taking the first twenty in Kotlin.
+     */
+    suspend fun recentSessions(packageName: String?, limit: Int): List<GameSession> = withContext(io) {
+        dao.recentFinished(packageName, limit).map(Mappers::toModel)
+    }
+
+    /**
+     * Sessions that started in a window, for benchmark attribution.
+     *
+     * A profile change can only be confirmed by a session that began after the change and after the
+     * baseline run, so the window starts at the baseline's end. The hard limit is a guard against a
+     * pathological window; the timestamp bound is what makes the read small.
+     */
+    suspend fun sessionsStartedBetween(
+        sinceMillis: Long,
+        untilMillis: Long,
+        packageName: String?,
+    ): List<GameSession> = withContext(io) {
+        dao.startedBetween(sinceMillis, untilMillis, packageName, ATTRIBUTION_SESSION_LIMIT)
+            .map(Mappers::toModel)
+    }
+
     // ---------------------------------------------------------------------- deletes
 
     suspend fun delete(sessionId: Long) = withContext(io) {
@@ -311,6 +395,16 @@ class SessionRepository @Inject constructor(
         SessionSort.HIGHEST_DRAIN -> sessions.sortedByDescending {
             it.drain()?.takeIf { drain -> drain.isReliable }?.percentPerHour ?: -1f
         }
+    }
+
+    private companion object {
+        /**
+         * A ceiling, not the boundary, for benchmark attribution.
+         *
+         * The window after a baseline is normally a handful of sessions; this only stops a clock or data
+         * problem from turning a bounded read back into an unbounded one.
+         */
+        const val ATTRIBUTION_SESSION_LIMIT = 100
     }
 }
 

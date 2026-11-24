@@ -216,8 +216,15 @@ class SmartIntelligenceRepository @Inject constructor(
     ): TestedActionResolution {
         val records = dao.learningBetween(gamePackage, baselineEndedAtMillis, atMillis)
             .map(SmartIntelligenceMappers::toModel)
-        val sessions = sessions.snapshot()
-        return BenchmarkAttribution.resolve(records, gamePackage, goal, sessions, atMillis)
+        // The only sessions that can confirm a profile change are the ones that started after the
+        // baseline ended. Bounding the read at that instant is both smaller than loading all history
+        // and more precise: an older session could never satisfy the attribution rule anyway.
+        val sessionRows = sessions.sessionsStartedBetween(
+            sinceMillis = baselineEndedAtMillis,
+            untilMillis = atMillis,
+            packageName = gamePackage,
+        )
+        return BenchmarkAttribution.resolve(records, gamePackage, goal, sessionRows, atMillis)
     }
 
     /**
@@ -540,11 +547,10 @@ class SmartIntelligenceRepository @Inject constructor(
                 ?.let(SmartIntelligenceMappers::toModel)
         }.associateBy { it.profile }
         val profile = gamePackage?.let { profiles.profileFor(it) }
-        val history = sessions.snapshot()
-            .asSequence()
-            .filter { gamePackage == null || it.packageName == gamePackage }
-            .take(MAX_SESSION_EVIDENCE)
-            .toList()
+        // The rules read at most MAX_SESSION_EVIDENCE rows, so the database is asked for exactly that
+        // many. Loading the whole history and taking twenty was the unbounded read Session Trends'
+        // bounded queries replace.
+        val history = sessions.recentSessions(gamePackage, MAX_SESSION_EVIDENCE)
         val learning = if (learningEnabled) {
             LearningEngine.summarizeAll(
                 dao.allLearning().map(SmartIntelligenceMappers::toModel),

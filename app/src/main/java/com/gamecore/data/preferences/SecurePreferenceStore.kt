@@ -32,8 +32,11 @@ import com.gamecore.core.model.QuickTriggerMethod
 import com.gamecore.core.model.QuickTriggerSettings
 import com.gamecore.aimlab.engine.TargetPalette
 import com.gamecore.core.model.RecordingQuality
+import com.gamecore.core.model.StartupAnimationStyle
 import com.gamecore.core.model.ThemeChoice
 import com.gamecore.core.model.TurboGaugeChoice
+import com.gamecore.core.model.WheelConfig
+import com.gamecore.core.model.WheelConfigCodec
 import com.gamecore.core.schedule.AppearanceSchedule
 import com.gamecore.core.schedule.AppearanceScheduleCodec
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -99,6 +102,9 @@ class SecurePreferenceStore @Inject constructor(
     private val dockState: MutableStateFlow<DockConfig> by lazy {
         MutableStateFlow(readDock())
     }
+    private val wheelState: MutableStateFlow<WheelConfig> by lazy {
+        MutableStateFlow(readWheel())
+    }
     private val colorState: MutableStateFlow<ColorCorrection> by lazy {
         MutableStateFlow(readColor())
     }
@@ -112,6 +118,13 @@ class SecurePreferenceStore @Inject constructor(
 
     /** The floating dock's config and remembered position (feature 1) — the button's sibling window. */
     val dock: StateFlow<DockConfig> get() = dockState.asStateFlow()
+
+    /**
+     * The High Sensitivity Wheel's durable half: profile library, active profile, per-game bindings and
+     * the floating button. Its *runtime* state deliberately lives in
+     * [com.gamecore.core.wheel.WheelController] and is never written here — see [WheelConfig].
+     */
+    val wheel: StateFlow<WheelConfig> get() = wheelState.asStateFlow()
 
     /**
      * Where the user left the colour sliders, preset or no preset.
@@ -148,6 +161,7 @@ class SecurePreferenceStore @Inject constructor(
         overlayState.value
         buttonState.value
         dockState.value
+        wheelState.value
         colorState.value
         scheduleState.value
         Unit
@@ -272,6 +286,11 @@ class SecurePreferenceStore @Inject constructor(
                 p.getString(KEY_ANIMATIONS, null),
                 AnimationsMode.entries,
                 defaults.animations,
+            ),
+            startupAnimation = enumOrDefault(
+                p.getString(KEY_STARTUP_ANIMATION, null),
+                StartupAnimationStyle.entries,
+                defaults.startupAnimation,
             ),
             hapticsEnabled = p.getBoolean(KEY_HAPTICS, defaults.hapticsEnabled),
             allowElevatedReads = p.getBoolean(KEY_ALLOW_ELEVATED, defaults.allowElevatedReads),
@@ -416,6 +435,7 @@ class SecurePreferenceStore @Inject constructor(
             putBoolean(KEY_SHOW_BUILTIN_HOME_STATS, value.showBuiltInHomeStats)
             putBoolean(KEY_SHOW_3D_HOME_STATS, value.show3DHomeStats)
             putString(KEY_ANIMATIONS, value.animations.name)
+            putString(KEY_STARTUP_ANIMATION, value.startupAnimation.name)
             putBoolean(KEY_HAPTICS, value.hapticsEnabled)
             putBoolean(KEY_ALLOW_ELEVATED, value.allowElevatedReads)
             putBoolean(KEY_AUTO_APPLY, value.autoApplyProfiles)
@@ -895,6 +915,28 @@ class SecurePreferenceStore @Inject constructor(
             ?.apply()
     }
 
+    // -------------------------------------------------------------------- wheel
+
+    /**
+     * Whole-config write for the High Sensitivity Wheel.
+     *
+     * One JSON document, normalised on the way in, for the reason the dock's writer uses scalar keys for
+     * its flat fields and this one cannot: the profile library is a list of records with their own
+     * namespaces. The write is synchronous in memory and `apply()` on disk, so a quick-panel change while
+     * a game is running is visible to the next pointer sample without a keystore round trip in that sample.
+     */
+    fun updateWheel(transform: (WheelConfig) -> WheelConfig) {
+        val updated = transform(wheelState.value).normalised()
+        wheelState.value = updated
+        prefs?.edit()
+            ?.putString(KEY_WHEEL_CONFIG, WheelConfigCodec.encode(updated))
+            ?.apply()
+    }
+
+    /** The wheel's whole document, decoded through the same total codec a backup uses. */
+    private fun readWheel(): WheelConfig =
+        WheelConfigCodec.decode(prefs?.getString(KEY_WHEEL_CONFIG, null))
+
     private fun readDock(): DockConfig {
         val p = prefs ?: return DockConfig()
         val defaults = DockConfig()
@@ -1205,6 +1247,7 @@ class SecurePreferenceStore @Inject constructor(
         overlayState.value = OverlayConfig()
         buttonState.value = FloatingButtonConfig()
         dockState.value = DockConfig()
+        wheelState.value = WheelConfig()
         colorState.value = ColorCorrection.NEUTRAL
         scheduleState.value = AppearanceSchedule()
     }
@@ -1253,6 +1296,7 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_SHOW_BUILTIN_HOME_STATS = "show_builtin_home_stats"
         const val KEY_SHOW_3D_HOME_STATS = "show_3d_home_stats"
         const val KEY_ANIMATIONS = "animations_mode"
+        const val KEY_STARTUP_ANIMATION = "startup_animation_style"
         const val KEY_HAPTICS = "haptics_enabled"
         const val KEY_ALLOW_ELEVATED = "allow_elevated"
         const val KEY_AUTO_APPLY = "auto_apply"
@@ -1368,6 +1412,9 @@ class SecurePreferenceStore @Inject constructor(
         const val KEY_DOCK_PORTRAIT_Y = "dock_portrait_y_fraction"
         const val KEY_DOCK_LANDSCAPE_X = "dock_landscape_x_fraction"
         const val KEY_DOCK_LANDSCAPE_Y = "dock_landscape_y_fraction"
+
+        /** The High Sensitivity Wheel's profile library and floating-button config, as one JSON document. */
+        const val KEY_WHEEL_CONFIG = "wheel_config_json"
 
         const val KEY_ACTIVE_CROSSHAIR = "active_crosshair"
         const val KEY_ACTIVE_HUD = "active_hud"

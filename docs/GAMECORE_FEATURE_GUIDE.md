@@ -342,6 +342,8 @@ Device actions on this screen are offered only when they need no missing target 
 
 The Sessions tab merges game sessions and Aim Lab runs into one history. It provides All/Games/Aim Lab filters, optional per-game filters, sorting, an all-time summary, the current live recording, and explicit deletion actions.
 
+The **Trends** section is for game sessions only. Choose All games or one recorded game and compare the last 7, 30, or 90 local calendar days with the equally long period immediately before them. Cards report measured average FPS, temperature, reliable battery drain, and total play time; daily charts can switch to a table carrying the same values. Missing readings stay missing rather than becoming zero. A conditions banner names substantial changes in heat, charging, session length, or play frequency that could explain a delta. Stored sessions do not contain per-frame timing, so 1% lows and frame-time jank are explicitly unavailable instead of estimated from an average.
+
 ### What a tracked game session stores
 
 Where readings exist, a session can store duration, battery delta and drain rate, CPU/RAM/temperature averages and peaks, refresh rate, frame timing, network handshakes and stability, active colour preset, profile application results, restore events, and sample count. A process-killed session is repaired on the next launch and marked as interrupted rather than silently discarded.
@@ -436,6 +438,8 @@ They cannot run scripts, native code, a WebView, arbitrary network access, arbit
 
 Settings includes language selection, Follow system/Dark/Light/AMOLED themes, eight accents plus a custom color, Android 12+ dynamic color, compact density, built-in Home-stat visibility, a 3D/original Home-stat design switch, Redline skin, a background image and readability scrim, app icon choice, in-app font scale, animation policy, and haptics. **Theme Library** adds a searchable grid of the 254 bundled plugin themes, previewed in their own palettes and applied through the same single-choice registry selection.
 
+On a cold launch, a full-screen mark covers the app until the plugin registry has finished its first read, with a minimum display so a warm launch does not flicker and a bounded maximum so a slow or broken plugin install cannot hold the app. This is what keeps Home from drawing its 3D metric instruments for a frame before the stored 2D choice arrives, and what lets a plugin theme and its material appear before the first screen instead of settling over it. **Settings › Behavior › Startup** chooses Orbit (counter-rotating arcs), Pulse (expanding ripples), Minimal (a still mark with one progress line) or Off (no cover). The global animation policy and the system animator scale turn the chosen composition static rather than removing it; Off is the way to remove it entirely. Home now also seeds its stat-card choice from the saved settings on its first frame, so the cover hides only the genuinely asynchronous work.
+
 Accessibility settings include Aim Lab target palettes, a left-handed Aim Lab layout, and larger touch targets. These do not silently change text scale or unrelated spacing.
 
 ### Theme Engine, schedule, and dashboard
@@ -481,7 +485,7 @@ It cannot reach a game’s private sandbox, executable code, or another package�
 | **App icon** | Select a bundled launcher icon. |
 | **Display & text** | In-app font scale and text-size presets. |
 | **Accessibility** | Aim Lab target palette, handedness, larger touch targets. |
-| **Behavior** | Animation policy and haptics. |
+| **Behavior** | Animation policy, startup animation style, and haptics. |
 | **Overlays** | Overlay, dock, crosshair, Scout, Hunt, Wheels, HUD, and feature gates. |
 | **Games** | Automatic apply, keep-screen-awake, safety notices, detection interval, never-close list, storage, quick trigger, Aim Lab. |
 | **Detection** | Current exclusion count and pinned profile; editing lives on Games. |

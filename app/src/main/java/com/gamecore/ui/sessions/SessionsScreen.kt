@@ -180,6 +180,18 @@ fun SessionsScreen(
             item { StatisticsBento(state = state, modifier = padded) }
         }
 
+        item {
+            SessionTrendsSection(
+                state = state,
+                onRange = viewModel::setTrendRange,
+                onPackage = viewModel::setTrendPackage,
+                onMetric = viewModel::setTrendMetric,
+                onShowTable = viewModel::setTrendTable,
+                onRetry = viewModel::refreshTrends,
+                modifier = padded,
+            )
+        }
+
         if (state.isEmpty && !state.isLoading) {
             item {
                 EmptyState(

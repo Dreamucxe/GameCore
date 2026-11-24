@@ -50,6 +50,13 @@
 -keep class moe.shizuku.** { *; }
 -dontwarn rikka.shizuku.**
 
+# Shizuku launches a UserService by the class name stored in the app's dex and then calls the AIDL
+# transaction methods by their generated names. R8 cannot see either use.
+-keep class com.gamecore.core.wheel.InputInjectorService { *; }
+-keep class com.gamecore.core.wheel.IInputInjector { *; }
+-keep class com.gamecore.core.wheel.IInputInjector$Stub { *; }
+-keep class com.gamecore.core.wheel.IInputInjector$Stub$Proxy { *; }
+
 # ------------------------------------------------------------------------- Hilt
 
 # Hilt's generated components are found by name from the generated Application.

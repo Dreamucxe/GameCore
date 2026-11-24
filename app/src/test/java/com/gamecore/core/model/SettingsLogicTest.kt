@@ -103,6 +103,14 @@ class SettingsLogicTest {
     }
 
     @Test
+    fun `the startup cover defaults to Orbit and reads a stored name safely`() {
+        assertEquals(StartupAnimationStyle.ORBIT, AppSettings().startupAnimation)
+        assertEquals(StartupAnimationStyle.PULSE, StartupAnimationStyle.fromName("PULSE"))
+        assertEquals(StartupAnimationStyle.ORBIT, StartupAnimationStyle.fromName("FROM_A_NEWER_BUILD"))
+        assertEquals(StartupAnimationStyle.ORBIT, StartupAnimationStyle.fromName(null))
+    }
+
+    @Test
     fun `automatic intelligence is privacy first by default`() {
         val defaults = AppSettings()
         assertEquals(OptimizationGoal.MAXIMUM_PERFORMANCE, defaults.optimizationGoal)

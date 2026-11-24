@@ -117,6 +117,7 @@ class PluginDetailViewModelTest {
     private fun viewModel(storageGranted: Boolean = true): PluginDetailViewModel =
         PluginDetailViewModel(
             FakeRegistry(plugin(storageGranted), schema),
+            PluginAuditLog(),
             SavedStateHandle(mapOf(Destination.ARG_PLUGIN_ID to id)),
         )
 

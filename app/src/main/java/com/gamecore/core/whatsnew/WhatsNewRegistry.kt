@@ -35,6 +35,140 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 73,
+            versionName = "5.12.0",
+            date = "2026-11-23",
+            features = listOf(
+                FeatureNote(
+                    "Crashes leave a record",
+                    "GameCore now keeps a log history for app and game crashes. A game crash is " +
+                        "read from Android's crash buffer when shell access is available; without it the " +
+                        "session boundary is recorded and the limit is stated. Any record can be copied " +
+                        "or shared, the history survives a restart, and a single switch turns capture off.",
+                ),
+                FeatureNote(
+                    "Discover plugins and their updates",
+                    "Discover reads a curated index kept in GameCore's repository, compares it with what " +
+                        "is installed, and lists available updates beside new plugins. Every download is " +
+                        "checked against the index's SHA-256 before the normal package loader and consent " +
+                        "screen see it, and an updated plugin arrives switched off with its grant cleared. " +
+                        "The updates include the plugins that ship inside GameCore: a downloaded copy is " +
+                        "the installed one until it is removed, when the bundled copy returns.",
+                ),
+                FeatureNote(
+                    "Plugin health without a score",
+                    "The plugin manager now says which plugins are running normally, stopped, " +
+                        "quarantined or unsupported, and why. The verdict comes from GameCore's own " +
+                        "registry and the calls the permission gate recorded this run, so there is no " +
+                        "backend rating and no number a plugin can inflate.",
+                ),
+                FeatureNote(
+                    "A plugin set for each game",
+                    "A custom plugin group can be bound to a game and switched on when that game starts. " +
+                        "A set only enables plugins whose permissions are already granted: it never " +
+                        "grants, never releases a quarantine and never overrides a suspension. The same " +
+                        "set is put back when the game stops, including after a process death.",
+                ),
+            ),
+        ),
+        ReleaseNote(
+            versionCode = 72,
+            versionName = "5.11.1",
+            date = "2026-11-22",
+            features = listOf(
+                FeatureNote(
+                    "The joystick under the wheel keeps working",
+                    "A gaming gesture now starts its injected touch at the wheel's centre, not at " +
+                        "wherever the thumb landed. A wheel placed over a game's movement stick presses " +
+                        "that stick where the game expects it, and movement stays relative to the thumb.",
+                ),
+                FeatureNote(
+                    "The wheel can always be dragged away",
+                    "A position lock no longer traps the wheel. Dragging it in positioning mode unlocks " +
+                        "and places it in the same gesture, while the floating emergency handle remains " +
+                        "independently movable.",
+                ),
+                FeatureNote(
+                    "Taps survive the hand-off, and failure lets go",
+                    "The wheel leaves touch mode and retries the first injected DOWN on a measured " +
+                        "schedule instead of dropping short taps. If the hand-off cannot succeed, the " +
+                        "wheel switches itself off rather than blocking the game's controls.",
+                ),
+            ),
+        ),
+        ReleaseNote(
+            versionCode = 71,
+            versionName = "5.11",
+            date = "2026-11-21",
+            features = listOf(
+                FeatureNote(
+                    "A real amplified wheel",
+                    "The High Sensitivity Wheel now processes a bounded virtual joystick into a " +
+                        "Shizuku-injected touch stream. Profiles cover 1×–4× gain, independent axes, " +
+                        "deadzone, radius, curves, inversion and optional smoothing.",
+                ),
+                FeatureNote(
+                    "Profiles and an emergency handle",
+                    "Named profiles, optional game bindings, calibration and positioning share one " +
+                        "floating control. Its position persists, but injection never re-enables itself " +
+                        "after GameCore restarts.",
+                ),
+                FeatureNote(
+                    "Injection starts with a warning and an escape route",
+                    "The first enable requires an at-your-own-risk acknowledgement. During play the " +
+                        "wheel hands touches through to the game, targets the detected game uid where " +
+                        "Android supports it, reports measured app and binder timing, and cancels held " +
+                        "pointers on every shutdown path.",
+                ),
+            ),
+        ),
+        ReleaseNote(
+            versionCode = 70,
+            versionName = "5.10.1",
+            date = "2026-11-20",
+            features = listOf(
+                FeatureNote(
+                    "Seven, thirty or ninety days at a glance",
+                    "Sessions now has a Trends section with per-game and all-games views. Average " +
+                        "FPS, temperature, battery drain and play time are compared with the same " +
+                        "number of days immediately before the selected range.",
+                ),
+                FeatureNote(
+                    "Frame evidence without invented precision",
+                    "The section names the best and worst measured session by average frame rate. " +
+                        "It does not manufacture 1% lows or jank from a stored window average; it " +
+                        "states that those need per-frame history the current recorder does not keep.",
+                ),
+                FeatureNote(
+                    "A chart that can also be read",
+                    "Daily line and bar charts have a day-by-day table, spoken high and low " +
+                        "summaries, labelled deltas and gaps for readings the device did not expose. " +
+                        "A conditions banner calls out changed heat, charging or play patterns before " +
+                        "a difference is attributed to the game.",
+                ),
+                FeatureNote(
+                    "History reads stay bounded",
+                    "Trend totals are grouped by local day and package inside fixed date windows. " +
+                        "Smart Intelligence now asks SQLite only for the recent or post-baseline " +
+                        "sessions its rules can use instead of loading all session history.",
+                ),
+                FeatureNote(
+                    "A calmer start",
+                    "A full-screen mark now covers the first seconds of a launch while plugins and " +
+                        "the saved theme load. Home no longer draws the 3D metric instruments for a " +
+                        "frame before the stored card choice arrives, and a plugin-themed install " +
+                        "opens on its own colours instead of flashing the house theme first.",
+                ),
+                FeatureNote(
+                    "A startup look you choose",
+                    "Settings → Behavior offers Orbit, Pulse, Minimal or Off. The three looks share " +
+                        "the same mark and progress line; Off shows the app immediately. Animations " +
+                        "off, or the system's remove-animations switch, leaves the cover in place " +
+                        "with its motion stopped.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 67,
             versionName = "5.8",
             date = "2026-11-20",

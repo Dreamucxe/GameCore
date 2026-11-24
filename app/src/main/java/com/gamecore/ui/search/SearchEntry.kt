@@ -263,9 +263,11 @@ object SearchIndex {
             category = SearchCategory.DISPLAY,
         ))
         add(SearchEntry(
-            title = "Wheels (Sensitivity Rings)",
-            description = "Feel-only guide-ring overlay and the sensitivity value the Aim Lab surface remaps against.",
-            keywords = listOf("wheels", "rings", "guide", "sensitivity", "remap", "feel"),
+            title = "High Sensitivity Wheel",
+            description = "Shizuku-injected virtual joystick, profiles, game bindings, quick button and diagnostics.",
+            keywords = listOf(
+                "wheel", "joystick", "shizuku", "injection", "sensitivity", "profiles", "bindings", "guide",
+            ),
             route = Destination.Wheels.route,
             category = SearchCategory.DISPLAY,
         ))

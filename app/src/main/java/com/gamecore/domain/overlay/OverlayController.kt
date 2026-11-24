@@ -95,6 +95,12 @@ class OverlayController @Inject constructor(
             // parked handle. So it is restored plainly whenever the user left it on, read from its own
             // persisted config rather than from an AppSettings flag.
             dock = preferences.dock.value.show,
+            // The High Sensitivity Wheel's handle is restored; the wheel itself never is. `wheelStick`
+            // starts false in OverlayRequest.NONE and is only ever set by WheelController when the user
+            // arms it in this process. Restoring it would resume injecting touches into another app after
+            // a restart, which is the one thing the feature must never do.
+            wheelButton = preferences.wheel.value.normalised().button.visible,
+            wheelStick = false,
         )
         if (!requested.value.fromProfile) publish(manual)
     }
@@ -156,8 +162,8 @@ class OverlayController @Inject constructor(
      * Shows or hides the high-sensitivity wheels guide (§Wheels).
      *
      * The crosshair's sibling: a sticker on the glass with no capture and no id, so this takes only the
-     * flag. The genuine input remap the feature pairs with lives inside GameCore's own Aim Lab surface and
-     * is not this overlay's concern — this is the feel-only ring, nothing more.
+     * flag. The real injected wheel has its own runtime-only [setWheelStick] path; this is the older
+     * feel-only ring and remains independently useful as a marker.
      */
     fun setWheel(visible: Boolean) = update { it.withWheel(visible) }
 
@@ -171,6 +177,39 @@ class OverlayController @Inject constructor(
      * keep the service up. The panel it expands into is opened by the service, not from here.
      */
     fun setDock(visible: Boolean) = update { it.withDock(visible) }
+
+    /**
+     * Shows or hides the High Sensitivity Wheel's floating handle.
+     *
+     * Persisted in [com.gamecore.core.model.WheelConfig.button], but published through this request so it
+     * counts toward keeping the overlay service alive exactly as the `show` flag on the floating button
+     * and the dock does.
+     *
+     * **Manual state is kept in step even under a game profile.** A profile publishes a new request with
+     * its own crosshair and button choices; if this flag existed only in that request it would disappear
+     * the moment a game launched, taking the emergency off-switch with it. Updating [manual] as well means
+     * [clearProfile] restores the handle the user configured.
+     */
+    fun setWheelButton(visible: Boolean) {
+        if (manual.wheelButton == visible && requested.value.wheelButton == visible) return
+        manual = manual.copy(wheelButton = visible)
+        val next = requested.value.copy(wheelButton = visible)
+        publish(next)
+    }
+
+    /**
+     * Shows or hides the real wheel. Runtime-only and never persisted.
+     *
+     * Called by `WheelController` when the wheel enters or leaves positioning/calibration/gaming. Kept out
+     * of [manual]'s restore path on purpose: a fresh process must not bring injection back. [manual] is
+     * still updated so a profile starting and ending mid-gesture does not strand the wheel off.
+     */
+    fun setWheelStick(visible: Boolean) {
+        if (requested.value.wheelStick == visible) return
+        manual = manual.copy(wheelStick = visible)
+        val next = requested.value.copy(wheelStick = visible)
+        publish(next)
+    }
 
     /** Hides everything, manual and profile alike. The panel's own "stop overlay" and Settings' switch. */
     fun hideAll() {
@@ -233,6 +272,11 @@ class OverlayController @Inject constructor(
                 hudLayoutId = profile.hudLayoutId,
                 gameLabel = gameLabel,
                 fromProfile = true,
+                // The wheel is a global manual control, so a game profile neither enables nor disables
+                // it. Carry the live flags across rather than letting a profile's new request erase the
+                // emergency handle or a wheel the user has armed.
+                wheelButton = preferences.wheel.value.normalised().button.visible,
+                wheelStick = requested.value.wheelStick,
             ),
         )
     }

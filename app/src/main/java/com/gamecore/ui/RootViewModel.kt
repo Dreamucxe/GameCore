@@ -34,9 +34,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 /**
@@ -57,7 +60,7 @@ class RootViewModel @Inject constructor(
     private val preferences: SecurePreferenceStore,
     profiles: GameProfileRepository,
     sessions: SessionRepository,
-    plugins: PluginRegistry,
+    private val plugins: PluginRegistry,
     performance: PerformanceMonitor,
     private val themeEngine: ThemeEnginePlugin,
     private val auroraRepository: AuroraThemeRepository,
@@ -85,6 +88,37 @@ class RootViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val settings: StateFlow<AppSettings> = preferences.settings
+
+    /**
+     * True once [PluginRegistry.refresh] has finished its first disk read.
+     *
+     * The startup mask's only readiness input. It is the honest end of "plugins are still loading":
+     * the registry flips it after every bundled and sideloaded package has been scanned and every
+     * registry flow republished, so a plugin theme and its icon have already settled when this turns
+     * true. Settings are not part of the gate because [preferences] seeds its flow synchronously.
+     */
+    val pluginsLoaded: StateFlow<Boolean> = plugins.isLoaded
+
+    private val startupMaskVisibleState = MutableStateFlow(true)
+
+    /**
+     * Whether the full-screen startup mask should still cover the app.
+     *
+     * Starts true so the cover is present on the very first frame, and turns false on the first of:
+     * [STARTUP_MASK_MIN_MILLIS] after the ViewModel was built, [STARTUP_MASK_MAX_MILLIS] if plugins
+     * are still not loaded, or an explicit [dismissStartupMask]. The minimum is what makes the mark
+     * readable rather than a flicker on a device whose packages were already warm; the maximum keeps
+     * a corrupt or enormous plugin install from turning a cover into a hang. The style itself is
+     * applied by the shell — an [com.gamecore.core.model.StartupAnimationStyle.OFF] choice draws
+     * nothing even while this is true, which is also what stops it flashing one frame while the
+     * setting is read.
+     */
+    val startupMaskVisible: StateFlow<Boolean> = startupMaskVisibleState.asStateFlow()
+
+    /** Ends the startup cover early. The pending gate still finishes on its own; it only writes false. */
+    fun dismissStartupMask() {
+        startupMaskVisibleState.value = false
+    }
 
     /**
      * The plugin theme in force, or null for GameCore's own — the shell's second appearance input.
@@ -149,6 +183,17 @@ class RootViewModel @Inject constructor(
      * recolour a jump instead of a transition.
      */
     init {
+        // The startup cover's clock. Launched first so the minimum and the readiness wait overlap:
+        // a warm launch that loads plugins in 50 ms still shows the mark for the full minimum, and a
+        // cold one that takes seconds does not add the minimum on top of the load time.
+        viewModelScope.launch {
+            val minimum = launch { delay(STARTUP_MASK_MIN_MILLIS) }
+            withTimeoutOrNull(STARTUP_MASK_MAX_MILLIS) {
+                plugins.isLoaded.first { it }
+            }
+            minimum.join()
+            startupMaskVisibleState.value = false
+        }
         // The root exists for the whole UI session, so it is the right owner for the scheduler's
         // lifetime. Starting here rather than in Application keeps the heavy gaming/profile graph
         // off the process-start path; the first resolution lands before the user can reach a screen
@@ -250,5 +295,24 @@ class RootViewModel @Inject constructor(
      */
     fun markWhatsNewSeen() {
         preferences.updateSettings { it.copy(lastSeenWhatsNewVersionCode = BuildConfig.VERSION_CODE) }
+    }
+
+    private companion object {
+        /**
+         * How long the cover stays even when everything is already loaded.
+         *
+         * Long enough for the mark's entrance and one orbit segment to read as a deliberate opening
+         * rather than a flicker; short enough that a warm launch is not measurably slower for it.
+         */
+        const val STARTUP_MASK_MIN_MILLIS = 900L
+
+        /**
+         * The longest the cover waits for [PluginRegistry.isLoaded].
+         *
+         * Chosen above the 3–4 second settle a large install costs on the slowest supported devices,
+         * and below the point where a user would reasonably call the app hung. After this the app is
+         * shown as it is; a plugin theme that arrives later still applies, exactly as it does today.
+         */
+        const val STARTUP_MASK_MAX_MILLIS = 4_500L
     }
 }

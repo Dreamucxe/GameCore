@@ -16,8 +16,8 @@ android {
         applicationId = "com.gamecore"
         minSdk = 26
         targetSdk = 34
-        versionCode = 67
-        versionName = "5.8"
+        versionCode = 73
+        versionName = "5.12.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Room exports its schema so a future migration can be tested against the
@@ -80,6 +80,9 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        // The Shizuku input injector is a UserService whose contract crosses a binder. It has to be a
+        // real AIDL interface: a class loaded by another process cannot share a Kotlin interface with us.
+        aidl = true
     }
     packaging {
         resources {
@@ -148,6 +151,9 @@ dependencies {
     // then kills the app on launch with ClassNotFoundException.
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
+    // The shared AIDL parcelables/contracts Shizuku's own UserService plumbing expects. The injector's
+    // IInputInjector.aidl is ours and is compiled by the app; this artifact supplies the library side.
+    implementation(libs.shizuku.aidl)
 
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
