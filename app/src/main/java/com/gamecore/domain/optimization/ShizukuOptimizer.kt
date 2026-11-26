@@ -72,6 +72,11 @@ class ShizukuOptimizer @Inject constructor(
         // node write and the restore, so — like colour, display size and affinity — this tier declines
         // it. Unsupported is the truth about this tier, not about the device.
         OptimizationAction.SET_CHARGE_BYPASS,
+        // Nor the two Game Mode writes: `cmd game` is not a settings key, neither value can be read
+        // back, and one reset undoes both. GameModeController owns the command, the ownership row and
+        // the restore. See OptimizationAction.isEngineAction.
+        OptimizationAction.SET_GAME_MODE,
+        OptimizationAction.CAP_FRAME_RATE,
         -> CapabilityStatus.UNSUPPORTED
 
         // A 60 Hz-only panel is unsupported no matter who is asking; the shell cannot add a mode.
@@ -142,6 +147,21 @@ class ShizukuOptimizer @Inject constructor(
                     "which probes for a writable charge-control node, records what it held, writes the " +
                     "stop value and reads it back. This tier writes settings, and a sysfs node is not " +
                     "a setting.",
+            )
+
+            OptimizationAction.SET_GAME_MODE -> action.blocked(
+                status = CapabilityStatus.UNSUPPORTED,
+                detail = "Android's per-game Game Mode is set by GameCore's Game Mode controller, " +
+                    "which names the package on the command, keeps one ownership row and resets the " +
+                    "package with `cmd game reset`. Nothing here is a settings key, so this tier " +
+                    "declines it.",
+            )
+
+            OptimizationAction.CAP_FRAME_RATE -> action.blocked(
+                status = CapabilityStatus.UNSUPPORTED,
+                detail = "A per-game frame cap is set by GameCore's Game Mode controller. It is a " +
+                    "`cmd game` intervention, not a settings key, and it has to be documented as a " +
+                    "frame cap rather than a display mode; this tier cannot say either thing.",
             )
 
             // Routed by the two helpers above. Enumerated rather than folded into an `else` so that

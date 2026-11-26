@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gamecore.aimlab.engine.NumberText
 import com.gamecore.core.common.Formatters
 import com.gamecore.core.model.GameSession
 import com.gamecore.core.model.LatencyLog
@@ -137,7 +138,7 @@ class SessionReportViewModel @Inject constructor(
                 title = session.gameLabel,
                 subtitle = subtitleOf(session),
                 headline = headlineOf(session),
-                figures = figuresOf(session),
+                figures = figuresOf(session, samples),
                 graphs = graphsOf(samples),
                 confidence = confidenceOf(session, samples.size),
                 interruption = interruptionOf(session),
@@ -396,7 +397,7 @@ class SessionReportViewModel @Inject constructor(
      * The order is fixed rather than "available first", so a user comparing two sessions of the same game
      * finds the same row in the same place — including on the device where half of them read "—".
      */
-    private fun figuresOf(session: GameSession): List<Readout> = listOf(
+    private fun figuresOf(session: GameSession, samples: List<SessionSample>): List<Readout> = listOf(
         drainRow(session),
         averageRow(
             label = "Processor use",
@@ -427,6 +428,7 @@ class SessionReportViewModel @Inject constructor(
         ),
         refreshRateRow(session),
         frameRateRow(session),
+        fpsPerWattRow(session, samples),
         latencyRow(session),
         connectionRow(session),
         colourRow(session),
@@ -571,6 +573,82 @@ class SessionReportViewModel @Inject constructor(
         },
         tone = if (session.averageFrameRate == null) Tone.Muted else Tone.Neutral,
     )
+
+    /**
+     * Frames per watt, from the two readings that make a watt.
+     *
+     * The figure is a ratio of two averages over the same samples: mean frame rate divided by mean
+     * power, where power is voltage times current as each sample measured them. That is deliberately
+     * not an average of per-sample ratios — a sample taken while the game was loading would otherwise
+     * weigh as heavily as one mid-firefight — and it is deliberately not derived from battery
+     * percentage, which is a level and says nothing about the rate it is falling at.
+     *
+     * It appears only when at least [MIN_POWER_SAMPLES] samples carried current, voltage and a frame
+     * rate together, and never for a session that ran on a charger: there, the battery readings
+     * describe power going into the pack, and subtracting one side from the other would be an
+     * estimate dressed as a measurement. Every absence prints why instead of a dash with no reason.
+     */
+    private fun fpsPerWattRow(session: GameSession, samples: List<SessionSample>): Readout {
+        val measured = samples.mapNotNull { sample ->
+            val volts = sample.voltageMilliVolts
+            val microAmps = sample.currentMicroAmps
+            val fps = sample.frameRate
+            if (volts == null || volts <= 0) return@mapNotNull null
+            if (microAmps == null || microAmps <= 0) return@mapNotNull null
+            if (fps == null || fps <= 0f) return@mapNotNull null
+            Triple(volts, microAmps, fps)
+        }
+        val meanWatts = measured.takeIf { it.isNotEmpty() }
+            ?.map { (volts, microAmps, _) -> (volts / 1_000.0) * (microAmps / 1_000_000.0) }
+            ?.average()
+        val meanFps = measured.takeIf { it.isNotEmpty() }?.map { it.third.toDouble() }?.average()
+        val plausibleWatts = meanWatts?.takeIf { it in MIN_PLAUSIBLE_WATTS..MAX_PLAUSIBLE_WATTS }
+        val efficiency = if (!session.wasCharging && measured.size >= MIN_POWER_SAMPLES) {
+            plausibleWatts?.let { watts -> meanFps?.div(watts) }
+        } else {
+            null
+        }
+
+        val detail = when {
+            session.wasCharging ->
+                "This session ran on a charger, so the battery readings describe power going into " +
+                    "the pack, not the draw that produced these frames. GameCore does not subtract " +
+                    "one from the other to invent a figure."
+
+            measured.isEmpty() ->
+                "No sample carried battery current, voltage and a frame rate together, so there " +
+                    "is no measured draw to divide by. Most devices report the frame rate without " +
+                    "the battery readings, or the other way round."
+
+            measured.size < MIN_POWER_SAMPLES ->
+                "Only ${Formatters.count(measured.size, "sample")} carried both a power reading and " +
+                    "a frame rate; a few seconds is not enough to average a draw."
+
+            plausibleWatts == null ->
+                "The measured readings average " +
+                    "${NumberText.fixed((meanWatts ?: 0.0).toFloat(), 2)} W, which is not a " +
+                    "plausible phone draw. Some devices report battery current in different units " +
+                    "than the one Android documents, and GameCore will not divide a frame rate by " +
+                    "a number it does not trust."
+
+            efficiency == null ->
+                "The measured current was zero, so there is no power figure to divide the frame " +
+                    "rate by."
+
+            else ->
+                "Averaged over the ${Formatters.count(measured.size, "sample")} that carried current, " +
+                    "voltage and a frame rate: ${NumberText.fixed(meanFps!!.toFloat(), 1)} FPS at " +
+                    "${NumberText.fixed(meanWatts!!.toFloat(), 2)} W. The draw is the whole device's, " +
+                    "not the game's alone."
+        }
+
+        return readoutOf(
+            label = "Frames per watt",
+            value = efficiency?.let { "${NumberText.fixed(it.toFloat(), 1)} FPS/W" } ?: ABSENT,
+            detail = detail,
+            tone = if (efficiency == null) Tone.Muted else Tone.Neutral,
+        )
+    }
 
     /**
      * The average round trip, or which of several absences applies.
@@ -754,6 +832,20 @@ class SessionReportViewModel @Inject constructor(
     private companion object {
         const val MISSING_ID = -1L
         const val WARM_DECI_CELSIUS = 420
+
+        /** Below this, a draw average is a handful of seconds rather than a session. */
+        const val MIN_POWER_SAMPLES = 10
+
+        /**
+         * The range a phone's whole-device draw can plausibly fall in, in watts.
+         *
+         * The lower bound is above zero because a phone drawing a hundredth of a watt is not
+         * playing a game; the upper bound is above the most a gaming phone peaks at. A figure
+         * outside this range means the current reading is in a different unit than the one
+         * Android documents, and dividing by it would print a confident, meaningless number.
+         */
+        const val MIN_PLAUSIBLE_WATTS = 0.1
+        const val MAX_PLAUSIBLE_WATTS = 25.0
 
         const val CARD_MIME = "image/png"
         const val CARD_FAILED = "The card could not be created. Storage may be full."

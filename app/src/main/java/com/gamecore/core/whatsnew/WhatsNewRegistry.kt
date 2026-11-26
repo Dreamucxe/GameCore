@@ -35,6 +35,52 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 74,
+            versionName = "5.13.0",
+            date = "2026-11-25",
+            features = listOf(
+                FeatureNote(
+                    "Render scale, scoped to the game",
+                    "On Android 13 and later with Shizuku, a profile's resolution preset now uses " +
+                        "Android's Game Mode: only that game is downscaled, the rest of the phone keeps " +
+                        "its own resolution, and the change applies the next time the game launches. " +
+                        "Android 13 needs a Performance or Battery mode for that; without one GameCore " +
+                        "keeps the whole-display route, as it does on Android 12 and below. Either way " +
+                        "the same restore row puts it back when the session ends.",
+                ),
+                FeatureNote(
+                    "A frame cap for rates the panel does not have",
+                    "A profile can now ask for 30 FPS on a 60 Hz-only screen. Rates the panel lists " +
+                        "stay refresh-rate modes; a rate it does not list is applied as an Android Game " +
+                        "Mode frame cap scoped to the game, on its next launch. Your performance mode " +
+                        "is written as Game Mode performance or battery where the device supports it. " +
+                        "The shell cannot read these overrides back, so the report says requested " +
+                        "rather than claiming it confirmed them.",
+                ),
+                FeatureNote(
+                    "Efficiency preset",
+                    "One action in the profile editor sets Battery mode, the lowest frame rate this " +
+                        "device can hold, 60% render scale, thermal step-down and the Shizuku " +
+                        "optimizations. It is a shortcut over fields you can still see and change " +
+                        "individually — not a hidden mode.",
+                ),
+                FeatureNote(
+                    "Frames per watt",
+                    "A session report now shows frames per watt when the device measured battery " +
+                        "current, voltage and frame rate together. The figure is the average frame " +
+                        "rate divided by the average measured draw, and the row says exactly that. " +
+                        "Sessions on a charger never get one, and a device that reports none of these " +
+                        "gets the reason instead of a number.",
+                ),
+                FeatureNote(
+                    "GPU clock in the HUD",
+                    "The live stat list now includes GPU clock in MHz, read from the kernel's devfreq " +
+                        "node. Like GPU usage it reads n/a with the reason on devices that do not " +
+                        "publish a frequency, and never shows a fabricated 0.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 73,
             versionName = "5.12.0",
             date = "2026-11-23",

@@ -76,6 +76,12 @@ import androidx.room.RoomDatabase
  * learning log after the fact. Existing rows stay NULL and remain readable but unattributed.
  * [GameCoreMigrations.MIGRATION_23_24].
  *
+ * **Version 25** adds `session_samples.current_microamps` and `session_samples.voltage_millivolts`:
+ * the two readings a power figure needs, so the report can say how many frames a session got per
+ * watt from what was measured rather than inferring a draw from the battery percentage. Both are
+ * nullable with no default; every sample recorded before this version has no such reading, and
+ * NULL is that fact. [GameCoreMigrations.MIGRATION_24_25].
+ *
  * There are no `@TypeConverter`s registered anywhere in this class, deliberately. Enums are stored
  * as their names and parsed back defensively in [Mappers]; a converter would move that parsing
  * into generated code where the fallback for an unrecognised name is a thrown exception rather
@@ -108,7 +114,7 @@ import androidx.room.RoomDatabase
         SmartBenchmarkEntity::class,
         SmartLearningRecordEntity::class,
     ],
-    version = 24,
+    version = 25,
     exportSchema = true,
 )
 abstract class GameCoreDatabase : RoomDatabase() {

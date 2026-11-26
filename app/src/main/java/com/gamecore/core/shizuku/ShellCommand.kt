@@ -5,6 +5,8 @@ import com.gamecore.core.common.AccessLevel
 import com.gamecore.core.common.TextSanitizer
 import com.gamecore.core.model.CpuAffinityMask
 import com.gamecore.core.model.DisplaySize
+import com.gamecore.core.model.GameMode
+import com.gamecore.core.model.GameModeMode
 
 /**
  * Every command GameCore can run through an elevated shell, enumerated.
@@ -468,6 +470,123 @@ sealed class ShellCommand(
     data object ResetDisplaySize : ShellCommand(
         listOf("wm", "size", "reset"), "Clear the display size override", Effect.CHANGES_SETTING,
     )
+
+    /**
+     * Sets one game's Android Game Mode.
+     *
+     * `cmd game mode <performance|battery> <package>` is the mode-only command. It exists on Android
+     * 13 and later, takes the string form on every release, and does not disturb the package's
+     * intervention config — which is why it is a separate command from
+     * [SetGameModeInterventions] rather than another flag on it.
+     *
+     * The package is validated for the same reason [GfxInfoFrameStats] validates its own: it comes
+     * from a profile, and a profile can have been imported.
+     */
+    class SetGameMode private constructor(
+        val packageName: String,
+        val mode: GameModeMode,
+    ) : ShellCommand(
+        listOf("cmd", "game", "mode", mode.argument, packageName),
+        "Set Android's Game Mode for $packageName to ${mode.label.lowercase()}",
+        Effect.CHANGES_SETTING,
+    ) {
+        companion object {
+            fun of(packageName: String, mode: GameModeMode): SetGameMode? =
+                TextSanitizer.validatePackageName(packageName)?.let { SetGameMode(it, mode) }
+        }
+    }
+
+    /**
+     * Sets one game's render scale and/or frame-rate cap through Android Game Mode.
+     *
+     * This is the class that has to know about the platform's two grammars. On Android 14 the argv is
+     * `cmd game set [--fps <n>] [--downscale <factor>] <package>`; on Android 13 the first argument
+     * after `set` must be `--mode`, and the only modes `set` accepts are performance and battery. The
+     * factory therefore takes the profile's mode as well as the SDK, and refuses to build an Android
+     * 13 command with no mode instead of emitting one the platform will reject.
+     *
+     * A null return always means "GameCore will not run this", never "the command failed": the caller
+     * then falls back to the whole-display path or reports that the platform cannot do it.
+     */
+    class SetGameModeInterventions private constructor(
+        val packageName: String,
+        val fps: Int?,
+        val downscalePercent: Int?,
+        argv: List<String>,
+        description: String,
+    ) : ShellCommand(argv, description, Effect.CHANGES_SETTING) {
+        companion object {
+            fun of(
+                packageName: String,
+                fps: Int?,
+                downscalePercent: Int?,
+                mode: GameModeMode?,
+                sdkInt: Int,
+            ): SetGameModeInterventions? {
+                if (!GameMode.supportedOn(sdkInt)) return null
+                if (fps == null && downscalePercent == null) return null
+                val validPackage = TextSanitizer.validatePackageName(packageName) ?: return null
+                if (fps != null && fps !in GameMode.FPS_CHOICES) return null
+                val scaleArgument = downscalePercent?.let { GameMode.downscaleArgument(it) }
+                if (downscalePercent != null && scaleArgument == null) return null
+
+                if (!GameMode.modeNeutralOn(sdkInt) && mode == null) return null
+
+                val options = buildList {
+                    // Android 13 requires the mode first and spells it as a word; Android 14 parses
+                    // `--mode` as an integer and defaults to custom when it is absent. Passing the
+                    // mode explicitly on 14 keeps a profile's Performance choice attached to the
+                    // same command as its scale and cap, instead of writing a custom config and
+                    // leaving the selected mode alone.
+                    if (mode != null) {
+                        add("--mode")
+                        add(if (GameMode.modeNeutralOn(sdkInt)) mode.number.toString() else mode.argument)
+                    }
+                    if (fps != null) {
+                        add("--fps")
+                        add(fps.toString())
+                    }
+                    if (scaleArgument != null) {
+                        add("--downscale")
+                        add(scaleArgument)
+                    }
+                }
+                val argv = listOf("cmd", "game", "set") + options + validPackage
+                val what = listOfNotNull(
+                    fps?.let { "$it fps cap" },
+                    downscalePercent?.let { "$it% render scale" },
+                ).joinToString(" and ")
+                return SetGameModeInterventions(
+                    packageName = validPackage,
+                    fps = fps,
+                    downscalePercent = downscalePercent,
+                    argv = argv,
+                    description = "Set $what for $validPackage through Android's Game Mode",
+                )
+            }
+        }
+    }
+
+    /**
+     * Removes every Game Mode override GameCore may have written for one package.
+     *
+     * `cmd game reset <package>` is preferable to asking for `--downscale disable --fps disable` for
+     * two reasons: it is one command on both Android 13 and 14, and it removes the override entirely
+     * rather than leaving a custom-mode row full of neutral values. The platform then falls back to
+     * the package's own configuration.
+     */
+    class ResetGameMode private constructor(
+        val packageName: String,
+    ) : ShellCommand(
+        listOf("cmd", "game", "reset", packageName),
+        "Reset Android Game Mode overrides for $packageName",
+        Effect.CHANGES_SETTING,
+    ) {
+        companion object {
+            fun of(packageName: String): ResetGameMode? =
+                TextSanitizer.validatePackageName(packageName)?.let { ResetGameMode(it) }
+        }
+    }
 
     /**
      * Ends the background processes of one package, and nothing more than those.
@@ -962,6 +1081,26 @@ sealed class ShellCommand(
 
         /** Null when the size is not a plausible screen. See [SetDisplaySize.of]. */
         fun setDisplaySize(size: DisplaySize): SetDisplaySize? = SetDisplaySize.of(size)
+
+        /** Null when the package is malformed. See [SetGameMode]. */
+        fun setGameMode(packageName: String, mode: GameModeMode): SetGameMode? =
+            SetGameMode.of(packageName, mode)
+
+        /**
+         * Null when the package is malformed, an intervention is outside the platform's grammar, or
+         * Android 13 is asked for interventions without a mode. See [SetGameModeInterventions].
+         */
+        fun setGameModeInterventions(
+            packageName: String,
+            fps: Int?,
+            downscalePercent: Int?,
+            mode: GameModeMode?,
+            sdkInt: Int,
+        ): SetGameModeInterventions? =
+            SetGameModeInterventions.of(packageName, fps, downscalePercent, mode, sdkInt)
+
+        /** Clears one game's Game Mode overrides. Null when the package is malformed. */
+        fun resetGameMode(packageName: String): ResetGameMode? = ResetGameMode.of(packageName)
 
         fun frameStats(packageName: String): GfxInfoFrameStats? =
             GfxInfoFrameStats.of(packageName)

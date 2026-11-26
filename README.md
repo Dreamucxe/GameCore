@@ -1,71 +1,93 @@
 <p align="center">
-  <img src="docs/assets/readme-hero.png" alt="GameCore — every number is a reading" width="100%">
+  <img src="docs/assets/readme-hero.png" alt="GameCore — every number is a reading. Android performance overlay, monitor and per-game profiles." width="100%">
 </p>
 
 <p align="center">
   <a href="https://github.com/Dreamucxe/GameCore/releases/latest/download/GameCore.apk"><img alt="Download the signed GameCore APK" src="https://img.shields.io/badge/Download-Signed%20APK-7C5CFF?style=for-the-badge&logo=android&logoColor=white"></a>
+  <a href="#building"><img alt="Build from source" src="https://img.shields.io/badge/Build-from%20source-24292F?style=for-the-badge&logo=gradle&logoColor=white"></a>
+</p>
+
+<p align="center">
+  <img alt="Version 5.13.0" src="https://img.shields.io/badge/version-5.13.0-7C5CFF?style=flat-square">
   <img alt="Android 8.0 or newer" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white">
-  <img alt="Kotlin 2.0" src="https://img.shields.io/badge/Kotlin-2.0-7F52FF?style=flat-square&logo=kotlin&logoColor=white">
-  <img alt="Jetpack Compose and Material 3" src="https://img.shields.io/badge/Compose-Material%203-4285F4?style=flat-square">
-  <img alt="MIT license" src="https://img.shields.io/badge/License-MIT-FF8FB1?style=flat-square">
   <img alt="No root required" src="https://img.shields.io/badge/No%20root-required-2EA043?style=flat-square">
   <img alt="No telemetry" src="https://img.shields.io/badge/No%20telemetry-offline-FF8FB1?style=flat-square">
+  <img alt="MIT license" src="https://img.shields.io/badge/License-MIT-FF8FB1?style=flat-square">
 </p>
 
-<p align="center">
-  <sub><strong>No root</strong> · <strong>No account</strong> · <strong>No backend</strong> · <strong>No analytics</strong> · <strong>Sideload only</strong></sub>
-</p>
+<p align="center"><sub><strong>No root</strong> · <strong>No account</strong> · <strong>No backend</strong> · <strong>No analytics</strong> · <strong>Sideload only</strong></sub></p>
 
 <p align="center">
+  <a href="#whats-new-in-5130">What's new in 5.13</a> ·
   <a href="#at-a-glance">At a glance</a> ·
   <a href="#screens">Screens</a> ·
-  <a href="#why-gamecore">Why GameCore</a> ·
   <a href="#install">Install</a> ·
-  <a href="#whats-new-in-44">Latest release</a> ·
-  <a href="#plugins-are-data-not-code">Plugins</a> ·
   <a href="#features">Features</a> ·
   <a href="#security">Security</a> ·
   <a href="#architecture">Architecture</a> ·
+  <a href="#building">Build</a> ·
   <a href="#release-history">History</a>
 </p>
 
 > [!IMPORTANT]
 > **The rule:** if GameCore cannot measure it, it says so. A missing reading is shown as *unavailable*, with the reason — never as a zero, an estimate, or a green checkmark.
 
+## What's new in 5.13.0
+
+**Released 26 November 2026.** Five changes to how a profile spends the device's GPU, and two new readings that show the result.
+
+| Change | What it does |
+| :--- | :--- |
+| **Render scale, scoped to the game** | On Android 13+ with Shizuku, a profile's resolution preset goes through Android's Game Mode, so only that game is downscaled and the rest of the phone keeps its resolution. The change applies on the game's next launch. Android 13 needs a Performance or Battery mode; without one, GameCore falls back to the whole-display `wm size` route and says so. |
+| **A frame cap for rates the panel does not have** | A profile can ask for 30 FPS on a 60 Hz-only screen. Rates the panel lists stay refresh-rate modes; a rate it does not list is applied as a per-game Game Mode frame cap. Android 13 again needs a mode; without one, the cap is reported unavailable rather than pinned to a rate the panel does not have. |
+| **Efficiency preset** | One action sets Battery mode, the lowest frame rate the device can hold, 60% render scale, thermal step-down and the Shizuku optimizations. Every field stays visible and editable — it is a shortcut, not a hidden mode. |
+| **Frames per watt** | The session report divides mean measured FPS by mean measured watts, using samples that carried current, voltage and frame rate together. A charging session, fewer than ten samples, or an implausible draw gets the reason instead of a number. |
+| **GPU clock in the HUD** | The live stat list now includes GPU clock in MHz, read from the kernel's devfreq node. A device that does not publish a frequency shows n/a with the reason, never a fabricated zero. |
+
+> [!NOTE]
+> Android's Game Mode has no read-back on the shell surface GameCore uses. A render scale, frame cap or mode the platform accepts is reported as **requested**, not confirmed, and the session records it that way. Readings GameCore can read back are still confirmed; a value it cannot read is never presented as one.
+
 ## At a glance
 
 | | |
 | :--- | :--- |
+| **Latest release** | 5.13.0 · 26 November 2026 |
 | **Platform** | Android 8.0+ (API 26) · `arm64-v8a` / `armeabi-v7a` |
 | **Built with** | Kotlin 2.0.21 · Jetpack Compose · Material 3 · Hilt · Room + SQLCipher |
-| **Codebase** | 1,068 Kotlin source files · roughly 253,000 lines (app, SDK, Studio) |
-| **Tests** | 3,100+ JVM tests · 290+ test classes · no emulator required |
-| **Plugins** | 31 official `.gcplugin` packages · 23 bundled in the app |
+| **Codebase** | 1,152 Kotlin source files · roughly 293,000 lines (app, SDK, Studio) |
+| **Tests** | 319 JVM test classes · 3,500+ tests · no emulator required |
+| **Plugins** | 761 curated packages, 748 themes · 268 bundled, 254 themes |
 | **Network** | One optional, payload-free TCP latency probe · no backend |
 | **License** | MIT |
 
 ## Screens
 
-<p align="center"><sub>Live readings, per-game profiles, HUD layouts and theme controls — drawn from what the device actually reports.</sub></p>
+<p align="center"><sub>Captured on a phone running 5.13.0: readings, profiles, training, session history and appearance.</sub></p>
 
 <table>
   <tr>
     <td width="50%" align="center" valign="top">
-      <img src="screenshots/Screenshot_20260904-030020_GameCore.png" width="100%" alt="GameCore Home screen with CPU, RAM, battery, temperature, refresh rate, display and storage readings">
-      <br><sub><strong>Home</strong> — live device readings and setup status</sub>
+      <img src="screenshots/5.13-home.jpg" width="100%" alt="GameCore Home screen showing the featured Blood Strike profile above CPU, RAM, battery, temperature and refresh-rate readings">
+      <br><sub><strong>Home</strong> — live readings and the profile that is ready to launch</sub>
     </td>
     <td width="50%" align="center" valign="top">
-      <img src="screenshots/Screenshot_20260904-030025_GameCore.png" width="100%" alt="GameCore Games screen with automatic profile detection">
+      <img src="screenshots/5.13-games.jpg" width="100%" alt="GameCore Games screen with two per-game profiles and detection controls">
       <br><sub><strong>Games</strong> — per-game profiles that apply and unwind</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center" valign="top">
-      <img src="screenshots/Screenshot_20260904-030033_GameCore.png" width="100%" alt="GameCore HUD screen with overlay and layout controls">
-      <br><sub><strong>HUD</strong> — overlay modules and layouts you place yourself</sub>
+      <img src="screenshots/5.13-aim-lab.jpg" width="100%" alt="GameCore Aim Lab screen with training records and seven practice modes">
+      <br><sub><strong>Aim Lab</strong> — offline 3D training with records kept on the device</sub>
     </td>
     <td width="50%" align="center" valign="top">
-      <img src="screenshots/Screenshot_20260904-030042_GameCore.png" width="100%" alt="GameCore Settings screen with theme, accent, overlay and monitoring controls">
+      <img src="screenshots/5.13-sessions.jpg" width="100%" alt="GameCore Sessions screen with all-time figures, 7-day trend cards and a conditions warning">
+      <br><sub><strong>Sessions</strong> — history, trends and measured battery drain</sub>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center" valign="top">
+      <img src="screenshots/5.13-settings.jpg" width="50%" alt="GameCore Settings screen with theme pack, shortcuts, appearance, accent and monitoring controls">
       <br><sub><strong>Settings</strong> — theme, accent, overlays and monitoring</sub>
     </td>
   </tr>
@@ -73,28 +95,12 @@
 
 ## Why GameCore
 
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>📊 Readings, not theatre</h3>
-      <p>Most “game boosters” show a number and hope. GameCore’s central type is <code>Observed&lt;T&gt;</code>: a value names its source and precision, or an absence names its reason. There is no default, no fallback constant and no estimate dressed up as a measurement.</p>
-    </td>
-    <td width="50%" valign="top">
-      <h3>↩️ Profiles that undo</h3>
-      <p>Every profile field is nullable. <code>null</code> means <em>leave it alone</em>. GameCore records the reading before it changes anything, then puts exactly that back when the game exits — not a default it assumed.</p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>🔌 Plugins are data</h3>
-      <p>A <code>.gcplugin</code> is a package of JSON the host interprets. No scripts, no WebView, no native libraries, no network. A plugin can ask for a theme, a readout or a setting; it cannot run code inside GameCore.</p>
-    </td>
-    <td width="50%" valign="top">
-      <h3>🔒 Offline by default</h3>
-      <p>No account, no backend, no analytics, no crash reporting. The only outbound connection is an optional, payload-free TCP latency probe you can switch off.</p>
-    </td>
-  </tr>
-</table>
+| Principle | What it means |
+| :--- | :--- |
+| **Readings have sources** | `Observed<T>` carries a value with its source and precision, or an absence with a reason. There is no default, no fallback constant and no estimate presented as a measurement. |
+| **Profiles unwind** | Every profile field is nullable; `null` means leave it alone. Before a change, GameCore records the current reading, and when the game exits it restores exactly that — not a default it assumed. |
+| **Plugins are data** | A `.gcplugin` is a package of JSON and image assets the host interprets. No scripts, no WebView, no native libraries, no sockets. A plugin can request a theme, readout or setting; it cannot run code inside GameCore. |
+| **Offline by default** | No account, no backend, no analytics, no crash reporting. The only outbound connection is an optional, payload-free TCP latency probe you can switch off. |
 
 ## Install
 
@@ -126,7 +132,14 @@ adb install -r GameCore.apk
 > [!NOTE]
 > Shizuku is optional. Without it, the app still runs; capabilities that need ADB-level authority say so and point at the setup screen instead of pretending to work.
 
-## What's new in 5.12.0
+## Earlier releases
+
+The notes below are preserved from the releases that led here. Expand the block to read them.
+
+<details>
+<summary><strong>5.12.0 through 4.0 — release notes</strong></summary>
+
+### What's new in 5.12.0
 
 <p><strong>Crash logs you can keep.</strong> Logs &amp; crashes keeps a durable history of GameCore and game crashes, with the stack, build and device attached. Any record can be copied or shared, the history survives a restart, and one switch turns capture off. A game crash is read from Android's crash buffer through Shizuku; without shell access GameCore records the session boundary and says that it could not see the crash rather than inventing one.</p>
 
@@ -136,7 +149,7 @@ adb install -r GameCore.apk
 
 <p><strong>A plugin set for each game.</strong> A custom plugin group can be bound to a game and switched on when that game starts. Sets only enable plugins whose permissions are already granted — they never grant a permission, release a quarantine or override a suspension — and the same switches are put back when the game stops. If the process dies mid-session, the next launch restores the leftover switches before a game can be detected.</p>
 
-## What's new in 5.11.1
+### What's new in 5.11.1
 
 <p><strong>The game stick under the wheel now responds.</strong> A gaming gesture begins its injected touch at the wheel's centre instead of at the exact point the thumb happened to land. A wheel placed over a game's virtual joystick therefore presses that joystick inside the game's own activation area, while the amplified movement is still measured from the thumb. An off-centre grip no longer turns into a dead joystick.</p>
 
@@ -144,7 +157,7 @@ adb install -r GameCore.apk
 
 <p><strong>Short taps survive, and a failed hand-off lets go.</strong> The first injected DOWN is retried on a measured schedule while the overlay leaves touch mode, and a tap whose finger lifts during that hand-off is completed rather than dropped. If the hand-off cannot succeed within the bounded window, the wheel switches itself off and reports why instead of continuing to consume touches while injecting nothing.</p>
 
-## What's new in 5.11
+### What's new in 5.11
 
 <p><strong>A real amplified wheel.</strong> The High Sensitivity Wheel processes a bounded virtual joystick into a Shizuku-injected touch stream. Named profiles cover 1×–4× gain, independent horizontal and vertical gain, deadzone, radius, response curve, inversion and optional smoothing, with positioning and calibration modes that do not inject.</p>
 
@@ -152,7 +165,7 @@ adb install -r GameCore.apk
 
 <p><strong>Enabling is a deliberate risk decision.</strong> The first attempt to enter gaming mode explains that synthetic input can misfire or conflict with a game's rules or anti-cheat and requires an explicit “Enable at my own risk” choice. During a gaming gesture the wheel temporarily becomes non-touchable so injected events can reach the app underneath, targets the detected game uid on supported Android builds, and cancels every held pointer on shutdown or backend loss. Diagnostics report measured app processing and binder round trips only—not invented end-to-end latency.</p>
 
-## What's new in 5.10.1
+### What's new in 5.10.1
 
 <p><strong>Session history now has a time scale.</strong> Sessions › Trends compares the last 7, 30 or 90 local calendar days with the same period immediately before them. Choose one game or All games to see average FPS, average temperature, reliable battery drain and total play time, with each card stating both the movement and whether that direction is better or worse where that judgement is meaningful.</p>
 
@@ -166,7 +179,7 @@ adb install -r GameCore.apk
 
 <p><strong>A startup look you choose.</strong> Settings › Behavior offers Orbit, Pulse, Minimal or Off. The three looks share the same mark and progress line; Off shows the app immediately. Animations off, or the system's remove-animations switch, leaves the cover in place with its motion stopped.</p>
 
-## What's new in 5.8
+### What's new in 5.8
 
 <p><strong>Trust the numbers.</strong> Benchmark comparisons now weight each frame window by the real number of frames it contained, so the A/B verdict is computed from the same frame-weighted average the table displays. A run with a charger connected is never compared against one on battery; the result says INCONCLUSIVE and names the power difference.</p>
 
@@ -176,7 +189,7 @@ adb install -r GameCore.apk
 
 <p><strong>Comparisons check before they start.</strong> An FPS comparison profile verifies that the selected game exposes real frame timing, shows a banner with the result, and disables Start with the reason when it cannot measure. A capture keeps the screen awake, and leaving the screen asks before cancelling a run. Animation-scale advice also reads the current scales during the scan and treats an already-zero device as nothing to apply.</p>
 
-## What's new in 5.7
+### What's new in 5.7
 
 <p><strong>The whole theme collection is now in the app, and it has a library.</strong> Settings › Look &amp; feel opens a Theme Library: all 254 bundled themes in one searchable grid, each card drawn in its own palette, corner radius and typeface before you apply it. Search by theme, plugin, developer or font, filter to Dark, Light or the active theme, and reset to GameCore's own colours at any time. Applying a theme from a plugin that is off or has never been granted Change the look asks first and names exactly what it will change; the plugin's other grants are kept.</p>
 
@@ -186,21 +199,21 @@ adb install -r GameCore.apk
 
 <p><strong>More room for large text.</strong> Settings' summary figures wrap to two by two on narrow screens and at large font scales, and the Theme Library's grid drops to two columns when the text needs the space. New controls keep spoken labels, 48 dp touch targets and a selected state TalkBack can announce.</p>
 
-## What's new in 5.1
+### What's new in 5.1
 
 <p><strong>Performance Intelligence is local, measured and explicit.</strong> GameCore now builds a device report from readings this phone actually exposes, weighs recommendations against one of four user-selected goals, and names every piece of evidence and trade-off. Six benchmark capture profiles observe a workload that is already running; they never start a synthetic game or fill in missing FPS. Stored runs can be compared only under compatible conditions, with practical and statistical thresholds before any improvement or regression is claimed.</p>
 
 <p>Applications, dismissals and measured outcomes can adjust confidence locally. Learning can be paused without deleting its history, benchmarks and learning reset separately, and automatic game-launch analysis plus recommendation notifications are opt-in. Device changes still go through the existing checked optimization and restore pipeline; per-game changes are saved only to a profile the user selected.</p>
 
-## What's new in 5.0
+### What's new in 5.0
 
 <p><strong>Themes are now a single-choice switch, and plugins can share groups.</strong> Activating a theme turns the previous one off in the same step while leaving that plugin installed and running. Theme, dashboard, Pill, automation, screen and icon groups are derived from each package's declarations, permission groups from its requests, and you can create custom groups that a plugin can join alongside any of them.</p>
 
-## What's new in 4.9
+### What's new in 4.9
 
 <p><strong>The CPU package frame is now slimmer.</strong> The outer body has been brought in at the sides and uses a single thin outline instead of a doubled rim, so the die and its core blocks take up more of the tile. The header rule and die outline are thinner too; the pins, traces, core clocks and performance/efficiency layout are unchanged.</p>
 
-## What's new in 4.8
+### What's new in 4.8
 
 <p><strong>The CPU, RAM and refresh tiles now follow their reference hardware.</strong> The processor die separates the performance cluster from the efficiency cores, and the memory and display instruments have been rebuilt around the chip package and rounded card art.</p>
 
@@ -217,7 +230,7 @@ adb install -r GameCore.apk
   </tr>
 </table>
 
-## What's new in 4.6
+### What's new in 4.6
 
 <p><strong>The Home dashboard becomes hardware, and every CPU core gets a real history chart.</strong> Each live tile is replaced by its own readable 3D object rather than carrying a small logo inside the old rectangle, while the original design remains one switch away.</p>
 
@@ -240,7 +253,7 @@ adb install -r GameCore.apk
   </tr>
 </table>
 
-## What's new in 4.5
+### What's new in 4.5
 
 <p><strong>A fourth panel shape, and a way to switch shapes mid-game.</strong> The left edge now has a home for the whole control panel, and the floating button can open a layout picker without leaving the game.</p>
 
@@ -263,7 +276,7 @@ adb install -r GameCore.apk
   </tr>
 </table>
 
-## What's new in 4.4
+### What's new in 4.4
 
 <p><strong>The control panel grows wings — and each wing gets a real instrument.</strong> Two angled plates fold in from the screen edges, the game stays visible between them, and every existing control is still there.</p>
 
@@ -286,7 +299,7 @@ adb install -r GameCore.apk
   </tr>
 </table>
 
-## What's new in 4.3
+### What's new in 4.3
 
 <p><strong>Plugin Studio now builds the data-only capabilities GameCore actually runs</strong> — not decorative controls that vanish after export.</p>
 
@@ -309,7 +322,7 @@ adb install -r GameCore.apk
   </tr>
 </table>
 
-## What's new in 4.2
+### What's new in 4.2
 
 <p><strong>This release turns plugin making into a visual studio</strong> — a standalone Plugin Maker app and the same editor inside GameCore, both writing the same deterministic package.</p>
 
@@ -332,7 +345,7 @@ adb install -r GameCore.apk
   </tr>
 </table>
 
-## What's new in 4.1
+### What's new in 4.1
 
 <p><strong>This release is about everyone being able to read the app</strong> — fifty-one languages, chosen during setup — and about a first plugin being something you can build in two files.</p>
 
@@ -355,7 +368,7 @@ adb install -r GameCore.apk
   </tr>
 </table>
 
-## What's new in 4.0
+### What's new in 4.0
 
 <p><strong>This release is about the app's typeface becoming part of the theme</strong> — the Liquid Glass packages now change it everywhere — and about installing plugins in batches.</p>
 
@@ -378,91 +391,13 @@ adb install -r GameCore.apk
   </tr>
 </table>
 
-## What's new in 3.6.0
+</details>
 
-<p><strong>This release is about the app changing with the day and with the game in front of you</strong> — without taking away the choices you made by hand.</p>
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>🕒 Theme and dashboard schedule</h3>
-      <p>Settings gains daily time windows for the plugin theme and the Home dashboard. A window can cross midnight, and a per-game override wins while that game is tracked. The schedule is an override layer: when no window or game applies, the manual theme and <strong>Show GameCore stats on Home</strong> choice return exactly as they were.</p>
-    </td>
-    <td width="50%" valign="top">
-      <h3>🧩 Active plugins on Home</h3>
-      <p>A compact strip at the top of Home names the plugins that are actually running. It uses the same enabled, suspended, quarantine and compatibility rules as the Plugins screen, stays out of the way when nothing is running, and points at the global switch when that is what stopped everything.</p>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2" valign="top">
-      <h3>📦 Ten more official packs</h3>
-      <p>Night Shift, Colorblind Safe, Papercut, Minimal Vitals, Thermal Desk, Battery Badge, Cooldown Ladder, Exit Restore, Charger Boost and Stat Dictionary are in <code>dist/</code> and bundled with the app. All ten remain data-only: JSON and image assets read through the same codecs as any sideloaded package, with no scripts, network calls, shell, native code, WebView, arbitrary pixels or custom permissions.</p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>🔎 Plugin search and appearance</h3>
-      <p>Search installed plugins by name, id, developer, description or version. The plugin section also has its own font and text-size controls, including a bundled Minecraft-inspired pixel face, without changing the rest of the app.</p>
-    </td>
-    <td width="50%" valign="top">
-      <h3>🎨 The plugin section follows your theme</h3>
-      <p>The plugin manager, detail screen and automation history now use the theme the rest of GameCore is wearing. The safety switch, consent switches and removal dialog keep GameCore's own colours, so a plugin cannot restyle the controls that turn it off.</p>
-    </td>
-  </tr>
-</table>
-
-## What's new in 3.5.0
-
-<p><strong>This release is about the two things a hard session leaves behind:</strong> a display you cannot read, and a stutter you cannot explain. Both now have an answer that says how sure it is.</p>
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>🖥️ Display changes ask first</h3>
-      <p>Every display-size change shows a fifteen-second countdown with <strong>Keep</strong> and <strong>Revert</strong>. Silence, or a process that dies before the answer, puts the previous size back. A size left unconfirmed across a restart is recovered at launch, and a notification explains what happened — the undo never depends on reaching the screen that set it.</p>
-    </td>
-    <td width="50%" valign="top">
-      <h3>🧭 Recovery console</h3>
-      <p>A display-recovery screen in Settings restores the panel’s own size, shows whether the elevated shell is reachable, and says plainly when nothing was recorded to put back. It is also where the launch notification leads.</p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>📈 Frame-time attribution</h3>
-      <p>Session reports name what was happening around each spike — thermal throttling, a capped refresh rate, battery saver, device load, high temperature, a profile that did not fully apply — and call a spike nothing explains <em>unexplained</em> instead of picking a cause.</p>
-    </td>
-    <td width="50%" valign="top">
-      <h3>🧾 Session timeline and receipt</h3>
-      <p>Every session keeps a timeline of profile applies, thermal and refresh changes, power-saver transitions, network spikes and frame-time spikes. The whole report can be rendered as a PNG receipt and shared through the same file provider as the session card.</p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>📦 New-device migration</h3>
-      <p>Backups carry an optional device snapshot, and a restore preview names the refresh rates, display sizes and Android version differences that may not mean the same thing on this device. Files written before this release still restore and read as unknown origin; the device section is optional and additive.</p>
-    </td>
-    <td width="50%" valign="top">
-      <h3>🔋 Energy budget per game</h3>
-      <p>The profile editor estimates a game’s battery cost from its finished sessions: the median percent per hour, how many sessions that rests on, and the playtime left at the current level when the device is not charging. When there is not enough measured history, it says how many more sessions it needs rather than inventing a figure.</p>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2" valign="top">
-      <h3>🌐 Network versus device attribution</h3>
-      <p>Session reports compare frame-time spikes against two measured lanes — TCP handshakes to the router and to a known host beyond it — and answer <em>beyond this device</em>, <em>device to router</em>, <em>network but not localised</em>, or <em>not supported by the network record</em>. No game server is contacted or claimed; the probe is labelled as a handshake, not a ping, everywhere it appears.</p>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2" valign="top">
-      <h3>🧩 Home stats can get out of the way</h3>
-      <p>Appearance gains <strong>Show GameCore stats on Home</strong>. Turning it off removes the built-in CPU, RAM, battery, temperature and refresh-rate tiles, so a plugin dashboard that already shows the same readings is not duplicated. Plugin dashboard widgets stay visible; the Device card, thermal warnings and Home actions remain.</p>
-    </td>
-  </tr>
-</table>
+---
 
 ## Plugins are data, not code
 
-<p align="center"><strong>31 official packages today · 23 bundled · one <code>.gcplugin</code> each</strong></p>
+<p align="center"><strong>761 curated packages · 268 bundled · one <code>.gcplugin</code> each</strong></p>
 
 <p>A plugin is a <code>.gcplugin</code> zip archive of JSON and image assets that GameCore reads. It can restyle the app, add a readout or expose a setting; it never runs inside GameCore and never gets a shell. The plugin directory can grow without widening what any one install can do.</p>
 
@@ -489,6 +424,8 @@ adb install -r GameCore.apk
   </tr>
 </table>
 
+A sample of the bundled packs:
+
 | Themes & interface packs | Tools & readouts |
 | :--- | :--- |
 | Liquid Glass · True Glitch · Nebula · Nothing OS · Personal OS · Anime · Cyberpunk · Comic · Cybercity · Cybercore · Cybersigilism · Chromecore · Retro Futurism · Robot Core · RedMagic · Night Shift · Colorblind Safe · Papercut | Advisor · Automation History · Benchmark Suite · Dashboard Composer · Graphics Tuning · Sensitivity Lab · Minimal Vitals · Thermal Desk · Battery Badge · Cooldown Ladder · Exit Restore · Charger Boost · Stat Dictionary |
@@ -500,7 +437,7 @@ The full set lives in [`dist/`](dist/). Bundled copies are in [`app/src/main/ass
 ## Features
 
 For a screen-by-screen walkthrough, setup paths, permission map and troubleshooting guide, read the
-**[GameCore 5.1 feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
+**[GameCore feature map and user guide](docs/GAMECORE_FEATURE_GUIDE.md)**. Plugin authors can use the
 separate **[Plugin Studio feature map and tutorial](docs/PLUGIN_STUDIO_FEATURE_GUIDE.md)**.
 
 ### Feature map
@@ -1028,8 +965,8 @@ signing key is not blocked — but an unsigned APK will not install on a device.
 
 The unit tests are deliberately written against the pure, Android-free seams: the geometry,
 the formatters, the sanitizer, the command builder, the aggregators, the state reducers, the
-per-session latency fold, and every word the shareable card is allowed to print. 271 test
-classes, 3,181 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
+per-session latency fold, and every word the shareable card is allowed to print. 319 test
+classes, 3,594 tests. No mocking framework, no Robolectric, no emulator — the suite runs on any JDK.
 
 ---
 

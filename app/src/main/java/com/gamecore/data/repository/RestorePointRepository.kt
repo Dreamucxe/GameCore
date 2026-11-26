@@ -170,6 +170,33 @@ class RestorePointRepository @Inject constructor(
         const val KEY_DISPLAY_SIZE = "display_size"
 
         /**
+         * Everything GameCore set through Android's per-game Game Mode service, under that game's
+         * package: the render scale, the frame-rate cap and the Performance/Battery mode.
+         *
+         * The value stored is an ownership marker rather than a previous value: the shell surface
+         * GameCore uses has no command that reads a package's current overrides, so what is recorded
+         * is that GameCore changed them and owes the game a `cmd game reset`. [packageName] is
+         * therefore part of the row rather than decoration — the reset cannot name a game without it.
+         *
+         * One row covers all three interventions because one reset undoes all three. A row here is not
+         * the same obligation as [KEY_DISPLAY_SIZE]. Game Mode is scoped to one package and does not
+         * change the rest of the phone, so leaving it behind makes that one game soft, not the device
+         * unreadable. It is still restored, because a game the user did not ask to keep at 30 FPS or
+         * 60% should not stay there after the session ends.
+         */
+        const val KEY_GAME_MODE = "game_mode"
+
+        /**
+         * The key GameCore wrote before 5.13.0, when Game Mode was used only for a render scale.
+         *
+         * Kept so a row written by an older build still restores: its controller is the same one, and
+         * `cmd game reset` is the correct way back for a `--downscale`-only override too. Never written
+         * by this build, and deliberately not named `KEY_…`: the ledger-completeness test reads every
+         * `KEY_` constant as a key this build can write, and this one is a key only older builds wrote.
+         */
+        const val LEGACY_GAME_DOWNSCALE = "game_downscale"
+
+        /**
          * The game process's CPU affinity mask in hex, or null when it had none to speak of.
          *
          * The one row in this table whose subject is a *process* rather than the device, and the row

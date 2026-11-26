@@ -84,8 +84,14 @@ data class GameProfile(
      * so the rule is asserted rather than assumed. Editor alone would not be enough: a profile is
      * exported and imported, and a file is not obliged to have been written by this build's editor.
      *
+     * **Two transports, one request.** On Android 13+ with Shizuku, GameCore sets the scale through
+     * Android's Game Mode (`cmd game set --downscale`), which affects that package only and applies on
+     * its next launch. On older Android, or without the shell, it falls back to the `wm size`
+     * override described above. The field means the same thing either way; the applier chooses the
+     * cleaner route for the device, and the report says which one ran.
+     *
      * A smaller logical resolution does not guarantee the game's internal render resolution follows —
-     * that is the game's decision. This only changes what `wm size` reports (§B5). Nullable and null
+     * that is the game's decision. This only changes what the system reports (§B5). Nullable and null
      * by default like every write here, and — as with [cpuAffinity] — there is deliberately no
      * "off" member on [ResolutionScale]: [ResolutionScale.FULL] is a real request (reset to native),
      * and null is the only spelling of "do not touch the resolution".
@@ -290,14 +296,18 @@ enum class PerformanceMode(
         label = "Performance",
         explanation = "Pins the display to its highest refresh rate, turns off battery " +
             "saver, and switches window animations off so a game's own frames are the only " +
-            "thing being drawn. It does not raise CPU or GPU clocks — no app can.",
+            "thing being drawn. On Android 13 and later with Shizuku it also asks Android's " +
+            "Game Mode for Performance behaviour, scoped to this game; a game has to declare " +
+            "support, and Android applies it on the next launch. It does not raise CPU or GPU " +
+            "clocks — no app can.",
     ),
 
     BATTERY_SAVER(
         label = "Battery saver",
         explanation = "Pins the display to its lowest refresh rate and turns Android's " +
-            "battery saver on. The display is usually the largest single draw while gaming, " +
-            "so this is the one setting that measurably extends a session.",
+            "battery saver on. On Android 13 and later with Shizuku it also asks Android's Game " +
+            "Mode for Battery behaviour, scoped to this game. The display is usually the largest " +
+            "single draw while gaming, so this is the one setting that measurably extends a session.",
     ),
 
     CUSTOM(

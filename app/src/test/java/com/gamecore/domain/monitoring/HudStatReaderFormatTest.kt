@@ -7,6 +7,7 @@ import com.gamecore.core.model.BatteryReading
 import com.gamecore.core.model.CpuReading
 import com.gamecore.core.model.DisplayReading
 import com.gamecore.core.model.FrameRateSample
+import com.gamecore.core.model.GpuClockSample
 import com.gamecore.core.model.HudStat
 import com.gamecore.core.model.MemoryReading
 import com.gamecore.core.model.NetworkReading
@@ -78,6 +79,25 @@ class HudStatReaderFormatTest {
     fun `a frame rate rounds like a percentage does`() {
         assertEquals("60", value(HudStat.FRAME_RATE, snapshot(averageFps = 59.6f)))
         assertEquals("59", value(HudStat.FRAME_RATE, snapshot(averageFps = 59.4f)))
+    }
+
+    @Test
+    fun `the GPU clock is a whole megahertz value carrying its unit`() {
+        // Devfreq reports hertz, the reader normalises it to a Float in MHz, and the stat is drawn as
+        // "520MHz". A fractional Megahertz figure is rounded for the same reason every other stat is:
+        // the HUD has one line and a decimal place there buys nothing.
+        val reading = HudStatReader.read(HudStat.GPU_CLOCK, snapshot(gpuMhz = 520.4f))
+        assertEquals("520", reading.value)
+        assertEquals("520MHz", reading.display())
+        assertEquals("GPU clk 520MHz", reading.displayLabelled())
+    }
+
+    @Test
+    fun `an unreadable GPU clock says why instead of showing zero megahertz`() {
+        val reading = HudStatReader.read(HudStat.GPU_CLOCK, snapshot())
+        assertNull(reading.value)
+        assertNotNull(reading.reason)
+        assertFalse(reading.isAvailable)
     }
 
     // --- degrees: deci-celsius to whole degrees ---------------------------------------------------
@@ -198,6 +218,7 @@ class HudStatReaderFormatTest {
         rxBytesPerSecond: Double? = null,
         txBytesPerSecond: Double? = null,
         averageFps: Float? = null,
+        gpuMhz: Float? = null,
     ): PerformanceSnapshot = PerformanceSnapshot(
         capturedAtMillis = 0L,
         cpu = CpuReading.unavailable(coreCount = 0, absence = Observed.notPresent("test")).copy(
@@ -251,6 +272,19 @@ class HudStatReaderFormatTest {
             ?: Observed.notPresent("test"),
         latency = Observed.notPresent("test"),
         gpu = Observed.notPresent("test"),
+        gpuClock = gpuMhz
+            ?.let {
+                Observed.of(
+                    GpuClockSample(
+                        currentMhz = it,
+                        maxMhz = null,
+                        availableMhz = emptyList(),
+                        nodeLabel = "/sys/class/devfreq/test.gpu",
+                    ),
+                    DataSource.SYS_FS,
+                )
+            }
+            ?: Observed.notPresent("test"),
         accessLevel = AccessLevel.NORMAL,
     )
 

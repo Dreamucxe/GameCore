@@ -1,6 +1,7 @@
 package com.gamecore.core.model
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -86,5 +87,74 @@ class ResolutionScaleModelsTest {
         val medium = ResolutionScale.optionsFor(portrait).first { it.scale == ResolutionScale.MEDIUM }
         assertEquals("60%", medium.label)
         assertEquals("648 × 1440", medium.detail)
+    }
+
+    // ---- Android 13+ Game Mode transport ----
+
+    @Test
+    fun `game mode starts at Android 13 and is mode-neutral from Android 14`() {
+        // 33 is Build.VERSION_CODES.TIRAMISU and 34 is UPSIDE_DOWN_CAKE. The gates are plain integers
+        // so a JVM test can state both sides without an Android device; the controller reads
+        // Build.VERSION.SDK_INT at the call site.
+        assertFalse(GameMode.supportedOn(32))
+        assertTrue(GameMode.supportedOn(33))
+        assertTrue(GameMode.supportedOn(34))
+
+        assertTrue(GameMode.modeNeutralOn(33).not())
+        assertTrue(GameMode.modeNeutralOn(34))
+    }
+
+    @Test
+    fun `a performance mode maps onto the platform's own game modes`() {
+        assertEquals(GameModeMode.PERFORMANCE, GameMode.modeFor(PerformanceMode.PERFORMANCE))
+        assertEquals(GameModeMode.BATTERY, GameMode.modeFor(PerformanceMode.BATTERY_SAVER))
+        assertNull(GameMode.modeFor(PerformanceMode.BALANCED))
+        assertNull(GameMode.modeFor(PerformanceMode.CUSTOM))
+        assertEquals(2, GameModeMode.PERFORMANCE.number)
+        assertEquals(3, GameModeMode.BATTERY.number)
+    }
+
+    @Test
+    fun `the downscale argument is a fraction inside Android 13's 30 to 90 percent list`() {
+        assertEquals("0.8", GameMode.downscaleArgument(80))
+        assertEquals("0.6", GameMode.downscaleArgument(60))
+        assertEquals("0.3", GameMode.downscaleArgument(30))
+        assertEquals("0.9", GameMode.downscaleArgument(90))
+        // 100% is the platform's word, not a float the parser may round.
+        assertEquals("disable", GameMode.downscaleArgument(100))
+        assertNull(GameMode.downscaleArgument(0))
+        assertNull(GameMode.downscaleArgument(25))
+        assertNull(GameMode.downscaleArgument(34))
+        assertNull(GameMode.downscaleArgument(95))
+        assertNull(GameMode.downscaleArgument(101))
+    }
+
+    @Test
+    fun `the frame-rate argument is the platform's own list, not any panel value`() {
+        assertEquals(30, GameMode.fpsCapArgument(30f))
+        assertEquals(60, GameMode.fpsCapArgument(60f))
+        assertNull(GameMode.fpsCapArgument(59.94f))
+        assertNull(GameMode.fpsCapArgument(31f))
+        assertNull(GameMode.fpsCapArgument(144f))
+        assertNull(GameMode.fpsCapArgument(null))
+    }
+
+    @Test
+    fun `a frame cap is chosen only for a rate the panel does not have`() {
+        // The case this feature exists for: 30 FPS on a 60 Hz-only screen.
+        assertEquals(30, GameMode.frameCapRate(30f, listOf(60f)))
+
+        // A rate the panel lists is a display mode, and belongs to the refresh-rate pin.
+        assertNull(GameMode.frameCapRate(30f, listOf(30f, 60f)))
+        assertNull(GameMode.frameCapRate(60f, listOf(60f)))
+
+        // A cap above the panel's highest is a no-op, not a change.
+        assertNull(GameMode.frameCapRate(90f, listOf(60f)))
+
+        // Without the panel's modes there is no way to tell a cap from a mode.
+        assertNull(GameMode.frameCapRate(30f, emptyList()))
+
+        // An accepted intermediate rate below the panel's peak is a real cap.
+        assertEquals(45, GameMode.frameCapRate(45f, listOf(60f)))
     }
 }

@@ -8,6 +8,7 @@ import com.gamecore.core.model.ColorPreset
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.MemoryReclaimReport
 import com.gamecore.core.model.OptimizationAction
+import com.gamecore.core.model.OptimizationResult
 import com.gamecore.core.model.ProfileApplication
 import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.RestoreReport
@@ -362,11 +363,15 @@ class GamingCoordinator @Inject constructor(
             startRecording(
                 event = event,
                 label = label,
-                // Confirmed changes only. An unverified write — the MediaTek refresh-rate case — is
-                // not counted as applied anywhere else in the app, and a session row claiming the
-                // device was optimized when GameCore could not read the change back would be exactly
-                // the invented statistic §24 forbids.
-                applied = (application?.appliedCount ?: 0) > 0,
+                // Confirmed changes, plus the one unverified shape that is not a failure: a Game Mode
+                // request the platform accepted and GameCore has no way to read back. A write that
+                // could not be confirmed when confirmation was possible — the MediaTek refresh-rate
+                // case — still does not count, because a session row claiming the device was
+                // optimized when GameCore could not verify it would be the invented statistic §24
+                // forbids. The two are kept apart by `readbackUnavailable`.
+                applied = application?.results?.any {
+                    it.isApplied || (it is OptimizationResult.Unverified && it.readbackUnavailable)
+                } == true,
                 application = application,
                 colour = appliedColour(profile, application),
                 resolution = appliedResolution(profile, application),
@@ -468,10 +473,13 @@ class GamingCoordinator @Inject constructor(
     /**
      * The resolution scale this session actually put the display on, or null if it did not.
      *
-     * The same rule as [appliedColour], for the same reason: only a confirmed change is recorded, so a
-     * device that accepted the `wm size` write and stayed where it was — [DisplaySizeOutcome.NotHonoured],
-     * which is most built-in screens on some builds — leaves the session saying the resolution was not
-     * overridden rather than naming a scale nothing read back.
+     * The same rule as [appliedColour], with one deliberate exception. A `wm size` write that was
+     * accepted and did not take — [DisplaySizeOutcome.NotHonoured], which is most built-in screens on
+     * some builds — leaves the session saying the resolution was not overridden rather than naming a
+     * scale nothing read back. A Game Mode request is different: that transport has no read-back at
+     * all, its result is [OptimizationResult.Unverified] with `readbackUnavailable`, and the per-game
+     * override is exactly what Android applies on the game's next launch. Recording it is recording
+     * the request the platform accepted, not a confirmation GameCore invented.
      *
      * Read from the profile and not from the display, because the display cannot answer it. By the time
      * this runs the panel holds a *size*, and nothing on the device records whether that size came from a
@@ -485,7 +493,8 @@ class GamingCoordinator @Inject constructor(
     ): ResolutionScale? {
         val scale = profile.resolutionOverride ?: return null
         val applied = application?.results?.any {
-            it.action == OptimizationAction.SET_DISPLAY_SIZE && it.isApplied
+            it.action == OptimizationAction.SET_DISPLAY_SIZE &&
+                (it.isApplied || (it is OptimizationResult.Unverified && it.readbackUnavailable))
         } == true
         return if (applied) scale else null
     }

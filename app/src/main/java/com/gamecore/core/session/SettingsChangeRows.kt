@@ -133,6 +133,7 @@ enum class NonSettingChange(val key: String, val action: OptimizationAction) {
     MEDIA_VOLUME(RestorePointRepository.KEY_MEDIA_VOLUME, OptimizationAction.SET_MEDIA_VOLUME),
     DO_NOT_DISTURB(RestorePointRepository.KEY_DO_NOT_DISTURB, OptimizationAction.ENABLE_DO_NOT_DISTURB),
     DISPLAY_SIZE(RestorePointRepository.KEY_DISPLAY_SIZE, OptimizationAction.SET_DISPLAY_SIZE),
+    GAME_MODE(RestorePointRepository.KEY_GAME_MODE, OptimizationAction.SET_GAME_MODE),
     CPU_AFFINITY(RestorePointRepository.KEY_CPU_AFFINITY, OptimizationAction.SET_CPU_AFFINITY),
     CHARGE_BYPASS(RestorePointRepository.KEY_CHARGE_BYPASS, OptimizationAction.SET_CHARGE_BYPASS),
     ;
@@ -142,7 +143,12 @@ enum class NonSettingChange(val key: String, val action: OptimizationAction) {
 
     companion object {
         /** The change [key] names, or null for a key this build has no non-setting branch for. */
-        fun of(key: String): NonSettingChange? = entries.firstOrNull { it.key == key }
+        fun of(key: String): NonSettingChange? =
+            entries.firstOrNull { it.key == key }
+                // A row written before the Game Mode key covered more than a render scale. It is
+                // restored by the same controller and shown with the same label, so it resolves to
+                // the same change rather than becoming invisible on upgrade.
+                ?: if (key == RestorePointRepository.LEGACY_GAME_DOWNSCALE) GAME_MODE else null
     }
 }
 
@@ -325,6 +331,10 @@ object SettingsChangeRows {
 
             NonSettingChange.DISPLAY_SIZE -> true
 
+            // The package is the whole restore: Game Mode overrides cannot be reset without naming
+            // the game they belong to, and there is no previous mode, cap or scale to read back.
+            NonSettingChange.GAME_MODE -> !row.packageName.isNullOrBlank()
+
             NonSettingChange.CPU_AFFINITY ->
                 row.packageName != null && CpuAffinityMask.parse(row.previousValue) != null
 
@@ -342,7 +352,7 @@ object SettingsChangeRows {
      * `settingsTouchedBy` shows why that fails here: `SET_BRIGHTNESS` writes two keys, so two rows would
      * both read "Set brightness" and the user would have no way to tell which button put which back.
      *
-     * [NonSettingChange.label] for the five that have no `WritableSetting`, where [PendingRestore.describe]
+     * [NonSettingChange.label] for the six that have no `WritableSetting`, where [PendingRestore.describe]
      * falls back to the raw provider key. That fallback is right for a diagnostic line and wrong for this
      * card: "charge_bypass" under a revert button is not a sentence a user can act on.
      */
@@ -528,6 +538,11 @@ object SettingsChangeRows {
                     ?: PreviousValueText.Raw(text)
             }
             ?: PreviousValueText.Unset
+
+        // The stored marker is not a value this layer should print. The previous per-game mode,
+        // frame cap and scale were never readable, and the revert is the known `cmd game reset`, so
+        // the card offers the action and states no value rather than dressing the marker up as one.
+        NonSettingChange.GAME_MODE -> PreviousValueText.NotStated
 
         NonSettingChange.CPU_AFFINITY -> CpuAffinityMask.parse(value)
             ?.let(::affinityText)

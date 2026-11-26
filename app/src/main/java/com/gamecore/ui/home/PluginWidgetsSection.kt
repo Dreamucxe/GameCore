@@ -129,6 +129,7 @@ class PluginWidgetsSectionViewModel @Inject constructor(
         ModuleStat.FPS -> HudStat.FRAME_RATE
         ModuleStat.CPU -> HudStat.CPU_USAGE
         ModuleStat.GPU -> HudStat.GPU_USAGE
+        ModuleStat.GPU_CLOCK -> HudStat.GPU_CLOCK
         ModuleStat.RAM -> HudStat.RAM_USAGE
         ModuleStat.BATTERY -> HudStat.BATTERY_LEVEL
         ModuleStat.TEMP -> HudStat.BATTERY_TEMPERATURE

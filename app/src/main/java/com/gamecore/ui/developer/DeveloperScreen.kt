@@ -177,7 +177,8 @@ private fun LinksCard(onOpen: (String, String) -> Unit, modifier: Modifier = Mod
         )
         LinkRow(
             title = "Discord",
-            description = "An invite to the server, for questions, bug reports and what is being built.",
+            description = "Friend invite for ${DeveloperInfo.DISCORD_HANDLE} — questions, bug reports and " +
+                "what is being built. Discord expires this invite a week after it was issued.",
             icon = R.drawable.ic_brand_discord,
             onClick = { onOpen("Discord", DeveloperInfo.DISCORD) },
         )
@@ -261,8 +262,14 @@ internal object DeveloperInfo {
 
     const val GITHUB = "https://github.com/Dreamucxe"
 
-    /** An invite rather than a channel: a server the user has not joined has no channel for them to open. */
-    const val DISCORD = "https://discord.gg/xgyk8ZtB"
+    /** The developer's Discord account, which is not the same name as their GitHub handle. */
+    const val DISCORD_HANDLE = "dree738887h"
+
+    /**
+     * A friend invite rather than a channel: a user who has not joined a server has no channel to
+     * open, so the link adds the developer instead. Discord expires these invites; the row says so.
+     */
+    const val DISCORD = "https://discord.gg/3J5zsQDx"
 
     const val LINKEDIN = "https://linkedin.com/in/dream-ucxe-4a1a1440b"
 

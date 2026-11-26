@@ -7,7 +7,7 @@ import com.gamecore.core.model.ResolutionScale
 /**
  * Which of a profile's two display overrides is the one to write (§B2).
  *
- * [GameProfile] carries two fields that are one `wm size` write: [GameProfile.displaySize], a size the
+ * [GameProfile] carries two fields that both ask Android for a resolution: [GameProfile.displaySize], a size the
  * user typed or picked, and [GameProfile.resolutionOverride], a percentage of the panel. They cannot
  * both be honoured — the second write would silently undo the first, the restore journal would hold one
  * row for two changes, and the report would claim both — so the choice between them is made here, once,

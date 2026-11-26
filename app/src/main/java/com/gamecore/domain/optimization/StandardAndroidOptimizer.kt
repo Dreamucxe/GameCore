@@ -101,6 +101,12 @@ class StandardAndroidOptimizer @Inject constructor(
         // owns the probe, the write and the restore, and reports REQUIRES_SHIZUKU / UNSUPPORTED itself
         // from its own `support()`. Unsupported is the truth about this tier.
         OptimizationAction.SET_CHARGE_BYPASS -> CapabilityStatus.UNSUPPORTED
+
+        // The two `cmd game` actions are not settings writes either. GameModeController owns the
+        // command and the one reset that undoes all of them, and needs the elevated shell to run it.
+        OptimizationAction.SET_GAME_MODE,
+        OptimizationAction.CAP_FRAME_RATE,
+        -> CapabilityStatus.UNSUPPORTED
     }
 
     override suspend fun apply(request: OptimizationRequest): OptimizationResult {
@@ -152,6 +158,18 @@ class StandardAndroidOptimizer @Inject constructor(
                 detail = "Running the phone from the charger is done by GameCore's charge controller, " +
                     "not by the optimization tiers — it probes for a writable charge-control node, " +
                     "records what it held, and needs the elevated shell to write it.",
+            )
+
+            OptimizationAction.SET_GAME_MODE -> action.blocked(
+                status = CapabilityStatus.UNSUPPORTED,
+                detail = "Android's per-game Game Mode is set by GameCore's Game Mode controller, " +
+                    "which needs the elevated shell and keeps one ownership row per game.",
+            )
+
+            OptimizationAction.CAP_FRAME_RATE -> action.blocked(
+                status = CapabilityStatus.UNSUPPORTED,
+                detail = "A per-game frame cap is a `cmd game` intervention, set by GameCore's Game " +
+                    "Mode controller. It is not a settings write and needs the elevated shell.",
             )
 
             // Handled by the two helpers above; unreachable, and left as a branch rather than an

@@ -9,6 +9,7 @@ import com.gamecore.core.model.AppSettings
 import com.gamecore.core.model.CpuReading
 import com.gamecore.core.model.FrameRateCapability
 import com.gamecore.core.model.FrameRateSample
+import com.gamecore.core.model.GpuClockSample
 import com.gamecore.core.model.GpuLoadSample
 import com.gamecore.core.model.HistoryPoint
 import com.gamecore.core.model.LatencyProbe
@@ -18,6 +19,7 @@ import com.gamecore.core.model.StorageReading
 import com.gamecore.core.system.CompositeMetricsReader
 import com.gamecore.core.system.DisplayReader
 import com.gamecore.core.system.FrameRateProbe
+import com.gamecore.core.system.GpuClockReader
 import com.gamecore.core.system.GpuReader
 import com.gamecore.core.system.LatencyProber
 import com.gamecore.core.system.NetworkReader
@@ -77,6 +79,7 @@ class PerformanceMonitor @Inject constructor(
     private val frameRateProbe: FrameRateProbe,
     private val latencyProber: LatencyProber,
     private val gpuReader: GpuReader,
+    private val gpuClockReader: GpuClockReader,
     private val preferences: SecurePreferenceStore,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
@@ -134,6 +137,9 @@ class PerformanceMonitor @Inject constructor(
 
     @Volatile
     private var cachedGpu: Observed<GpuLoadSample>? = null
+
+    @Volatile
+    private var cachedGpuClock: Observed<GpuClockSample>? = null
 
     @Volatile
     private var cachedLatency: Observed<LatencyProbe> =
@@ -233,6 +239,7 @@ class PerformanceMonitor @Inject constructor(
             frameRate = frameRateFor(),
             latency = latencyFor(tick, settings, network.isConnected),
             gpu = gpuFor(tick),
+            gpuClock = gpuClockFor(tick),
             accessLevel = metrics.accessLevel,
         )
     }
@@ -255,6 +262,20 @@ class PerformanceMonitor @Inject constructor(
         val cached = cachedGpu
         if (cached != null && tick % GPU_EVERY_TICKS != 0L) return cached
         return gpuReader.read().also { cachedGpu = it }
+    }
+
+    /**
+     * The GPU clock, refreshed on the same cadence as the load.
+     *
+     * Devfreq sysfs is the only source, and it is a file read rather than a platform call; the same
+     * "a few seconds old is still the current clock" rule that applies to the load applies here.
+     * [GpuClockReader] carries its own absence reasons (no devfreq node, needs Shizuku), so nothing
+     * is invented when the kernel does not publish a frequency.
+     */
+    private suspend fun gpuClockFor(tick: Long): Observed<GpuClockSample> {
+        val cached = cachedGpuClock
+        if (cached != null && tick % GPU_EVERY_TICKS != 0L) return cached
+        return gpuClockReader.read().also { cachedGpuClock = it }
     }
 
     /**
@@ -328,6 +349,7 @@ class PerformanceMonitor @Inject constructor(
     private fun onLoopStopped() {
         cachedStorage = null
         cachedGpu = null
+        cachedGpuClock = null
         gpuReader.resetSampling()
         cachedLatency = Observed.awaitingSample("Waiting for the first latency probe.")
     }

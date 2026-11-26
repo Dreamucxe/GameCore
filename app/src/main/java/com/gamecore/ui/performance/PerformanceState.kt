@@ -95,6 +95,11 @@ data class PerformanceUiState(
  * of all: this screen applies through the optimization tiers, and both tiers decline charge bypass —
  * `ChargeBypassController` owns it, not the engine. A button here would report "unsupported" even on a
  * phone that can do it. It has its own screen and a per-profile switch, which is where it belongs.
+ *
+ * Android's Game Mode and its frame cap are excluded for the first reason and the same ownership
+ * reason together: both name a package, because `cmd game` changes one game, and both are written by
+ * `GameModeController` rather than the engine. A button on this screen would have no game to name and
+ * no value to apply, and would report "unsupported" on a phone that can do both from a profile.
  */
 private val PROFILE_ONLY_ACTIONS = setOf(
     OptimizationAction.SET_BRIGHTNESS,
@@ -106,6 +111,8 @@ private val PROFILE_ONLY_ACTIONS = setOf(
     OptimizationAction.SET_DISPLAY_SIZE,
     OptimizationAction.SET_CPU_AFFINITY,
     OptimizationAction.SET_CHARGE_BYPASS,
+    OptimizationAction.SET_GAME_MODE,
+    OptimizationAction.CAP_FRAME_RATE,
 )
 
 /**

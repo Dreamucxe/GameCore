@@ -122,12 +122,12 @@ enum class OptimizationAction(
 
     SET_DISPLAY_SIZE(
         label = "Set display size",
-        explanation = "Overrides the logical size the display reports to apps — the same thing " +
-            "`wm size` does from a shell. A game handed a shorter logical display renders a " +
-            "shorter frame, and the compositor spreads that frame across the whole panel. It " +
-            "stretches the image: it is not a wider field of view, and no app can give a game " +
-            "one. The override outlives a reboot, so GameCore records the size the display had " +
-            "before it wrote one and puts it back when the session ends.",
+        explanation = "Lowers the resolution the game is handed. On Android 13+ this is Android's " +
+            "Game Mode, scoped to the one package and applied on its next launch; on older Android " +
+            "it is the same `wm size` override a stretch uses, which changes the whole display and " +
+            "outlives a reboot, so GameCore records the size it had and puts it back. In both cases " +
+            "the compositor stretches the smaller frame across the whole panel: it is less detail, " +
+            "not a wider field of view, and whether the game draws fewer pixels is its own decision.",
         requiredAccess = AccessLevel.SHIZUKU,
     ),
 
@@ -151,6 +151,26 @@ enum class OptimizationAction(
             "node; where none does, the action reports itself unsupported rather than pretending.",
         requiredAccess = AccessLevel.SHIZUKU,
     ),
+
+    SET_GAME_MODE(
+        label = "Set Android's Game Mode for this game",
+        explanation = "Asks Android's own per-game Game Mode service for its Performance or Battery " +
+            "behaviour — the same switch the Game Dashboard offers. A game has to declare support " +
+            "for a mode, so a game that does not reports it as unavailable rather than as a " +
+            "GameCore failure. GameCore cannot read the mode back, and Android applies it the next " +
+            "time the game launches.",
+        requiredAccess = AccessLevel.SHIZUKU,
+    ),
+
+    CAP_FRAME_RATE(
+        label = "Cap this game's frame rate",
+        explanation = "Asks Android to cap one game at a frame rate the panel has no display mode " +
+            "for — most often 30 FPS on a 60 Hz screen. This is a frame cap, not a 30 Hz display " +
+            "mode: the display keeps refreshing at its own rate and the game is limited to fewer " +
+            "frames. It is applied by the game's next launch and cannot be read back, so it is " +
+            "reported as requested rather than confirmed.",
+        requiredAccess = AccessLevel.SHIZUKU,
+    ),
     ;
 
     /** True for the actions a profile can request; the rest are undo steps. */
@@ -160,9 +180,9 @@ enum class OptimizationAction(
     /**
      * True for the actions the two optimizer tiers carry out from an optimization request.
      *
-     * False for two of them, and for the same underlying reason: the manager records a previous
-     * value for every key an action *could* touch before handing it to a tier, which works only
-     * because every other action here touches a fixed set of `settings` keys.
+     * False for the actions below, and for the same underlying reason: the manager records a
+     * previous value for every key an action *could* touch before handing it to a tier, which works
+     * only because every other action here touches a fixed set of `settings` keys.
      *
      * [APPLY_COLOR_CORRECTION] touches between one and eight keys depending on what the preset
      * asks for, so capturing all eight would leave restore rows for keys GameCore never wrote —
@@ -184,14 +204,20 @@ enum class OptimizationAction(
      * sysfs, not the settings provider, so there is nothing for the manager to capture through
      * [com.gamecore.core.shizuku.WritableSetting]. `ChargeBypassController` records the node's
      * previous value under the game's package, the same non-setting namespace the affinity mask uses.
-     * All four profile steps therefore go through their own controller and the tiers decline all four
-     * actions.
+     *
+     * [SET_GAME_MODE] and [CAP_FRAME_RATE] are `cmd game` writes too — not `settings` keys — and
+     * neither has a readable previous value. `GameModeController` records one ownership row per
+     * package and restores it with `cmd game reset`; the manager has nothing to capture or compare,
+     * so both decline here and the controller owns the whole round trip. Every profile step that has
+     * its own controller therefore declines in this one place.
      */
     val isEngineAction: Boolean
         get() = this != APPLY_COLOR_CORRECTION &&
             this != SET_DISPLAY_SIZE &&
             this != SET_CPU_AFFINITY &&
-            this != SET_CHARGE_BYPASS
+            this != SET_CHARGE_BYPASS &&
+            this != SET_GAME_MODE &&
+            this != CAP_FRAME_RATE
 }
 
 /**
@@ -228,6 +254,15 @@ sealed interface OptimizationResult {
     data class Unverified(
         override val action: OptimizationAction,
         val detail: String,
+        /**
+         * True when the transport has no read-back at all, rather than a read-back that failed.
+         *
+         * The distinction matters to session history: a settings write that could not be read back
+         * is not counted as applied, while a Game Mode request is the most the platform can ever
+         * confirm and is recorded as *requested*. The report prints the same sentence either way;
+         * this flag only stops the two cases being mistaken for each other in code.
+         */
+        val readbackUnavailable: Boolean = false,
     ) : OptimizationResult
 
     /** Written and the device stayed where it was. The honest failure, and the loudest one. */

@@ -27,7 +27,15 @@ import org.json.JSONObject
 object SampleExport {
 
     const val FORMAT = "gamecore.samples"
-    const val VERSION = 1
+
+    /**
+     * 2 added `current_microamps` and `voltage_millivolts`.
+     *
+     * The CSV's column set changed, so a reader that keys cells by position from version 1 would
+     * shift every field after battery percentage. The envelope says which layout it carries rather
+     * than leaving the reader to discover it.
+     */
+    const val VERSION = 2
 
     /** The columns, in the order a spreadsheet reads them left to right. */
     val CSV_HEADER = listOf(
@@ -36,6 +44,8 @@ object SampleExport {
         "cpu_percent",
         "memory_percent",
         "battery_percent",
+        "current_microamps",
+        "voltage_millivolts",
         "temperature_celsius",
         "refresh_rate_hz",
         "frame_rate_fps",
@@ -61,6 +71,8 @@ object SampleExport {
         oneDecimal(sample.cpuPercent),
         oneDecimal(sample.memoryPercent),
         sample.batteryPercent?.toString().orEmpty(),
+        sample.currentMicroAmps?.toString().orEmpty(),
+        sample.voltageMilliVolts?.toString().orEmpty(),
         deciCelsius(sample.temperatureDeciCelsius),
         oneDecimal(sample.refreshRate),
         oneDecimal(sample.frameRate),
@@ -97,6 +109,8 @@ object SampleExport {
         sample.cpuPercent?.let { put("cpu_percent", round1(it)) }
         sample.memoryPercent?.let { put("memory_percent", round1(it)) }
         sample.batteryPercent?.let { put("battery_percent", it) }
+        sample.currentMicroAmps?.let { put("current_microamps", it) }
+        sample.voltageMilliVolts?.let { put("voltage_millivolts", it) }
         sample.temperatureDeciCelsius?.let { put("temperature_celsius", it / 10.0) }
         sample.refreshRate?.let { put("refresh_rate_hz", round1(it)) }
         sample.frameRate?.let { put("frame_rate_fps", round1(it)) }

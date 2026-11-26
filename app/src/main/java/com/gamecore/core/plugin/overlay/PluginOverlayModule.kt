@@ -94,6 +94,7 @@ enum class ModuleStat(val id: String, val label: String, val scope: String) {
     FPS("fps", "Frame rate", "device_stats"),
     CPU("cpu", "CPU load", "device_stats"),
     GPU("gpu", "GPU load", "device_stats"),
+    GPU_CLOCK("gpu_clock", "GPU clock", "device_stats"),
     RAM("ram", "Memory", "device_stats"),
     BATTERY("battery", "Battery", "thermals"),
     TEMP("temp", "Temperature", "thermals"),

@@ -22,6 +22,7 @@ import com.gamecore.data.repository.RestorePointRepository
 import com.gamecore.domain.charge.ChargeBypassController
 import com.gamecore.domain.cpu.CpuAffinityController
 import com.gamecore.domain.display.DisplaySizeController
+import com.gamecore.domain.gaming.GameModeController
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -70,6 +71,7 @@ class OptimizationManager @Inject constructor(
     private val settings: SettingsWriter,
     private val audio: AudioControls,
     private val displaySize: DisplaySizeController,
+    private val gameMode: GameModeController,
     private val cpuAffinity: CpuAffinityController,
     private val chargeBypass: ChargeBypassController,
     private val restorePoints: RestorePointRepository,
@@ -547,6 +549,14 @@ class OptimizationManager @Inject constructor(
         // dispatched by key below. Nothing routes this action through here — `isEngineAction` is false
         // for it and both tiers decline it — so this branch exists to keep the `when` exhaustive.
         OptimizationAction.SET_CHARGE_BYPASS -> emptyList()
+
+        // Empty for the Game Mode pair too. `cmd game` writes no settings key, and none of its values
+        // can be read back, so there is nothing to capture or compare. GameModeController records one
+        // ownership row per package and `cmd game reset` is the restore; the branch below dispatches
+        // it. `isEngineAction` is false for both, so no request reaches this method with either action.
+        OptimizationAction.SET_GAME_MODE,
+        OptimizationAction.CAP_FRAME_RATE,
+        -> emptyList()
     }
 
     // -------------------------------------------------------------------- restoring
@@ -630,6 +640,17 @@ class OptimizationManager @Inject constructor(
                 val outcome = displaySize.restore(row.previousValue)
                 if (outcome.isSuccess) null else "The display size is still changed: ${outcome.message}"
             }
+
+            // Android's per-game Game Mode: the render scale, the frame cap and the mode. There is no
+            // previous value to hand back — the shell surface GameCore uses cannot read one — so the
+            // row's marker means "reset this game". The package is the part that makes the reset
+            // possible; a row without one stays pending with a sentence rather than being dropped.
+            RestorePointRepository.KEY_GAME_MODE -> gameMode.restore(row.packageName)
+
+            // Rows written by 5.13.0's development builds and earlier, when this ledger entry only
+            // covered a render scale. Same controller, same `cmd game reset`; kept so an upgrade does
+            // not strand a pending row it can still undo.
+            RestorePointRepository.LEGACY_GAME_DOWNSCALE -> gameMode.restore(row.packageName)
 
             // The one row whose subject is a process, and the one whose "success" includes having
             // written nothing. `CpuAffinityController.restore` answers NothingToRestore when the game

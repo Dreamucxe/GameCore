@@ -3033,6 +3033,7 @@ class GamingOverlayService : GameCoreService() {
         ModuleStat.FPS -> HudStat.FRAME_RATE
         ModuleStat.CPU -> HudStat.CPU_USAGE
         ModuleStat.GPU -> HudStat.GPU_USAGE
+        ModuleStat.GPU_CLOCK -> HudStat.GPU_CLOCK
         ModuleStat.RAM -> HudStat.RAM_USAGE
         ModuleStat.BATTERY -> HudStat.BATTERY_LEVEL
         // Battery temperature rather than CPU: `HudStat.CPU_TEMPERATURE.isAlwaysAvailable` is false
@@ -3053,8 +3054,8 @@ class GamingOverlayService : GameCoreService() {
     private fun ModuleStat.motionReading(): MotionReading? = when (this) {
         ModuleStat.ROTATION_RATE -> MotionReading.ROTATION_RATE
         ModuleStat.MOVEMENT -> MotionReading.MOVEMENT
-        ModuleStat.FPS, ModuleStat.CPU, ModuleStat.GPU, ModuleStat.RAM,
-        ModuleStat.BATTERY, ModuleStat.TEMP -> null
+        ModuleStat.FPS, ModuleStat.CPU, ModuleStat.GPU, ModuleStat.GPU_CLOCK,
+        ModuleStat.RAM, ModuleStat.BATTERY, ModuleStat.TEMP -> null
     }
 
     /**

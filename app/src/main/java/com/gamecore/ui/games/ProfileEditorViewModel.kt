@@ -1,6 +1,7 @@
 package com.gamecore.ui.games
 
 import android.content.Intent
+import android.os.Build
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,6 +12,7 @@ import com.gamecore.core.model.ColorCorrection
 import com.gamecore.core.model.ColorVisionFilter
 import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.FractionPoint
+import com.gamecore.core.model.GameMode
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.ResolutionScale
 import com.gamecore.core.model.VolumeTriggerBinding
@@ -126,7 +128,12 @@ class ProfileEditorViewModel @Inject constructor(
         refreshVolumeTriggerAvailability()
         viewModelScope.launch {
             val capabilities = capabilityChecker.current()
-            editing.value = editing.value.copy(capabilities = capabilities)
+            editing.value = editing.value.copy(
+                capabilities = capabilities,
+                gameModeAvailable = GameMode.supportedOn(Build.VERSION.SDK_INT) &&
+                    capabilities.shizuku.isUsable,
+                gameModeModeNeutral = GameMode.modeNeutralOn(Build.VERSION.SDK_INT),
+            )
         }
         // Its own launch and not part of the capability read, because it is a shell round trip on a screen
         // whose other fields are local: the editor draws with the display-size control absent and fills it

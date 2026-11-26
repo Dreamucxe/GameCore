@@ -289,7 +289,7 @@ class PluginOverlayCodecTest {
         assertNull(ModuleStat.fromId("screen_text"))
         assertNull(ModuleStat.fromId(""))
         assertEquals(ModuleStat.FPS, ModuleStat.fromId(" FPS "))
-        assertEquals(8, ModuleStat.entries.size)
+        assertEquals(9, ModuleStat.entries.size)
     }
 
     // ------------------------------------------------------------------------------ clamping

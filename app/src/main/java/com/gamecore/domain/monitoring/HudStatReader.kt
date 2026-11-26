@@ -103,6 +103,7 @@ object HudStatReader {
                 degrees(it)
             }
             HudStat.GPU_USAGE -> from(stat, snapshot.gpu) { whole(it.loadPercent) }
+            HudStat.GPU_CLOCK -> from(stat, snapshot.gpuClock) { whole(it.currentMhz) }
             HudStat.RAM_USAGE -> StatReading(stat, whole(snapshot.memory.usedPercent))
             HudStat.RAM_FREE -> StatReading(
                 stat = stat,

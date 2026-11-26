@@ -3,6 +3,7 @@ package com.gamecore.core.shizuku
 import com.gamecore.BuildConfig
 import com.gamecore.core.common.AccessLevel
 import com.gamecore.core.model.DisplaySize
+import com.gamecore.core.model.GameModeMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -45,6 +46,26 @@ class ShellCommandTest {
         add(ShellCommand.GetDisplaySize)
         add(ShellCommand.setDisplaySize(DisplaySize(1080, 1440))!!)
         add(ShellCommand.ResetDisplaySize)
+        add(ShellCommand.setGameMode("com.example.game", GameModeMode.PERFORMANCE)!!)
+        add(
+            ShellCommand.setGameModeInterventions(
+                packageName = "com.example.game",
+                fps = 30,
+                downscalePercent = 60,
+                mode = GameModeMode.PERFORMANCE,
+                sdkInt = 33,
+            )!!,
+        )
+        add(
+            ShellCommand.setGameModeInterventions(
+                packageName = "com.example.game",
+                fps = 30,
+                downscalePercent = 60,
+                mode = null,
+                sdkInt = 34,
+            )!!,
+        )
+        add(ShellCommand.resetGameMode("com.example.game")!!)
         add(ShellCommand.killBackgroundApp("com.example.background")!!)
         add(ShellCommand.clearSharedCache("com.example.game", 0)!!)
         add(ShellCommand.readCpuAffinity(4021)!!)
@@ -68,10 +89,10 @@ class ShellCommandTest {
     }
 
     @Test
-    fun `the only programs GameCore can invoke are these eighteen`() {
+    fun `the only programs GameCore can invoke are these nineteen`() {
         val allowed = setOf(
             "id", "cat", "dumpsys", "settings", "getprop", "pm", "appops", "wm", "am", "rm",
-            "taskset", "input", "ls", "stat", "cp", "mv", "test", "sh",
+            "taskset", "input", "ls", "stat", "cp", "mv", "test", "sh", "cmd",
         )
         everyCommand().forEach { command ->
             assertTrue(
@@ -110,7 +131,7 @@ class ShellCommandTest {
         // app is that one command", not "no shell exists" — a claim the code no longer supports and this
         // test therefore does not pretend to. `test` is likewise reachable only as the charge probe.
         val forbidden = setOf(
-            "cmd", "su", "mount", "setprop", "reboot", "killall", "force-stop",
+            "su", "mount", "setprop", "reboot", "killall", "force-stop",
             "stop-app", "trim-caches", "clear", "broadcast", "override-status", "compile", "install",
             "uninstall", "density", "dismiss-keyguard", "overscan",
             "chrt", "renice", "nice", "ionice",
@@ -119,6 +140,25 @@ class ShellCommandTest {
             command.argv.forEach { token ->
                 assertFalse("forbidden token in ${command.argv}", token in forbidden)
             }
+        }
+    }
+
+    @Test
+    fun `cmd reaches only the game service and only its three bounded subcommands`() {
+        // `cmd` came off the forbidden list when per-game Game Mode was built. It is a multiplexer:
+        // `cmd thermal`, `cmd package compile` and a dozen other services are one word away, so the
+        // bound that makes it admissible is asserted here rather than assumed. Every command GameCore
+        // can construct must name `game` as the service, and only the three subcommands whose argument
+        // shapes the factories validate.
+        val gameCommands = everyCommand().filter { it.argv.first() == "cmd" }
+        assertTrue(gameCommands.isNotEmpty())
+        gameCommands.forEach { command ->
+            assertEquals("cmd game ...", command.argv.take(2), listOf("cmd", "game"))
+            assertTrue(
+                "unexpected cmd game subcommand: ${command.argv}",
+                command.argv[2] in setOf("set", "reset", "mode"),
+            )
+            assertEquals(ShellCommand.Effect.CHANGES_SETTING, command.effect)
         }
     }
 
@@ -386,15 +426,16 @@ class ShellCommandTest {
         readOnly.forEach { assertEquals(ShellCommand.Effect.READ_ONLY, it.effect) }
         readOnly.forEach { assertFalse(it.argv.contains("put")) }
         // Nineteen settings keys, three self-grants, two self-appops, the two halves of a display size
-        // override, the one close, the one cache delete, the one affinity write, the two synthetic-input
-        // commands, the config editor's three file writes (copy, move, delete), and the one charge-control
-        // write. Nothing else writes.
+        // override, the four Game Mode writes (mode, its two intervention forms, reset), the one close,
+        // the one cache delete, the one affinity write, the two synthetic-input commands, the config
+        // editor's three file writes (copy, move, delete), and the one charge-control write. Nothing
+        // else writes.
         assertEquals(19, WritableSetting.entries.size)
-        assertEquals(35, writes.size)
+        assertEquals(39, writes.size)
         writes.forEach {
             assertTrue(
                 "unexpected write program: ${it.argv}",
-                it.argv.first() in setOf("settings", "pm", "appops", "wm", "am", "rm", "taskset", "input", "cp", "mv", "sh"),
+                it.argv.first() in setOf("settings", "pm", "appops", "wm", "am", "rm", "taskset", "input", "cp", "mv", "sh", "cmd"),
             )
         }
     }
@@ -616,6 +657,98 @@ class ShellCommandTest {
         // override equal to native is still an override.
         assertEquals(listOf("wm", "size", "reset"), ShellCommand.ResetDisplaySize.argv)
         assertEquals(ShellCommand.Effect.CHANGES_SETTING, ShellCommand.ResetDisplaySize.effect)
+    }
+
+    @Test
+    fun `Android 13 spells the mode as a word and requires it before interventions`() {
+        val set = ShellCommand.setGameModeInterventions(
+            packageName = "com.example.game",
+            fps = 30,
+            downscalePercent = 60,
+            mode = GameModeMode.PERFORMANCE,
+            sdkInt = 33,
+        )!!
+        assertEquals(
+            listOf(
+                "cmd", "game", "set",
+                "--mode", "performance",
+                "--fps", "30",
+                "--downscale", "0.6",
+                "com.example.game",
+            ),
+            set.argv,
+        )
+        assertEquals(ShellCommand.Effect.CHANGES_SETTING, set.effect)
+
+        // Without a mode the Android 13 command cannot carry an intervention at all, and GameCore
+        // refuses to invent one rather than changing the game's mode behind the user's back.
+        assertNull(
+            ShellCommand.setGameModeInterventions(
+                packageName = "com.example.game",
+                fps = 30,
+                downscalePercent = null,
+                mode = null,
+                sdkInt = 33,
+            ),
+        )
+    }
+
+    @Test
+    fun `Android 14 takes interventions without a mode and spells a mode as its number`() {
+        val neutral = ShellCommand.setGameModeInterventions(
+            packageName = "com.example.game",
+            fps = 30,
+            downscalePercent = null,
+            mode = null,
+            sdkInt = 34,
+        )!!
+        assertEquals(
+            listOf("cmd", "game", "set", "--fps", "30", "com.example.game"),
+            neutral.argv,
+        )
+
+        val withMode = ShellCommand.setGameModeInterventions(
+            packageName = "com.example.game",
+            fps = null,
+            downscalePercent = 60,
+            mode = GameModeMode.BATTERY,
+            sdkInt = 34,
+        )!!
+        assertEquals(
+            listOf(
+                "cmd", "game", "set",
+                "--mode", "3",
+                "--downscale", "0.6",
+                "com.example.game",
+            ),
+            withMode.argv,
+        )
+    }
+
+    @Test
+    fun `a Game Mode reset names the package and nothing else`() {
+        val reset = ShellCommand.resetGameMode("com.example.game")!!
+        assertEquals(listOf("cmd", "game", "reset", "com.example.game"), reset.argv)
+        assertEquals(ShellCommand.Effect.CHANGES_SETTING, reset.effect)
+
+        val mode = ShellCommand.setGameMode("com.example.game", GameModeMode.BATTERY)!!
+        assertEquals(listOf("cmd", "game", "mode", "battery", "com.example.game"), mode.argv)
+    }
+
+    @Test
+    fun `a Game Mode command refuses a malformed package, factor or frame rate`() {
+        assertNull(
+            ShellCommand.setGameModeInterventions(
+                "com.example.game; rm -rf /", 30, 60, null, 34,
+            ),
+        )
+        assertNull(ShellCommand.setGameModeInterventions("", 30, 60, null, 34))
+        assertNull(ShellCommand.setGameModeInterventions("com.example.game", 30, 25, null, 34))
+        assertNull(ShellCommand.setGameModeInterventions("com.example.game", 30, 101, null, 34))
+        assertNull(ShellCommand.setGameModeInterventions("com.example.game", 31, null, null, 34))
+        assertNull(ShellCommand.setGameModeInterventions("com.example.game", null, null, null, 34))
+        assertNull(ShellCommand.setGameModeInterventions("com.example.game", 30, null, null, 32))
+        assertNull(ShellCommand.setGameMode("com.example.game; rm -rf /", GameModeMode.PERFORMANCE))
     }
 
     @Test

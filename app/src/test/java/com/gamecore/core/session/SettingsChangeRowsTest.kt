@@ -193,7 +193,7 @@ class SettingsChangeRowsTest {
     /**
      * The labels are the action labels already on screen in the apply-diff line, not words coined here.
      *
-     * [PendingRestore.describe] falls back to the raw provider key for these five, which is right for a
+     * [PendingRestore.describe] falls back to the raw provider key for these six, which is right for a
      * diagnostic line and useless under a revert button — "charge_bypass" is not something a user can act
      * on.
      */
@@ -212,6 +212,10 @@ class SettingsChangeRowsTest {
         assertEquals(
             OptimizationAction.SET_DISPLAY_SIZE.label,
             rows.getValue(RestorePointRepository.KEY_DISPLAY_SIZE).label,
+        )
+        assertEquals(
+            OptimizationAction.SET_GAME_MODE.label,
+            rows.getValue(RestorePointRepository.KEY_GAME_MODE).label,
         )
         assertEquals(
             OptimizationAction.SET_CPU_AFFINITY.label,
@@ -468,11 +472,11 @@ class SettingsChangeRowsTest {
 
         assertEquals(NonSettingChange.entries.map { it.key }.toSet(), declaredKeys)
 
-        // 19 settings keys plus 5 non-setting keys is the whole ledger: 24 rows can exist, no more.
+        // 19 settings keys plus 6 non-setting keys is the whole ledger: 25 rows can exist, no more.
         assertEquals(19, WritableSetting.entries.size)
-        assertEquals(5, NonSettingChange.entries.size)
+        assertEquals(6, NonSettingChange.entries.size)
         assertEquals(
-            24,
+            25,
             SettingsChangeRows.from(
                 WritableSetting.entries.mapIndexed { index, setting ->
                     settingsRow(setting, recordedAtMillis = index.toLong())
@@ -543,9 +547,10 @@ class SettingsChangeRowsTest {
         nonSettingRow(RestorePointRepository.KEY_MEDIA_VOLUME, "70", recordedAtMillis = 1L),
         nonSettingRow(RestorePointRepository.KEY_DO_NOT_DISTURB, "PRIORITY_ONLY", recordedAtMillis = 2L),
         nonSettingRow(RestorePointRepository.KEY_DISPLAY_SIZE, "1080x2400", recordedAtMillis = 3L),
+        nonSettingRow(RestorePointRepository.KEY_GAME_MODE, "reset_game_mode", recordedAtMillis = 4L),
         // 0xf0 is the big cluster on an eight-core phone: cores 4 to 7.
-        nonSettingRow(RestorePointRepository.KEY_CPU_AFFINITY, "f0", recordedAtMillis = 4L),
-        nonSettingRow(RestorePointRepository.KEY_CHARGE_BYPASS, "0", recordedAtMillis = 5L),
+        nonSettingRow(RestorePointRepository.KEY_CPU_AFFINITY, "f0", recordedAtMillis = 5L),
+        nonSettingRow(RestorePointRepository.KEY_CHARGE_BYPASS, "0", recordedAtMillis = 6L),
     )
 
     private companion object {

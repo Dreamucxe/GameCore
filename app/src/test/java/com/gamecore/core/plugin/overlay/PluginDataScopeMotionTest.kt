@@ -43,7 +43,7 @@ class PluginDataScopeMotionTest {
 
     @Test
     fun `the motion stats are real stats whose scope is the motion aperture`() {
-        assertEquals(8, ModuleStat.entries.size)
+        assertEquals(9, ModuleStat.entries.size)
         val rotation = ModuleStat.fromId("rotation_rate")
         val movement = ModuleStat.fromId("movement")
         assertNotNull(rotation)

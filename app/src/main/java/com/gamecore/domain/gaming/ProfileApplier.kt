@@ -11,6 +11,8 @@ import com.gamecore.core.model.CpuAffinityOutcome
 import com.gamecore.core.model.CpuAffinityPreset
 import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.DisplaySizeOutcome
+import com.gamecore.core.model.GameMode
+import com.gamecore.core.model.GameModeMode
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.OptimizationAction
 import com.gamecore.core.model.OptimizationResult
@@ -72,6 +74,7 @@ class ProfileApplier @Inject constructor(
     private val colorPresets: ColorPresetRepository,
     private val color: ColorCorrectionController,
     private val displaySize: DisplaySizeController,
+    private val gameMode: GameModeController,
     private val cpuAffinity: CpuAffinityController,
     private val chargeBypass: ChargeBypassController,
 ) {
@@ -93,18 +96,41 @@ class ProfileApplier @Inject constructor(
         origin: ChangeOrigin = ChangeOrigin.USER,
     ): ProfileApplication {
         val rates = displayReader.supportedRates().valueOrNull.orEmpty()
-        val steps = plan(profile, rates, shellLive = shizuku.isConnected)
+        val gameModeAvailable = gameMode.isSupported()
+        val steps = plan(
+            profile = profile,
+            supportedRates = rates,
+            shellLive = shizuku.isConnected,
+            gameModeAvailable = gameModeAvailable,
+            gameModeModeNeutral = !gameMode.requiresMode(),
+        )
         val results = mutableListOf<OptimizationResult>()
         for (step in steps) {
-            results += when (step) {
-                is Step.Attempt -> optimizations.apply(step.request, profile.packageName, origin)
-                is Step.Colour -> applyColour(step.presetId, profile, origin)
-                is Step.Stretch -> applyDisplaySize(DisplayTarget.Stretch(step.size), profile)
-                is Step.Scale -> applyDisplaySize(DisplayTarget.Scale(step.scale), profile)
-                is Step.Affinity -> applyAffinity(step.preset, profile)
-                is Step.ChargeBypass -> applyChargeBypass(profile)
-                is Step.Skip -> step.result
+            val produced: List<OptimizationResult> = when (step) {
+                is Step.Attempt -> listOf(
+                    optimizations.apply(step.request, profile.packageName, origin),
+                )
+                is Step.Colour -> listOf(applyColour(step.presetId, profile, origin))
+                is Step.Stretch -> listOf(applyDisplaySize(DisplayTarget.Stretch(step.size), profile))
+                is Step.Scale -> listOf(applyDisplaySize(DisplayTarget.Scale(step.scale), profile))
+                is Step.GameMode -> gameMode.apply(
+                    profile = profile,
+                    scale = step.scale,
+                    frameRateCapHz = step.frameRateCapHz,
+                    mode = step.mode,
+                )
+                is Step.FrameCapUnavailable -> listOf(
+                    OptimizationResult.Blocked(
+                        action = OptimizationAction.CAP_FRAME_RATE,
+                        status = CapabilityStatus.UNSUPPORTED,
+                        detail = step.reason,
+                    ),
+                )
+                is Step.Affinity -> listOf(applyAffinity(step.preset, profile))
+                is Step.ChargeBypass -> listOf(applyChargeBypass(profile))
+                is Step.Skip -> listOf(step.result)
             }
+            results += produced
         }
         return ProfileApplication(
             packageName = profile.packageName,
@@ -173,6 +199,33 @@ class ProfileApplier @Inject constructor(
         data class Scale(val scale: ResolutionScale) : Step
 
         /**
+         * Everything this profile asks Android's per-game Game Mode for, as one write.
+         *
+         * One variant rather than three because the platform takes one command: Android 14's `set`
+         * replaces the whole intervention config for a mode, so a scale written by one call would be
+         * cleared by a second call that carried only a frame cap. [GameModeController] turns this
+         * into one argv and returns one result per non-null field.
+         *
+         * A null [scale] means the render scale belongs to `wm size` instead — Android 12, or
+         * Android 13 without a Game Mode selected. A null [mode] means the profile leaves Game Mode
+         * alone. The applier only builds this step when at least one field is set.
+         */
+        data class GameMode(
+            val scale: ResolutionScale?,
+            val frameRateCapHz: Int?,
+            val mode: GameModeMode?,
+        ) : Step
+
+        /**
+         * A frame rate the panel has no mode for, on a device that cannot cap it through Game Mode.
+         *
+         * Deliberately not an [Attempt] at pinning the panel to that rate: a 60 Hz panel has no 30 Hz
+         * mode, and reporting "pin lowest refresh rate" for a request that was about frames would
+         * describe a different change. The report says what could not be done and why.
+         */
+        data class FrameCapUnavailable(val rateHz: Float, val reason: String) : Step
+
+        /**
          * The core-affinity preset to pin the game's process to.
          *
          * The third variant that bypasses [OptimizationManager], and the only step in the plan whose
@@ -212,20 +265,63 @@ class ProfileApplier @Inject constructor(
         profile: GameProfile,
         supportedRates: List<Float>,
         shellLive: Boolean,
-    ): List<Step> = listOf(
-        refreshStep(profile, supportedRates),
-        displaySizeStep(profile),
-        brightnessStep(profile),
-        colourStep(profile),
-        rotationStep(profile),
-        timeoutStep(profile),
-        volumeStep(profile),
-        doNotDisturbStep(profile),
-        animationStep(profile, shellLive),
-        batterySaverStep(profile, shellLive),
-        chargeBypassStep(profile),
-        affinityStep(profile),
-    )
+        gameModeAvailable: Boolean = false,
+        gameModeModeNeutral: Boolean = true,
+    ): List<Step> {
+        val mode = if (gameModeAvailable) {
+            GameMode.modeFor(profile.performanceMode)
+        } else {
+            null
+        }
+        val capRate = GameMode.frameCapRate(profile.targetRefreshRate, supportedRates)
+        val capUsable = capRate != null &&
+            gameModeAvailable &&
+            (gameModeModeNeutral || mode != null)
+        val scale = profile.resolutionOverride
+        val scaleUsable = scale != null &&
+            gameModeAvailable &&
+            (gameModeModeNeutral || mode != null)
+
+        val gameModeStep = if (scaleUsable || capUsable || mode != null) {
+            Step.GameMode(
+                scale = scale.takeIf { scaleUsable },
+                frameRateCapHz = capRate.takeIf { capUsable },
+                mode = mode,
+            )
+        } else {
+            null
+        }
+
+        return buildList {
+            add(
+                refreshStep(
+                    profile,
+                    supportedRates,
+                    capUsable = capUsable,
+                    gameModeAvailable = gameModeAvailable,
+                ),
+            )
+            if (gameModeStep?.scale != null) {
+                // The combined command owns the render scale, so there is no second display step.
+                add(gameModeStep)
+            } else {
+                add(displaySizeStep(profile))
+                if (gameModeStep != null && (gameModeStep.mode != null || gameModeStep.frameRateCapHz != null)) {
+                    add(gameModeStep)
+                }
+            }
+            add(brightnessStep(profile))
+            add(colourStep(profile))
+            add(rotationStep(profile))
+            add(timeoutStep(profile))
+            add(volumeStep(profile))
+            add(doNotDisturbStep(profile))
+            add(animationStep(profile, shellLive))
+            add(batterySaverStep(profile, shellLive))
+            add(chargeBypassStep(profile))
+            add(affinityStep(profile))
+        }
+    }
 
     /**
      * The refresh-rate line: the profile's own rate if it names one, otherwise the mode's.
@@ -237,9 +333,43 @@ class ProfileApplier @Inject constructor(
      * what the user did, and an intermediate 90 reads as the nearer of the two with the actual rate in
      * the detail line underneath.
      */
-    private fun refreshStep(profile: GameProfile, supportedRates: List<Float>): Step {
+    private fun refreshStep(
+        profile: GameProfile,
+        supportedRates: List<Float>,
+        capUsable: Boolean,
+        gameModeAvailable: Boolean,
+    ): Step {
         val explicit = profile.targetRefreshRate
         if (explicit != null) {
+            val capRate = GameMode.frameCapRate(explicit, supportedRates)
+            if (capRate != null) {
+                return if (capUsable) {
+                    skip(
+                        OptimizationAction.PIN_PEAK_REFRESH_RATE,
+                        "This profile's ${capRate} FPS target is below the panel's own modes, so " +
+                            "it is applied as a per-game frame cap through Android's Game Mode " +
+                            "instead of changing the display's refresh rate.",
+                    )
+                } else {
+                    Step.FrameCapUnavailable(
+                        rateHz = explicit,
+                        reason = if (gameModeAvailable) {
+                            "This profile asks for ${capRate} FPS, but this panel has no " +
+                                "${capRate} Hz mode and Android's Game Mode cannot cap one " +
+                                "game's frame rate on this release without a selected " +
+                                "Performance or Battery mode. The display was left at its own " +
+                                "rate rather than being pinned to a number it does not have."
+                        } else {
+                            "This profile asks for ${capRate} FPS, but this panel has no " +
+                                "${capRate} Hz mode and the only route to a per-game frame cap — " +
+                                "Android's Game Mode — is not available on this device right now " +
+                                "(it starts at Android 13 and needs the elevated shell). The " +
+                                "display was left at its own rate rather than being pinned to a " +
+                                "number it does not have."
+                        },
+                    )
+                }
+            }
             return Step.Attempt(
                 OptimizationRequest.refreshRate(pinActionFor(explicit, supportedRates), explicit),
             )

@@ -260,6 +260,20 @@ data class SessionSampleEntity(
     @ColumnInfo(name = "battery_percent")
     val batteryPercent: Int?,
 
+    /**
+     * Battery current magnitude in microamps, and voltage in millivolts.
+     *
+     * Nullable with no default, and that is the only honest shape: every sample recorded before
+     * version 25 was taken without them, and a default of zero would turn "not measured" into a
+     * measured no-draw. The two together are what make a watt, which is what the FPS-per-watt
+     * readout is built from; neither alone is power.
+     */
+    @ColumnInfo(name = "current_microamps")
+    val currentMicroAmps: Int?,
+
+    @ColumnInfo(name = "voltage_millivolts")
+    val voltageMilliVolts: Int?,
+
     @ColumnInfo(name = "temperature")
     val temperatureDeciCelsius: Int?,
 

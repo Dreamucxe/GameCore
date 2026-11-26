@@ -99,6 +99,7 @@ enum class HudStat(
     CPU_USAGE("CPU usage", "CPU", "%", true),
     CPU_TEMPERATURE("CPU temperature", "CPU°", "°C", false),
     GPU_USAGE("GPU usage", "GPU", "%", false),
+    GPU_CLOCK("GPU clock", "GPU clk", "MHz", false),
     RAM_USAGE("RAM used", "RAM", "%", true),
     RAM_FREE("RAM free", "Free", "MB", true),
     BATTERY_LEVEL("Battery", "BAT", "%", true),

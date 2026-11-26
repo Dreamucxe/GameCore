@@ -40,6 +40,8 @@ class SampleExportTest {
             cpuPercent = 12.34f,
             memoryPercent = 55.5f,
             batteryPercent = 79,
+            currentMicroAmps = 450_000,
+            voltageMilliVolts = 4_200,
             temperatureDeciCelsius = 324,
             refreshRate = 120f,
             frameRate = 59.9f,
@@ -61,21 +63,25 @@ class SampleExportTest {
             cpuPercent = 12.34f,
             memoryPercent = 55.5f,
             batteryPercent = 79,
+            currentMicroAmps = 450_000,
+            voltageMilliVolts = 4_200,
             temperatureDeciCelsius = 324,
             refreshRate = 120f,
             frameRate = 59.94f,
             latencyMillis = 24,
         )
         val cells = SampleExport.csvLine(sample).split(',')
-        assertEquals("2000", cells[0])   // elapsed_ms, raw
-        assertEquals("2.0", cells[1])    // elapsed_seconds, one decimal
-        assertEquals("12.3", cells[2])   // cpu_percent, one decimal
+        assertEquals("2000", cells[0])     // elapsed_ms, raw
+        assertEquals("2.0", cells[1])      // elapsed_seconds, one decimal
+        assertEquals("12.3", cells[2])     // cpu_percent, one decimal
         assertEquals("55.5", cells[3])
-        assertEquals("79", cells[4])     // battery_percent, integer
-        assertEquals("32.4", cells[5])   // temperature deci → celsius
-        assertEquals("120.0", cells[6])
-        assertEquals("59.9", cells[7])
-        assertEquals("24", cells[8])     // latency_ms, integer
+        assertEquals("79", cells[4])       // battery_percent, integer
+        assertEquals("450000", cells[5])   // current_microamps, integer
+        assertEquals("4200", cells[6])     // voltage_millivolts, integer
+        assertEquals("32.4", cells[7])     // temperature deci → celsius
+        assertEquals("120.0", cells[8])
+        assertEquals("59.9", cells[9])
+        assertEquals("24", cells[10])      // latency_ms, integer
     }
 
     @Test
@@ -85,7 +91,7 @@ class SampleExportTest {
         assertEquals("4000", cells[0])
         assertEquals("4.0", cells[1])
         // Every optional reading is empty — not "0", which would read as a measurement of nothing.
-        listOf(2, 3, 4, 5, 6, 7, 8).forEach { column ->
+        listOf(2, 3, 4, 5, 6, 7, 8, 9, 10).forEach { column ->
             assertEquals("column $column is blank", "", cells[column])
         }
     }
@@ -131,8 +137,9 @@ class SampleExportTest {
         assertEquals(6_000L, obj.getLong("elapsed_ms"))
         // Everything not measured is absent — a reader sees "no such reading", not a false zero.
         listOf(
-            "cpu_percent", "memory_percent", "battery_percent", "temperature_celsius",
-            "refresh_rate_hz", "frame_rate_fps", "latency_ms",
+            "cpu_percent", "memory_percent", "battery_percent", "current_microamps",
+            "voltage_millivolts", "temperature_celsius", "refresh_rate_hz", "frame_rate_fps",
+            "latency_ms",
         ).forEach { key ->
             assertFalse("$key should be absent, not zero", obj.has(key))
         }

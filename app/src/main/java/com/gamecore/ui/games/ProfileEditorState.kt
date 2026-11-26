@@ -11,6 +11,7 @@ import com.gamecore.core.model.CpuClusterLayout
 import com.gamecore.core.model.DeviceCapabilities
 import com.gamecore.core.model.DisplaySize
 import com.gamecore.core.model.DisplaySizeState
+import com.gamecore.core.model.GameMode
 import com.gamecore.core.model.GameProfile
 import com.gamecore.core.model.RefreshRateMechanism
 import com.gamecore.core.model.ResolutionScale
@@ -66,6 +67,22 @@ data class ProfileEditorUiState(
      */
     val cpuLayout: Observed<CpuClusterLayout> =
         Observed.awaitingSample("Reading this device's cores."),
+    /**
+     * True when Android's per-game Game Mode can be used: Android 13+ with the elevated shell.
+     *
+     * Set by the ViewModel from the build version and the capability read. The editor uses it to
+     * decide whether to offer a frame cap for a rate the panel has no mode for, and whether to say
+     * that a render scale will be scoped to this game rather than the whole display.
+     */
+    val gameModeAvailable: Boolean = false,
+    /**
+     * True when `cmd game set` accepts interventions without a selected mode (Android 14+).
+     *
+     * Android 13 requires `--mode` before a scale or a frame cap, so on that release both depend on
+     * this profile's own Performance or Battery choice. Kept as a field rather than an SDK read here
+     * so the state stays a plain value and the ViewModel is the one place that consults the build.
+     */
+    val gameModeModeNeutral: Boolean = false,
     val hudLayouts: List<NamedOption> = emptyList(),
     val crosshairs: List<NamedOption> = emptyList(),
     val colourPresets: List<NamedOption> = emptyList(),
@@ -190,6 +207,72 @@ data class ProfileEditorUiState(
      */
     val refreshRateChoices: List<Float>
         get() = if (capabilities.hasVariableRefreshRate) capabilities.supportedRefreshRates else emptyList()
+
+    /**
+     * Frame rates this panel has no display mode for but Android's Game Mode can cap.
+     *
+     * The case the feature exists for is 30 FPS on a 60 Hz-only screen. Values the panel already
+     * lists are excluded — those belong to the refresh-rate pin, where the display really does
+     * change — and a rate above the panel's highest is excluded too, because capping there would
+     * change nothing. Empty when Game Mode is unavailable: without it there is no honest way to
+     * deliver a rate the panel does not have.
+     */
+    val frameCapChoices: List<Int>
+        get() {
+            if (!gameModeAvailable) return emptyList()
+            val rates = capabilities.supportedRefreshRates
+            val highest = rates.maxOrNull() ?: return emptyList()
+            return GameMode.FPS_CHOICES.filter { fps ->
+                fps <= highest + 0.5f && rates.none { kotlin.math.abs(it - fps) <= 0.5f }
+            }
+        }
+
+    /**
+     * Everything the refresh-rate row offers: the panel's own modes first, then frame caps.
+     *
+     * One row rather than two because both write [GameProfile.targetRefreshRate], and a second row
+     * editing the same field would let the user set a rate in one control that the other then
+     * appeared to contradict.
+     */
+    val refreshRateOptions: List<Float>
+        get() = refreshRateChoices + frameCapChoices.map { it.toFloat() }
+
+    /** True when [rate] is delivered as a frame cap rather than a display mode. */
+    fun isFrameCapRate(rate: Float): Boolean =
+        GameMode.frameCapRate(rate, capabilities.supportedRefreshRates) != null
+
+    /**
+     * True when this profile's render scale will actually go through Game Mode.
+     *
+     * [gameModeAvailable] says the device can run `cmd game`; this adds the per-profile condition
+     * Android 13 imposes. A Balanced or Custom profile on 13 falls back to the whole-display route,
+     * and the note under the scale says so rather than promising a scoped change.
+     */
+    val renderScaleUsesGameMode: Boolean
+        get() {
+            if (!gameModeAvailable) return false
+            if (gameModeModeNeutral) return true
+            val mode = profile?.performanceMode ?: return false
+            return GameMode.modeFor(mode) != null
+        }
+
+    /**
+     * True when a frame cap is on offer but this profile has not selected the mode Android 13 needs.
+     *
+     * The choice stays visible rather than being hidden until a mode is picked: it is the same
+     * [GameProfile.targetRefreshRate] field, and hiding half its values depending on another field
+     * would make the row appear to change under the user. The note beside it says what will happen.
+     */
+    val frameCapNeedsMode: Boolean
+        get() = gameModeAvailable && !gameModeModeNeutral &&
+            (profile?.performanceMode?.let { GameMode.modeFor(it) } == null)
+
+    /** The label for one [refreshRateOptions] entry, honest about which transport it uses. */
+    fun refreshRateLabel(rate: Float?): String = when {
+        rate == null -> "Leave alone"
+        isFrameCapRate(rate) -> "${rate.toInt()} FPS cap"
+        else -> "${rate.toInt()} Hz"
+    }
 
     /**
      * The shapes this display can be stretched to, or empty when its size could not be read.

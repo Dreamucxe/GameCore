@@ -476,18 +476,23 @@ private fun DisplaySection(
             style = MaterialTheme.typography.bodyLarge,
         )
         Spacer(modifier = Modifier.height(6.dp))
-        if (state.refreshRateChoices.isEmpty()) {
+        if (state.refreshRateOptions.isEmpty()) {
             NoteBanner(
-                text = "This panel runs at one rate only, so there is nothing to choose.",
+                text = if (state.capabilities.hasVariableRefreshRate) {
+                    "This display's rates could not be read, so there is nothing to choose."
+                } else {
+                    "This panel runs at one rate only, and Android's Game Mode is not available to " +
+                        "cap this game's frames, so there is nothing to choose."
+                },
                 tone = Tone.Muted,
                 icon = Icons.Filled.Info,
             )
         } else {
             ChoiceRow(
-                options = listOf<Float?>(null) + state.refreshRateChoices,
+                options = listOf<Float?>(null) + state.refreshRateOptions,
                 selected = profile.targetRefreshRate,
                 onSelect = { rate -> onEdit { it.copy(targetRefreshRate = rate) } },
-                label = { rate -> if (rate == null) "Leave alone" else Formatters.hertz(rate) },
+                label = state::refreshRateLabel,
                 perRow = 3,
             )
             Spacer(modifier = Modifier.height(6.dp))
@@ -506,6 +511,23 @@ private fun DisplaySection(
                     null
                 },
             )
+            if (state.frameCapChoices.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                NoteBanner(
+                    text = "A frame cap limits how many frames the game draws; it is not a display " +
+                        "mode. The screen keeps refreshing at its own rate, and Android applies the " +
+                        "cap the next time the game launches." +
+                        if (state.frameCapNeedsMode) {
+                            " On this Android release a cap needs a Performance or Battery " +
+                                "performance mode; without one it is reported as unavailable rather " +
+                                "than applied."
+                        } else {
+                            ""
+                        },
+                    tone = if (state.frameCapNeedsMode) Tone.Warning else Tone.Muted,
+                    icon = Icons.Filled.Info,
+                )
+            }
         }
 
         RowDivider()
@@ -644,7 +666,7 @@ private fun DisplaySizeRows(
     ChoiceRow(
         options = listOf<DisplaySize?>(null) + presetSizes + listOfNotNull(custom),
         selected = chosen,
-        // A real size clears any resolution scale, since both are the one `wm size` write and the applier
+        // A real size clears any resolution scale, since both are a request about resolution and the applier
         // would otherwise have to pick between them. "Leave alone" only clears this half: it is the chip
         // that lights when a resolution *is* set, so tapping it must not wipe that resolution too.
         onSelect = { size ->
@@ -698,7 +720,7 @@ private fun DisplaySizeRows(
  *
  * Kept a row apart from the stretch chips above, and worded against them, because the two are opposites a
  * user is right to confuse. A stretch changes the screen's *shape*; a resolution scale keeps the shape and
- * lowers the *pixel count* the system reports. They are mutually exclusive — both are one `wm size` write —
+ * lowers the *pixel count* the system reports. They are mutually exclusive — both ask Android for a resolution —
  * so choosing a percentage here clears the stretch above, and [com.gamecore.domain.gaming.DisplayTarget]
  * holds the same line at apply time for a profile that arrives from an import rather than through this editor.
  *
@@ -737,17 +759,26 @@ private fun ResolutionScaleRows(
         val resolved = scale.sizeFor(physical)
         NoteBanner(
             text = if (scale == ResolutionScale.FULL) {
-                // 100% is a reset, not an override left behind: `wm size reset` clears any size rather than
-                // writing one, so there is nothing that outlives a reboot and nothing to restore. Said
-                // plainly, because next to "80%" a user reads "100%" as the same kind of thing, and it isn't.
-                "Forces this display to its native ${resolved.label} while the game is open. This clears any " +
-                    "size override rather than leaving one behind, so there is nothing to undo afterwards — " +
-                    "pick “Leave alone” instead unless a game needs native forced back over a change made " +
-                    "elsewhere."
+                // 100% is a reset, not an override left behind. Said plainly, because next to "80%" a
+                // user reads "100%" as the same kind of thing, and it isn't.
+                "Clears any render scale GameCore set for this game. With Android's Game Mode it resets " +
+                    "the game's override on its next launch; on the whole-display route it clears the " +
+                    "screen-size override. Pick “Leave alone” instead unless a game needs native forced " +
+                    "back over a change made elsewhere."
             } else {
-                "Runs this game at ${scale.label} of native — ${resolved.label} — keeping the panel's shape, " +
-                    "and puts the resolution back when it closes. Like a size override it outlives a reboot, " +
-                    "so the Home screen lists the change until GameCore has undone it."
+                "Runs this game at ${scale.label} of native — ${resolved.label} — keeping the panel's shape. " +
+                    if (state.renderScaleUsesGameMode) {
+                        "Android's Game Mode scopes this to the game and applies it the next time it " +
+                            "launches; it does not change the rest of the phone."
+                    } else if (state.gameModeAvailable) {
+                        "This Android release needs a Performance or Battery performance mode before " +
+                            "Android's Game Mode will take a render scale, so this profile changes the " +
+                            "whole display's logical resolution while the game is open and restores it " +
+                            "afterwards."
+                    } else {
+                        "Android's Game Mode is not available here, so this changes the whole display's " +
+                            "logical resolution while the game is open and restores it afterwards."
+                    }
             },
             tone = Tone.Muted,
             icon = Icons.Filled.Info,
@@ -773,13 +804,16 @@ private fun ResolutionOverrideNoticeDialog(
         title = { Text(text = "About changing resolution", style = MaterialTheme.typography.titleLarge) },
         text = {
             Text(
-                text = "Lowering a game's resolution changes the size Android reports for the whole screen " +
-                    "while the game is open, through the same privileged command as a size override. It is " +
-                    "not a guaranteed frame-rate win: a game that renders at its own resolution will not draw " +
-                    "fewer pixels because of this — only the size the system reports changes. The change is " +
-                    "made at the system level and outlives a reboot; GameCore records the current size first " +
-                    "and puts it back when the game closes, and the Home screen lists the change until it is " +
-                    "undone.\n\nYou will only see this once. Turn it back on under Games in Settings.",
+                text = "Lowering a game's render scale changes the resolution Android hands the game. " +
+                    "On Android 13+ with Shizuku, GameCore uses Android's Game Mode, so only that game " +
+                    "is affected and the change applies the next time it launches; Android 13 also " +
+                    "requires a Performance or Battery Game Mode for this, so without one GameCore " +
+                    "falls back to the whole-display route. On older Android, or when Game Mode is " +
+                    "unavailable, it changes the logical size of the whole display while the game is " +
+                    "open and puts it back afterwards. Either way it is not a guaranteed frame-rate " +
+                    "win: a game that renders at its own fixed resolution will not draw fewer pixels " +
+                    "because of this — only the size the system reports changes.\n\nYou will only see " +
+                    "this once. Turn it back on under Games in Settings.",
                 style = MaterialTheme.typography.bodyMedium,
             )
         },
@@ -1233,6 +1267,44 @@ private fun PerformanceSection(
             text = profile.performanceMode.explanation,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        NoteBanner(
+            text = "Efficiency preset: Battery mode, the lowest frame rate this device can hold, " +
+                "60% render scale, thermal step-down, and the Shizuku optimizations. Each of these " +
+                "is a field above, so you can change or clear any part of it afterwards.",
+            tone = Tone.Muted,
+            icon = Icons.Filled.Bolt,
+            action = {
+                TextButton(
+                    onClick = {
+                        // The frame target may be a Game Mode cap (30 on a 60 Hz panel), but the
+                        // thermal floor is a rung on the panel's own ladder: the machine can only
+                        // step *to* a rate the display lists, and a floor it does not list leaves
+                        // fewer than two rungs, so the switch would be on and do nothing.
+                        val lowestRate = state.refreshRateOptions.minOrNull()
+                        val lowestPanelRate = state.refreshRateChoices.minOrNull()
+                        val smallestScale = state.resolutionChoices
+                            .lastOrNull { it.scale != ResolutionScale.FULL }
+                            ?.scale
+                        onEdit {
+                            it.copy(
+                                performanceMode = PerformanceMode.BATTERY_SAVER,
+                                targetRefreshRate = lowestRate,
+                                resolutionOverride = smallestScale ?: it.resolutionOverride,
+                                displaySize = if (smallestScale != null) null else it.displaySize,
+                                thermalDownshiftEnabled = true,
+                                thermalLimitDeciCelsius = it.thermalLimitDeciCelsius
+                                    ?: DEFAULT_THERMAL_LIMIT_DECI,
+                                thermalFloorRateHz = lowestPanelRate ?: it.thermalFloorRateHz,
+                                useShizukuOptimizations = true,
+                            )
+                        }
+                    },
+                ) {
+                    Text("Apply")
+                }
+            },
         )
         RowDivider()
         SwitchRow(
@@ -1739,10 +1811,11 @@ private const val DISPLAY_SIZE_STRETCH =
  * honesty the whole feature turns on, so it is stated here rather than left for the user to discover.
  */
 private const val DISPLAY_RESOLUTION_SCALE =
-    "This keeps the screen's shape and lowers the resolution the system reports — the opposite of a stretch, " +
-        "which keeps the resolution and changes the shape. A game that renders at its own resolution will " +
-        "not draw fewer pixels because of this: it changes the size the system reports, not what the game " +
-        "chooses to draw."
+    "This keeps the screen's shape and lowers the resolution the game is handed — the opposite of a stretch, " +
+        "which keeps the resolution and changes the shape. On Android 13+ with Shizuku it is scoped to this " +
+        "game through Android's Game Mode; Android 13 only takes it alongside a Performance or Battery mode. " +
+        "Otherwise, and below 13, it changes the whole display while the game is open. Either way, a game " +
+        "that renders at its own fixed resolution will not draw fewer pixels because of this."
 
 /** Said when `wm size` could not be read and the [Observed] reason came back empty. */
 private const val DISPLAY_SIZE_UNREADABLE =

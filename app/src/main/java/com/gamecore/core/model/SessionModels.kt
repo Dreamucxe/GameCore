@@ -254,6 +254,16 @@ data class SessionSample(
     val cpuPercent: Float? = null,
     val memoryPercent: Float? = null,
     val batteryPercent: Int? = null,
+    /**
+     * Battery current at this sample, in microamps, as a magnitude.
+     *
+     * Stored because a power figure cannot be derived from [batteryPercent]: a level is not a rate.
+     * Null when the device reports no current or reports it outside the physical range the reader
+     * accepts, so an absent cell means "not measured" rather than "drew nothing".
+     */
+    val currentMicroAmps: Int? = null,
+    /** Battery voltage at this sample, in millivolts. Stored beside the current because watts need both. */
+    val voltageMilliVolts: Int? = null,
     val temperatureDeciCelsius: Int? = null,
     val refreshRate: Float? = null,
     val frameRate: Float? = null,

@@ -36,6 +36,15 @@ data class PerformanceSnapshot(
     val latency: Observed<LatencyProbe>,
     /** Only ever a value when the device exposes a readable GPU-load counter. */
     val gpu: Observed<GpuLoadSample>,
+    /**
+     * Only ever a value when the kernel exposes a readable GPU frequency.
+     *
+     * Not read on every tick by the production monitor: a GPU clock comes from devfreq sysfs, and a
+     * reading a few seconds old is still the clock the GPU is at for a temperature-style read-out.
+     * The default is the honest "not measured" value for a snapshot built outside the monitor (tests,
+     * fixtures) rather than a fabricated frequency.
+     */
+    val gpuClock: Observed<GpuClockSample> = Observed.notPresent(NO_GPU_CLOCK_READING),
     val accessLevel: AccessLevel,
     /**
      * Whether the display was running below the highest rate it reports when this snapshot was taken.
@@ -70,11 +79,17 @@ data class PerformanceSnapshot(
         cpuPercent = (cpu.overallPercent as? Observed.Value)?.value,
         memoryPercent = memory.usedPercent,
         batteryPercent = battery.levelPercent,
+        currentMicroAmps = battery.currentMicroAmps.valueOrNull,
+        voltageMilliVolts = battery.voltageMilliVolts.valueOrNull,
         temperatureDeciCelsius = (primaryTemperatureDeciCelsius as? Observed.Value)?.value,
         refreshRate = (display.currentRefreshRate as? Observed.Value)?.value,
         frameRate = (frameRate as? Observed.Value)?.value?.averageFps,
         latencyMillis = (latency as? Observed.Value)?.value?.millis,
     )
+
+    private companion object {
+        const val NO_GPU_CLOCK_READING = "No GPU clock reading was taken."
+    }
 }
 
 /**

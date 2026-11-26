@@ -967,6 +967,26 @@ internal object GameCoreMigrations {
         }
     }
 
+    /**
+     * Version 24 → 25: the two battery readings a power figure is built from.
+     *
+     * `session_samples` gains a nullable integer for current in microamps and one for voltage in
+     * millivolts. They are appended, nullable and with no default because a sample written before
+     * this version has no such measurement, and a default of zero would read as a measured no-draw
+     * — the one claim the FPS-per-watt readout must never make. Nothing is rewritten; old sessions
+     * simply report no power figure.
+     */
+    val MIGRATION_24_25 = object : Migration(24, 25) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "ALTER TABLE `session_samples` ADD COLUMN `current_microamps` INTEGER",
+            )
+            db.execSQL(
+                "ALTER TABLE `session_samples` ADD COLUMN `voltage_millivolts` INTEGER",
+            )
+        }
+    }
+
     /** Every migration, in order, for [androidx.room.RoomDatabase.Builder.addMigrations]. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
@@ -992,5 +1012,6 @@ internal object GameCoreMigrations {
         MIGRATION_21_22,
         MIGRATION_22_23,
         MIGRATION_23_24,
+        MIGRATION_24_25,
     )
 }
