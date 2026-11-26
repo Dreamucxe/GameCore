@@ -26,7 +26,7 @@
   <a href="#security">Security</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#building">Build</a> ·
-  <a href="#release-history">History</a>
+  <a href="#earlier-releases">History</a>
 </p>
 
 > [!IMPORTANT]
@@ -392,6 +392,8 @@ The notes below are preserved from the releases that led here. Expand the block 
 </table>
 
 </details>
+
+For 3.17 and earlier, see [Release history](#release-history).
 
 ---
 
@@ -997,7 +999,7 @@ One thing touches the network, and it is honest about it on the screen it belong
 
 ## Release history
 
-Older releases, preserved. Expand any version for the full notes.
+*3.17 and earlier — preserved as written.*
 
 <details>
 <summary><strong>3.17.0 — Tilt training for phones without a gyroscope</strong></summary>
