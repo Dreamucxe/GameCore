@@ -19,6 +19,8 @@
   "common.on": "Engegat",
   "common.off": "Apagat",
   "common.loading": "S'està carregant…",
+  "startup.preparing": "S'estan preparant els complements i el tema…",
+  "startup.ready": "A punt",
   "common.error": "Alguna cosa ha fallat",
   "nav.home": "Inici",
   "nav.games": "Jocs",

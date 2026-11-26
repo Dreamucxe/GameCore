@@ -35,6 +35,19 @@ object WhatsNewRegistry {
 
     val releases: List<ReleaseNote> = listOf(
         ReleaseNote(
+            versionCode = 75,
+            versionName = "5.13.1",
+            date = "2026-11-26",
+            features = listOf(
+                FeatureNote(
+                    "Startup lines in every language",
+                    "The startup mask's preparing and ready lines now have translations in all 51 " +
+                        "catalogues. Before this, 50 languages fell back to English for those two " +
+                        "lines while the rest of the screen stayed translated.",
+                ),
+            ),
+        ),
+        ReleaseNote(
             versionCode = 74,
             versionName = "5.13.0",
             date = "2026-11-25",

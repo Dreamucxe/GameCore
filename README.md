@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version 5.13.0" src="https://img.shields.io/badge/version-5.13.0-7C5CFF?style=flat-square">
+  <img alt="Version 5.13.1" src="https://img.shields.io/badge/version-5.13.1-7C5CFF?style=flat-square">
   <img alt="Android 8.0 or newer" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white">
   <img alt="No root required" src="https://img.shields.io/badge/No%20root-required-2EA043?style=flat-square">
   <img alt="No telemetry" src="https://img.shields.io/badge/No%20telemetry-offline-FF8FB1?style=flat-square">
@@ -18,7 +18,7 @@
 <p align="center"><sub><strong>No root</strong> · <strong>No account</strong> · <strong>No backend</strong> · <strong>No analytics</strong> · <strong>Sideload only</strong></sub></p>
 
 <p align="center">
-  <a href="#whats-new-in-5130">What's new in 5.13</a> ·
+  <a href="#whats-new-in-5131">What's new in 5.13.1</a> ·
   <a href="#at-a-glance">At a glance</a> ·
   <a href="#screens">Screens</a> ·
   <a href="#install">Install</a> ·
@@ -31,6 +31,17 @@
 
 > [!IMPORTANT]
 > **The rule:** if GameCore cannot measure it, it says so. A missing reading is shown as *unavailable*, with the reason — never as a zero, an estimate, or a green checkmark.
+
+## What's new in 5.13.1
+
+**Released 26 November 2026.** A patch for two correctness gaps found while preparing 5.13.0.
+
+| Fix | What changed |
+| :--- | :--- |
+| **Startup lines in every language** | The startup mask's "Preparing plugins and theme…" and "Ready" lines existed only in English; all 50 translated catalogues now carry them, so no supported language falls back mid-line. |
+| **A summary counts the records it is given** | `LearningEngine.summarize` now counts every record for the requested action, as its documentation said. It had compared each record's package with the device-wide `null` context, so a per-game history produced a zero summary. Per-game cards were already separated by `summarizeAll`; the direct entry point now agrees with them. |
+
+No behaviour changed in the 5.13.0 features themselves.
 
 ## What's new in 5.13.0
 
@@ -51,7 +62,7 @@
 
 | | |
 | :--- | :--- |
-| **Latest release** | 5.13.0 · 26 November 2026 |
+| **Latest release** | 5.13.1 · 26 November 2026 |
 | **Platform** | Android 8.0+ (API 26) · `arm64-v8a` / `armeabi-v7a` |
 | **Built with** | Kotlin 2.0.21 · Jetpack Compose · Material 3 · Hilt · Room + SQLCipher |
 | **Codebase** | 1,152 Kotlin source files · roughly 293,000 lines (app, SDK, Studio) |

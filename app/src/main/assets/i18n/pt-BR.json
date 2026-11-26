@@ -19,6 +19,8 @@
   "common.on": "Ligado",
   "common.off": "Desligado",
   "common.loading": "Carregando…",
+  "startup.preparing": "Preparando os plug-ins e o tema…",
+  "startup.ready": "Pronto",
   "common.error": "Algo deu errado",
   "nav.home": "Página inicial",
   "nav.games": "Jogos",

@@ -19,6 +19,8 @@
   "common.on": "پر",
   "common.off": "آف",
   "common.loading": "لوڈ ہو رہا ہے…",
+  "startup.preparing": "پلگ انز اور تھیم تیار ہو رہے ہیں…",
+  "startup.ready": "تیار",
   "common.error": "کچھ غلط ہو گیا۔",
   "nav.home": "گھر",
   "nav.games": "گیمز",

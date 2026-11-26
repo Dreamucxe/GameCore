@@ -19,6 +19,8 @@
   "common.on": "Ieslēgts",
   "common.off": "Izslēgts",
   "common.loading": "Ielāde…",
+  "startup.preparing": "Notiek spraudņu un tēmas sagatavošana…",
+  "startup.ready": "Gatavs",
   "common.error": "Kaut kas nogāja greizi",
   "nav.home": "Sākums",
   "nav.games": "Spēles",

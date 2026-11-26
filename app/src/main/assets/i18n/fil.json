@@ -19,6 +19,8 @@
   "common.on": "Naka-on",
   "common.off": "Naka-off",
   "common.loading": "Naglo-load…",
+  "startup.preparing": "Inihahanda ang mga plugin at tema…",
+  "startup.ready": "Handa na",
   "common.error": "May nangyaring mali",
   "nav.home": "Home",
   "nav.games": "Mga laro",

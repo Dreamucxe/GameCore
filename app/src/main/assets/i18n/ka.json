@@ -19,6 +19,8 @@
   "common.on": "ჩართული",
   "common.off": "გამორთული",
   "common.loading": "იტვირთება…",
+  "startup.preparing": "მიმდინარეობს პლაგინებისა და თემის მომზადება…",
+  "startup.ready": "მზადაა",
   "common.error": "რაღაც შეცდომა მოხდა",
   "nav.home": "მთავარი",
   "nav.games": "თამაშები",

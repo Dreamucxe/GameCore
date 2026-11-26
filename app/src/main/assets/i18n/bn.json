@@ -19,6 +19,8 @@
   "common.on": "চালু",
   "common.off": "বন্ধ",
   "common.loading": "লোড হচ্ছে...",
+  "startup.preparing": "প্লাগইন ও থিম প্রস্তুত হচ্ছে...",
+  "startup.ready": "প্রস্তুত",
   "common.error": "কিছু ভুল হয়েছে",
   "nav.home": "বাড়ি",
   "nav.games": "গেমস",

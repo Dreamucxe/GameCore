@@ -19,6 +19,8 @@
   "common.on": "Ενεργό",
   "common.off": "Απενεργοποίηση",
   "common.loading": "Φόρτωση…",
+  "startup.preparing": "Προετοιμασία πρόσθετων και θέματος…",
+  "startup.ready": "Έτοιμο",
   "common.error": "Κάτι πήγε στραβά",
   "nav.home": "Σπίτι",
   "nav.games": "Παιχνίδια",

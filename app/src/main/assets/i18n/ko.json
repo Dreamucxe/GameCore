@@ -19,6 +19,8 @@
   "common.on": "켜짐",
   "common.off": "끄기",
   "common.loading": "로드 중…",
+  "startup.preparing": "플러그인과 테마를 준비하는 중…",
+  "startup.ready": "준비됨",
   "common.error": "문제가 발생했습니다.",
   "nav.home": "홈",
   "nav.games": "게임",

@@ -19,6 +19,8 @@
   "common.on": "पर",
   "common.off": "बंद",
   "common.loading": "लोड हो रहा है...",
+  "startup.preparing": "प्लगइन्स और थीम तैयार हो रहे हैं...",
+  "startup.ready": "तैयार",
   "common.error": "कुछ ग़लत हो गया",
   "nav.home": "घर",
   "nav.games": "खेल",

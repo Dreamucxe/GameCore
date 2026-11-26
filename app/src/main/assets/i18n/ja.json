@@ -19,6 +19,8 @@
   "common.on": "オン",
   "common.off": "オフ",
   "common.loading": "読み込み中…",
+  "startup.preparing": "プラグインとテーマを準備しています…",
+  "startup.ready": "準備完了",
   "common.error": "何か問題が発生しました",
   "nav.home": "ホーム",
   "nav.games": "ゲーム",

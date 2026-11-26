@@ -19,6 +19,8 @@
   "common.on": "Açık",
   "common.off": "Kapalı",
   "common.loading": "Yükleniyor…",
+  "startup.preparing": "Eklentiler ve tema hazırlanıyor…",
+  "startup.ready": "Hazır",
   "common.error": "Bir şeyler ters gitti",
   "nav.home": "Ana sayfa",
   "nav.games": "Oyunlar",

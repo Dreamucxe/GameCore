@@ -19,6 +19,8 @@
   "common.on": "Auf",
   "common.off": "Aus",
   "common.loading": "Laden…",
+  "startup.preparing": "Plugins und Thema werden vorbereitet…",
+  "startup.ready": "Bereit",
   "common.error": "Etwas ist schief gelaufen",
   "nav.home": "Zuhause",
   "nav.games": "Spiele",

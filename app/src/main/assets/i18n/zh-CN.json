@@ -19,6 +19,8 @@
   "common.on": "开",
   "common.off": "关闭",
   "common.loading": "加载中...",
+  "startup.preparing": "正在准备插件和主题...",
+  "startup.ready": "就绪",
   "common.error": "出了点问题",
   "nav.home": "首页",
   "nav.games": "游戏",

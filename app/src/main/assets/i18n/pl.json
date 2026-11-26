@@ -19,6 +19,8 @@
   "common.on": "Włączone",
   "common.off": "Wyłączone",
   "common.loading": "Ładowanie…",
+  "startup.preparing": "Przygotowywanie wtyczek i motywu…",
+  "startup.ready": "Gotowe",
   "common.error": "Coś poszło nie tak",
   "nav.home": "Dom",
   "nav.games": "Gry",

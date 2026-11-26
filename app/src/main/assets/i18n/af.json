@@ -19,6 +19,8 @@
   "common.on": "Aan",
   "common.off": "Af",
   "common.loading": "Laai tans…",
+  "startup.preparing": "Inproppe en tema word voorberei…",
+  "startup.ready": "Gereed",
   "common.error": "Iets het fout gegaan",
   "nav.home": "Tuis",
   "nav.games": "Speletjies",

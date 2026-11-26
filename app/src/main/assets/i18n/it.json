@@ -19,6 +19,8 @@
   "common.on": "Su",
   "common.off": "Spento",
   "common.loading": "Caricamento…",
+  "startup.preparing": "Preparazione di plugin e tema…",
+  "startup.ready": "Pronto",
   "common.error": "Qualcosa è andato storto",
   "nav.home": "Casa",
   "nav.games": "Giochi",

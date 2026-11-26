@@ -19,6 +19,8 @@
   "common.on": "Aan",
   "common.off": "Uit",
   "common.loading": "Laden...",
+  "startup.preparing": "Plug-ins en thema worden voorbereid...",
+  "startup.ready": "Gereed",
   "common.error": "Er is iets misgegaan",
   "nav.home": "Thuis",
   "nav.games": "Spellen",

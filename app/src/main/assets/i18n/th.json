@@ -19,6 +19,8 @@
   "common.on": "เปิด",
   "common.off": "ปิด",
   "common.loading": "กำลังโหลด...",
+  "startup.preparing": "กำลังเตรียมปลั๊กอินและธีม...",
+  "startup.ready": "พร้อม",
   "common.error": "มีบางอย่างผิดพลาด",
   "nav.home": "บ้าน",
   "nav.games": "เกมส์",

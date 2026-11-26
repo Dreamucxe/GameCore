@@ -19,6 +19,8 @@
   "common.on": "Қосулы",
   "common.off": "Өшірулі",
   "common.loading": "Жүктелуде…",
+  "startup.preparing": "Плагиндер мен тақырып дайындалуда…",
+  "startup.ready": "Дайын",
   "common.error": "Бірдеңе дұрыс болмады",
   "nav.home": "Басты бет",
   "nav.games": "Ойындар",

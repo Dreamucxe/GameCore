@@ -19,6 +19,8 @@
   "common.on": "Til",
   "common.off": "Fra",
   "common.loading": "Indlæser…",
+  "startup.preparing": "Forbereder plugins og tema…",
+  "startup.ready": "Klar",
   "common.error": "Noget gik galt",
   "nav.home": "Hjem",
   "nav.games": "Spil",

@@ -19,6 +19,8 @@
   "common.on": "Imewashwa",
   "common.off": "Imezimwa",
   "common.loading": "Inapakia…",
+  "startup.preparing": "Inatayarisha programu jalizi na mandhari…",
+  "startup.ready": "Tayari",
   "common.error": "Hitilafu imetokea",
   "nav.home": "Mwanzo",
   "nav.games": "Michezo",

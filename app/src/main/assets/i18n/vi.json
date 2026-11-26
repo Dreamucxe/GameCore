@@ -19,6 +19,8 @@
   "common.on": "Bật",
   "common.off": "Tắt",
   "common.loading": "Đang tải…",
+  "startup.preparing": "Đang chuẩn bị plugin và chủ đề…",
+  "startup.ready": "Sẵn sàng",
   "common.error": "Đã xảy ra lỗi",
   "nav.home": "Trang chủ",
   "nav.games": "Trò chơi",

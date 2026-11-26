@@ -19,6 +19,8 @@
   "common.on": "På",
   "common.off": "Av",
   "common.loading": "Laster…",
+  "startup.preparing": "Forbereder utvidelser og tema…",
+  "startup.ready": "Klar",
   "common.error": "Noe gikk galt",
   "nav.home": "Hjem",
   "nav.games": "Spill",

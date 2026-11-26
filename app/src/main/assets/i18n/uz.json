@@ -19,6 +19,8 @@
   "common.on": "Yoqilgan",
   "common.off": "O‘chirilgan",
   "common.loading": "Yuklanmoqda…",
+  "startup.preparing": "Plaginlar va mavzu tayyorlanmoqda…",
+  "startup.ready": "Tayyor",
   "common.error": "Nimadir xato ketdi",
   "nav.home": "Asosiy sahifa",
   "nav.games": "O‘yinlar",

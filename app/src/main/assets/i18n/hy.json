@@ -19,6 +19,8 @@
   "common.on": "Միացված",
   "common.off": "Անջատված",
   "common.loading": "Բեռնվում է…",
+  "startup.preparing": "Պլագինները և թեման պատրաստվում են…",
+  "startup.ready": "Պատրաստ է",
   "common.error": "Ինչ-որ բան սխալ ընթացավ",
   "nav.home": "Գլխավոր",
   "nav.games": "Խաղեր",

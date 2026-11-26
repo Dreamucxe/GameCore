@@ -19,6 +19,8 @@
   "common.on": "Вкл.",
   "common.off": "Изкл.",
   "common.loading": "Зареждане…",
+  "startup.preparing": "Подготовка на плъгините и темата…",
+  "startup.ready": "Готово",
   "common.error": "Нещо се обърка",
   "nav.home": "Начало",
   "nav.games": "Игри",

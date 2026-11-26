@@ -19,6 +19,8 @@
   "common.on": "פועל",
   "common.off": "כבוי",
   "common.loading": "טוען...",
+  "startup.preparing": "מכין תוספים ונושא...",
+  "startup.ready": "מוכן",
   "common.error": "משהו השתבש",
   "nav.home": "בית",
   "nav.games": "משחקים",

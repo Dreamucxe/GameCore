@@ -19,6 +19,8 @@
   "common.on": "Vklopljeno",
   "common.off": "Izklopljeno",
   "common.loading": "Nalaganje…",
+  "startup.preparing": "Pripravljajo se vtičniki in tema…",
+  "startup.ready": "Pripravljeno",
   "common.error": "Nekaj je šlo narobe",
   "nav.home": "Domov",
   "nav.games": "Igre",

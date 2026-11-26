@@ -19,6 +19,8 @@
   "common.on": "encendido",
   "common.off": "Apagado",
   "common.loading": "Cargando…",
+  "startup.preparing": "Preparando los complementos y el tema…",
+  "startup.ready": "Listo",
   "common.error": "algo salió mal",
   "nav.home": "Inicio",
   "nav.games": "Juegos",

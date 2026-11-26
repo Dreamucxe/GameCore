@@ -19,6 +19,8 @@
   "common.on": "Pornit",
   "common.off": "Oprit",
   "common.loading": "Se încarcă…",
+  "startup.preparing": "Se pregătesc pluginurile și tema…",
+  "startup.ready": "Gata",
   "common.error": "Ceva a mers prost",
   "nav.home": "Acasă",
   "nav.games": "Jocuri",

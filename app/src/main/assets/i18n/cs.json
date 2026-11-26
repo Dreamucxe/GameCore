@@ -19,6 +19,8 @@
   "common.on": "Zapnuto",
   "common.off": "Vypnuto",
   "common.loading": "Načítání…",
+  "startup.preparing": "Připravují se pluginy a téma…",
+  "startup.ready": "Připraveno",
   "common.error": "Něco se pokazilo",
   "nav.home": "Domů",
   "nav.games": "Hry",

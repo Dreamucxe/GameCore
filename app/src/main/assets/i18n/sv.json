@@ -19,6 +19,8 @@
   "common.on": "På",
   "common.off": "Av",
   "common.loading": "Laddar…",
+  "startup.preparing": "Förbereder insticksprogram och tema…",
+  "startup.ready": "Klar",
   "common.error": "Något gick fel",
   "nav.home": "Hem",
   "nav.games": "Spel",

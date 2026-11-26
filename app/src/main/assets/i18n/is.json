@@ -19,6 +19,8 @@
   "common.on": "Kveikt",
   "common.off": "Slökkt",
   "common.loading": "Hleð…",
+  "startup.preparing": "Viðbætur og þema í undirbúningi…",
+  "startup.ready": "Tilbúið",
   "common.error": "Eitthvað fór úrskeiðis",
   "nav.home": "Heim",
   "nav.games": "Leikir",

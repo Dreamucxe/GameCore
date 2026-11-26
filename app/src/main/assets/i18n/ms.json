@@ -19,6 +19,8 @@
   "common.on": "hidup",
   "common.off": "Mati",
   "common.loading": "Memuatkan…",
+  "startup.preparing": "Menyediakan pemalam dan tema…",
+  "startup.ready": "Sedia",
   "common.error": "Sesuatu telah berlaku",
   "nav.home": "Rumah",
   "nav.games": "Permainan",

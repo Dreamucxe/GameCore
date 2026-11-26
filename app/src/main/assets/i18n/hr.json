@@ -19,6 +19,8 @@
   "common.on": "Uklj.",
   "common.off": "Isklj.",
   "common.loading": "Učitavanje…",
+  "startup.preparing": "Pripremaju se dodaci i tema…",
+  "startup.ready": "Spremno",
   "common.error": "Nešto je pošlo po zlu",
   "nav.home": "Početna",
   "nav.games": "Igre",

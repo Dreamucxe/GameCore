@@ -19,6 +19,8 @@
   "common.on": "على",
   "common.off": "إيقاف",
   "common.loading": "جارٍ التحميل…",
+  "startup.preparing": "جارٍ تحضير الإضافات والموضوع…",
+  "startup.ready": "جاهز",
   "common.error": "حدث خطأ ما",
   "nav.home": "الصفحة الرئيسية",
   "nav.games": "العاب",

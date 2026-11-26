@@ -19,6 +19,8 @@
   "common.on": "Увімкнено",
   "common.off": "Вимкнено",
   "common.loading": "Завантаження…",
+  "startup.preparing": "Підготовка плагінів і теми…",
+  "startup.ready": "Готово",
   "common.error": "Щось пішло не так",
   "nav.home": "додому",
   "nav.games": "Ігри",

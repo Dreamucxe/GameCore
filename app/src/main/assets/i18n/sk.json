@@ -19,6 +19,8 @@
   "common.on": "Zapnuté",
   "common.off": "Vypnuté",
   "common.loading": "Načítava sa...",
+  "startup.preparing": "Pripravujú sa pluginy a téma...",
+  "startup.ready": "Pripravené",
   "common.error": "Niečo sa pokazilo",
   "nav.home": "Domov",
   "nav.games": "Hry",

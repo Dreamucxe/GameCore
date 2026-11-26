@@ -19,6 +19,8 @@
   "common.on": "Be",
   "common.off": "Ki",
   "common.loading": "Betöltés…",
+  "startup.preparing": "Beépülő modulok és téma előkészítése…",
+  "startup.ready": "Kész",
   "common.error": "Valami elromlott",
   "nav.home": "Otthon",
   "nav.games": "Játékok",

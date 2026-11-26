@@ -19,6 +19,8 @@
   "common.on": "Päällä",
   "common.off": "Pois",
   "common.loading": "Ladataan…",
+  "startup.preparing": "Valmistellaan liitännäisiä ja teemaa…",
+  "startup.ready": "Valmis",
   "common.error": "Jokin meni pieleen",
   "nav.home": "Etusivu",
   "nav.games": "Pelit",

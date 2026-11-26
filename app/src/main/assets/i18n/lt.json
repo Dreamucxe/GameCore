@@ -19,6 +19,8 @@
   "common.on": "Įjungta",
   "common.off": "Išjungta",
   "common.loading": "Įkeliama…",
+  "startup.preparing": "Ruošiami papildiniai ir tema…",
+  "startup.ready": "Paruošta",
   "common.error": "Kažkas nepavyko",
   "nav.home": "Pradžia",
   "nav.games": "Žaidimai",

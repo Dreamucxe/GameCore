@@ -19,6 +19,8 @@
   "common.on": "Укљ.",
   "common.off": "Искљ.",
   "common.loading": "Учитавање…",
+  "startup.preparing": "Припремају се додаци и тема…",
+  "startup.ready": "Спремно",
   "common.error": "Нешто је пошло наопако",
   "nav.home": "Почетна",
   "nav.games": "Игре",

@@ -19,6 +19,8 @@
   "common.on": "開",
   "common.off": "關閉",
   "common.loading": "加載中...",
+  "startup.preparing": "正在準備外掛與主題...",
+  "startup.ready": "就緒",
   "common.error": "出了點問題",
   "nav.home": "首頁",
   "nav.games": "遊戲",

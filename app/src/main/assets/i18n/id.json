@@ -19,6 +19,8 @@
   "common.on": "Aktif",
   "common.off": "Mati",
   "common.loading": "Memuat…",
+  "startup.preparing": "Menyiapkan plugin dan tema…",
+  "startup.ready": "Siap",
   "common.error": "Ada yang tidak beres",
   "nav.home": "Rumah",
   "nav.games": "Permainan",

@@ -19,6 +19,8 @@
   "common.on": "روشن",
   "common.off": "خاموش",
   "common.loading": "در حال بارگیری…",
+  "startup.preparing": "در حال آماده‌سازی پلاگین‌ها و موضوع…",
+  "startup.ready": "آماده",
   "common.error": "مشکلی پیش آمد",
   "nav.home": "صفحه اصلی",
   "nav.games": "بازی ها",

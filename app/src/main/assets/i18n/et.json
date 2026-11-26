@@ -19,6 +19,8 @@
   "common.on": "Sees",
   "common.off": "Väljas",
   "common.loading": "Laadimine…",
+  "startup.preparing": "Pluginade ja teema ettevalmistamine…",
+  "startup.ready": "Valmis",
   "common.error": "Midagi läks valesti",
   "nav.home": "Avaleht",
   "nav.games": "Mängud",

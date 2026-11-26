@@ -82,7 +82,12 @@ object LearningEngine {
      * path so records from different games and goals are never mixed.
      */
     fun summarize(records: List<LearningRecord>, actionKey: String): LearningSummary =
-        summarizeContext(records, actionKey, gamePackage = null, goal = null)
+        summarizeRecords(
+            mine = records.filter { it.actionKey == actionKey },
+            actionKey = actionKey,
+            gamePackage = null,
+            goal = null,
+        )
 
     private fun summarizeContext(
         records: List<LearningRecord>,
@@ -95,6 +100,15 @@ object LearningEngine {
                 it.gamePackage == gamePackage &&
                 (goal == null || it.goal == goal)
         }
+        return summarizeRecords(mine, actionKey, gamePackage, goal)
+    }
+
+    private fun summarizeRecords(
+        mine: List<LearningRecord>,
+        actionKey: String,
+        gamePackage: String?,
+        goal: OptimizationGoal?,
+    ): LearningSummary {
         val generated = mine.count { it.decision == LearningDecision.GENERATED }
         val applied = mine.count { it.decision == LearningDecision.APPLIED }
         // A failed attempt and a write that could not be read back are both non-applications.
