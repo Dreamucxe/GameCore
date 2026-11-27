@@ -34,7 +34,7 @@
 
 ## What's new in 5.13.1
 
-**Released 26 November 2026.** A patch for two correctness gaps found while preparing 5.13.0.
+**Released 27 November 2026.** A patch for two correctness gaps found while preparing 5.13.0.
 
 | Fix | What changed |
 | :--- | :--- |
@@ -62,7 +62,7 @@ No behaviour changed in the 5.13.0 features themselves.
 
 | | |
 | :--- | :--- |
-| **Latest release** | 5.13.1 · 26 November 2026 |
+| **Latest release** | 5.13.1 · 27 November 2026 |
 | **Platform** | Android 8.0+ (API 26) · `arm64-v8a` / `armeabi-v7a` |
 | **Built with** | Kotlin 2.0.21 · Jetpack Compose · Material 3 · Hilt · Room + SQLCipher |
 | **Codebase** | 1,152 Kotlin source files · roughly 293,000 lines (app, SDK, Studio) |
